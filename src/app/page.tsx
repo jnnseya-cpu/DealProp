@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { runDealDirector } from "@/domain/director";
 import { dealRevenue } from "@/domain/revenue";
 import { HEAT_LABELS, scoreGoldMine } from "@/domain/goldmine";
@@ -86,6 +87,8 @@ function Nav() {
           </span>
         </div>
         <div className="hidden items-center gap-8 text-sm text-ink-300 lg:flex">
+          <Link href="/deals" className="transition hover:text-ink-100">Deals</Link>
+          <Link href="/sell" className="transition hover:text-ink-100">Sell</Link>
           <a href="#engine" className="transition hover:text-ink-100">Deal Engine</a>
           <a href="#stack" className="transition hover:text-ink-100">Capital</a>
           <a href="#goldmine" className="transition hover:text-ink-100">GoldMine</a>
@@ -94,9 +97,12 @@ function Nav() {
         </div>
         <div className="flex items-center gap-3">
           <button className="hidden text-sm text-ink-300 transition hover:text-ink-100 sm:block">Sign in</button>
-          <button className="rounded-full bg-lode-400 px-4 py-2 text-sm font-medium text-ink-950 transition hover:bg-lode-300">
+          <Link
+            href="/sell"
+            className="rounded-full bg-lode-400 px-4 py-2 text-sm font-medium text-ink-950 transition hover:bg-lode-300"
+          >
             Get deal options
-          </button>
+          </Link>
         </div>
       </div>
     </nav>
@@ -159,12 +165,18 @@ function Hero({
           </p>
 
           <div className="mt-10 flex flex-wrap items-center gap-3">
-            <button className="rounded-full bg-lode-400 px-6 py-3 text-sm font-medium text-ink-950 transition hover:bg-lode-300">
+            <Link
+              href="/sell"
+              className="rounded-full bg-lode-400 px-6 py-3 text-sm font-medium text-ink-950 transition hover:bg-lode-300"
+            >
               Get my deal options
-            </button>
-            <button className="rounded-full border hairline px-6 py-3 text-sm text-ink-200 transition hover:border-ink-400 hover:text-ink-100">
-              Create a Buy Box
-            </button>
+            </Link>
+            <Link
+              href="/deals"
+              className="rounded-full border hairline px-6 py-3 text-sm text-ink-200 transition hover:border-ink-400 hover:text-ink-100"
+            >
+              Browse the pipeline
+            </Link>
           </div>
 
           <dl className="mt-14 grid max-w-lg grid-cols-3 gap-6 border-t hairline pt-8">
