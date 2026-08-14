@@ -9,6 +9,7 @@ How Lode is put together, why it is shaped this way, and where to extend it.
 ```
   ┌──────────────────────────────────────────────┐
   │  src/app          Next.js pages (server)     │  renders, never computes
+  │    components/chrome.tsx  shared UI vocabulary│
   ├──────────────────────────────────────────────┤
   │  src/store        Repository over JSON        │  no domain logic
   ├──────────────────────────────────────────────┤
@@ -34,7 +35,7 @@ How Lode is put together, why it is shaped this way, and where to extend it.
 **Dependency rule:** arrows point downward only. `src/domain` imports nothing
 from `src/app` or `src/store`. The store imports domain *types* but no domain
 *functions*. This is what makes the engine testable without a browser, a
-database or a network, and it is why 97 tests run in under a second.
+database or a network, and it is why 125 tests run in under a second.
 
 **The single-source rule:** the UI never computes a figure. `runDealDirector()`
 returns one coherent position, and the page renders it. This is why the
@@ -174,18 +175,30 @@ assert that a structure is permitted.
 
 ---
 
-## 8. Build order from here
+## 8. Shared UI vocabulary
 
-1. **Seller intake** (`/sell`) — narrative → `diagnoseSeller` → routes, with the
-   `requiredDisclosures` rendered before any option is acceptable. Highest value:
-   it is the supply engine.
-2. **Deal Room** (`/deals/[id]`) — the `DirectorBriefing` already contains
-   everything this page needs.
-3. **Buy Box / Funding Box** (`/invest`, `/capital`) — CRUD over the existing
-   store plus `rankMatches`.
-4. **Postgres** — once concurrent writes are real.
-5. **Auth and investor categorisation** — required before any deal material
+`src/app/components/chrome.tsx` holds everything visual that more than one page
+needs: the mark, the header, the verdict labels and colours, the score scale.
+These had each been re-implemented per page, which is how a verdict ends up
+labelled "Negotiate" on one screen and something else on another. One
+definition each.
+
+The same rule applies to `src/lib/format.ts`, which is pure and framework-free
+so the domain layer can use it. Five modules had each grown a private `fmt()`
+that formatted pounds slightly differently — money shown to a seller in one
+place and a lender in another must be formatted identically, or the figures
+look like they disagree when they do not. Tailwind class helpers deliberately
+live in chrome.tsx rather than lib/format, because lib/format is a domain
+dependency and colour is not.
+
+## 9. Build order from here
+
+1. **Buy Box / Funding Box** (`/invest`, `/capital`) — CRUD over the existing
+   store plus `rankMatches`. Closes the third marketplace.
+2. **Investment Memorandum** — print view of the same `DirectorBriefing`.
+3. **Postgres** — once concurrent writes are real.
+4. **Auth and investor categorisation** — required before any deal material
    reaches a private investor. See `docs/REGULATORY.md` §2.
-6. **GoldMine adapter** — only after a licensed data source exists.
+5. **GoldMine adapter** — only after a licensed data source exists.
 
-Items 1–3 need no new engine work. That is the point of the layering.
+Items 1–2 need no new engine work. That is the point of the layering.

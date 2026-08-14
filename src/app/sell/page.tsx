@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { SellForm } from "./SellForm";
+import { SiteHeader } from "@/app/components/chrome";
 
 export const metadata = {
   title: "Sell — Lode",
@@ -9,18 +9,10 @@ export const metadata = {
 export default function SellPage() {
   return (
     <main className="min-h-screen">
-      <header className="border-b hairline">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-5">
-          <Link href="/" className="flex items-center gap-3">
-            <svg width="22" height="22" viewBox="0 0 26 26" fill="none" aria-hidden>
-              <path d="M13 2 3 8v10l10 6 10-6V8L13 2Z" stroke="var(--color-lode-400)" strokeWidth="1.3" />
-              <path d="M8 11.5 13 8.5l5 3v5.5l-5 3-5-3v-5.5Z" fill="var(--color-lode-400)" fillOpacity="0.22" />
-            </svg>
-            <span className="font-display text-lg text-ink-100">Lode</span>
-          </Link>
-          <span className="text-xs text-ink-500">Free for sellers. No obligation.</span>
-        </div>
-      </header>
+      <SiteHeader
+        width="max-w-3xl"
+        trailing={<span className="text-xs text-ink-500">Free for sellers. No obligation.</span>}
+      />
 
       <div className="mx-auto max-w-3xl px-6 pt-14">
         <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">Sell</span>

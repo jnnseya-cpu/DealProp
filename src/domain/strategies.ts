@@ -1,4 +1,5 @@
 import { money, ratioBps, sub, ZERO, type Bps, type Money } from "@/lib/money";
+import { gbp } from "@/lib/format";
 import { appraise, maxViablePrice } from "@/domain/economics";
 import { getJurisdiction } from "@/domain/jurisdictions";
 import { diagnoseSeller } from "@/domain/motivation";
@@ -119,7 +120,7 @@ export function routeStrategies(inputs: DealInputs): StrategyRouterReport {
         fit: 0,
         appraisal,
         fidelity,
-        reason: `Loses money after tax at this price (${fmt(appraisal.profit)}). ${describeCeiling(trial)}`,
+        reason: `Loses money after tax at this price (${gbp(appraisal.profit)}). ${describeCeiling(trial)}`,
         requires: ruling.requires,
       };
     }
@@ -284,9 +285,9 @@ export function capitalRecycle(appraisal: DealAppraisal): CapitalRecycleResult {
   } else if (recycledBps >= 7_500) {
     verdict = `${(recycledBps / 100).toFixed(0)}% of capital is returned. A modest amount stays in the deal.`;
   } else if (recycledBps >= 4_000) {
-    verdict = `Only ${(recycledBps / 100).toFixed(0)}% comes back. ${fmt(leftIn)} stays trapped in this property.`;
+    verdict = `Only ${(recycledBps / 100).toFixed(0)}% comes back. ${gbp(leftIn)} stays trapped in this property.`;
   } else {
-    verdict = `Capital does not recycle. ${fmt(leftIn)} is committed for the life of the hold.`;
+    verdict = `Capital does not recycle. ${gbp(leftIn)} is committed for the life of the hold.`;
   }
 
   return { deployed, released, leftIn, recycledBps, score, verdict };
@@ -359,11 +360,7 @@ export function buildExitMatrix(inputs: DealInputs): ExitMatrix {
 function describeCeiling(inputs: DealInputs): string {
   const ceiling = maxViablePrice(inputs, 1_500);
   return ceiling > 0
-    ? `Maximum price for a 15% margin is ${fmt(ceiling)}.`
+    ? `Maximum price for a 15% margin is ${gbp(ceiling)}.`
     : "No purchase price produces an acceptable margin.";
 }
 
-function fmt(value: Money): string {
-  const major = Math.round(value / 100);
-  return `${major < 0 ? "-" : ""}£${Math.abs(major).toLocaleString("en-GB")}`;
-}

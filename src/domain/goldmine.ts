@@ -1,4 +1,5 @@
 import { money, ratioBps, sub, type Money } from "@/lib/money";
+import { gbp } from "@/lib/format";
 import type { PropertyFacts } from "@/domain/types";
 
 /**
@@ -187,7 +188,7 @@ export function diagnoseUnsold(
     raw.push({
       cause: "Overpriced relative to comparable evidence",
       weight: Math.min(50, overpricing * 220),
-      detail: `Asking ${fmt(signal.currentAskingPrice)} against an estimated value of ${fmt(property.openMarketValue)}.`,
+      detail: `Asking ${gbp(signal.currentAskingPrice)} against an estimated value of ${gbp(property.openMarketValue)}.`,
     });
   }
 
@@ -198,7 +199,7 @@ export function diagnoseUnsold(
     raw.push({
       cause: "Substantial refurbishment required",
       weight: Math.min(35, worksShare * 130),
-      detail: `Estimated works of ${fmt(property.refurbishmentEstimate)} deter buyers needing an ordinary mortgage.`,
+      detail: `Estimated works of ${gbp(property.refurbishmentEstimate)} deter buyers needing an ordinary mortgage.`,
     });
   }
 
@@ -371,6 +372,3 @@ export function dealDensity(
     .sort((a, b) => b.densityScore - a.densityScore);
 }
 
-function fmt(value: Money): string {
-  return `£${Math.round(value / 100).toLocaleString("en-GB")}`;
-}

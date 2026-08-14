@@ -1,6 +1,33 @@
+import Link from "next/link";
 import type { Verdict } from "@/domain/types";
 
-/** Shared chrome, so the mark and the verdict vocabulary cannot drift by page. */
+/**
+ * Shared chrome.
+ *
+ * Everything visual that more than one page needs lives here: the mark, the
+ * header, the verdict vocabulary and the score colour scale. These had each
+ * been re-implemented per page, which meant a verdict could be labelled
+ * "Negotiate" in one place and "Renegotiate" in another, and the logo drifted
+ * between four copies. One definition each, imported everywhere.
+ *
+ * Tailwind class helpers live here rather than in lib/format because they are
+ * presentation, and lib/format is imported by the domain layer.
+ */
+
+/** Colour for a 0-100 score. The thresholds match the verdict bands. */
+export function scoreTone(value: number): string {
+  if (value >= 78) return "text-emerald-400";
+  if (value >= 60) return "text-amber-400";
+  if (value >= 40) return "text-orange-400";
+  return "text-red-400";
+}
+
+export function scoreBg(value: number): string {
+  if (value >= 78) return "bg-emerald-500";
+  if (value >= 60) return "bg-amber-500";
+  if (value >= 40) return "bg-orange-500";
+  return "bg-red-500";
+}
 
 export function Mark({ size = 22 }: { size?: number }) {
   return (
@@ -39,6 +66,44 @@ export const VERDICT_TONE: Record<Verdict, { label: string; chip: string; text: 
     text: "text-red-300",
   },
 };
+
+/**
+ * Page header.
+ *
+ * `width` matches the page's own container so the header rule lines up with
+ * the content beneath it. `trailing` carries whatever that page needs on the
+ * right — a reference, a score, a nav.
+ */
+export function SiteHeader({
+  width = "max-w-6xl",
+  sticky = false,
+  back = "/",
+  trailing,
+  children,
+}: {
+  width?: string;
+  sticky?: boolean;
+  back?: string;
+  trailing?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  return (
+    <header
+      className={`border-b hairline ${sticky ? "sticky top-0 z-40 bg-ink-950/85 backdrop-blur-xl" : ""}`}
+    >
+      <div className={`mx-auto flex ${width} items-center justify-between px-6 py-4`}>
+        <div className="flex items-center gap-4">
+          <Link href={back} className="flex items-center gap-3">
+            <Mark />
+            <span className="font-display text-lg text-ink-100">Lode</span>
+          </Link>
+          {children}
+        </div>
+        {trailing !== undefined && <div className="flex items-center gap-3">{trailing}</div>}
+      </div>
+    </header>
+  );
+}
 
 export function Panel({
   title,

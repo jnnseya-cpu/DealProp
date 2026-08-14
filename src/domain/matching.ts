@@ -1,4 +1,5 @@
 import { pct, type Bps, type Money } from "@/lib/money";
+import { gbp } from "@/lib/format";
 import type {
   DealAppraisal,
   JurisdictionCode,
@@ -152,7 +153,7 @@ export function matchBuyBox(
   api.hard(
     "Price range",
     a.inputs.purchasePrice >= box.minPrice && a.inputs.purchasePrice <= box.maxPrice,
-    `Price ${fmt(a.inputs.purchasePrice)} against a range of ${fmt(box.minPrice)}–${fmt(box.maxPrice)}.`,
+    `Price ${gbp(a.inputs.purchasePrice)} against a range of ${gbp(box.minPrice)}–${gbp(box.maxPrice)}.`,
   );
   api.hard(
     "Minimum margin",
@@ -175,7 +176,7 @@ export function matchBuyBox(
       ? p.refurbishmentEstimate <= box.maxRefurbishment
       : p.refurbishmentEstimate === 0,
     box.acceptsRefurbishment
-      ? `Works of ${fmt(p.refurbishmentEstimate)} against a ceiling of ${fmt(box.maxRefurbishment)}.`
+      ? `Works of ${gbp(p.refurbishmentEstimate)} against a ceiling of ${gbp(box.maxRefurbishment)}.`
       : "Mandate does not accept refurbishment projects.",
   );
 
@@ -242,12 +243,12 @@ export function matchFundingBox(
   api.hard(
     "Ticket size",
     ticket >= box.minTicket && ticket <= box.maxTicket,
-    `Facility of ${fmt(ticket)} against a range of ${fmt(box.minTicket)}–${fmt(box.maxTicket)}.`,
+    `Facility of ${gbp(ticket)} against a range of ${gbp(box.minTicket)}–${gbp(box.maxTicket)}.`,
   );
   api.hard(
     "Capital available",
     ticket <= box.capitalAvailable,
-    `Facility of ${fmt(ticket)} against ${fmt(box.capitalAvailable)} of available capital.`,
+    `Facility of ${gbp(ticket)} against ${gbp(box.capitalAvailable)} of available capital.`,
   );
   api.hard(
     "LTV ceiling",
@@ -346,6 +347,3 @@ export function countInterestedBuyers(
 
 export const DEFAULT_MIN_MARGIN: Bps = pct(15);
 
-function fmt(value: Money): string {
-  return `£${Math.round(value / 100).toLocaleString("en-GB")}`;
-}

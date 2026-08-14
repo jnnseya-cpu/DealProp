@@ -18,7 +18,7 @@ customer, and the product says so.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 97 tests
+npm test          # 125 tests
 npm run typecheck
 ```
 
@@ -26,9 +26,16 @@ npm run typecheck
 
 ## What is actually built
 
-The domain engine is complete and tested. The landing page renders live from
-it. The three marketplace UIs beyond the landing page are not yet built — see
-[Not built yet](#not-built-yet).
+Four pages are live and driven entirely by the engine. What is missing is
+listed honestly in [Not built yet](#not-built-yet).
+
+| Page | Route | What it does |
+|---|---|---|
+| Landing | `/` | Every figure computed at render time from the seeded deal |
+| Seller intake | `/sell` | Situation first, price fourth; screening feeds Seller Protection |
+| Seller options | `/sell/[id]` | Routes with what the seller receives, when, and what they give up |
+| Pipeline | `/deals` | Every opportunity scored after tax, blocked deals included |
+| Deal Room | `/deals/[id]` | Verdict, full model, Red Team, capital stack, matched mandates |
 
 | Engine | File | What it does |
 |---|---|---|
@@ -46,6 +53,9 @@ it. The three marketplace UIs beyond the landing page are not yet built — see
 | Close | `src/domain/completion.ts` | Close Score, blockers, critical path |
 | Revenue | `src/domain/revenue.ts` | Monetisation, permission-gated |
 | Deal Director | `src/domain/director.ts` | Runs everything, returns one position |
+| Seller intake | `src/domain/intake.ts` | Seller answers → engine inputs, with Truth Engine checks |
+| Seller routes | `src/domain/sellerRoutes.ts` | Inverts the engine: what the *seller* receives |
+| Working deal | `src/domain/workingDeal.ts` | Prices an enquiry that has no agreed price yet |
 
 ---
 
@@ -142,8 +152,10 @@ solver says so rather than inventing a structure.
 
 Deliberately out of scope for this slice, in rough priority order:
 
-- **Seller intake, Deal Room, Buy Box and Funding Box UIs.** The engines and
-  the file-backed store support them; only the pages are missing.
+- **Buy Box and Funding Box UIs** (`/invest`, `/capital`). Matching works and
+  is shown from the deal side, but a funder cannot yet create their own
+  mandate. This is the last of the three marketplaces.
+- **Investment Memorandum.** A print-ready pack from the same briefing.
 - **GoldMine data sourcing.** The scoring engine is complete and consumes a
   `ListingSignal` interface. No adapter is written, because the major portals
   prohibit scraping in their terms and property data carries licensing and

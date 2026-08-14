@@ -1,5 +1,18 @@
 import type { Bps, Money } from "@/lib/money";
 
+/**
+ * Formatting primitives.
+ *
+ * Pure and framework-free, so the domain layer can use them without importing
+ * anything UI-shaped. Presentation concerns — colour, tone, Tailwind classes —
+ * live in app/components/chrome.tsx, not here.
+ *
+ * This module exists because five separate modules had each grown their own
+ * private `fmt()` that formatted pounds slightly differently. Money shown to a
+ * seller in one place and a lender in another must be formatted identically or
+ * the figures look like they disagree when they do not.
+ */
+
 const GBP = new Intl.NumberFormat("en-GB", {
   style: "currency",
   currency: "GBP",
@@ -18,6 +31,7 @@ export function gbp(value: Money): string {
   return GBP.format(value / 100);
 }
 
+/** Money to the penny, for completion statements and reconciliation. */
 export function gbpPrecise(value: Money): string {
   return GBP_PRECISE.format(value / 100);
 }
@@ -43,19 +57,9 @@ export function months(value: number): string {
   return `${value} month${value === 1 ? "" : "s"}`;
 }
 
-/** Tailwind colour class for a 0-100 score. */
-export function scoreTone(value: number): string {
-  if (value >= 78) return "text-emerald-600 dark:text-emerald-400";
-  if (value >= 60) return "text-amber-600 dark:text-amber-400";
-  if (value >= 40) return "text-orange-600 dark:text-orange-400";
-  return "text-red-600 dark:text-red-400";
-}
-
-export function scoreBg(value: number): string {
-  if (value >= 78) return "bg-emerald-500";
-  if (value >= 60) return "bg-amber-500";
-  if (value >= 40) return "bg-orange-500";
-  return "bg-red-500";
+/** Pluralise a count with its noun: `count(1, "buyer")` → "1 buyer". */
+export function count(n: number, singular: string, plural = `${singular}s`): string {
+  return `${n} ${n === 1 ? singular : plural}`;
 }
 
 export function titleCase(value: string): string {

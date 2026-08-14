@@ -6,7 +6,8 @@ import { buildCloseReport } from "@/domain/completion";
 import { countInterestedBuyers, matchFundingBox, rankMatches } from "@/domain/matching";
 import { SEED_BUY_BOXES, SEED_DEALS, SEED_FUNDING_BOXES } from "@/store/seed";
 import { add, sub, type Money } from "@/lib/money";
-import { gbp, gbpSigned, percent, scoreBg, scoreTone } from "@/lib/format";
+import { gbp, gbpSigned, percent } from "@/lib/format";
+import { Mark, scoreBg, scoreTone, VERDICT_TONE } from "@/app/components/chrome";
 import { BUYER_TIERS } from "@/domain/revenue";
 
 /**
@@ -109,15 +110,6 @@ function Nav() {
   );
 }
 
-function Mark() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden>
-      <path d="M13 2 3 8v10l10 6 10-6V8L13 2Z" stroke="var(--color-lode-400)" strokeWidth="1.3" />
-      <path d="M8 11.5 13 8.5l5 3v5.5l-5 3-5-3v-5.5Z" fill="var(--color-lode-400)" fillOpacity="0.22" />
-      <path d="M13 8.5v9M8 11.5l10 5.5M18 11.5 8 17" stroke="var(--color-lode-400)" strokeWidth="0.9" strokeOpacity="0.75" />
-    </svg>
-  );
-}
 
 function Hero({
   score,
@@ -204,15 +196,9 @@ function Stat({ label, value, sub }: { label: string; value: string; sub: string
   );
 }
 
-const VERDICT_COPY: Record<string, { label: string; tone: string; ring: string }> = {
-  proceed: { label: "Proceed", tone: "text-emerald-300", ring: "border-emerald-500/40 bg-emerald-500/10" },
-  negotiate: { label: "Negotiate", tone: "text-amber-300", ring: "border-amber-500/40 bg-amber-500/10" },
-  restructure: { label: "Restructure", tone: "text-orange-300", ring: "border-orange-500/40 bg-orange-500/10" },
-  reject: { label: "Walk away", tone: "text-red-300", ring: "border-red-500/40 bg-red-500/10" },
-};
 
 function VerdictCard({ score, verdict, headline }: { score: number; verdict: string; headline: string }) {
-  const v = VERDICT_COPY[verdict] ?? VERDICT_COPY.negotiate!;
+  const v = VERDICT_TONE[verdict as keyof typeof VERDICT_TONE] ?? VERDICT_TONE.negotiate;
   return (
     <div className="overflow-hidden rounded-2xl border hairline bg-ink-900/70 shadow-2xl shadow-black/40 backdrop-blur">
       <div className="flex items-center justify-between border-b hairline px-6 py-4">
@@ -226,7 +212,7 @@ function VerdictCard({ score, verdict, headline }: { score: number; verdict: str
       <div className="grid grid-cols-[auto_1fr] gap-6 px-6 py-7">
         <ScoreDial score={score} />
         <div>
-          <div className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${v.ring} ${v.tone}`}>
+          <div className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${v.chip}`}>
             AI Deal Director: {v.label}
           </div>
           <p className="mt-3 text-sm leading-relaxed text-ink-300">{headline}</p>

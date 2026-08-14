@@ -2,8 +2,8 @@ import Link from "next/link";
 import { listDeals } from "@/store/repository";
 import { scoreDeal } from "@/domain/dealScore";
 import { toWorkingDeal } from "@/domain/workingDeal";
-import { gbp, gbpSigned, percent, scoreTone } from "@/lib/format";
-import { Mark, VERDICT_TONE } from "@/app/components/chrome";
+import { gbp, gbpSigned, percent } from "@/lib/format";
+import { scoreTone, SiteHeader, VERDICT_TONE } from "@/app/components/chrome";
 
 export const dynamic = "force-dynamic";
 
@@ -33,18 +33,14 @@ export default async function DealsPage() {
 
   return (
     <main className="min-h-screen">
-      <header className="border-b hairline">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <Link href="/" className="flex items-center gap-3">
-            <Mark />
-            <span className="font-display text-lg text-ink-100">Lode</span>
-          </Link>
+      <SiteHeader
+        trailing={
           <nav className="flex items-center gap-6 text-sm text-ink-400">
             <Link href="/deals" className="text-ink-100">Deals</Link>
             <Link href="/sell" className="transition hover:text-ink-100">Sell</Link>
           </nav>
-        </div>
-      </header>
+        }
+      />
 
       <div className="mx-auto max-w-6xl px-6 py-14">
         <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">Pipeline</span>

@@ -7,8 +7,8 @@ import { buildCloseReport } from "@/domain/completion";
 import { matchBuyBox, matchFundingBox, rankMatches, type MatchResult } from "@/domain/matching";
 import { dealRevenue } from "@/domain/revenue";
 import { add } from "@/lib/money";
-import { gbp, gbpSigned, months, percent, scoreBg, scoreTone } from "@/lib/format";
-import { KeyValue, Mark, Panel, VERDICT_TONE } from "@/app/components/chrome";
+import { gbp, gbpSigned, months, percent } from "@/lib/format";
+import { KeyValue, Panel, scoreBg, scoreTone, SiteHeader, VERDICT_TONE } from "@/app/components/chrome";
 
 export const dynamic = "force-dynamic";
 
@@ -49,25 +49,22 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
 
   return (
     <main className="min-h-screen pb-24">
-      <header className="sticky top-0 z-40 border-b hairline bg-ink-950/85 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/deals" className="flex items-center gap-3">
-              <Mark />
-              <span className="font-display text-lg text-ink-100">Lode</span>
-            </Link>
-            <span className="font-mono text-xs text-ink-500">{record.reference}</span>
-          </div>
-          <div className="flex items-center gap-3">
+      <SiteHeader
+        sticky
+        back="/deals"
+        trailing={
+          <>
             <span className={`rounded-full border px-3 py-1 text-xs ${verdict.chip}`}>
               {verdict.label}
             </span>
             <span className={`tnum font-display text-2xl ${scoreTone(scored.breakdown.composite)}`}>
               {scored.breakdown.composite}
             </span>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      >
+        <span className="font-mono text-xs text-ink-500">{record.reference}</span>
+      </SiteHeader>
 
       <div className="mx-auto max-w-6xl px-6 py-12">
         {/* --- Headline ---------------------------------------------------- */}

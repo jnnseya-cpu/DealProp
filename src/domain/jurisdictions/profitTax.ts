@@ -1,4 +1,5 @@
 import { bps, money, ratioBps, ZERO } from "@/lib/money";
+import { gbp } from "@/lib/format";
 import type { ProfitTaxAssessment, ProfitTaxInput } from "./types";
 
 /**
@@ -71,7 +72,7 @@ export function ukProfitTax(input: ProfitTaxInput): ProfitTaxAssessment {
       amount,
       label: "Corporation tax (estimated)",
       effectiveRateBps: bps(rateBps),
-      basis: `Company purchase. Profit of ${fmt(taxable)} taxed at an estimated ${(rateBps / 100).toFixed(1)}% including marginal relief interpolation.`,
+      basis: `Company purchase. Profit of ${gbp(taxable)} taxed at an estimated ${(rateBps / 100).toFixed(1)}% including marginal relief interpolation.`,
       requiresProfessionalReview: true,
       caveats,
     };
@@ -90,7 +91,7 @@ export function ukProfitTax(input: ProfitTaxInput): ProfitTaxAssessment {
       amount,
       label: "Income tax on trading profit (estimated)",
       effectiveRateBps: bps(UK_INCOME_HIGHER_BPS),
-      basis: `Individual carrying out a trade. Profit of ${fmt(taxable)} taxed at the 40% higher rate as a screening assumption.`,
+      basis: `Individual carrying out a trade. Profit of ${gbp(taxable)} taxed at the 40% higher rate as a screening assumption.`,
       requiresProfessionalReview: true,
       caveats,
     };
@@ -106,7 +107,7 @@ export function ukProfitTax(input: ProfitTaxInput): ProfitTaxAssessment {
     amount,
     label: "Capital gains tax and income tax (estimated)",
     effectiveRateBps: ratioBps(amount, money(Math.max(1, taxable + Math.max(0, rentalProfit)))),
-    basis: `Individual investor. Gain taxed at 24%; rental profit of ${fmt(money(Math.max(0, rentalProfit)))} taxed at 40%.`,
+    basis: `Individual investor. Gain taxed at 24%; rental profit of ${gbp(money(Math.max(0, rentalProfit)))} taxed at 40%.`,
     requiresProfessionalReview: true,
     caveats,
   };
@@ -130,6 +131,3 @@ export function usPlaceholderProfitTax(input: ProfitTaxInput): ProfitTaxAssessme
   };
 }
 
-function fmt(value: number): string {
-  return `£${Math.round(value / 100).toLocaleString("en-GB")}`;
-}

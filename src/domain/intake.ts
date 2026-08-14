@@ -1,4 +1,5 @@
 import { applyBps, bps, money, pct, ratioBps, sub, type Money } from "@/lib/money";
+import { gbp } from "@/lib/format";
 import type {
   JurisdictionCode,
   PropertyFacts,
@@ -144,14 +145,14 @@ export function buildIntake(answers: IntakeAnswers): IntakeResult {
         key: "asking-below-estimate",
         label: "Your estimate is above the asking price",
         status: "contradicted",
-        detail: `You estimated ${fmt(answers.sellerValuation)} but the property is marketed at ${fmt(answers.currentAsking)}. We have used the lower figure, because a property that has not sold at the asking price is unlikely to be worth more than it.`,
+        detail: `You estimated ${gbp(answers.sellerValuation)} but the property is marketed at ${gbp(answers.currentAsking)}. We have used the lower figure, because a property that has not sold at the asking price is unlikely to be worth more than it.`,
       });
     } else {
       checks.push({
         key: "asking-above-estimate",
         label: "Asking price is above your own estimate",
         status: "unverified",
-        detail: `Marketed at ${fmt(answers.currentAsking)}, which is above your own estimate of ${fmt(answers.sellerValuation)}. We have used your figure.`,
+        detail: `Marketed at ${gbp(answers.currentAsking)}, which is above your own estimate of ${gbp(answers.sellerValuation)}. We have used your figure.`,
       });
     }
   }
@@ -183,7 +184,7 @@ export function buildIntake(answers: IntakeAnswers): IntakeResult {
     key: "works-estimate",
     label: "Refurbishment estimate",
     status: "unverified",
-    detail: `${fmt(refurbishment)}, derived from the condition you described (${condition.label.toLowerCase()}). This is a planning figure, not a quotation, and a builder's estimate will differ.`,
+    detail: `${gbp(refurbishment)}, derived from the condition you described (${condition.label.toLowerCase()}). This is a planning figure, not a quotation, and a builder's estimate will differ.`,
   });
 
   checks.push({
@@ -246,6 +247,3 @@ export const CONDITIONS: readonly { value: PropertyCondition; label: string }[] 
 
 export const RENT_YIELD = pct(RENT_YIELD_BPS / 100);
 
-function fmt(value: Money): string {
-  return `£${Math.round(value / 100).toLocaleString("en-GB")}`;
-}
