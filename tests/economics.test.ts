@@ -5,6 +5,7 @@ import type { DealInputs, FinanceTerms, PropertyFacts, SellerProfile } from "@/d
 
 const finance: FinanceTerms = {
   ltvBps: pct(70),
+  refurbAdvanceBps: pct(100),
   annualRateBps: pct(12),
   arrangementFeeBps: pct(2),
   exitFeeBps: pct(1),
@@ -125,7 +126,31 @@ describe("appraisal", () => {
   it("measures return against equity, not total cost", () => {
     const a = appraise(inputs);
     expect(a.funding.equityRequired).toBeLessThan(a.costs.total);
-    expect(a.funding.seniorDebt).toBe(fromMajor(157_500)); // 70% of £225,000
+    // 70% of £225,000 purchase, plus a 100% tranche against £25,000 of works.
+    expect(a.funding.seniorDebt).toBe(fromMajor(157_500 + 25_000));
+  });
+
+  it("funds the refurbishment when the lender advances against works", () => {
+    const withWorks = appraise(inputs);
+    const purchaseOnly = appraise({
+      ...inputs,
+      finance: { ...finance, refurbAdvanceBps: pct(0) },
+    });
+    expect(withWorks.funding.seniorDebt).toBeGreaterThan(purchaseOnly.funding.seniorDebt);
+    // Funding the works is what makes a BRR deal reachable without large equity.
+    expect(withWorks.funding.equityRequired).toBeLessThan(purchaseOnly.funding.equityRequired);
+  });
+
+  it("charges interest on roughly half the works tranche, not all of it", () => {
+    // Works are drawn in arrears tranches, so charging day-one interest on the
+    // full budget would overstate the cost of every phased project.
+    const phased = appraise(inputs);
+    const drawnUpfront = appraise({
+      ...inputs,
+      property: { ...property, refurbishmentEstimate: fromMajor(0) },
+      purchasePrice: fromMajor(225_000),
+    });
+    expect(phased.costs.financeInterest).toBeGreaterThan(drawnUpfront.costs.financeInterest);
   });
 
   it("annualises return by the hold period", () => {

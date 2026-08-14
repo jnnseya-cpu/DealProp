@@ -184,9 +184,12 @@ export function scoreDeal(inputs: DealInputs): DealScoreResult {
     composite = Math.min(composite, 35);
     gates.push("seller protection block");
   }
-  if (redTeam.lossScenarios.length > 0) {
+  // Only a single-factor loss caps the composite. A deal that survives every
+  // one-variable shock and only fails the compound tail is ordinary, and
+  // capping it here would compress the whole population into one band.
+  if (redTeam.singleFactorLosses.length > 0) {
     composite = Math.min(composite, 62);
-    gates.push("capital loss under stress");
+    gates.push("capital loss when a single variable moves");
   }
   if (ruling.permission === "not-supported") {
     composite = Math.min(composite, 20);
@@ -249,14 +252,14 @@ function decideVerdict(args: {
     };
   }
 
-  if (redTeam.lossScenarios.length >= 3) {
+  if (redTeam.singleFactorLosses.length >= 2) {
     return {
       verdict: "restructure",
-      reason: `Capital is lost in ${redTeam.lossScenarios.length} stress scenarios. The deal needs less leverage, a lower price or a longer funding runway before it is safe to fund.`,
+      reason: `Capital is lost when any of ${redTeam.singleFactorLosses.length} single variables move. The deal needs less leverage, a lower price or a longer funding runway before it is safe to fund.`,
     };
   }
 
-  if (composite >= 78 && redTeam.lossScenarios.length === 0) {
+  if (composite >= 78 && redTeam.singleFactorLosses.length === 0) {
     return {
       verdict: "proceed",
       reason: "Strong economics that survive every stress scenario. Ready to present to matched capital.",

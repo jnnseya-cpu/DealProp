@@ -99,8 +99,20 @@ export function buildCapitalStack(
 
   let remaining = requirement;
 
-  // --- Layer 1: senior debt against the purchase price -------------------
-  const seniorCap = applyBps(appraisal.inputs.purchasePrice, prefs.maxSeniorLtvBps);
+  // --- Layer 1: the senior facility --------------------------------------
+  // Taken from the appraisal rather than recomputed, so the stack and the
+  // appraisal can never state different senior debt for the same deal. The
+  // preference acts as a ceiling: a funder unwilling to go past its own LTV
+  // limit constrains the facility even if the deal was modelled with more.
+  const worksTranche = applyBps(
+    appraisal.inputs.property.refurbishmentEstimate,
+    appraisal.inputs.finance.refurbAdvanceBps,
+  );
+  // The advance against the purchase is the lower of what the deal assumed and
+  // what this funder's mandate permits. The works tranche rides on top, since
+  // an LTV limit is expressed against the purchase price, not the whole project.
+  const effectiveLtvBps = bps(Math.min(prefs.maxSeniorLtvBps, appraisal.inputs.finance.ltvBps));
+  const seniorCap = add(applyBps(appraisal.inputs.purchasePrice, effectiveLtvBps), worksTranche);
   const senior = money(Math.min(seniorCap, remaining));
   if (senior > 0) {
     layers.push({
@@ -110,7 +122,10 @@ export function buildCapitalStack(
       annualCostBps: appraisal.inputs.finance.annualRateBps,
       profitShareBps: bps(0),
       priority: 1,
-      note: `First charge at ${(prefs.maxSeniorLtvBps / 100).toFixed(0)}% of purchase price. Repaid first on exit.`,
+      note:
+        worksTranche > 0
+          ? `First charge at ${(effectiveLtvBps / 100).toFixed(0)}% of purchase price plus a works tranche drawn in arrears. Repaid first on exit.`
+          : `First charge at ${(effectiveLtvBps / 100).toFixed(0)}% of purchase price. Repaid first on exit.`,
     });
     remaining = sub(remaining, senior);
   }

@@ -15,6 +15,7 @@ import type { ListingSignal } from "@/domain/goldmine";
 
 const finance: FinanceTerms = {
   ltvBps: pct(70),
+  refurbAdvanceBps: pct(100),
   annualRateBps: pct(10),
   arrangementFeeBps: pct(2),
   exitFeeBps: pct(1),

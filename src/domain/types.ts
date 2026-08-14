@@ -147,6 +147,15 @@ export interface DealInputs {
 export interface FinanceTerms {
   /** Debt as a proportion of purchase price, basis points. */
   readonly ltvBps: Bps;
+  /**
+   * Share of the refurbishment budget the senior lender advances, basis points.
+   *
+   * Refurbishment bridging normally funds works in arrears tranches against
+   * surveyor sign-off. Modelling the facility as purchase-only overstates the
+   * equity requirement on every BRR deal and makes well-financed projects look
+   * unfundable. Zero for a lender that will not fund works.
+   */
+  readonly refurbAdvanceBps: Bps;
   /** Annual interest rate on the senior facility, basis points. */
   readonly annualRateBps: Bps;
   /** Arrangement fee as a proportion of the facility, basis points. */

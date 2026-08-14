@@ -17,6 +17,7 @@ import { replaceAll, type DealRecord } from "./repository";
 
 const BRIDGING: FinanceTerms = {
   ltvBps: pct(70),
+  refurbAdvanceBps: pct(100),
   annualRateBps: pct(9.6),
   arrangementFeeBps: pct(2),
   exitFeeBps: pct(1),
@@ -254,7 +255,10 @@ const DEALS: DealRecord[] = [
     createdAt: "2026-06-02T09:14:00.000Z",
     property: erdington,
     seller: erdingtonSeller,
-    inputs: deal("deal-0001", "LODE-0001", erdington, erdingtonSeller, fromMajor(176_000)),
+    // Priced below the family's £178,000 expectation: the Director returns
+    // "negotiate" here rather than "proceed", which is the honest read on a
+    // deal whose margin depends on the entry price.
+    inputs: deal("deal-0001", "LODE-0001", erdington, erdingtonSeller, fromMajor(172_000)),
     listing: erdingtonListing,
     borrowerCompletedDeals: 6,
     status: "in-market",

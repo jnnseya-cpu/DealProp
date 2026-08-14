@@ -74,15 +74,15 @@ export function buildCostStack(inputs: DealInputs): CostStack {
     isResidential: isResidential(property),
   });
 
-  const seniorDebt = applyBps(purchasePrice, finance.ltvBps);
-  const financeArrangement = applyBps(seniorDebt, finance.arrangementFeeBps);
+  const facility = seniorFacility(inputs);
+  const financeArrangement = applyBps(facility.total, finance.arrangementFeeBps);
   const interest = financeInterest(
-    seniorDebt,
+    facility.drawnForInterest,
     finance.annualRateBps,
     holdMonths,
     finance.interestRolledUp,
   );
-  const financeExit = applyBps(seniorDebt, finance.exitFeeBps);
+  const financeExit = applyBps(facility.total, finance.exitFeeBps);
 
   const refurbishment = property.refurbishmentEstimate;
   const contingency = applyBps(refurbishment, d.contingencyBps);
@@ -130,6 +130,27 @@ export function buildCostStack(inputs: DealInputs): CostStack {
   };
 }
 
+/**
+ * The senior facility: an advance against the purchase price plus, where the
+ * lender funds works, a tranche against the refurbishment budget.
+ *
+ * Works tranches are drawn progressively rather than on day one, so interest
+ * is charged on roughly half the works advance over the term. Charging it on
+ * the full amount from completion would overstate the cost of every project
+ * that phases its spend, which is all of them.
+ */
+export function seniorFacility(inputs: DealInputs): { total: Money; drawnForInterest: Money } {
+  const againstPurchase = applyBps(inputs.purchasePrice, inputs.finance.ltvBps);
+  const againstWorks = applyBps(
+    inputs.property.refurbishmentEstimate,
+    inputs.finance.refurbAdvanceBps,
+  );
+  return {
+    total: add(againstPurchase, againstWorks),
+    drawnForInterest: add(againstPurchase, money(Math.round(againstWorks / 2))),
+  };
+}
+
 /** The value the deal is exited at, before any costs of exiting. */
 export function exitValue(inputs: DealInputs): Money {
   const { property } = inputs;
@@ -147,7 +168,7 @@ export function exitValue(inputs: DealInputs): Money {
 }
 
 export function buildFunding(inputs: DealInputs, costs: CostStack): FundingRequirement {
-  const seniorDebt = applyBps(inputs.purchasePrice, inputs.finance.ltvBps);
+  const seniorDebt = seniorFacility(inputs).total;
   return {
     totalRequired: costs.total,
     seniorDebt,
@@ -162,7 +183,7 @@ export function buildExit(inputs: DealInputs, costs: CostStack): ExitOutcome {
   const { property } = inputs;
   const pack = getJurisdiction(property.jurisdiction);
   const gdv = exitValue(inputs);
-  const seniorDebt = applyBps(inputs.purchasePrice, inputs.finance.ltvBps);
+  const seniorDebt = seniorFacility(inputs).total;
 
   const netMonthlyRent = sub(
     property.monthlyRent,

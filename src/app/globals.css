@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+/*
+ * Lode design tokens.
+ *
+ * The palette is built around a warm metallic accent on a deep neutral ground:
+ * a lode is a vein of ore, and the brand should read as extraction and assay
+ * rather than as an estate agent's brochure. Gold is used sparingly and only
+ * for things that are true — scores, verdicts, money — so it never becomes
+ * decoration.
+ */
+
+@theme {
+  --color-ink-950: #0a0a0b;
+  --color-ink-900: #101013;
+  --color-ink-850: #16161a;
+  --color-ink-800: #1c1c21;
+  --color-ink-700: #2a2a31;
+  --color-ink-600: #3d3d47;
+  --color-ink-400: #6f6f7d;
+  --color-ink-300: #9a9aa8;
+  --color-ink-200: #c4c4ce;
+  --color-ink-100: #e6e6ec;
+
+  --color-lode-50: #fdf8ed;
+  --color-lode-200: #f0dcae;
+  --color-lode-300: #e3c377;
+  --color-lode-400: #d4a94b;
+  --color-lode-500: #c08f2c;
+  --color-lode-600: #9c6f21;
+
+  --font-display: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-sans: ui-sans-serif, -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-ink-950);
+  color: var(--color-ink-100);
+  font-family: var(--font-sans);
+}
+
+/* Numerals must align in columns wherever figures are compared. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* A fine hairline that reads as engraving rather than as a border. */
+.hairline {
+  border-color: color-mix(in oklab, var(--color-ink-600) 55%, transparent);
+}
+
+.grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.rule-glow {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--color-lode-400) 55%, transparent),
+    transparent
+  );
+}

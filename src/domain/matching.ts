@@ -211,7 +211,7 @@ export function matchBuyBox(
   );
   api.soft(
     "Survives stress testing",
-    scored.redTeam.lossScenarios.length === 0,
+    scored.redTeam.singleFactorLosses.length === 0,
     scored.redTeam.summary,
     3,
   );
@@ -306,7 +306,7 @@ export function matchFundingBox(
   );
   api.soft(
     "Survives stress testing",
-    scored.redTeam.lossScenarios.length === 0,
+    scored.redTeam.singleFactorLosses.length === 0,
     scored.redTeam.summary,
     3,
   );
