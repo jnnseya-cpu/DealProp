@@ -1,0 +1,18 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+.env
+.env.local
+.env.*.local
+
+.DS_Store
+*.log
+npm-debug.log*
+
+# File-backed store written at runtime. Seed data lives in src/store/seed.ts.
+/.data/
