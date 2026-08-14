@@ -102,6 +102,20 @@ function triState(raw: FormDataEntryValue | null): boolean | undefined {
   return undefined;
 }
 
+const AGE_BANDS = ["under-65", "65-79", "80-plus", "undisclosed"] as const;
+type AgeBand = (typeof AGE_BANDS)[number];
+
+/**
+ * Narrow an age band without asserting.
+ *
+ * Anything absent or unrecognised becomes "undisclosed", which the protection
+ * engine treats as unknown — and unknown raises caution rather than lowering
+ * it, so a malformed field can never weaken a safeguard.
+ */
+function ageBand(raw: FormDataEntryValue | null): AgeBand {
+  return AGE_BANDS.find((band) => band === raw) ?? "undisclosed";
+}
+
 export async function submitEnquiry(formData: FormData): Promise<void> {
   const priorities = formData
     .getAll("priorities")
@@ -158,11 +172,7 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
       reportsFinancialDistress: triState(formData.get("reportsFinancialDistress")),
       reportsHealthOrCapacityConcern: triState(formData.get("reportsHealthOrCapacityConcern")),
       isUnderTimePressureFromThirdParty: triState(formData.get("isUnderTimePressureFromThirdParty")),
-      ageBand: (["under-65", "65-79", "80-plus", "undisclosed"] as const).includes(
-        formData.get("ageBand") as never,
-      )
-        ? (formData.get("ageBand") as "under-65" | "65-79" | "80-plus" | "undisclosed")
-        : "undisclosed",
+      ageBand: ageBand(formData.get("ageBand")),
     },
   };
 
