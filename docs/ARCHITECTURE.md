@@ -35,7 +35,7 @@ How Lode is put together, why it is shaped this way, and where to extend it.
 **Dependency rule:** arrows point downward only. `src/domain` imports nothing
 from `src/app` or `src/store`. The store imports domain *types* but no domain
 *functions*. This is what makes the engine testable without a browser, a
-database or a network, and it is why 125 tests run in under a second.
+database or a network, and it is why 154 tests run in under a second.
 
 **The single-source rule:** the UI never computes a figure. `runDealDirector()`
 returns one coherent position, and the page renders it. This is why the

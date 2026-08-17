@@ -37,7 +37,7 @@ seller-facing options cannot disagree.
 
 ### Built and working — do not rebuild
 
-`src/domain/` (16 files): `types`, `economics`, `motivation`, `protection`,
+`src/domain/` (17 files): `types`, `newsletter`, `economics`, `motivation`, `protection`,
 `redteam`, `dealScore`, `capitalStack`, `strategies`, `goldmine`, `matching`,
 `completion`, `revenue`, `director`, `intake`, `sellerRoutes`, `workingDeal`.
 
@@ -46,9 +46,10 @@ seller-facing options cannot disagree.
 GB-WLS are excluded from `isDealReady`).
 
 Pages: `/` landing, `/sell` intake, `/sell/[id]` seller options, `/deals`
-pipeline, `/deals/[id]` Deal Room.
+pipeline, `/deals/[id]` Deal Room, `/newsletter` (+ confirm, unsubscribe).
+API: `/api/cron/newsletter` weekly send, secret-protected and idempotent.
 
-125 tests in `tests/`. All pass. Build succeeds. All routes return 200.
+154 tests in `tests/`. All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -67,7 +68,10 @@ pipeline, `/deals/[id]` Deal Room.
 8. **Absent screening answers mean more caution, never less.**
 9. **Revenue streams are permission-gated.** `dealRevenue()` excludes any
    stream whose permission is not held.
-10. **Engines are deterministic.** LLMs belong at the edges proposing
+10. **Marketing email requires recorded consent.** Double opt-in only; never
+    enrol sellers; every message carries unsubscribe and sender identity; the
+    cron endpoint fails closed without `CRON_SECRET`.
+11. **Engines are deterministic.** LLMs belong at the edges proposing
     structured values — never deciding a score or clearing a flag.
 
 ### Outstanding
@@ -146,7 +150,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 125 tests
+npx vitest run       # 154 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

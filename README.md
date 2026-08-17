@@ -18,7 +18,7 @@ customer, and the product says so.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 125 tests
+npm test          # 154 tests
 npm run typecheck
 ```
 
@@ -36,6 +36,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Seller options | `/sell/[id]` | Routes with what the seller receives, when, and what they give up |
 | Pipeline | `/deals` | Every opportunity scored after tax, blocked deals included |
 | Deal Room | `/deals/[id]` | Verdict, full model, Red Team, capital stack, matched mandates |
+| Newsletter | `/newsletter` | Double opt-in signup, confirm and one-click unsubscribe |
 
 | Engine | File | What it does |
 |---|---|---|
@@ -56,6 +57,8 @@ listed honestly in [Not built yet](#not-built-yet).
 | Seller intake | `src/domain/intake.ts` | Seller answers → engine inputs, with Truth Engine checks |
 | Seller routes | `src/domain/sellerRoutes.ts` | Inverts the engine: what the *seller* receives |
 | Working deal | `src/domain/workingDeal.ts` | Prices an enquiry that has no agreed price yet |
+| Newsletter | `src/domain/newsletter.ts` | Consent gating, weekly idempotency, issue composition |
+| Email transport | `src/lib/email.ts` | Provider-agnostic, fails closed when unconfigured |
 
 ---
 
@@ -147,6 +150,32 @@ nothing is left for the originator after every provider takes their return, the
 solver says so rather than inventing a structure.
 
 ---
+
+## Weekly newsletter
+
+`/newsletter` collects subscribers by **double opt-in**: an address is stored
+as `pending` and is not mailable until the owner clicks the emailed link.
+`/api/cron/newsletter` sends the weekly issue and is meant to be driven by a
+scheduler — `vercel.json` points at 08:00 Monday.
+
+Four properties are enforced by tests rather than by convention:
+
+- **Only confirmed addresses are ever mailed.** `mailableSubscribers()` is the
+  single selection path, and pending, unsubscribed and bounced are all excluded.
+- **A send cannot happen twice.** Recipients are chosen by ISO week and stamped
+  once sent, so a scheduler firing twice, a retry, or a manual re-run after a
+  partial failure will not mail anyone the same issue again.
+- **Every issue carries a working unsubscribe** and the sender's identity. This
+  is a legal requirement, not a nicety.
+- **The endpoint fails closed.** No `CRON_SECRET` means it returns 503 rather
+  than running; no email credentials means the transport logs instead of
+  sending. A half-configured deployment must not mail real people.
+
+Sellers who submit an enquiry are **never** enrolled. Telling us about a
+property is not consent to be marketed at, and those sellers are in probate,
+repossession and financial distress.
+
+Configuration lives in `.env.example`. No credentials are in this repository.
 
 ## Not built yet
 

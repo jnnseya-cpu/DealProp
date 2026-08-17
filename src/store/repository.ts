@@ -4,6 +4,7 @@ import type { BuyBox, FundingBox } from "@/domain/matching";
 import type { DealInputs, PropertyFacts, SellerProfile } from "@/domain/types";
 import type { ListingSignal } from "@/domain/goldmine";
 import type { Milestone } from "@/domain/completion";
+import type { Subscriber } from "@/domain/newsletter";
 
 /**
  * File-backed repository.
@@ -35,12 +36,13 @@ export interface Database {
   deals: DealRecord[];
   buyBoxes: BuyBox[];
   fundingBoxes: FundingBox[];
+  subscribers: Subscriber[];
 }
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "lode.json");
 
-const EMPTY: Database = { deals: [], buyBoxes: [], fundingBoxes: [] };
+const EMPTY: Database = { deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [] };
 
 let writeChain: Promise<unknown> = Promise.resolve();
 
@@ -52,6 +54,7 @@ async function readDatabase(): Promise<Database> {
       deals: parsed.deals ?? [],
       buyBoxes: parsed.buyBoxes ?? [],
       fundingBoxes: parsed.fundingBoxes ?? [],
+      subscribers: parsed.subscribers ?? [],
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -134,6 +137,76 @@ export async function replaceAll(db: Database): Promise<void> {
     current.deals = db.deals;
     current.buyBoxes = db.buyBoxes;
     current.fundingBoxes = db.fundingBoxes;
+    // Subscribers are consent records and survive a reseed. Wiping them would
+    // destroy the evidence of consent and silently re-enrol nobody, leaving
+    // the platform unable to prove why an address was mailed.
+    if (db.subscribers.length > 0) current.subscribers = db.subscribers;
+  });
+}
+
+// --- Subscribers -----------------------------------------------------------
+
+export async function listSubscribers(): Promise<readonly Subscriber[]> {
+  const db = await readDatabase();
+  return db.subscribers;
+}
+
+export async function findSubscriberByEmail(email: string): Promise<Subscriber | undefined> {
+  const db = await readDatabase();
+  return db.subscribers.find((s) => s.email === email);
+}
+
+/**
+ * Upsert by email.
+ *
+ * Email is the natural key: a second signup for an address that already exists
+ * must update that record rather than create a duplicate, or one person ends
+ * up receiving the newsletter twice and unsubscribing only half of themselves.
+ */
+export async function saveSubscriber(subscriber: Subscriber): Promise<Subscriber> {
+  return mutate((db) => {
+    const index = db.subscribers.findIndex((s) => s.email === subscriber.email);
+    if (index >= 0) db.subscribers[index] = subscriber;
+    else db.subscribers.push(subscriber);
+    return subscriber;
+  });
+}
+
+/**
+ * Apply a change to a subscriber found by token, atomically.
+ *
+ * Confirmation and unsubscribe both arrive as URLs that may be clicked twice
+ * (mail clients prefetch links). Doing the lookup and the write inside one
+ * mutation keeps the second click from racing the first.
+ */
+export async function updateSubscriberByToken(
+  field: "confirmToken" | "unsubscribeToken",
+  token: string,
+  change: (current: Subscriber) => Subscriber,
+): Promise<Subscriber | undefined> {
+  return mutate((db) => {
+    const index = db.subscribers.findIndex((s) => s[field] === token);
+    if (index < 0) return undefined;
+    const current = db.subscribers[index];
+    if (current === undefined) return undefined;
+    const next = change(current);
+    db.subscribers[index] = next;
+    return next;
+  });
+}
+
+/** Record that an issue was sent, so a re-run cannot send it twice. */
+export async function markIssueSent(ids: readonly string[], weekKey: string): Promise<number> {
+  return mutate((db) => {
+    let updated = 0;
+    for (let i = 0; i < db.subscribers.length; i += 1) {
+      const s = db.subscribers[i];
+      if (s !== undefined && ids.includes(s.id) && s.lastSentWeek !== weekKey) {
+        db.subscribers[i] = { ...s, lastSentWeek: weekKey };
+        updated += 1;
+      }
+    }
+    return updated;
   });
 }
 

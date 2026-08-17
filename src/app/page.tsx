@@ -925,9 +925,14 @@ function Footer() {
             </p>
           </div>
         </div>
-        <p className="mt-16 border-t hairline pt-8 text-xs text-ink-500">
-          © {new Date().getFullYear()} Lode. Property Deal OS. Not an estate agent, not a portal.
-        </p>
+        <div className="mt-16 flex flex-wrap items-center justify-between gap-4 border-t hairline pt-8">
+          <p className="text-xs text-ink-500">
+            © {new Date().getFullYear()} Lode. Property Deal OS. Not an estate agent, not a portal.
+          </p>
+          <Link href="/newsletter" className="text-xs text-ink-400 transition hover:text-lode-300">
+            Get the weekly email →
+          </Link>
+        </div>
       </div>
     </footer>
   );
