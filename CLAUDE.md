@@ -48,8 +48,10 @@ GB-WLS are excluded from `isDealReady`).
 Pages: `/` landing, `/sell` intake, `/sell/[id]` seller options, `/deals`
 pipeline, `/deals/[id]` Deal Room, `/newsletter` (+ confirm, unsubscribe).
 API: `/api/cron/newsletter` weekly send, secret-protected and idempotent.
+PWA: installable, `src/lib/pwa.ts` is the single source for devices/icons/colours.
+Assets regenerate with `npm run pwa:assets` — never hand-edit `public/`.
 
-154 tests in `tests/`. All pass. Build succeeds. All routes return 200.
+169 tests in `tests/`. All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -71,7 +73,11 @@ API: `/api/cron/newsletter` weekly send, secret-protected and idempotent.
 10. **Marketing email requires recorded consent.** Double opt-in only; never
     enrol sellers; every message carries unsubscribe and sender identity; the
     cron endpoint fails closed without `CRON_SECRET`.
-11. **Engines are deterministic.** LLMs belong at the edges proposing
+11. **PWA splash is flat, not gradient.** A smooth gradient at 2732px cannot be
+    PNG-compressed and made the asset set 9.1MB instead of 690kB.
+12. **The service worker caches nothing data-bearing.** Pages render live
+    figures; a cache-first worker would serve a stale Deal Score as current.
+13. **Engines are deterministic.** LLMs belong at the edges proposing
     structured values — never deciding a score or clearing a flag.
 
 ### Outstanding
@@ -150,7 +156,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 154 tests
+npx vitest run       # 169 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

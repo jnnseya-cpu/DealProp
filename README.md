@@ -18,7 +18,7 @@ customer, and the product says so.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 154 tests
+npm test          # 169 tests
 npm run typecheck
 ```
 
@@ -37,6 +37,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Pipeline | `/deals` | Every opportunity scored after tax, blocked deals included |
 | Deal Room | `/deals/[id]` | Verdict, full model, Red Team, capital stack, matched mandates |
 | Newsletter | `/newsletter` | Double opt-in signup, confirm and one-click unsubscribe |
+| Offline | `/offline` | Service-worker fallback; deliberately shows no figures |
 
 | Engine | File | What it does |
 |---|---|---|
@@ -176,6 +177,43 @@ property is not consent to be marketed at, and those sellers are in probate,
 repossession and financial distress.
 
 Configuration lives in `.env.example`. No credentials are in this repository.
+
+## Installable app and splash screens
+
+The app installs to a home screen and launches standalone with a branded splash.
+
+The two platforms do this completely differently, and both are covered:
+
+- **Android and desktop Chrome** generate the splash from `app/manifest.ts`
+  alone — `background_color` fills the screen and the largest icon is centred on
+  it. There is no splash image to supply, which is why `background_color` must
+  equal the app's own background or the launch flashes one colour and repaints
+  another.
+- **iOS ignores the manifest splash entirely** and matches an
+  `apple-touch-startup-image` by exact media query. A device with no matching
+  entry shows a blank white screen on launch, which reads as a crash. 22 images
+  cover 11 device families in both orientations.
+
+`src/lib/pwa.ts` is the single source for the device table, icon set and
+colours; the asset generator and the document head both read it, so a device
+cannot be listed in one and missing from the other. Tests assert every declared
+image exists on disk and every media query is unique.
+
+```bash
+npm run pwa:assets   # regenerate all icons and splash images
+```
+
+Assets are generated from markup by the Chromium that Playwright already
+provides, so there is no image-processing dependency and no hand-exported
+binaries to drift from the brand. The splash is deliberately a flat field: the
+app's radial hero glow made the same set 9.1 MB, because a smooth gradient
+across 2732px is millions of near-identical colours that PNG cannot compress.
+Flat, the whole set is 690 kB.
+
+The service worker is intentionally minimal — it makes the app installable and
+serves an offline fallback, and caches nothing data-bearing. Every page renders
+live figures, and a cache-first worker would serve yesterday's Deal Score as
+though it were current.
 
 ## Not built yet
 
