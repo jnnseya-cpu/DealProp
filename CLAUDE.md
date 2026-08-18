@@ -50,8 +50,10 @@ pipeline, `/deals/[id]` Deal Room, `/newsletter` (+ confirm, unsubscribe).
 API: `/api/cron/newsletter` weekly send, secret-protected and idempotent.
 PWA: installable, `src/lib/pwa.ts` is the single source for devices/icons/colours.
 Assets regenerate with `npm run pwa:assets` — never hand-edit `public/`.
+Go-to-market: `docs/GO-TO-MARKET.md` is the source; `npm run docs:pdf`
+renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
 
-169 tests in `tests/`. All pass. Build succeeds. All routes return 200.
+180 tests in `tests/`. All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -156,7 +158,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 169 tests
+npx vitest run       # 180 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

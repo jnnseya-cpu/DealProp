@@ -18,7 +18,7 @@ customer, and the product says so.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 169 tests
+npm test          # 180 tests
 npm run typecheck
 ```
 
@@ -214,6 +214,22 @@ The service worker is intentionally minimal — it makes the app installable and
 serves an offline fallback, and caches nothing data-bearing. Every page renders
 live figures, and a cache-first worker would serve yesterday's Deal Score as
 though it were current.
+
+## Go-to-market plan
+
+`docs/GO-TO-MARKET.md` is the operating plan: Birmingham locked as the launch
+city with a named postcode footprint, the 30/60/90 day phases with a go/no-go
+gate on each, the first 100 paying customers by channel, and a 90-day budget
+itemised to £16,996.
+
+```bash
+npm run docs:pdf     # renders docs/GO-TO-MARKET.pdf from the markdown
+```
+
+The markdown is the source; the PDF is generated from it by the same Chromium
+Playwright already provides, so the downloadable document cannot drift from the
+one in the repository. Tests in `tests/gtmPdf.test.ts` assert every table in the
+source reaches the output and that no markdown survives unconverted.
 
 ## Not built yet
 

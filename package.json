@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "seed": "tsx src/store/seed.ts",
-    "pwa:assets": "tsx scripts/generate-pwa-assets.ts"
+    "pwa:assets": "tsx scripts/generate-pwa-assets.ts",
+    "docs:pdf": "tsx scripts/generate-gtm-pdf.ts"
   },
   "dependencies": {
     "next": "15.1.6",

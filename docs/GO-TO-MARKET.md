@@ -52,20 +52,63 @@ reach us once, in crisis, through paid ads.
 
 ---
 
-## 3. The wedge
+## 3. The wedge — LOCKED
 
-Do not launch three marketplaces in three cities. Launch **one situation, one
-city, one buyer type.**
+**Launch city: BIRMINGHAM. Locked. No second city before three completions.**
 
-- **City:** Birmingham, B postcodes. Bond Wolfe (the UK's largest regional
-  auction house) is Birmingham-based, PIN meetings run monthly, and the seed
-  data already models B21/B23/B29/B17.
-- **Situation:** probate and inherited property.
-- **Buyer:** cash and bridging-funded refurbishment buyers doing £150k–£300k.
-- **Exit criterion to widen:** 3 completions in Birmingham before adding a
-  second city. Not 3 listings. Completions.
+### 3.1 Why Birmingham, decisively
 
----
+| Factor | Birmingham | Why it matters |
+|---|---|---|
+| Auction infrastructure | Bond Wolfe HQ — the largest regional auction house by lot volume | Unsold-lot lists are a standing seller-supply channel nobody else works systematically |
+| Stock age | Dominated by pre-1945 terraced and semi-detached | Refurbishment need is what excludes mortgage buyers and creates the discount |
+| Price band | Bulk of transactions sit in the £150k–£280k range | Matches the bridging-funded buyer exactly; London does not |
+| Investor density | Multiple monthly PIN meetings, established sourcing community | Demand side reachable face-to-face in week one |
+| Founder proximity | Single-city travel budget, same-day site visits | A first completion needs someone able to stand in the property |
+
+*Verify before spend: pull Land Registry Price Paid Data for B-postcodes over
+the last 12 months and confirm the £150k–£280k band is >55% of transactions.
+That is a one-hour job and it either confirms or kills the wedge.*
+
+### 3.2 The footprint — specific postcodes, not "Birmingham"
+
+**Target districts (inner and middle ring, terraced, high refurbishment need):**
+
+> **B6, B8, B10, B11, B18, B19, B21, B23, B25, B44**
+
+**Explicitly excluded at launch:**
+
+> **B15, B17, B29 (flats), B30, B45, and all city-centre apartment stock**
+
+### 3.3 The engine already told us where not to go
+
+This is not a hunch. Run the seeded comparables through the Deal Director:
+
+| Postcode | Area | OMV | Margin after tax | Score | Verdict |
+|---|---|---|---|---|---|
+| B23 | Erdington | £212,000 | **12.4%** | 61 | Negotiate — **works** |
+| B17 | Harborne | £268,000 | 5.7% | 46 | Restructure — prime is too expensive |
+| B29 | Selly Oak | £168,000 | **−2.4%** | 25 | Loses money — leasehold flat |
+| B21 | Handsworth | £245,000 | 24.3% | 35 | **Blocked** — vulnerable seller |
+
+Three targeting rules fall straight out of that table:
+
+1. **£180k–£240k open market value.** Below it the works swallow the margin;
+   above it (Harborne, £268k) the entry price leaves 5.7% and the deal has to
+   be restructured.
+2. **Freehold houses only.** The Selly Oak leasehold flat goes *negative* after
+   tax once short lease and cladding are priced in. Do not market to flats.
+3. **Skip prime.** Harborne is the nicest area on the list and the worst deal.
+
+### 3.4 The rest of the lock
+
+- **Situation:** probate and inherited property. Secondary: landlord exit,
+  failed listing, chain collapse.
+- **Buyer:** cash and bridging-funded refurbishment buyers, £150k–£300k tickets.
+- **Asset:** freehold house, 2–4 bed, needing modernisation or major works.
+- **Widen only after:** three *completions*. Not three listings, not three
+  offers. Completions. The second city is Wolverhampton or Coventry — same
+  stock profile, same auction house, no new jurisdiction pack required.
 
 ## 4. Customer segments
 
@@ -305,7 +348,86 @@ property." That kills the channel permanently.*
 - CAC < £300 on at least one channel
 - ≥ 30% of month-1 subscribers still paying
 
-**90-day budget: £18,300.** (Legal £3,500 · Marketing £6,900 · Tooling £1,400 · Data £750 · Travel/events £1,800 · Contingency £3,950)
+### Budget — itemised
+
+Every line is a real, purchasable item at a current UK price. Figures marked
+**†** are statutory or published fees that change — verify before committing.
+
+**Legal and regulatory — £4,931**
+
+| Item | Basis | Cost |
+|---|---|---|
+| HMRC AML registration † | £300 per premises + £40 per approved person × 2 | £380 |
+| Redress scheme membership † | Property Redress Scheme, one branch, annual | £249 |
+| ICO data protection registration † | Tier 1, annual | £52 |
+| Professional indemnity insurance | £1m cover, annual premium | £850 |
+| Regulatory perimeter advice | Solicitor, 8 hrs @ £275 — estate agency + financial promotion | £2,200 |
+| Terms of business + seller disclosure pack | Fixed fee drafting | £1,200 |
+
+**Technology and data — £1,113 (3 months)**
+
+| Item | Basis | Cost |
+|---|---|---|
+| Hosting (Vercel Pro) | £16/mo × 3 | £48 |
+| Postgres (Neon Scale) | £22/mo × 3 | £66 |
+| Transactional email (Postmark 50k) | £42/mo × 3 | £126 |
+| Google Workspace | 2 seats × £11/mo × 3 | £66 |
+| Property data licence (PropertyData Pro) | £109/mo × 3 | £327 |
+| KYC/AML verifications | ~40 checks @ £4 | £160 |
+| Land Registry title downloads † | 40 titles @ £7 | £280 |
+| Domain and certificates | Annual | £40 |
+
+**Marketing and demand — £4,735**
+
+| Item | Basis | Cost |
+|---|---|---|
+| Podcast sponsorship | 2 mid-roll reads @ £1,250 | £2,500 |
+| LinkedIn Sales Navigator | £80/mo × 3 | £240 |
+| Video editing, weekly deal teardowns | £250/mo × 2 | £500 |
+| Brand assets and solicitor one-pager design | One-off | £800 |
+| Print collateral | 500 one-pagers @ £0.35 | £175 |
+| Direct mail to probate solicitors | 200 letters @ £0.85 | £170 |
+| PIN meeting entry | 6 meetings @ £25 | £150 |
+| Auction attendance materials | Stand and collateral | £200 |
+
+**Events and travel — £1,000**
+
+| Item | Basis | Cost |
+|---|---|---|
+| Birmingham travel | 12 trips @ £50 | £600 |
+| NACFB Expo attendance | Ticket and travel | £150 |
+| Partner hospitality | Lender and solicitor meetings | £250 |
+
+**People — £3,000**
+
+| Item | Basis | Cost |
+|---|---|---|
+| BD contractor, seller-side outreach | 2 days/week × 6 weeks @ £250/day | £3,000 |
+
+**Totals**
+
+| Category | Cost |
+|---|---|
+| Legal and regulatory | £4,931 |
+| Technology and data | £1,113 |
+| Marketing and demand | £4,735 |
+| Events and travel | £1,000 |
+| People | £3,000 |
+| Subtotal | **£14,779** |
+| Contingency @ 15% | £2,217 |
+| **90-day total** | **£16,996** |
+
+**Explicitly NOT in the 90-day budget:**
+
+| Item | When | Cost |
+|---|---|---|
+| Marketing agency retainer | Day 91+, only after a channel works | £2,500/mo |
+| Paid search / Meta | Not before product-market fit | £0 |
+| FCA authorisation (credit broking) | Month 6+, if funding fees are pursued | £1,500 application + adviser fees |
+| Second city launch | After 3 completions | ~£6,000 |
+
+**Steady-state run rate from day 91: £1,850/month** (tooling £371 + data £109
++ contractor £2,000 → reduces to £1,850 once the contractor drops to 1 day/wk).
 
 ---
 
