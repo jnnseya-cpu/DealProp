@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { TradeReferralReport } from "@/domain/partners";
 import type { Verdict } from "@/domain/types";
 
 /**
@@ -141,5 +142,69 @@ export function KeyValue({ k, v, tone }: { k: string; v: string; tone?: string }
       <dt className="text-sm text-ink-400">{k}</dt>
       <dd className={`tnum text-sm ${tone ?? "text-ink-100"}`}>{v}</dd>
     </div>
+  );
+}
+
+/**
+ * Trade partner referrals.
+ *
+ * Rendered identically to a seller deciding whether to renovate instead of
+ * selling and to a buyer pricing the works, because it is the same
+ * introduction and it carries the same disclosure obligation either way. The
+ * disclosure comes from the referral, never from this component — a surface
+ * must not be able to show the introduction without the interest behind it.
+ */
+export function TradeReferrals({
+  report,
+  heading,
+  intro,
+}: {
+  report: TradeReferralReport;
+  heading: string;
+  intro: string;
+}) {
+  if (report.referrals.length === 0) return null;
+
+  return (
+    <section className="mt-6 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
+      <p className="text-[11px] uppercase tracking-[0.12em] text-ink-400">{heading}</p>
+      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-300">{intro}</p>
+
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        {report.referrals.map(({ partner, reasons, disclosure }) => (
+          <div
+            key={partner.key}
+            className="flex flex-col rounded-xl border hairline bg-ink-950/40 px-5 py-4"
+          >
+            <p className="font-display text-lg text-ink-100">{partner.name}</p>
+            <p className="mt-0.5 text-xs text-lode-300">{partner.remit}</p>
+
+            <ul className="mt-3 space-y-2">
+              {reasons.map((r) => (
+                <li key={r} className="flex gap-2.5 text-sm leading-relaxed text-ink-300">
+                  <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-lode-400" />
+                  {r}
+                </li>
+              ))}
+            </ul>
+
+            <a
+              href={partner.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-lg border border-lode-400/40 px-3.5 py-2 text-sm text-lode-200 transition hover:border-lode-400 hover:bg-lode-400/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lode-400"
+            >
+              Visit {partner.name}
+              <span aria-hidden="true">&rarr;</span>
+              <span className="sr-only">(opens in a new tab)</span>
+            </a>
+
+            <p className="mt-4 border-t hairline pt-3 text-xs leading-relaxed text-ink-400">
+              {disclosure}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

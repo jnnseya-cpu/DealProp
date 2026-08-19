@@ -6,9 +6,18 @@ import { toWorkingDeal } from "@/domain/workingDeal";
 import { buildCloseReport } from "@/domain/completion";
 import { matchBuyBox, matchFundingBox, rankMatches, type MatchResult } from "@/domain/matching";
 import { dealRevenue } from "@/domain/revenue";
+import { referTradePartners } from "@/domain/partners";
 import { add } from "@/lib/money";
 import { gbp, gbpSigned, months, percent } from "@/lib/format";
-import { KeyValue, Panel, scoreBg, scoreTone, SiteHeader, VERDICT_TONE } from "@/app/components/chrome";
+import {
+  KeyValue,
+  Panel,
+  scoreBg,
+  scoreTone,
+  SiteHeader,
+  TradeReferrals,
+  VERDICT_TONE,
+} from "@/app/components/chrome";
 
 export const dynamic = "force-dynamic";
 
@@ -484,6 +493,12 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
             </div>
           </Panel>
         )}
+
+        <TradeReferrals
+          report={referTradePartners(record.property, record.seller)}
+          heading="Who does the works"
+          intro="The refurbishment line above is an assumption until somebody prices it. These are the contractors we would put on it, and the estimate is what the appraisal should be re-run against."
+        />
 
         {/* --- Platform economics -------------------------------------------- */}
         <Panel eyebrow="Platform revenue" title="If this completes" className="mt-5">

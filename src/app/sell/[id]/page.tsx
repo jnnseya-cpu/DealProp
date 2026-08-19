@@ -2,11 +2,12 @@ import { notFound } from "next/navigation";
 import { getDeal, listBuyBoxes } from "@/store/repository";
 import { buildSellerRoutes, investorProfitOnRoute, type SellerRoute } from "@/domain/sellerRoutes";
 import { assessSellerProtection } from "@/domain/protection";
+import { referTradePartners } from "@/domain/partners";
 import { scoreDeal } from "@/domain/dealScore";
 import { countInterestedBuyers } from "@/domain/matching";
 import { getJurisdiction, isDealReady } from "@/domain/jurisdictions";
 import { gbp, percent } from "@/lib/format";
-import { SiteHeader } from "@/app/components/chrome";
+import { SiteHeader, TradeReferrals } from "@/app/components/chrome";
 import type { DealInputs, PropertyFacts, SellerProfile } from "@/domain/types";
 import type { Money } from "@/lib/money";
 
@@ -117,6 +118,11 @@ export default async function SellerOptionsPage({
         )}
 
         <Confidence property={property} />
+        <TradeReferrals
+          report={referTradePartners(property, seller)}
+          heading="If you would rather do the work than sell"
+          intro="Every figure above is lower than open market value because the property needs work and the buyer is pricing that risk. Doing the work yourself is a real alternative, and it is not one we lose by telling you about. These are the people we would use."
+        />
         <Disclosures items={protection.requiredDisclosures} />
         {protection.flags.filter((f) => f.severity === "caution").length > 0 && (
           <Safeguards flags={protection.flags.filter((f) => f.severity === "caution")} />
