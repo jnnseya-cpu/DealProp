@@ -38,7 +38,8 @@ export default async function DealsPage() {
         trailing={
           <nav className="flex items-center gap-6 text-sm text-ink-400">
             <Link href="/deals" className="text-ink-100">Deals</Link>
-            <Link href="/sell" className="transition hover:text-ink-100">Sell</Link>
+            <Link href="/invest" className="transition hover:text-ink-100">Buy</Link>
+            <Link href="/capital" className="transition hover:text-ink-100">Capital</Link>
             <SignOutButton />
           </nav>
         }

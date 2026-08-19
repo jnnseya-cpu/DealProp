@@ -18,7 +18,7 @@ customer, and the product says so.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 203 tests
+npm test          # 216 tests
 npm run typecheck
 ```
 
@@ -26,7 +26,7 @@ npm run typecheck
 
 ## What is actually built
 
-Four pages are live and driven entirely by the engine. What is missing is
+Every page is live and driven entirely by the engine. What is missing is
 listed honestly in [Not built yet](#not-built-yet).
 
 | Page | Route | What it does |
@@ -37,7 +37,9 @@ listed honestly in [Not built yet](#not-built-yet).
 | Pipeline | `/deals` | Every opportunity scored after tax, blocked deals included |
 | Deal Room | `/deals/[id]` | Verdict, full model, Red Team, capital stack, matched mandates |
 | Newsletter | `/newsletter` | Double opt-in signup, confirm and one-click unsubscribe |
-| Operator access | `/operator` | Shared-password gate over the pipeline and Deal Room |
+| Buy Boxes | `/invest` | Investor mandates, each shown against the deals it matches |
+| Funding Boxes | `/capital` | Capital mandates, each shown against the deals it funds |
+| Operator access | `/operator` | Shared-password gate over the operator surfaces |
 | Offline | `/offline` | Service-worker fallback; deliberately shows no figures |
 
 | Engine | File | What it does |
@@ -60,6 +62,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Seller routes | `src/domain/sellerRoutes.ts` | Inverts the engine: what the *seller* receives |
 | Working deal | `src/domain/workingDeal.ts` | Prices an enquiry that has no agreed price yet |
 | Newsletter | `src/domain/newsletter.ts` | Consent gating, weekly idempotency, issue composition |
+| Trade partners | `src/domain/partners.ts` | Who does the works, why, and the disclosure |
 | Email transport | `src/lib/email.ts` | Provider-agnostic, fails closed when unconfigured |
 
 ---
@@ -236,9 +239,6 @@ source reaches the output and that no markdown survives unconverted.
 
 Deliberately out of scope for this slice, in rough priority order:
 
-- **Buy Box and Funding Box UIs** (`/invest`, `/capital`). Matching works and
-  is shown from the deal side, but a funder cannot yet create their own
-  mandate. This is the last of the three marketplaces.
 - **Investment Memorandum.** A print-ready pack from the same briefing.
 - **GoldMine data sourcing.** The scoring engine is complete and consumes a
   `ListingSignal` interface. No adapter is written, because the major portals

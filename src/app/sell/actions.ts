@@ -2,7 +2,13 @@
 
 import { randomBytes } from "node:crypto";
 import { redirect } from "next/navigation";
-import { bps, fromMajor, ZERO, type Money } from "@/lib/money";
+import { bps, fromMajor, ZERO } from "@/lib/money";
+import {
+  optionalMoney,
+  optionalNumber,
+  requireOneOf,
+  requiredMoney,
+} from "@/lib/formFields";
 import { buildIntake, type IntakeAnswers, type PropertyCondition } from "@/domain/intake";
 import type {
   JurisdictionCode,
@@ -65,37 +71,6 @@ const ISSUES = new Set<PropertyIssue>([
   "non-standard-construction",
   "unregistered-title",
 ]);
-
-function requireOneOf<T extends string>(
-  raw: FormDataEntryValue | null,
-  allowed: ReadonlySet<string>,
-  field: string,
-): T {
-  const value = typeof raw === "string" ? raw : "";
-  if (!allowed.has(value)) {
-    throw new Error(`Invalid value for ${field}`);
-  }
-  return value as T;
-}
-
-function optionalMoney(raw: FormDataEntryValue | null): Money | undefined {
-  if (typeof raw !== "string" || raw.trim() === "") return undefined;
-  const parsed = Number(raw.replace(/[£,\s]/g, ""));
-  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
-  return fromMajor(Math.round(parsed));
-}
-
-function requiredMoney(raw: FormDataEntryValue | null, field: string): Money {
-  const value = optionalMoney(raw);
-  if (value === undefined) throw new Error(`${field} must be a positive amount`);
-  return value;
-}
-
-function optionalNumber(raw: FormDataEntryValue | null): number | undefined {
-  if (typeof raw !== "string" || raw.trim() === "") return undefined;
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : undefined;
-}
 
 /** Tri-state: yes / no / unanswered. Unanswered stays undefined on purpose. */
 function triState(raw: FormDataEntryValue | null): boolean | undefined {

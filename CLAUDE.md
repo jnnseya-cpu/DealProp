@@ -37,17 +37,18 @@ seller-facing options cannot disagree.
 
 ### Built and working — do not rebuild
 
-`src/domain/` (17 files): `types`, `newsletter`, `economics`, `motivation`, `protection`,
+`src/domain/` (18 files): `types`, `newsletter`, `economics`, `motivation`, `protection`,
 `redteam`, `dealScore`, `capitalStack`, `strategies`, `goldmine`, `matching`,
-`completion`, `revenue`, `director`, `intake`, `sellerRoutes`, `workingDeal`.
+`completion`, `revenue`, `director`, `intake`, `sellerRoutes`, `workingDeal`,
+`partners`.
 
 `src/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
 GB-WLS are excluded from `isDealReady`).
 
 Pages: `/` landing, `/sell` intake, `/sell/[id]` seller options, `/deals`
-pipeline, `/deals/[id]` Deal Room, `/newsletter` (+ confirm, unsubscribe),
-`/operator` sign-in.
+pipeline, `/deals/[id]` Deal Room, `/invest` Buy Boxes, `/capital` Funding
+Boxes, `/newsletter` (+ confirm, unsubscribe), `/operator` sign-in.
 Access control: `src/middleware.ts` gates `/deals`, `/invest`, `/capital`
 behind `OPERATOR_SECRET` and fails closed without it. `src/lib/operator.ts` is
 the only place session logic lives.
@@ -57,7 +58,7 @@ Assets regenerate with `npm run pwa:assets` — never hand-edit `public/`.
 Go-to-market: `docs/GO-TO-MARKET.md` is the source; `npm run docs:pdf`
 renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
 
-203 tests in `tests/`. All pass. Build succeeds. All routes return 200.
+216 tests in `tests/`. All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -92,7 +93,6 @@ renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
 
 ### Outstanding
 
-- `/invest` and `/capital` — Buy Box / Funding Box CRUD. Last marketplace.
 - Investment Memorandum — print view of the same briefing.
 - Postgres — once concurrent writes are real.
 - Per-person auth + investor categorisation — required before deal material
@@ -168,7 +168,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 203 tests
+npx vitest run       # 216 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

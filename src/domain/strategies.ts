@@ -38,6 +38,39 @@ const FULL_FIDELITY: ReadonlySet<StructureKind> = new Set<StructureKind>([
   "deferred-consideration",
 ]);
 
+/**
+ * Every structure the platform can model, in the order it presents them.
+ *
+ * Enumerated once so a form, a mandate and the Strategy Router cannot disagree
+ * about what exists. `motivation.ts` does the same for seller situations.
+ */
+export const ALL_STRUCTURES: readonly StructureKind[] = [
+  "cash-purchase",
+  "bridging-refurb-refinance",
+  "private-money-purchase",
+  "jv-equity",
+  "deferred-consideration",
+  "seller-finance",
+  "option-agreement",
+  "lease-option",
+  "assisted-sale",
+  "auction-finance",
+];
+
+/** Human labels for the structures, for anywhere a user picks one. */
+export const STRUCTURE_LABELS: Record<StructureKind, string> = {
+  "cash-purchase": "Cash purchase",
+  "bridging-refurb-refinance": "Bridge, refurbish, refinance",
+  "private-money-purchase": "Private money purchase",
+  "jv-equity": "JV equity",
+  "deferred-consideration": "Deferred consideration",
+  "seller-finance": "Seller finance",
+  "option-agreement": "Option agreement",
+  "lease-option": "Lease option",
+  "assisted-sale": "Assisted sale",
+  "auction-finance": "Auction finance",
+};
+
 export type ModelFidelity = "full" | "approximate";
 
 export interface StrategyCandidate {

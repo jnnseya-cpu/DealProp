@@ -43,6 +43,20 @@ export interface BuyBox {
   readonly active: boolean;
 }
 
+/**
+ * Human labels for funder kinds, defined here beside the union rather than in a
+ * page. A `"use client"` module cannot supply this: its exports cross the
+ * client boundary and arrive on the server as references rather than values.
+ */
+export const FUNDER_KIND_LABELS: Record<FunderKind, string> = {
+  "bridging-lender": "Bridging lender",
+  "private-lender": "Private lender",
+  "family-office": "Family office",
+  "debt-fund": "Debt fund",
+  "jv-equity-partner": "JV equity partner",
+  "development-lender": "Development lender",
+};
+
 export type FunderKind =
   | "bridging-lender"
   | "private-lender"

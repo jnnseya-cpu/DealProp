@@ -118,6 +118,21 @@ export async function saveBuyBox(box: BuyBox): Promise<BuyBox> {
   });
 }
 
+export async function getBuyBox(id: string): Promise<BuyBox | undefined> {
+  const db = await readDatabase();
+  return db.buyBoxes.find((b) => b.id === id);
+}
+
+/** Returns true where a box existed and was removed. */
+export async function deleteBuyBox(id: string): Promise<boolean> {
+  return mutate((db) => {
+    const index = db.buyBoxes.findIndex((b) => b.id === id);
+    if (index < 0) return false;
+    db.buyBoxes.splice(index, 1);
+    return true;
+  });
+}
+
 export async function listFundingBoxes(): Promise<readonly FundingBox[]> {
   const db = await readDatabase();
   return db.fundingBoxes;
@@ -129,6 +144,21 @@ export async function saveFundingBox(box: FundingBox): Promise<FundingBox> {
     if (index >= 0) db.fundingBoxes[index] = box;
     else db.fundingBoxes.push(box);
     return box;
+  });
+}
+
+export async function getFundingBox(id: string): Promise<FundingBox | undefined> {
+  const db = await readDatabase();
+  return db.fundingBoxes.find((b) => b.id === id);
+}
+
+/** Returns true where a box existed and was removed. */
+export async function deleteFundingBox(id: string): Promise<boolean> {
+  return mutate((db) => {
+    const index = db.fundingBoxes.findIndex((b) => b.id === id);
+    if (index < 0) return false;
+    db.fundingBoxes.splice(index, 1);
+    return true;
   });
 }
 

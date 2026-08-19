@@ -35,7 +35,7 @@ How Lode is put together, why it is shaped this way, and where to extend it.
 **Dependency rule:** arrows point downward only. `src/domain` imports nothing
 from `src/app` or `src/store`. The store imports domain *types* but no domain
 *functions*. This is what makes the engine testable without a browser, a
-database or a network, and it is why 203 tests run in under a second.
+database or a network, and it is why 216 tests run in under a second.
 
 **The single-source rule:** the UI never computes a figure. `runDealDirector()`
 returns one coherent position, and the page renders it. This is why the
@@ -216,12 +216,11 @@ dependency and colour is not.
 
 ## 9. Build order from here
 
-1. **Buy Box / Funding Box** (`/invest`, `/capital`) — CRUD over the existing
-   store plus `rankMatches`. Closes the third marketplace.
-2. **Investment Memorandum** — print view of the same `DirectorBriefing`.
-3. **Postgres** — once concurrent writes are real.
-4. **Auth and investor categorisation** — required before any deal material
-   reaches a private investor. See `docs/REGULATORY.md` §2.
-5. **GoldMine adapter** — only after a licensed data source exists.
-
-Items 1–2 need no new engine work. That is the point of the layering.
+1. **Investment Memorandum** — print view of the same `DirectorBriefing`.
+   Needs no new engine work; that is the point of the layering.
+2. **Postgres** — once concurrent writes are real.
+3. **Per-person auth and investor categorisation** — the shared operator
+   password closes the data-exposure hole but is not accounts, and investor
+   categorisation is still required before deal material reaches a private
+   investor. See `docs/REGULATORY.md` §2.
+4. **GoldMine adapter** — only after a licensed data source exists.
