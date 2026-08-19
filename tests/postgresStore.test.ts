@@ -1,0 +1,277 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { fromMajor, pct } from "@/lib/money";
+import type { BuyBox } from "@/domain/matching";
+import type { Subscriber } from "@/domain/newsletter";
+import type { DealRecord, Store } from "@/store/schema";
+import { fileStore } from "@/store/fileStore";
+
+/**
+ * Contract tests for the store.
+ *
+ * The same suite runs against both engines. That is the point: the repository
+ * exists so persistence can be swapped without any engine code changing, and
+ * the only way that claim stays true is if both implementations are held to one
+ * set of behaviours.
+ *
+ * Postgres is skipped when TEST_DATABASE_URL is unset, so the suite still runs
+ * on a machine with no database. A skip is reported rather than passed
+ * silently — a green run that quietly tested one engine would be worse than no
+ * test at all.
+ */
+
+const TEST_URL = process.env.TEST_DATABASE_URL;
+
+function subscriber(overrides: Partial<Subscriber> = {}): Subscriber {
+  return {
+    id: "sub-1",
+    email: "someone@example.com",
+    audiences: ["investor"],
+    status: "pending",
+    confirmToken: "confirm-1",
+    unsubscribeToken: "unsub-1",
+    consentedAt: "2026-08-01T00:00:00.000Z",
+    consentText: "test consent",
+    ...overrides,
+  } as Subscriber;
+}
+
+function buyBox(overrides: Partial<BuyBox> = {}): BuyBox {
+  return {
+    id: "buy-1",
+    investorName: "Contract Capital",
+    jurisdictions: ["GB-ENG"],
+    localities: ["Erdington"],
+    propertyTypes: ["house"],
+    minPrice: fromMajor(120_000),
+    maxPrice: fromMajor(300_000),
+    minBedrooms: 2,
+    minMarginBps: pct(15),
+    maxRefurbishment: fromMajor(60_000),
+    acceptsRefurbishment: true,
+    minYieldBps: pct(6),
+    maxCompletionDays: 60,
+    acceptableStructures: ["cash-purchase"],
+    minDealScore: 55,
+    active: true,
+    ...overrides,
+  };
+}
+
+function dealRecord(): DealRecord {
+  return {
+    id: "deal-contract-1",
+    reference: "LODE-TEST",
+    createdAt: "2026-08-01T00:00:00.000Z",
+    property: {
+      id: "p1",
+      jurisdiction: "GB-ENG",
+      postcodeArea: "B23",
+      locality: "Erdington",
+      propertyType: "house",
+      tenure: "freehold",
+      bedrooms: 3,
+      occupancy: "vacant",
+      openMarketValue: fromMajor(212_000),
+      valuationConfidence: pct(80),
+      refurbishmentEstimate: fromMajor(34_000),
+      postWorksValue: fromMajor(285_000),
+      monthlyRent: fromMajor(1_250),
+      knownIssues: [],
+    },
+    seller: { situation: "probate", priorities: ["speed"] },
+    inputs: {
+      property: {
+        id: "p1",
+        jurisdiction: "GB-ENG",
+        postcodeArea: "B23",
+        locality: "Erdington",
+        propertyType: "house",
+        tenure: "freehold",
+        bedrooms: 3,
+        occupancy: "vacant",
+        openMarketValue: fromMajor(212_000),
+        valuationConfidence: pct(80),
+        refurbishmentEstimate: fromMajor(34_000),
+        postWorksValue: fromMajor(285_000),
+        monthlyRent: fromMajor(1_250),
+        knownIssues: [],
+      },
+      seller: { situation: "probate", priorities: ["speed"] },
+      purchasePrice: fromMajor(172_000),
+      buyerOwnsOtherProperty: true,
+      buyerIsCompany: true,
+      buyerIsNonResident: false,
+      holdMonths: 9,
+      structure: "cash-purchase",
+      finance: {
+        ltvBps: pct(0),
+        refurbAdvanceBps: pct(0),
+        annualRateBps: pct(0),
+        arrangementFeeBps: pct(0),
+        exitFeeBps: pct(0),
+        interestRolledUp: false,
+        lenderCosts: fromMajor(0),
+      },
+      exit: "sell",
+    },
+    borrowerCompletedDeals: 2,
+    status: "new",
+  };
+}
+
+function contract(name: string, load: () => Promise<Store>, reset: () => Promise<void>): void {
+  describe(`${name} store`, () => {
+    let store: Store;
+
+    beforeAll(async () => {
+      store = await load();
+    });
+
+    beforeEach(async () => {
+      await reset();
+    });
+
+    it("round-trips a deal without changing it", async () => {
+      // Money is an integer count of pence; a store that returns a float here
+      // would corrupt every figure downstream while still looking plausible.
+      const deal = dealRecord();
+      await store.saveDeal(deal);
+      const loaded = await store.getDeal(deal.id);
+      expect(loaded).toEqual(deal);
+      expect(loaded?.property.openMarketValue).toBe(fromMajor(212_000));
+    });
+
+    it("updates rather than duplicates on a second save", async () => {
+      await store.saveDeal(dealRecord());
+      await store.saveDeal({ ...dealRecord(), status: "qualified" });
+      const all = await store.listDeals();
+      expect(all).toHaveLength(1);
+      expect(all[0]?.status).toBe("qualified");
+    });
+
+    it("returns undefined for an unknown id rather than throwing", async () => {
+      expect(await store.getDeal("nope")).toBeUndefined();
+      expect(await store.getBuyBox("nope")).toBeUndefined();
+      expect(await store.getFundingBox("nope")).toBeUndefined();
+    });
+
+    it("deletes a buy box and reports whether anything was removed", async () => {
+      await store.saveBuyBox(buyBox());
+      expect(await store.deleteBuyBox("buy-1")).toBe(true);
+      expect(await store.deleteBuyBox("buy-1")).toBe(false);
+      expect(await store.listBuyBoxes()).toHaveLength(0);
+    });
+
+    it("upserts a subscriber by email, never by id", async () => {
+      // A second signup for the same address must not create a second record,
+      // or the person is mailed twice and unsubscribing removes only half.
+      await store.saveSubscriber(subscriber());
+      await store.saveSubscriber(subscriber({ id: "sub-2", status: "confirmed" }));
+      const all = await store.listSubscribers();
+      expect(all).toHaveLength(1);
+      expect(all[0]?.status).toBe("confirmed");
+    });
+
+    it("finds and updates a subscriber by token", async () => {
+      await store.saveSubscriber(subscriber());
+      const updated = await store.updateSubscriberByToken("confirmToken", "confirm-1", (s) => ({
+        ...s,
+        status: "confirmed",
+      }));
+      expect(updated?.status).toBe("confirmed");
+      expect((await store.findSubscriberByEmail("someone@example.com"))?.status).toBe("confirmed");
+    });
+
+    it("returns undefined for an unknown token without writing anything", async () => {
+      await store.saveSubscriber(subscriber());
+      expect(await store.updateSubscriberByToken("confirmToken", "wrong", (s) => s)).toBeUndefined();
+      expect((await store.findSubscriberByEmail("someone@example.com"))?.status).toBe("pending");
+    });
+
+    it("stamps an issue once, so a second run sends to nobody", async () => {
+      // This is the idempotency the cron endpoint depends on: a scheduler that
+      // fires twice, or a manual re-run after a partial failure, must not mail
+      // the same person the same issue again.
+      await store.saveSubscriber(subscriber({ status: "confirmed" }));
+      expect(await store.markIssueSent(["sub-1"], "2026-W33")).toBe(1);
+      expect(await store.markIssueSent(["sub-1"], "2026-W33")).toBe(0);
+      expect(await store.markIssueSent(["sub-1"], "2026-W34")).toBe(1);
+    });
+
+    it("marks nothing for an empty id list", async () => {
+      expect(await store.markIssueSent([], "2026-W33")).toBe(0);
+    });
+
+    it("keeps subscribers through a reseed", async () => {
+      // Subscribers are consent records. Wiping them on reseed would destroy
+      // the evidence of why an address was mailed.
+      await store.saveSubscriber(subscriber({ status: "confirmed" }));
+      await store.replaceAll({ deals: [dealRecord()], buyBoxes: [], fundingBoxes: [], subscribers: [] });
+      expect(await store.listSubscribers()).toHaveLength(1);
+      expect(await store.listDeals()).toHaveLength(1);
+    });
+
+    it("reports emptiness from deals and boxes, not from subscribers", async () => {
+      expect(await store.isEmpty()).toBe(true);
+      await store.saveSubscriber(subscriber());
+      expect(await store.isEmpty()).toBe(true);
+      await store.saveDeal(dealRecord());
+      expect(await store.isEmpty()).toBe(false);
+    });
+  });
+}
+
+// A scratch file, so the suite does not truncate the developer's own seeded
+// store. replaceAll cannot clear subscribers by design — they are consent
+// records — so the only honest reset is a fresh file.
+const SCRATCH = mkdtempSync(path.join(tmpdir(), "lode-store-"));
+process.env.LODE_DATA_FILE = path.join(SCRATCH, "lode.json");
+
+afterAll(() => {
+  rmSync(SCRATCH, { recursive: true, force: true });
+});
+
+contract(
+  "file",
+  async () => fileStore,
+  async () => {
+    // Queue through the write chain first. Deleting the file outright would
+    // race a write still in flight from the previous test, which would then
+    // land after the delete and recreate it.
+    await fileStore.replaceAll({ deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [] });
+    rmSync(process.env.LODE_DATA_FILE ?? "", { force: true });
+  },
+);
+
+if (TEST_URL === undefined || TEST_URL === "") {
+  describe.skip("postgres store (set TEST_DATABASE_URL to run)", () => {
+    it("is skipped", () => undefined);
+  });
+} else {
+  process.env.DATABASE_URL = TEST_URL;
+
+  const { postgresStore, closePostgres } = await import("@/store/postgresStore");
+  const { Pool } = await import("pg");
+  const pool = new Pool({ connectionString: TEST_URL });
+
+  afterAll(async () => {
+    await closePostgres();
+    await pool.end();
+  });
+
+  contract(
+    "postgres",
+    async () => postgresStore,
+    async () => {
+      // Truncate rather than replaceAll: the reset has to be unconditional,
+      // including the subscribers replaceAll is required to preserve.
+      await postgresStore.listDeals().catch(() => undefined); // ensures the schema exists
+      await pool.query(
+        "TRUNCATE deals, buy_boxes, funding_boxes, subscribers RESTART IDENTITY CASCADE",
+      );
+    },
+  );
+}

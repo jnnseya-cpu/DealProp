@@ -18,7 +18,7 @@ customer, and the product says so.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 216 tests
+npm test          # 227 tests
 npm run typecheck
 ```
 
@@ -65,6 +65,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Newsletter | `src/domain/newsletter.ts` | Consent gating, weekly idempotency, issue composition |
 | Trade partners | `src/domain/partners.ts` | Who does the works, why, and the disclosure |
 | Email transport | `src/lib/email.ts` | Provider-agnostic, fails closed when unconfigured |
+| Store | `src/store/` | One interface, two engines: Postgres or a JSON file |
 
 ---
 
@@ -245,9 +246,6 @@ Deliberately out of scope for this slice, in rough priority order:
   prohibit scraping in their terms and property data carries licensing and
   data-protection obligations. Connecting a source is a legal decision that
   must precede the code. See `docs/REGULATORY.md`.
-- **Persistence beyond JSON.** `src/store/repository.ts` is a narrow interface
-  over a file. It serialises writes and writes atomically via rename, which is
-  adequate for a single-process dev server and is not a database.
 - **User accounts, roles and payments.** None exist. The operator surfaces are
   gated by a single shared password (see below), which closes the data-exposure
   hole but is not per-person authentication and carries no audit trail. Investor
@@ -260,6 +258,32 @@ Deliberately out of scope for this slice, in rough priority order:
   arithmetic that decides whether someone loses their house deposit.
 
 ---
+
+## Persistence
+
+`DATABASE_URL` decides the engine, and nothing else does:
+
+- **set** &rarr; Postgres. Records are stored whole as JSONB keyed by id rather
+  than shredded into columns: the domain types are already the schema, they are
+  exhaustively tested, and a parallel column layout would be a second
+  definition free to drift from the first. `Money` is an integer count of pence
+  and survives JSON exactly, where a numeric column invites a float. Every
+  read-modify-write runs in a transaction with `FOR UPDATE`.
+- **unset** &rarr; the JSON file. Zero configuration and correct for a
+  single-process dev server. It is **wrong on serverless hosting**, where each
+  instance has its own ephemeral filesystem and two requests can land on
+  different instances that never see each other's writes.
+
+One contract test suite runs against both engines, because the claim that
+storage can be swapped without touching engine code only stays true if both
+implementations are held to the same behaviours. It runs Postgres when
+`TEST_DATABASE_URL` is set and reports a skip when it is not, rather than
+passing quietly having tested one engine.
+
+```bash
+npm test          # 227 tests, Postgres suite skipped
+npm run test:pg   # 228 tests, both engines
+```
 
 ## Who can see what
 

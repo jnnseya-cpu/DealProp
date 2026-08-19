@@ -35,7 +35,7 @@ How Lode is put together, why it is shaped this way, and where to extend it.
 **Dependency rule:** arrows point downward only. `src/domain` imports nothing
 from `src/app` or `src/store`. The store imports domain *types* but no domain
 *functions*. This is what makes the engine testable without a browser, a
-database or a network, and it is why 216 tests run in under a second.
+database or a network, and it is why 227 tests run in under a second.
 
 **The single-source rule:** the UI never computes a figure. `runDealDirector()`
 returns one coherent position, and the page renders it. This is why the
@@ -160,20 +160,37 @@ newsletter confirm and unsubscribe links.
 
 ## 6. Storage
 
-`src/store/repository.ts` is a narrow interface over `.data/lode.json`:
+`src/store/` is three files and one interface:
 
-- writes serialise through a promise chain, so concurrent requests cannot
-  interleave a read-modify-write
-- writes go to a temp file then `rename()`, which is atomic on POSIX, so a crash
-  mid-write cannot truncate the store
-- the chain survives a failed write, so one error cannot deadlock every
-  subsequent mutation
+- `schema.ts` — `DealRecord`, `Database`, and the `Store` interface both engines
+  implement
+- `fileStore.ts` — JSON on disk. Writes serialise through a promise chain and go
+  via a temp file plus `rename()`, which is atomic on POSIX. Correct for a
+  single-process dev server; **wrong on serverless**, where instances have
+  separate ephemeral filesystems and never see each other's writes.
+- `postgresStore.ts` — records stored whole as JSONB keyed by id. Read-modify-
+  writes run in a transaction with `FOR UPDATE`; the newsletter's
+  `lastSentWeek` check is in the `WHERE` clause, so two schedulers firing at
+  once cannot both decide a subscriber is unstamped.
 
-This is adequate for a single-process development server and is **not** a
-database. Moving to Postgres means reimplementing this one file; no domain code
-changes, because nothing in `src/domain` imports it.
+`repository.ts` selects between them on `DATABASE_URL` and is the only module
+the rest of the app imports. The Postgres module is imported lazily, so a
+machine with no database never loads the driver.
 
----
+Storing records whole rather than relationally is deliberate. The domain types
+are already the schema and are exhaustively tested; columns would be a second
+definition of the same shapes, free to drift. `Money` is an integer count of
+pence and survives JSON exactly, where a numeric column invites a float. What
+Postgres is needed for is concurrency, durability and being reachable from more
+than one process — none of which require the data to be relational. Querying
+inside a record is what a JSONB index or a materialised view is for, and
+neither changes this interface.
+
+One contract suite runs against both engines. It is what keeps "swapping the
+store changes no engine code" true rather than merely stated — and it has
+already earned its place: it caught `{ ...EMPTY }` in the file store, a shallow
+copy that let writes against a missing file mutate the module-level constant so
+every later "empty" read started with the leftovers.
 
 ## 7. Where an LLM belongs
 

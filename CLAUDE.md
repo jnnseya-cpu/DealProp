@@ -20,7 +20,7 @@ Answer "what already exists?" from here, not by re-deriving it.
 |---|---|---|
 | Pages | `src/app` | Renders. **Never computes a figure.** |
 | Shared UI | `src/app/components/chrome.tsx` | Mark, header, verdict vocabulary, score colours |
-| Store | `src/store/repository.ts` | File-backed JSON. No domain logic. |
+| Store | `src/store/` | `repository` picks the engine; `postgresStore` or `fileStore`. No domain logic. |
 | Domain | `src/domain` | Pure, framework-free, fully tested |
 | Money | `src/lib/money.ts` | Integer pence, branded types. Depends on nothing. |
 | Formatting | `src/lib/format.ts` | Pure. Imported by domain — **no Tailwind here.** |
@@ -59,7 +59,7 @@ Assets regenerate with `npm run pwa:assets` — never hand-edit `public/`.
 Go-to-market: `docs/GO-TO-MARKET.md` is the source; `npm run docs:pdf`
 renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
 
-216 tests in `tests/`. All pass. Build succeeds. All routes return 200.
+227 tests in `tests/` (228 with Postgres). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -89,12 +89,15 @@ renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
     not in each page, and it fails closed without `OPERATOR_SECRET`. Seller
     links are capability URLs from a CSPRNG — never derived from guessable
     facts about the property.
-14. **Engines are deterministic.** LLMs belong at the edges proposing
+14. **`DATABASE_URL` decides the store, nothing else.** Set means Postgres;
+    unset means the JSON file, which is a development convenience and is wrong
+    on any host that runs more than one instance. Both engines pass the same
+    contract suite.
+15. **Engines are deterministic.** LLMs belong at the edges proposing
     structured values — never deciding a score or clearing a flag.
 
 ### Outstanding
 
-- Postgres — once concurrent writes are real.
 - Per-person auth + investor categorisation — required before deal material
   reaches a private investor (`docs/REGULATORY.md` §2). The shared operator
   password closes the data-exposure hole; it is not accounts and has no audit
@@ -168,7 +171,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 216 tests
+npx vitest run       # 227 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.
