@@ -47,8 +47,9 @@ seller-facing options cannot disagree.
 GB-WLS are excluded from `isDealReady`).
 
 Pages: `/` landing, `/sell` intake, `/sell/[id]` seller options, `/deals`
-pipeline, `/deals/[id]` Deal Room, `/invest` Buy Boxes, `/capital` Funding
-Boxes, `/newsletter` (+ confirm, unsubscribe), `/operator` sign-in.
+pipeline, `/deals/[id]` Deal Room, `/deals/[id]/memorandum` print pack,
+`/invest` Buy Boxes, `/capital` Funding Boxes, `/newsletter` (+ confirm,
+unsubscribe), `/operator` sign-in.
 Access control: `src/middleware.ts` gates `/deals`, `/invest`, `/capital`
 behind `OPERATOR_SECRET` and fails closed without it. `src/lib/operator.ts` is
 the only place session logic lives.
@@ -93,7 +94,6 @@ renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
 
 ### Outstanding
 
-- Investment Memorandum — print view of the same briefing.
 - Postgres — once concurrent writes are real.
 - Per-person auth + investor categorisation — required before deal material
   reaches a private investor (`docs/REGULATORY.md` §2). The shared operator

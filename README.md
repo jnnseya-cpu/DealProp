@@ -36,6 +36,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Seller options | `/sell/[id]` | Routes with what the seller receives, when, and what they give up |
 | Pipeline | `/deals` | Every opportunity scored after tax, blocked deals included |
 | Deal Room | `/deals/[id]` | Verdict, full model, Red Team, capital stack, matched mandates |
+| Memorandum | `/deals/[id]/memorandum` | Print-ready pack from the same briefing, with the promotion notice |
 | Newsletter | `/newsletter` | Double opt-in signup, confirm and one-click unsubscribe |
 | Buy Boxes | `/invest` | Investor mandates, each shown against the deals it matches |
 | Funding Boxes | `/capital` | Capital mandates, each shown against the deals it funds |
@@ -239,7 +240,6 @@ source reaches the output and that no markdown survives unconverted.
 
 Deliberately out of scope for this slice, in rough priority order:
 
-- **Investment Memorandum.** A print-ready pack from the same briefing.
 - **GoldMine data sourcing.** The scoring engine is complete and consumes a
   `ListingSignal` interface. No adapter is written, because the major portals
   prohibit scraping in their terms and property data carries licensing and

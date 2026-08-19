@@ -216,11 +216,9 @@ dependency and colour is not.
 
 ## 9. Build order from here
 
-1. **Investment Memorandum** — print view of the same `DirectorBriefing`.
-   Needs no new engine work; that is the point of the layering.
-2. **Postgres** — once concurrent writes are real.
-3. **Per-person auth and investor categorisation** — the shared operator
+1. **Postgres** — once concurrent writes are real.
+2. **Per-person auth and investor categorisation** — the shared operator
    password closes the data-exposure hole but is not accounts, and investor
    categorisation is still required before deal material reaches a private
    investor. See `docs/REGULATORY.md` §2.
-4. **GoldMine adapter** — only after a licensed data source exists.
+3. **GoldMine adapter** — only after a licensed data source exists.

@@ -1,0 +1,171 @@
+/*
+ * Memorandum styling.
+ *
+ * Deliberately not the app's dark palette. This document is printed and
+ * emailed: a dark screen design on paper is unreadable and empties a toner
+ * cartridge. Plain CSS rather than Tailwind utilities because the print rules
+ * are the substance of the file and reading them in one place is the point.
+ */
+
+.memo {
+  background: #ffffff;
+  color: #16161a;
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  line-height: 1.55;
+  min-height: 100vh;
+  padding: 2rem 1.5rem 6rem;
+}
+
+.memo article {
+  margin: 0 auto;
+  max-width: 46rem;
+}
+
+.memo-actions {
+  margin: 0 auto 2rem;
+  max-width: 46rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+  font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+  font-size: 0.8rem;
+  color: #5c5c68;
+}
+
+.memo-actions a {
+  color: #9c6f21;
+  text-decoration: none;
+}
+
+.memo-head {
+  border-bottom: 2px solid #9c6f21;
+  padding-bottom: 1rem;
+  margin-bottom: 1.75rem;
+}
+
+.memo-kicker {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #9c6f21;
+  margin: 0 0 0.5rem;
+}
+
+.memo h1 {
+  font-size: 2.1rem;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.memo-sub {
+  margin: 0.5rem 0 0;
+  color: #5c5c68;
+  font-size: 0.95rem;
+}
+
+.memo section {
+  margin-bottom: 1.75rem;
+  break-inside: avoid;
+}
+
+.memo h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.6rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid #d9d9e0;
+  break-after: avoid;
+}
+
+.memo p { margin: 0 0 0.7rem; }
+.memo ul { margin: 0 0 0.7rem; padding-left: 1.1rem; }
+.memo li { margin-bottom: 0.35rem; }
+
+.memo table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+  font-size: 0.85rem;
+  margin-bottom: 0.7rem;
+}
+
+.memo th {
+  text-align: left;
+  font-weight: 400;
+  color: #3d3d47;
+}
+
+.memo th,
+.memo td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid #ececed;
+  vertical-align: top;
+}
+
+.memo thead th {
+  font-weight: 600;
+  color: #16161a;
+  border-bottom: 1px solid #16161a;
+}
+
+.memo .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.memo tr.strong th,
+.memo tr.strong td {
+  font-weight: 700;
+  border-bottom-width: 2px;
+  border-bottom-color: #16161a;
+}
+
+/* The promotion notice is furniture that must survive a skim-read. */
+.memo-notice {
+  background: #faf7f0;
+  border-left: 3px solid #9c6f21;
+  padding: 1rem 1.25rem;
+}
+
+.memo-block {
+  background: #fdf2f2;
+  border-left: 3px solid #b42318;
+  padding: 1rem 1.25rem;
+}
+
+.memo-verdict {
+  font-size: 1.1rem;
+}
+
+.memo-note,
+.memo-foot {
+  font-size: 0.8rem;
+  color: #5c5c68;
+}
+
+.memo-ref {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.72rem;
+  color: #6f6f7d;
+}
+
+.memo-foot {
+  border-top: 1px solid #d9d9e0;
+  padding-top: 0.75rem;
+  margin-top: 2rem;
+}
+
+@media print {
+  @page { size: A4; margin: 18mm; }
+
+  /* The screen-only controls are noise on paper. */
+  .memo-actions { display: none; }
+
+  .memo { padding: 0; }
+  .memo article { max-width: none; }
+  .memo h2 { break-after: avoid; }
+  .memo table, .memo tr { break-inside: avoid; }
+}

@@ -70,6 +70,12 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
             <span className={`tnum font-display text-2xl ${scoreTone(scored.breakdown.composite)}`}>
               {scored.breakdown.composite}
             </span>
+            <Link
+              href={`/deals/${record.id}/memorandum`}
+              className="rounded-lg border hairline px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-400 transition hover:border-lode-400/40 hover:text-lode-200"
+            >
+              Memorandum
+            </Link>
             <SignOutButton />
           </>
         }
