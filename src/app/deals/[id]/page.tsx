@@ -7,6 +7,7 @@ import { buildCloseReport } from "@/domain/completion";
 import { matchBuyBox, matchFundingBox, rankMatches, type MatchResult } from "@/domain/matching";
 import { dealRevenue } from "@/domain/revenue";
 import { referTradePartners } from "@/domain/partners";
+import { SignOutButton } from "@/app/operator/SignOutButton";
 import { add } from "@/lib/money";
 import { gbp, gbpSigned, months, percent } from "@/lib/format";
 import {
@@ -69,6 +70,7 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
             <span className={`tnum font-display text-2xl ${scoreTone(scored.breakdown.composite)}`}>
               {scored.breakdown.composite}
             </span>
+            <SignOutButton />
           </>
         }
       >

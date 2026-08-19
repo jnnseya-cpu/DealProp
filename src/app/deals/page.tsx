@@ -4,6 +4,7 @@ import { scoreDeal } from "@/domain/dealScore";
 import { toWorkingDeal } from "@/domain/workingDeal";
 import { gbp, gbpSigned, percent } from "@/lib/format";
 import { scoreTone, SiteHeader, VERDICT_TONE } from "@/app/components/chrome";
+import { SignOutButton } from "@/app/operator/SignOutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ export default async function DealsPage() {
           <nav className="flex items-center gap-6 text-sm text-ink-400">
             <Link href="/deals" className="text-ink-100">Deals</Link>
             <Link href="/sell" className="transition hover:text-ink-100">Sell</Link>
+            <SignOutButton />
           </nav>
         }
       />

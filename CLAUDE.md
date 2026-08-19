@@ -46,14 +46,18 @@ seller-facing options cannot disagree.
 GB-WLS are excluded from `isDealReady`).
 
 Pages: `/` landing, `/sell` intake, `/sell/[id]` seller options, `/deals`
-pipeline, `/deals/[id]` Deal Room, `/newsletter` (+ confirm, unsubscribe).
+pipeline, `/deals/[id]` Deal Room, `/newsletter` (+ confirm, unsubscribe),
+`/operator` sign-in.
+Access control: `src/middleware.ts` gates `/deals`, `/invest`, `/capital`
+behind `OPERATOR_SECRET` and fails closed without it. `src/lib/operator.ts` is
+the only place session logic lives.
 API: `/api/cron/newsletter` weekly send, secret-protected and idempotent.
 PWA: installable, `src/lib/pwa.ts` is the single source for devices/icons/colours.
 Assets regenerate with `npm run pwa:assets` — never hand-edit `public/`.
 Go-to-market: `docs/GO-TO-MARKET.md` is the source; `npm run docs:pdf`
 renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
 
-180 tests in `tests/`. All pass. Build succeeds. All routes return 200.
+203 tests in `tests/`. All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -79,7 +83,11 @@ renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
     PNG-compressed and made the asset set 9.1MB instead of 690kB.
 12. **The service worker caches nothing data-bearing.** Pages render live
     figures; a cache-first worker would serve a stale Deal Score as current.
-13. **Engines are deterministic.** LLMs belong at the edges proposing
+13. **Operator surfaces are deny-by-default.** The gate lives in middleware,
+    not in each page, and it fails closed without `OPERATOR_SECRET`. Seller
+    links are capability URLs from a CSPRNG — never derived from guessable
+    facts about the property.
+14. **Engines are deterministic.** LLMs belong at the edges proposing
     structured values — never deciding a score or clearing a flag.
 
 ### Outstanding
@@ -87,8 +95,10 @@ renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
 - `/invest` and `/capital` — Buy Box / Funding Box CRUD. Last marketplace.
 - Investment Memorandum — print view of the same briefing.
 - Postgres — once concurrent writes are real.
-- Auth + investor categorisation — required before deal material reaches a
-  private investor (`docs/REGULATORY.md` §2).
+- Per-person auth + investor categorisation — required before deal material
+  reaches a private investor (`docs/REGULATORY.md` §2). The shared operator
+  password closes the data-exposure hole; it is not accounts and has no audit
+  trail.
 - GoldMine adapter — **only** after a licensed data source exists. Do not scrape.
 
 ---
@@ -158,7 +168,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 180 tests
+npx vitest run       # 203 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

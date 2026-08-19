@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { redirect } from "next/navigation";
 import { bps, fromMajor, ZERO, type Money } from "@/lib/money";
 import { buildIntake, type IntakeAnswers, type PropertyCondition } from "@/domain/intake";
@@ -12,7 +13,8 @@ import type {
   Tenure,
 } from "@/domain/types";
 import { allSituations } from "@/domain/motivation";
-import { listDeals, saveDeal } from "@/store/repository";
+import { newToken } from "@/lib/tokens";
+import { saveDeal } from "@/store/repository";
 
 /**
  * Intake submission.
@@ -178,14 +180,17 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
 
   const intake = buildIntake(answers);
 
-  const existing = await listDeals();
-  const id = `enq-${String(existing.length + 1).padStart(4, "0")}-${Math.abs(
-    hash(`${answers.postcodeArea}${answers.locality}${existing.length}`),
-  ).toString(36)}`;
+  // The URL this returns is the seller's only way back to their own result and
+  // it carries their situation, their figures and the safeguards raised on
+  // their behalf. It was previously derived from the postcode, the locality and
+  // the number of enquiries already stored, all of which a stranger can guess,
+  // which made every seller's page enumerable. It is now a capability link: 32
+  // bytes from a CSPRNG, the same standard as the newsletter confirm link.
+  const id = `enq-${newToken()}`;
 
   await saveDeal({
     id,
-    reference: `LODE-${id.slice(4, 8).toUpperCase()}`,
+    reference: `LODE-${referenceSuffix()}`,
     createdAt: new Date().toISOString(),
     property: intake.property,
     seller: intake.seller,
@@ -220,11 +225,17 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
 }
 
 /** Small non-cryptographic hash, used only to make ids unguessable-ish. */
-function hash(input: string): number {
-  let h = 2_166_136_261;
-  for (let i = 0; i < input.length; i += 1) {
-    h ^= input.charCodeAt(i);
-    h = Math.imul(h, 16_777_619);
-  }
-  return h | 0;
+/**
+ * The human-facing reference, for quoting on a phone call.
+ *
+ * Random rather than sequential: a running count tells a caller how many
+ * enquiries the platform has ever had, which is commercial information, and a
+ * predictable reference invites people to try the next one. Ambiguous
+ * characters are excluded so it survives being read aloud.
+ */
+function referenceSuffix(): string {
+  const alphabet = "ACDEFGHJKLMNPQRTUVWXY3479";
+  return Array.from(randomBytes(6))
+    .map((byte) => alphabet[byte % alphabet.length] ?? "")
+    .join("");
 }

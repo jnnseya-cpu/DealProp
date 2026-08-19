@@ -35,7 +35,7 @@ How Lode is put together, why it is shaped this way, and where to extend it.
 **Dependency rule:** arrows point downward only. `src/domain` imports nothing
 from `src/app` or `src/store`. The store imports domain *types* but no domain
 *functions*. This is what makes the engine testable without a browser, a
-database or a network, and it is why 180 tests run in under a second.
+database or a network, and it is why 203 tests run in under a second.
 
 **The single-source rule:** the UI never computes a figure. `runDealDirector()`
 returns one coherent position, and the page renders it. This is why the
@@ -134,6 +134,29 @@ and makes well-financed BRR deals look unfundable. This was a real bug; the
 comment in `seniorFacility()` explains it so it is not "simplified" back.
 
 ---
+
+## 5a. Access control
+
+`src/middleware.ts` is the security boundary, and it is middleware rather than a
+call at the top of each page for one reason: a guard that must be remembered is
+a guard that gets forgotten the first time somebody adds a route. `/deals`,
+`/invest` and `/capital` are denied by default; a new operator page is protected
+by living under one of those paths.
+
+`src/lib/operator.ts` holds the session logic and uses Web Crypto rather than
+`node:crypto`, because middleware runs in the edge runtime where `node:crypto`
+is unavailable. `lib/tokens.ts` keeps using `node:crypto` since it only ever
+runs on the server.
+
+The cookie carries an HMAC of a fixed message under `OPERATOR_SECRET`, not the
+secret. That means a stolen cookie cannot be replayed as the password, and
+rotating the secret invalidates every live session without any stored state to
+clear. With no secret set, the middleware returns 503 rather than rendering:
+these pages carry special-category personal data and must not default to open.
+
+Sellers have no account and never will need one to see their own result. Their
+page is a capability URL — 32 bytes from a CSPRNG, the same model as the
+newsletter confirm and unsubscribe links.
 
 ## 6. Storage
 

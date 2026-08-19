@@ -18,7 +18,7 @@ customer, and the product says so.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 180 tests
+npm test          # 203 tests
 npm run typecheck
 ```
 
@@ -37,6 +37,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Pipeline | `/deals` | Every opportunity scored after tax, blocked deals included |
 | Deal Room | `/deals/[id]` | Verdict, full model, Red Team, capital stack, matched mandates |
 | Newsletter | `/newsletter` | Double opt-in signup, confirm and one-click unsubscribe |
+| Operator access | `/operator` | Shared-password gate over the pipeline and Deal Room |
 | Offline | `/offline` | Service-worker fallback; deliberately shows no figures |
 
 | Engine | File | What it does |
@@ -247,7 +248,11 @@ Deliberately out of scope for this slice, in rough priority order:
 - **Persistence beyond JSON.** `src/store/repository.ts` is a narrow interface
   over a file. It serialises writes and writes atomically via rename, which is
   adequate for a single-process dev server and is not a database.
-- **Authentication, accounts, payments.** None exist.
+- **User accounts, roles and payments.** None exist. The operator surfaces are
+  gated by a single shared password (see below), which closes the data-exposure
+  hole but is not per-person authentication and carries no audit trail. Investor
+  categorisation is still required before deal material reaches a private
+  investor — see `docs/REGULATORY.md` §2.
 - **Actual AI.** The "agents" are deterministic scoring and rules. This is a
   feature, not a gap: the financial engine must be reproducible and testable.
   LLMs belong at the edges — parsing a seller's narrative into a structured
@@ -255,6 +260,30 @@ Deliberately out of scope for this slice, in rough priority order:
   arithmetic that decides whether someone loses their house deposit.
 
 ---
+
+## Who can see what
+
+The pipeline and the Deal Room carry what sellers told us in confidence:
+reported financial distress, third-party pressure, age band, and health or
+capacity concerns. Health and capacity data is special-category personal data
+under UK GDPR Article 9. Those pages were reachable by anyone who knew a URL,
+and enquiry URLs were derived from the postcode, the locality and the number of
+enquiries already stored — all guessable. Both are fixed:
+
+- `src/middleware.ts` gates `/deals`, `/invest` and `/capital` **by default**.
+  A new operator route is protected by existing under those paths, not by
+  someone remembering to guard it.
+- Without `OPERATOR_SECRET` those pages return **503 and render nothing**. The
+  same fail-closed rule as the cron endpoint: an unconfigured deployment must
+  not default to open.
+- The session cookie is an HMAC of a fixed message under the secret, never the
+  secret itself, so a stolen cookie cannot be replayed as the password and
+  rotating the secret invalidates every session with no stored state to clear.
+- A seller's own result page is a **capability link**: 32 bytes from a CSPRNG,
+  the same standard as the newsletter confirm link. It carries only their data.
+
+This is a shared password, not accounts. It is the proportionate fix for a live
+data-exposure problem, and it is what per-person authentication replaces.
 
 ## Regulatory position
 
