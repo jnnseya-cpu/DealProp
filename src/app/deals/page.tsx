@@ -4,6 +4,7 @@ import { scoreDeal } from "@/domain/dealScore";
 import { toWorkingDeal } from "@/domain/workingDeal";
 import { gbp, gbpSigned, percent } from "@/lib/format";
 import { scoreTone, SiteHeader, VERDICT_TONE } from "@/app/components/chrome";
+import { requireOperator } from "@/app/operator/guard";
 import { SignOutButton } from "@/app/operator/SignOutButton";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export const metadata = {
  * block exists to prevent.
  */
 export default async function DealsPage() {
+  await requireOperator("/deals");
   const records = await listDeals();
 
   const rows = records

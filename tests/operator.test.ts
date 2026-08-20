@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertOperator,
   constantTimeEqual,
+  OperatorAccessDenied,
   operatorCookieValue,
   operatorPasswordMatches,
   verifyOperatorCookie,
@@ -68,5 +70,34 @@ describe("constant-time comparison", () => {
     expect(constantTimeEqual("abc", "abd")).toBe(false);
     expect(constantTimeEqual("abc", "abcd")).toBe(false);
     expect(constantTimeEqual("", "")).toBe(true);
+  });
+});
+
+describe("defence in depth", () => {
+  it("denies when the cookie is absent, whatever middleware did", async () => {
+    // CVE-2025-29927 let a crafted x-middleware-subrequest header skip Next
+    // middleware entirely. The framework is patched, but these pages carry
+    // special-category personal data and must not depend on one lock.
+    const previous = process.env.OPERATOR_SECRET;
+    process.env.OPERATOR_SECRET = SECRET;
+    try {
+      await expect(assertOperator(undefined)).rejects.toBeInstanceOf(OperatorAccessDenied);
+      await expect(assertOperator("forged")).rejects.toBeInstanceOf(OperatorAccessDenied);
+      await expect(assertOperator(await operatorCookieValue(SECRET))).resolves.toBeUndefined();
+    } finally {
+      process.env.OPERATOR_SECRET = previous;
+    }
+  });
+
+  it("denies every request when no secret is configured", async () => {
+    const previous = process.env.OPERATOR_SECRET;
+    delete process.env.OPERATOR_SECRET;
+    try {
+      await expect(assertOperator(await operatorCookieValue(SECRET))).rejects.toBeInstanceOf(
+        OperatorAccessDenied,
+      );
+    } finally {
+      if (previous !== undefined) process.env.OPERATOR_SECRET = previous;
+    }
   });
 });

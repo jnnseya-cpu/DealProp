@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { requireOperator } from "@/app/operator/guard";
 import { getDeal } from "@/store/repository";
 import { runDealDirector } from "@/domain/director";
 import { toWorkingDeal } from "@/domain/workingDeal";
@@ -41,6 +42,7 @@ export default async function MemorandumPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  await requireOperator(`/deals/${id}/memorandum`);
   const record = await getDeal(id);
   if (record === undefined) notFound();
 

@@ -35,7 +35,7 @@ How Lode is put together, why it is shaped this way, and where to extend it.
 **Dependency rule:** arrows point downward only. `src/domain` imports nothing
 from `src/app` or `src/store`. The store imports domain *types* but no domain
 *functions*. This is what makes the engine testable without a browser, a
-database or a network, and it is why 227 tests run in under a second.
+database or a network, and it is why 229 tests run in under a second.
 
 **The single-source rule:** the UI never computes a figure. `runDealDirector()`
 returns one coherent position, and the page renders it. This is why the
@@ -137,11 +137,18 @@ comment in `seniorFacility()` explains it so it is not "simplified" back.
 
 ## 5a. Access control
 
-`src/middleware.ts` is the security boundary, and it is middleware rather than a
+`src/middleware.ts` is the outer boundary, and it is middleware rather than a
 call at the top of each page for one reason: a guard that must be remembered is
 a guard that gets forgotten the first time somebody adds a route. `/deals`,
 `/invest` and `/capital` are denied by default; a new operator page is protected
 by living under one of those paths.
+
+Every operator page then calls `requireOperator()` as well. That is not
+belt-and-braces for its own sake: Next.js has shipped middleware-bypass
+advisories more than once — CVE-2025-29927 let a crafted
+`x-middleware-subrequest` header skip middleware entirely — and these pages
+render special-category personal data. A framework bug should not be the only
+thing between an attacker and a seller's reported health concerns.
 
 `src/lib/operator.ts` holds the session logic and uses Web Crypto rather than
 `node:crypto`, because middleware runs in the edge runtime where `node:crypto`

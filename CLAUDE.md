@@ -59,7 +59,7 @@ Assets regenerate with `npm run pwa:assets` — never hand-edit `public/`.
 Go-to-market: `docs/GO-TO-MARKET.md` is the source; `npm run docs:pdf`
 renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
 
-227 tests in `tests/` (228 with Postgres). All pass. Build succeeds. All routes return 200.
+229 tests in `tests/` (230 with Postgres). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -85,8 +85,10 @@ renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
     PNG-compressed and made the asset set 9.1MB instead of 690kB.
 12. **The service worker caches nothing data-bearing.** Pages render live
     figures; a cache-first worker would serve a stale Deal Score as current.
-13. **Operator surfaces are deny-by-default.** The gate lives in middleware,
-    not in each page, and it fails closed without `OPERATOR_SECRET`. Seller
+13. **Operator surfaces are deny-by-default, twice.** The gate lives in
+    middleware and every operator page also calls `requireOperator()`, because
+    Next has shipped middleware-bypass advisories more than once. It fails
+    closed without `OPERATOR_SECRET`. Seller
     links are capability URLs from a CSPRNG — never derived from guessable
     facts about the property.
 14. **`DATABASE_URL` decides the store, nothing else.** Set means Postgres;
@@ -171,7 +173,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 227 tests
+npx vitest run       # 229 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

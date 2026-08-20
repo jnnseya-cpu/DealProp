@@ -18,7 +18,7 @@ customer, and the product says so.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 227 tests
+npm test          # 229 tests
 npm run typecheck
 ```
 
@@ -281,7 +281,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 227 tests, Postgres suite skipped
+npm test          # 229 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -297,6 +297,12 @@ enquiries already stored — all guessable. Both are fixed:
 - `src/middleware.ts` gates `/deals`, `/invest` and `/capital` **by default**.
   A new operator route is protected by existing under those paths, not by
   someone remembering to guard it.
+- **Every operator page also checks for itself.** Next.js has shipped more than
+  one middleware-bypass advisory — CVE-2025-29927 let a crafted
+  `x-middleware-subrequest` header skip middleware entirely — so `requireOperator()`
+  is the second lock behind the gate. One `await` per page, and the data behind
+  it no longer depends on a single point of failure in somebody else's
+  framework.
 - Without `OPERATOR_SECRET` those pages return **503 and render nothing**. The
   same fail-closed rule as the cron endpoint: an unconfigured deployment must
   not default to open.

@@ -86,6 +86,33 @@ export async function verifyOperatorCookie(
   return constantTimeEqual(cookie, await operatorCookieValue(secret));
 }
 
+/**
+ * Assert an operator session from inside a page or route handler.
+ *
+ * Middleware is the gate; this is the second lock behind it. Next.js has
+ * shipped more than one middleware-bypass advisory — CVE-2025-29927 let a
+ * crafted `x-middleware-subrequest` header skip middleware entirely — and the
+ * pages behind this gate carry special-category personal data. A single point
+ * of failure in somebody else's framework is not an acceptable place to put
+ * that, so the surfaces check for themselves as well.
+ *
+ * Throws rather than returning a boolean: a guard whose result can be ignored
+ * is one that will eventually be ignored.
+ */
+export async function assertOperator(cookie: string | undefined): Promise<void> {
+  if (!(await verifyOperatorCookie(cookie, process.env.OPERATOR_SECRET))) {
+    throw new OperatorAccessDenied();
+  }
+}
+
+/** Thrown when an operator surface is reached without a valid session. */
+export class OperatorAccessDenied extends Error {
+  constructor() {
+    super("Operator access denied");
+    this.name = "OperatorAccessDenied";
+  }
+}
+
 /** True where the submitted password is the operator secret. */
 export async function operatorPasswordMatches(
   submitted: string,

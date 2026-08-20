@@ -7,6 +7,7 @@ import { STRUCTURE_LABELS } from "@/domain/strategies";
 import { gbp, percent } from "@/lib/format";
 import { SiteHeader } from "@/app/components/chrome";
 import { MandateControls } from "@/app/components/mandate";
+import { requireOperator } from "@/app/operator/guard";
 import { SignOutButton } from "@/app/operator/SignOutButton";
 import { BuyBoxForm } from "./BuyBoxForm";
 import { removeBuyBox, setBuyBoxActive } from "./actions";
@@ -28,6 +29,7 @@ export const metadata = {
  * run it against the pipeline in front of the person who wrote it.
  */
 export default async function InvestPage() {
+  await requireOperator("/invest");
   const [boxes, records] = await Promise.all([listBuyBoxes(), listDeals()]);
 
   const scored = records.map((record) => ({

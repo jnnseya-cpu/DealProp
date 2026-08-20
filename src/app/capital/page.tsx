@@ -7,6 +7,7 @@ import { add } from "@/lib/money";
 import { gbp, months, percent } from "@/lib/format";
 import { SiteHeader } from "@/app/components/chrome";
 import { MandateControls } from "@/app/components/mandate";
+import { requireOperator } from "@/app/operator/guard";
 import { SignOutButton } from "@/app/operator/SignOutButton";
 import { FundingBoxForm } from "./FundingBoxForm";
 import { removeFundingBox, setFundingBoxActive } from "./actions";
@@ -27,6 +28,7 @@ export const metadata = {
  * data rather than from a claim.
  */
 export default async function CapitalPage() {
+  await requireOperator("/capital");
   const [boxes, records] = await Promise.all([listFundingBoxes(), listDeals()]);
 
   const scored = records.map((record) => ({
