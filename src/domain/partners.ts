@@ -75,7 +75,10 @@ export const TRADE_PARTNERS: readonly TradePartner[] = [
     name: "Evandeli",
     url: "https://www.evandeli.com",
     remit: "Tradespeople for individual jobs and specialist work",
-    relationship: "independent",
+    // Declared connected by the operator. Where an interest is uncertain the
+    // safe error is to declare one: understating it misleads a consumer about
+    // whose advice they are taking, and overstating it costs nothing.
+    relationship: "connected-party",
     feeArrangement: "none",
   },
 ];
