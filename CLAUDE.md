@@ -58,6 +58,8 @@ Access control: `src/middleware.ts` gates `/deals`, `/invest`, `/capital`,
 API: `/api/cron/newsletter` weekly send, secret-protected and idempotent.
 PWA: installable, `src/shared/pwa.ts` is the single source for devices/icons/colours.
 Assets regenerate with `npm run pwa:assets` — never hand-edit `public/`.
+Go-live: `docs/GO-LIVE.md` is the runbook; `npm run preflight` is the gate and
+exits non-zero on blockers. `/api/health` is the platform health check.
 Go-to-market: `docs/GO-TO-MARKET.md` is the source; `npm run docs:pdf`
 renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
 

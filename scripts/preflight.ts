@@ -1,0 +1,378 @@
+/**
+ * Go-live preflight.
+ *
+ * Answers one question — is this deployment safe to put in front of the public
+ * — and answers it by checking, not by asserting. It exits non-zero on any
+ * blocker, so it can sit in a deploy pipeline and stop a release rather than
+ * printing a warning nobody reads.
+ *
+ * The bias is deliberate. Every check here fails closed: a value it cannot read
+ * is treated as absent, and absent is a blocker wherever the consequence of
+ * being wrong is a member of the public seeing something they should not, or
+ * being told something untrue.
+ *
+ * Usage: npm run preflight
+ */
+
+import { normaliseSiteUrl } from "../src/shared/site";
+import { STREAMS } from "../src/shared/domain/revenue";
+import { UK_INVESTOR_CATEGORISATION } from "../src/shared/domain/jurisdictions/uk-financial-promotion";
+import { DATA_SOURCES } from "../src/shared/domain/sources";
+import { isDealReady } from "../src/shared/domain/jurisdictions";
+import { IOS_DEVICES, PWA_ICONS, splashPath } from "../src/shared/pwa";
+import { existsSync } from "node:fs";
+import path from "node:path";
+
+type Level = "block" | "warn" | "pass";
+
+interface Check {
+  readonly level: Level;
+  readonly area: string;
+  readonly message: string;
+  /** What to do about it. Required on anything that is not a pass. */
+  readonly remedy?: string;
+}
+
+const checks: Check[] = [];
+const pass = (area: string, message: string): void => {
+  checks.push({ level: "pass", area, message });
+};
+const warn = (area: string, message: string, remedy: string): void => {
+  checks.push({ level: "warn", area, message, remedy });
+};
+const block = (area: string, message: string, remedy: string): void => {
+  checks.push({ level: "block", area, message, remedy });
+};
+
+const env = process.env;
+
+/** Values that appear in this repository and must never reach production. */
+const KNOWN_DEV_SECRETS = new Set(["test-operator-secret", "lode", "changeme", "secret", "password"]);
+
+function secretIsWeak(value: string): string | undefined {
+  if (KNOWN_DEV_SECRETS.has(value.toLowerCase())) {
+    return "it is a value used in this repository's own tests";
+  }
+  if (value.length < 24) {
+    return `it is ${value.length} characters; use at least 24`;
+  }
+  if (new Set(value).size < 10) {
+    return "it has too little variety to have come from a random generator";
+  }
+  return undefined;
+}
+
+/* ------------------------------------------------------------ credentials */
+
+function checkOperatorSecret(): void {
+  const secret = env.OPERATOR_SECRET;
+  if (secret === undefined || secret === "") {
+    // Not a blocker for the app — it fails closed by itself — but it is a
+    // blocker for a useful deployment, because every operator surface returns
+    // 503 and nobody can sign in at all.
+    block(
+      "Access control",
+      "OPERATOR_SECRET is not set, so every operator surface will return 503 and no account can be created.",
+      "Generate one with `openssl rand -base64 32` and set it in the host's environment.",
+    );
+    return;
+  }
+  const weakness = secretIsWeak(secret);
+  if (weakness !== undefined) {
+    block(
+      "Access control",
+      `OPERATOR_SECRET is weak: ${weakness}.`,
+      "Replace it with `openssl rand -base64 32`. It also signs every account session, so rotating it signs everybody out.",
+    );
+    return;
+  }
+  pass("Access control", "OPERATOR_SECRET is set and looks randomly generated.");
+}
+
+function checkCronSecret(): void {
+  const secret = env.CRON_SECRET;
+  if (secret === undefined || secret === "") {
+    warn(
+      "Newsletter",
+      "CRON_SECRET is not set, so the weekly send endpoint will refuse to run.",
+      "Set it if the newsletter should send. Leaving it unset is safe — the endpoint fails closed — but nothing will be mailed.",
+    );
+    return;
+  }
+  const weakness = secretIsWeak(secret);
+  if (weakness !== undefined) {
+    block(
+      "Newsletter",
+      `CRON_SECRET is weak: ${weakness}. Anything that can guess it can mail every subscriber.`,
+      "Replace it with `openssl rand -base64 32`.",
+    );
+    return;
+  }
+  pass("Newsletter", "CRON_SECRET is set and looks randomly generated.");
+}
+
+/* ------------------------------------------------------------- addressing */
+
+function checkSiteUrl(): void {
+  const raw = env.NEXT_PUBLIC_SITE_URL;
+  if (raw === undefined || raw.trim() === "") {
+    block(
+      "Site address",
+      "NEXT_PUBLIC_SITE_URL is not set, so canonical URLs, the sitemap and every newsletter link will point at localhost.",
+      "Set it to the public origin, e.g. https://lode.example — no trailing slash.",
+    );
+    return;
+  }
+  const url = normaliseSiteUrl(raw);
+  if (url.startsWith("http://")) {
+    block(
+      "Site address",
+      `NEXT_PUBLIC_SITE_URL is ${url}, which is not HTTPS. Session cookies are marked Secure in production and will not be sent.`,
+      "Serve the site over HTTPS and set the https:// origin here.",
+    );
+    return;
+  }
+  if (url.includes("localhost") || url.includes("127.0.0.1")) {
+    block(
+      "Site address",
+      `NEXT_PUBLIC_SITE_URL is ${url}, which is not a public address.`,
+      "Set it to the real origin before going live.",
+    );
+    return;
+  }
+  pass("Site address", `Canonical origin is ${url}.`);
+}
+
+/* --------------------------------------------------------------- storage */
+
+async function checkDatabase(): Promise<void> {
+  const url = env.DATABASE_URL;
+  if (url === undefined || url === "") {
+    block(
+      "Storage",
+      "DATABASE_URL is not set, so the app will use the JSON file store. On any host running more than one instance — which includes every serverless deployment — instances do not share a filesystem and writes silently diverge.",
+      "Provision Postgres and set DATABASE_URL. Both engines pass the same contract suite, so nothing else changes.",
+    );
+    return;
+  }
+
+  if (!/\bsslmode=require\b/.test(url) && !url.includes("localhost") && !url.includes("127.0.0.1")) {
+    warn(
+      "Storage",
+      "DATABASE_URL does not request TLS. Seller screening answers, including reported health concerns, would cross the network in the clear.",
+      "Append ?sslmode=require unless the connection is over a private network that guarantees encryption.",
+    );
+  }
+
+  if (/\bsslmode=(no-verify|prefer|allow)\b/.test(url)) {
+    warn(
+      "Storage",
+      "DATABASE_URL uses an sslmode that does not authenticate the server. The connection may be encrypted but it can still be intercepted.",
+      "Use sslmode=require against managed Postgres, which presents a publicly signed certificate. sslmode=no-verify is only for a self-hosted server with a self-signed certificate on a trusted network.",
+    );
+  }
+
+  try {
+    const { postgresStore, closePostgres } = await import("../src/backend/store/postgresStore");
+    const empty = await postgresStore.isEmpty();
+    const accounts = await postgresStore.listAccounts();
+    await closePostgres();
+
+    pass("Storage", "Postgres is reachable and the schema is present.");
+
+    if (accounts.length === 0) {
+      warn(
+        "Accounts",
+        "No accounts exist. Access will only be possible with the shared operator password, which appears in the audit trail with no name against it.",
+        "Sign in with the shared password, create an administrator at /operator/accounts, then use that.",
+      );
+    } else {
+      const admins = accounts.filter((a) => a.role === "admin" && a.disabledAt === undefined);
+      if (admins.length === 0) {
+        warn(
+          "Accounts",
+          `${accounts.length} account(s) exist but none is an active administrator, so nobody can manage accounts or read the audit trail as a named person.`,
+          "Create an admin account at /operator/accounts.",
+        );
+      } else {
+        pass("Accounts", `${admins.length} active administrator account(s).`);
+      }
+    }
+
+    if (empty) {
+      warn(
+        "Storage",
+        "The store holds no deals or mandates. The seller journey will correctly tell every seller that no buyer matches their property.",
+        "That is the honest state before capital is recruited. Recruit funding and buying mandates before marketing to sellers.",
+      );
+    }
+  } catch (error) {
+    block(
+      "Storage",
+      `Postgres is not reachable: ${error instanceof Error ? error.message : String(error)}`,
+      "Check DATABASE_URL, network access from the host, and that the database accepts connections.",
+    );
+  }
+}
+
+/* ----------------------------------------------------------------- email */
+
+function checkEmail(): void {
+  const configured = ["EMAIL_API_URL", "EMAIL_API_KEY", "EMAIL_FROM"].filter(
+    (name) => (env[name] ?? "") !== "",
+  );
+  if (configured.length === 0) {
+    warn(
+      "Email",
+      "No email provider is configured. Newsletter confirmations and issues will be logged instead of sent, so double opt-in cannot complete.",
+      "Set EMAIL_API_URL, EMAIL_API_KEY and EMAIL_FROM, or leave the newsletter switched off.",
+    );
+  } else if (configured.length < 3) {
+    block(
+      "Email",
+      `Email is half-configured: ${configured.join(", ")} set. A partial configuration is how a deployment mails real people from the wrong address.`,
+      "Set all three, or none.",
+    );
+  } else {
+    pass("Email", "Email transport is fully configured.");
+  }
+
+  const identity = ["NEWSLETTER_SENDER_NAME", "NEWSLETTER_SENDER_ADDRESS"].filter(
+    (name) => (env[name] ?? "") === "",
+  );
+  if (configured.length === 3 && identity.length > 0) {
+    block(
+      "Email",
+      `Sender identity is incomplete (${identity.join(", ")} missing). Marketing email must carry the sender's identity and a postal address by law.`,
+      "Set both before any issue is sent.",
+    );
+  }
+}
+
+/* ------------------------------------------------------------- regulatory */
+
+function checkRegulatory(): void {
+  const held = (env.HELD_PERMISSIONS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const gated = STREAMS.filter((s) => s.requiresPermission !== undefined);
+  const missing = gated.filter((s) => !held.includes(s.requiresPermission ?? ""));
+
+  if (missing.length === gated.length) {
+    warn(
+      "Regulatory",
+      `All ${gated.length} permission-gated revenue streams are excluded, because no permissions are recorded as held. Subscriptions and AI credits are unaffected.`,
+      "This is the correct state before HMRC AML registration and redress scheme membership are granted. dealRevenue() already excludes them; do not charge them.",
+    );
+  } else if (missing.length > 0) {
+    warn(
+      "Regulatory",
+      `${missing.length} revenue stream(s) remain gated: ${missing.map((s) => s.label).join(", ")}.`,
+      "Obtain the recorded permission before charging them.",
+    );
+  } else {
+    pass("Regulatory", "Every gated revenue stream has its permission recorded.");
+  }
+
+  if (UK_INVESTOR_CATEGORISATION.requiresVerification) {
+    warn(
+      "Regulatory",
+      `Investor categorisation thresholds are recorded as at ${UK_INVESTOR_CATEGORISATION.asOf} and marked as needing verification. Deal material is gated on these.`,
+      "Confirm them against the current Financial Promotion Order and clear requiresVerification, or accept that the gate may be using superseded figures.",
+    );
+  }
+
+  const unlicensed = DATA_SOURCES.filter((s) => s.licence === undefined);
+  pass(
+    "Data sources",
+    `${DATA_SOURCES.length - unlicensed.length} licensed source(s) usable; ${unlicensed.length} refused for want of a licence.`,
+  );
+
+  for (const code of ["GB-ENG", "GB-SCT", "GB-WLS", "GB-NIR"] as const) {
+    if (!isDealReady(code)) {
+      warn(
+        "Jurisdictions",
+        `${code} is not deal-ready, so deals there will be capped rather than transacted.`,
+        "Implement and date its tax tables before operating there.",
+      );
+    }
+  }
+}
+
+/* ---------------------------------------------------------------- assets */
+
+function checkAssets(): void {
+  const publicDir = path.join(process.cwd(), "public");
+  const missing: string[] = [];
+
+  for (const icon of PWA_ICONS) {
+    if (!existsSync(path.join(publicDir, icon.file))) missing.push(icon.file);
+  }
+  for (const device of IOS_DEVICES) {
+    for (const orientation of ["portrait", "landscape"] as const) {
+      const file = splashPath(device, orientation);
+      if (!existsSync(path.join(publicDir, file.replace(/^\//, "")))) missing.push(file);
+    }
+  }
+
+  if (missing.length > 0) {
+    warn(
+      "PWA assets",
+      `${missing.length} icon or splash file(s) missing. iOS shows a blank white screen on launch where a splash is absent, which users read as a crash.`,
+      "Run `npm run pwa:assets`.",
+    );
+  } else {
+    pass("PWA assets", "Every declared icon and splash image is present.");
+  }
+
+  if (!existsSync(path.join(publicDir, "sw.js"))) {
+    warn("PWA assets", "No service worker at the root scope; the app will not be installable.", "Check public/sw.js.");
+  }
+}
+
+/* ------------------------------------------------------------------- run */
+
+async function main(): Promise<void> {
+  checkOperatorSecret();
+  checkCronSecret();
+  checkSiteUrl();
+  await checkDatabase();
+  checkEmail();
+  checkRegulatory();
+  checkAssets();
+
+  const blockers = checks.filter((c) => c.level === "block");
+  const warnings = checks.filter((c) => c.level === "warn");
+  const passes = checks.filter((c) => c.level === "pass");
+
+  const icon: Record<Level, string> = { block: "BLOCK", warn: " WARN", pass: " PASS" };
+
+  process.stdout.write("\nGo-live preflight\n=================\n\n");
+  for (const check of [...blockers, ...warnings, ...passes]) {
+    process.stdout.write(`[${icon[check.level]}] ${check.area}: ${check.message}\n`);
+    if (check.remedy !== undefined) {
+      process.stdout.write(`         → ${check.remedy}\n`);
+    }
+    process.stdout.write("\n");
+  }
+
+  process.stdout.write(
+    `${blockers.length} blocking, ${warnings.length} to review, ${passes.length} passing.\n`,
+  );
+
+  if (blockers.length > 0) {
+    process.stdout.write("\nNOT READY. Fix the blocking items above.\n");
+    process.exitCode = 1;
+    return;
+  }
+  process.stdout.write(
+    "\nNo blockers. Read the warnings before going live — several of them are things that are lawful to leave undone and dangerous to forget.\n",
+  );
+}
+
+main().catch((error: unknown) => {
+  process.stderr.write(`preflight failed to run: ${String(error)}\n`);
+  process.exitCode = 1;
+});

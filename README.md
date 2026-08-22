@@ -12,6 +12,18 @@ customer, and the product says so.
 
 ---
 
+## Going live
+
+`docs/GO-LIVE.md` is the runbook, and `npm run preflight` is the gate. It
+checks configuration rather than assuming it — secret strength, HTTPS origin,
+Postgres reachability, whether an administrator account exists, whether email is
+half-configured — and exits non-zero on anything blocking, so it belongs in the
+deploy pipeline rather than in a document nobody reads.
+
+`/api/health` returns 200 with the store reachable and 503 when it is not, for
+the platform's health check. It is unauthenticated and therefore deliberately
+uninformative: no version, no hostnames, no error text.
+
 ## Quick start
 
 ```bash
@@ -20,6 +32,7 @@ npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
 npm test          # 325 tests
 npm run typecheck
+npm run preflight # is this safe to put in front of the public?
 ```
 
 ---

@@ -14,7 +14,8 @@
     "seed": "tsx src/backend/store/seed.ts",
     "pwa:assets": "tsx scripts/generate-pwa-assets.ts",
     "docs:pdf": "tsx scripts/generate-gtm-pdf.ts",
-    "test:pg": "TEST_DATABASE_URL=${TEST_DATABASE_URL:-postgres://lode:lode@127.0.0.1:5432/lode_test} vitest run"
+    "test:pg": "TEST_DATABASE_URL=${TEST_DATABASE_URL:-postgres://lode:lode@127.0.0.1:5432/lode_test} vitest run",
+    "preflight": "tsx scripts/preflight.ts"
   },
   "dependencies": {
     "next": "^15.5.23",

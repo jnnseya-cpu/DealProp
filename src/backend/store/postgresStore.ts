@@ -87,13 +87,26 @@ function getPool(): Pool {
     if (connectionString === undefined || connectionString === "") {
       throw new Error("DATABASE_URL is not set");
     }
+    // TLS is governed entirely by `sslmode` in the connection string, which is
+    // the standard libpq control and — verified against pg 8.23 — overrides any
+    // `ssl` option passed here rather than merging with it. Passing
+    // `rejectUnauthorized: false` alongside `sslmode=require` therefore does
+    // nothing at all, while looking as though it relaxes verification.
+    //
+    //   sslmode=require    encrypted and the certificate is verified. Correct
+    //                      for managed Postgres, which presents a publicly
+    //                      signed certificate.
+    //   sslmode=no-verify  encrypted but NOT authenticated, so the connection
+    //                      can be intercepted. Only for a self-hosted server
+    //                      with a self-signed certificate on a trusted network.
+    //
+    // An earlier version disabled verification whenever sslmode=require
+    // appeared, which is the opposite of what that setting asks for.
     pool = new Pool({
       connectionString,
       // Serverless runtimes create a pool per instance, so a large per-pool
       // maximum exhausts the server's connection limit long before it helps.
       max: Number(process.env.DATABASE_POOL_MAX ?? 5),
-      // Managed Postgres almost always requires TLS; local sockets never do.
-      ssl: /\bsslmode=require\b/.test(connectionString) ? { rejectUnauthorized: false } : undefined,
     });
   }
   return pool;
