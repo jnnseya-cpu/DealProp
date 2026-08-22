@@ -41,7 +41,7 @@ seller-facing options cannot disagree.
 `src/shared/domain/` (18 files): `types`, `newsletter`, `economics`, `motivation`, `protection`,
 `redteam`, `dealScore`, `capitalStack`, `strategies`, `goldmine`, `matching`,
 `completion`, `revenue`, `director`, `intake`, `sellerRoutes`, `workingDeal`,
-`partners`, `sources`, `registrySignal`, `accounts`.
+`partners`, `sources`, `registrySignal`, `accounts`, `blog`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -61,7 +61,7 @@ Assets regenerate with `npm run pwa:assets` — never hand-edit `public/`.
 Go-to-market: `docs/GO-TO-MARKET.md` is the source; `npm run docs:pdf`
 renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
 
-302 tests in `tests/` (303 with Postgres). All pass. Build succeeds. All routes return 200.
+325 tests in `tests/` (326 with Postgres). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -105,7 +105,12 @@ renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
     `can()` decides; twelve months and it lapses. Investors and funders never
     hold `view-seller-data` at any point.
 17. **The audit trail is append-only.** No update, no delete, anywhere.
-18. **Engines are deterministic.** LLMs belong at the edges proposing
+18. **Blog figures come from the engine, links are computed.** The drafter is
+    the only LLM seam and it never touches a number. No hardcoded internal
+    hrefs — a renamed slug must not be able to leave a dead link.
+19. **`robots.txt` disallows every operator surface.** Third layer behind the
+    middleware gate and the per-page guard, never a substitute for either.
+20. **Engines are deterministic.** LLMs belong at the edges proposing
     structured values — never deciding a score or clearing a flag.
 
 ### Outstanding
@@ -181,7 +186,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 302 tests
+npx vitest run       # 325 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

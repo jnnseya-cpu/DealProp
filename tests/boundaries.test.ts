@@ -33,9 +33,21 @@ async function filesUnder(dir: string): Promise<string[]> {
   return out;
 }
 
+/**
+ * Source with comments stripped.
+ *
+ * The rules below are about what a file *does*, not what it discusses. A module
+ * whose doc comment explains why it must not read `process.env` should pass.
+ */
+function code(file: string): string {
+  return readFileSync(file, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ");
+}
+
 /** Every module specifier a file imports or re-exports from. */
 function importsOf(file: string): string[] {
-  const source = readFileSync(file, "utf8");
+  const source = code(file);
   const specifiers: string[] = [];
   const pattern = /(?:^|\n)\s*(?:import|export)[^;\n]*?from\s+["']([^"']+)["']/g;
   const dynamic = /\bimport\(\s*["']([^"']+)["']/g;
@@ -81,12 +93,10 @@ describe("src/shared stays pure", () => {
 
   it("reads no environment variable", async () => {
     // A figure that changes with configuration is not a figure anyone can
-    // reproduce from the inputs they were shown.
+    // reproduce from the inputs they were shown. Checked against code with
+    // comments stripped, so a module may explain the rule without breaking it.
     for (const file of await filesUnder(path.join(SRC, "shared"))) {
-      expect(
-        readFileSync(file, "utf8").includes("process.env"),
-        `${relative(file)} reads process.env`,
-      ).toBe(false);
+      expect(code(file).includes("process.env"), `${relative(file)} reads process.env`).toBe(false);
     }
   });
 });
@@ -108,7 +118,7 @@ describe("src/backend stays server-side", () => {
     // — it stores them — but calling a domain function from it is how storage
     // starts making decisions, and then two engines disagree.
     for (const file of await filesUnder(path.join(SRC, "backend", "store"))) {
-      const source = readFileSync(file, "utf8");
+      const source = code(file);
       for (const specifier of importsOf(file)) {
         if (!specifier.startsWith("@shared/domain/")) continue;
         // Seeding is the exception: it builds fixtures and is a script.

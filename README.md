@@ -18,7 +18,7 @@ customer, and the product says so.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 302 tests
+npm test          # 325 tests
 npm run typecheck
 ```
 
@@ -37,6 +37,10 @@ listed honestly in [Not built yet](#not-built-yet).
 | Pipeline | `/deals` | Every opportunity scored after tax, blocked deals included |
 | Deal Room | `/deals/[id]` | Verdict, full model, Red Team, capital stack, matched mandates |
 | Memorandum | `/deals/[id]/memorandum` | Print-ready pack from the same briefing, with the promotion notice |
+| Blog | `/blog` | Posts written by the agent from real engine output |
+| Post | `/blog/[slug]` | Auto-linked glossary terms, related posts, JSON-LD |
+| Topic hub | `/blog/topic/[topic]` | Six hubs, each linking its posts and definitions |
+| Glossary | `/glossary`, `/glossary/[slug]` | Definition pages, linked from every mention |
 | Newsletter | `/newsletter` | Double opt-in signup, confirm and one-click unsubscribe |
 | Buy Boxes | `/invest` | Investor mandates, each shown against the deals it matches |
 | Funding Boxes | `/capital` | Capital mandates, each shown against the deals it funds |
@@ -307,6 +311,44 @@ from the build environment — outbound network access is blocked there. Run
 `fetchPricePaid()` and `fetchCertificates()` against the real services before
 relying on them.
 
+## The blog
+
+`/blog` is written by an agent from deals that exist, using the figures the
+engine produced. A property blog that invents "typical returns of 20%" is doing
+the thing this product exists to refuse, and a post whose numbers disagree with
+the Deal Room is worse than no post.
+
+**The figures are computed; the prose has a seam.** `runDealDirector()` returns
+the numbers and the agent formats them — nothing in `src/backend/blog` decides a
+score, a verdict or a tax figure. `Drafter` is the edge where a language model
+belongs. The default implementation composes from the briefing's own
+explanations, which are already written to be read: every score component
+carries a rationale, every rejected strategy carries a reason. **It needs no API
+key and no network.** Wire `BLOG_MODEL_API_URL` and a model writes the sentences
+instead — and the figures block is appended *after* the model returns, so it
+cannot change a number.
+
+The posts worth reading are the rejections. The blocked Handsworth deal has a
+24.3% margin and £69,375 of projected profit, and it is published as a refusal
+with the reasoning attached, because anybody can publish a deal that worked.
+
+**Links are computed, not typed.** Internal linking is most of what on-page SEO
+is and the part that rots fastest by hand. Every glossary term a body mentions
+is linked to its definition on first use, every post links to the others sharing
+its vocabulary, each definition lists the posts that use it, and each topic hub
+links both. One post carries 22 internal links and not one of them is a
+hardcoded href — a renamed slug cannot leave a dead link behind.
+
+Also shipped: canonical URLs, OpenGraph, `Article`, `BreadcrumbList`, `FAQPage`
+and `DefinedTerm` structured data, a generated `sitemap.xml`, and a `robots.txt`
+that **disallows every operator surface** — those carry seller screening answers,
+and keeping them out of the index is the third layer behind middleware and the
+per-page guard, not a substitute for either.
+
+The corpus degrades rather than failing: with the store unreachable the
+evergreen posts still serve, because a public page has no business 500ing
+because the deal database is down.
+
 ## Persistence
 
 `DATABASE_URL` decides the engine, and nothing else does:
@@ -329,7 +371,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 302 tests, Postgres suite skipped
+npm test          # 325 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
