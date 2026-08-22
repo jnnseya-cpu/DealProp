@@ -18,7 +18,7 @@ customer, and the product says so.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 265 tests
+npm test          # 295 tests
 npm run typecheck
 ```
 
@@ -40,7 +40,10 @@ listed honestly in [Not built yet](#not-built-yet).
 | Newsletter | `/newsletter` | Double opt-in signup, confirm and one-click unsubscribe |
 | Buy Boxes | `/invest` | Investor mandates, each shown against the deals it matches |
 | Funding Boxes | `/capital` | Capital mandates, each shown against the deals it funds |
-| Operator access | `/operator` | Shared-password gate over the operator surfaces |
+| Sign in | `/operator` | Named account, or the shared password as bootstrap |
+| Accounts | `/operator/accounts` | Create, disable, see certification status |
+| Audit trail | `/operator/audit` | Append-only: who saw what, and when |
+| Certification | `/account/certify` | Investor self-certification under the FPO |
 | Offline | `/offline` | Service-worker fallback; deliberately shows no figures |
 
 | Engine | File | What it does |
@@ -244,11 +247,8 @@ Deliberately out of scope for this slice, in rough priority order:
 - **Portal listing data.** Still refused, permanently and by code — see
   [Where the data comes from](#where-the-data-comes-from). The signals GoldMine
   wanted from listings now come from open sources instead.
-- **User accounts, roles and payments.** None exist. The operator surfaces are
-  gated by a single shared password (see below), which closes the data-exposure
-  hole but is not per-person authentication and carries no audit trail. Investor
-  categorisation is still required before deal material reaches a private
-  investor — see `docs/REGULATORY.md` §2.
+- **Payments.** None. Subscriptions and success fees are modelled by
+  `revenue.ts` and nothing charges anybody.
 - **Actual AI.** The "agents" are deterministic scoring and rules. This is a
   feature, not a gap: the financial engine must be reproducible and testable.
   LLMs belong at the edges — parsing a seller's narrative into a structured
@@ -329,7 +329,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 265 tests, Postgres suite skipped
+npm test          # 295 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -360,8 +360,50 @@ enquiries already stored — all guessable. Both are fixed:
 - A seller's own result page is a **capability link**: 32 bytes from a CSPRNG,
   the same standard as the newsletter confirm link. It carries only their data.
 
-This is a shared password, not accounts. It is the proportionate fix for a live
-data-exposure problem, and it is what per-person authentication replaces.
+### Accounts, and the thing that actually gates deal material
+
+The shared password is now the bootstrap rather than the whole story. It creates
+the first account and covers a solo operator on day one; everything else should
+be done as a named person, because a shared password has nobody for the audit
+trail to name.
+
+**Sending a deal pack to a private investor is a financial promotion** under
+FSMA s.21. That does not require FCA authorisation to solve — it requires the
+investor to certify which exemption they fall under, which is a form, a record
+and an annual renewal:
+
+| Category | Basis | May be sent deal material |
+|---|---|---|
+| Certified high net worth individual | FPO art. 48 | Yes |
+| Self-certified sophisticated investor | FPO art. 50A | Yes |
+| Certified sophisticated investor | FPO art. 50 | Yes — but the certificate is signed by an authorised firm, not by us |
+| Investment professional | FPO art. 19 | Yes |
+| Restricted investor | COBS 4.7.10R | **No** — that exemption is not written for this |
+| Nothing held or lapsed | — | **No** |
+
+`can()` in `src/domain/accounts.ts` is the only place that decision is made.
+Four properties are enforced by tests:
+
+- **An expired certification is no certification.** Twelve months from
+  signature, then it must be given again. A lapsed statement does not degrade
+  gracefully; sending on the strength of one is as unlawful as sending to
+  somebody who never certified.
+- **Investors and funders never hold `view-seller-data`,** at any point, with
+  any certification. A funder needs the deal, not the seller's reported health
+  concerns.
+- **The exact words signed are stored,** with the criteria ticked and the date.
+  The question asked later is "what did they certify?", and a record holding
+  only the category cannot answer it.
+- **Thresholds are a dated snapshot with `requiresVerification: true`,** treated
+  exactly like the SDLT bands. They were raised in 2023 and the change was then
+  announced for reversal; nobody should disapply s.21 on the strength of a
+  figure in a repository.
+
+The audit trail is append-only — the store exposes `appendAudit` and no update
+or delete — and records sign-ins, failures, denials, certifications, and every
+view of seller data or deal material. Access taken with the shared password
+appears with no name against it, which is the argument for giving people their
+own accounts.
 
 ## Regulatory position
 

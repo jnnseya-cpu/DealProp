@@ -4,11 +4,12 @@ import { useActionState } from "react";
 import { signIn } from "./actions";
 
 /**
- * Operator sign-in form.
+ * Sign-in form.
  *
- * A single shared password, described as one. Calling it "sign in" without
- * saying so would imply per-person accounts and an audit trail that do not
- * exist yet.
+ * Two ways in, and the page says which is which. A named account gives a
+ * person the audit trail can name; the shared password gives access with no
+ * attribution, and is kept because it is what creates the first account and
+ * what a solo operator uses before there are any.
  */
 export function SignInForm({ next }: { next: string }) {
   const [error, formAction, pending] = useActionState<string | undefined, FormData>(
@@ -21,8 +22,24 @@ export function SignInForm({ next }: { next: string }) {
       <input type="hidden" name="next" value={next} />
 
       <div>
+        <label htmlFor="email" className="block text-sm text-ink-200">
+          Email
+        </label>
+        <p className="mt-0.5 text-xs text-ink-500">
+          Leave empty to use the shared operator password instead.
+        </p>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          autoComplete="username"
+          className="mt-2 w-full rounded-xl border hairline bg-ink-900/60 px-4 py-3 text-sm text-ink-100 focus:border-lode-500/60 focus:outline-none"
+        />
+      </div>
+
+      <div>
         <label htmlFor="password" className="block text-sm text-ink-200">
-          Operator password
+          Password
         </label>
         <input
           id="password"

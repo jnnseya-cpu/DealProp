@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { OPERATOR_COOKIE, verifyOperatorCookie } from "@/lib/operator";
+import { readSession, SESSION_COOKIE } from "@/lib/session";
 
 /**
  * Deny-by-default gate over the operator surfaces.
@@ -28,8 +29,16 @@ export async function middleware(request: NextRequest) {
     );
   }
 
-  const cookie = request.cookies.get(OPERATOR_COOKIE)?.value;
-  if (await verifyOperatorCookie(cookie, secret)) {
+  // Either credential gets past this gate: the shared operator password, or a
+  // signed per-account session. Middleware is the coarse check — it verifies
+  // the signature and nothing else, because the edge runtime has no database.
+  // Role, disabled state and investor certification are read from the account
+  // record by the per-page guard, which is where the real decision is made and
+  // where withdrawing access takes effect immediately.
+  if (await verifyOperatorCookie(request.cookies.get(OPERATOR_COOKIE)?.value, secret)) {
+    return NextResponse.next();
+  }
+  if ((await readSession(request.cookies.get(SESSION_COOKIE)?.value, secret)) !== undefined) {
     return NextResponse.next();
   }
 
@@ -41,5 +50,12 @@ export async function middleware(request: NextRequest) {
 export const config = {
   // `:path*` matches the bare path as well as anything below it, so `/deals`
   // and `/deals/deal-0001` are both covered.
-  matcher: ["/deals/:path*", "/invest/:path*", "/capital/:path*"],
+  matcher: [
+    "/deals/:path*",
+    "/invest/:path*",
+    "/capital/:path*",
+    // Certification attaches to a signed-in person, so the page behind it is
+    // gated too — otherwise the form would accept a statement from nobody.
+    "/account/:path*",
+  ],
 };

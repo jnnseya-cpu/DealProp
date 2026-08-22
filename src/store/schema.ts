@@ -3,6 +3,7 @@ import type { DealInputs, PropertyFacts, SellerProfile } from "@/domain/types";
 import type { ListingSignal } from "@/domain/goldmine";
 import type { Milestone } from "@/domain/completion";
 import type { Subscriber } from "@/domain/newsletter";
+import type { Account } from "@/domain/accounts";
 
 /**
  * What the store holds and what it can be asked to do.
@@ -34,7 +35,44 @@ export interface Database {
   buyBoxes: BuyBox[];
   fundingBoxes: FundingBox[];
   subscribers: Subscriber[];
+  accounts: Account[];
+  auditEvents: AuditEvent[];
 }
+
+/**
+ * One entry in the audit trail.
+ *
+ * Append-only by contract: the store exposes `appendAudit` and no update or
+ * delete. A log that can be edited answers no question worth asking, and the
+ * question this one exists to answer — who looked at this seller's file, and
+ * when — is asked after something has already gone wrong.
+ */
+export interface AuditEvent {
+  readonly id: string;
+  /** ISO-8601. */
+  readonly at: string;
+  /** Null for actions taken before sign-in, such as a failed attempt. */
+  readonly accountId?: string;
+  readonly email?: string;
+  readonly action: AuditAction;
+  /** What was acted on: a deal id, an account id, a mandate id. */
+  readonly subject?: string;
+  readonly detail?: string;
+}
+
+export type AuditAction =
+  | "sign-in"
+  | "sign-in-failed"
+  | "sign-out"
+  | "account-created"
+  | "account-disabled"
+  | "account-enabled"
+  | "certification-given"
+  | "viewed-seller-data"
+  | "viewed-deal-material"
+  | "mandate-saved"
+  | "mandate-deleted"
+  | "access-denied";
 
 export type SubscriberTokenField = "confirmToken" | "unsubscribeToken";
 
@@ -71,6 +109,16 @@ export interface Store {
     change: (current: Subscriber) => Subscriber,
   ): Promise<Subscriber | undefined>;
   markIssueSent(ids: readonly string[], weekKey: string): Promise<number>;
+
+  listAccounts(): Promise<readonly Account[]>;
+  getAccount(id: string): Promise<Account | undefined>;
+  findAccountByEmail(email: string): Promise<Account | undefined>;
+  saveAccount(account: Account): Promise<Account>;
+
+  /** Append only. There is deliberately no update or delete. */
+  appendAudit(event: AuditEvent): Promise<AuditEvent>;
+  /** Most recent first. `subject` narrows to one deal or account. */
+  listAudit(options?: { limit?: number; subject?: string }): Promise<readonly AuditEvent[]>;
 
   replaceAll(db: Database): Promise<void>;
   isEmpty(): Promise<boolean>;

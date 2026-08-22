@@ -7,6 +7,7 @@ import {
   operatorPasswordMatches,
   verifyOperatorCookie,
 } from "@/lib/operator";
+import { createSession, readSession } from "@/lib/session";
 
 const SECRET = "correct-horse-battery-staple";
 
@@ -99,5 +100,44 @@ describe("defence in depth", () => {
     } finally {
       if (previous !== undefined) process.env.OPERATOR_SECRET = previous;
     }
+  });
+});
+
+describe("per-account sessions", () => {
+  it("issues a session that verifies and does not contain the secret", async () => {
+    const cookie = await createSession("acc-1", SECRET);
+    expect(cookie).not.toContain(SECRET);
+    const claims = await readSession(cookie, SECRET);
+    expect(claims?.accountId).toBe("acc-1");
+  });
+
+  it("rejects a forged or tampered cookie", async () => {
+    const cookie = await createSession("acc-1", SECRET);
+    // Swapping the account id is the obvious attack: become somebody else
+    // without knowing their password.
+    const tampered = cookie.replace("acc-1", "acc-2");
+    expect(await readSession(tampered, SECRET)).toBeUndefined();
+    expect(await readSession("garbage", SECRET)).toBeUndefined();
+    expect(await readSession("a.b.c", SECRET)).toBeUndefined();
+  });
+
+  it("rejects a session signed with a different secret", async () => {
+    expect(await readSession(await createSession("acc-1", "other"), SECRET)).toBeUndefined();
+  });
+
+  it("expires after eight hours", async () => {
+    const issued = new Date("2026-08-22T00:00:00.000Z");
+    const cookie = await createSession("acc-1", SECRET, issued);
+    expect(await readSession(cookie, SECRET, new Date("2026-08-22T07:59:00.000Z"))).toBeDefined();
+    expect(await readSession(cookie, SECRET, new Date("2026-08-22T08:01:00.000Z"))).toBeUndefined();
+  });
+
+  it("rejects a cookie claiming to be issued in the future", async () => {
+    const cookie = await createSession("acc-1", SECRET, new Date("2026-08-22T10:00:00.000Z"));
+    expect(await readSession(cookie, SECRET, new Date("2026-08-22T09:00:00.000Z"))).toBeUndefined();
+  });
+
+  it("fails closed with no secret configured", async () => {
+    expect(await readSession(await createSession("acc-1", SECRET), undefined)).toBeUndefined();
   });
 });

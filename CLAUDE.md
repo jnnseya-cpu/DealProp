@@ -40,7 +40,7 @@ seller-facing options cannot disagree.
 `src/domain/` (18 files): `types`, `newsletter`, `economics`, `motivation`, `protection`,
 `redteam`, `dealScore`, `capitalStack`, `strategies`, `goldmine`, `matching`,
 `completion`, `revenue`, `director`, `intake`, `sellerRoutes`, `workingDeal`,
-`partners`, `sources`, `registrySignal`.
+`partners`, `sources`, `registrySignal`, `accounts`.
 
 `src/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -50,16 +50,17 @@ Pages: `/` landing, `/sell` intake, `/sell/[id]` seller options, `/deals`
 pipeline, `/deals/[id]` Deal Room, `/deals/[id]/memorandum` print pack,
 `/invest` Buy Boxes, `/capital` Funding Boxes, `/newsletter` (+ confirm,
 unsubscribe), `/operator` sign-in.
-Access control: `src/middleware.ts` gates `/deals`, `/invest`, `/capital`
-behind `OPERATOR_SECRET` and fails closed without it. `src/lib/operator.ts` is
-the only place session logic lives.
+Access control: `src/middleware.ts` gates `/deals`, `/invest`, `/capital`,
+`/account` behind either credential and fails closed without `OPERATOR_SECRET`.
+`src/app/operator/guard.ts` is the per-page lock; `src/domain/accounts.ts`
+`can()` is the only place a permission decision is made.
 API: `/api/cron/newsletter` weekly send, secret-protected and idempotent.
 PWA: installable, `src/lib/pwa.ts` is the single source for devices/icons/colours.
 Assets regenerate with `npm run pwa:assets` — never hand-edit `public/`.
 Go-to-market: `docs/GO-TO-MARKET.md` is the source; `npm run docs:pdf`
 renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
 
-265 tests in `tests/` (266 with Postgres). All pass. Build succeeds. All routes return 200.
+295 tests in `tests/` (296 with Postgres). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -99,15 +100,16 @@ renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
     unset means the JSON file, which is a development convenience and is wrong
     on any host that runs more than one instance. Both engines pass the same
     contract suite.
-16. **Engines are deterministic.** LLMs belong at the edges proposing
+16. **Deal material needs a current certification, never just a login.**
+    `can()` decides; twelve months and it lapses. Investors and funders never
+    hold `view-seller-data` at any point.
+17. **The audit trail is append-only.** No update, no delete, anywhere.
+18. **Engines are deterministic.** LLMs belong at the edges proposing
     structured values — never deciding a score or clearing a flag.
 
 ### Outstanding
 
-- Per-person auth + investor categorisation — required before deal material
-  reaches a private investor (`docs/REGULATORY.md` §2). The shared operator
-  password closes the data-exposure hole; it is not accounts and has no audit
-  trail.
+- Payments. Nothing charges anybody; `revenue.ts` models it and stops there.
 - GoldMine live import — parsers exist and are fixture-tested; no live call has
   been made (egress blocked in the build environment). Verify before relying.
 
@@ -178,7 +180,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 265 tests
+npx vitest run       # 295 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

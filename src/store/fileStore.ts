@@ -2,7 +2,14 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { BuyBox, FundingBox } from "@/domain/matching";
 import type { Subscriber } from "@/domain/newsletter";
-import type { Database, DealRecord, Store, SubscriberTokenField } from "@/store/schema";
+import type { Account } from "@/domain/accounts";
+import type {
+  AuditEvent,
+  Database,
+  DealRecord,
+  Store,
+  SubscriberTokenField,
+} from "@/store/schema";
 
 /**
  * File-backed store.
@@ -37,7 +44,14 @@ function dataFile(): string {
  * function for that reason; do not turn it back into a spread.
  */
 function emptyDatabase(): Database {
-  return { deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [] };
+  return {
+    deals: [],
+    buyBoxes: [],
+    fundingBoxes: [],
+    subscribers: [],
+    accounts: [],
+    auditEvents: [],
+  };
 }
 
 let writeChain: Promise<unknown> = Promise.resolve();
@@ -51,6 +65,8 @@ async function readDatabase(): Promise<Database> {
       buyBoxes: parsed.buyBoxes ?? [],
       fundingBoxes: parsed.fundingBoxes ?? [],
       subscribers: parsed.subscribers ?? [],
+      accounts: parsed.accounts ?? [],
+      auditEvents: parsed.auditEvents ?? [],
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -168,6 +184,11 @@ async function replaceAll(db: Database): Promise<void> {
     // destroy the evidence of consent and silently re-enrol nobody, leaving
     // the platform unable to prove why an address was mailed.
     if (db.subscribers.length > 0) current.subscribers = db.subscribers;
+    // Accounts and the audit trail survive a reseed for the same reason
+    // subscribers do: they are evidence, and a reseed is a development
+    // convenience that must not destroy it.
+    if (db.accounts.length > 0) current.accounts = db.accounts;
+    if (db.auditEvents.length > 0) current.auditEvents = db.auditEvents;
   });
 }
 
@@ -243,6 +264,49 @@ async function isEmpty(): Promise<boolean> {
   return db.deals.length === 0 && db.buyBoxes.length === 0 && db.fundingBoxes.length === 0;
 }
 
+async function listAccounts(): Promise<readonly Account[]> {
+  const db = await readDatabase();
+  return db.accounts;
+}
+
+async function getAccount(id: string): Promise<Account | undefined> {
+  const db = await readDatabase();
+  return db.accounts.find((a) => a.id === id);
+}
+
+async function findAccountByEmail(email: string): Promise<Account | undefined> {
+  const db = await readDatabase();
+  const wanted = email.trim().toLowerCase();
+  return db.accounts.find((a) => a.email.toLowerCase() === wanted);
+}
+
+async function saveAccount(account: Account): Promise<Account> {
+  return mutate((db) => {
+    const index = db.accounts.findIndex((a) => a.id === account.id);
+    if (index >= 0) db.accounts[index] = account;
+    else db.accounts.push(account);
+    return account;
+  });
+}
+
+/** Append only. There is deliberately no update or delete for audit events. */
+async function appendAudit(event: AuditEvent): Promise<AuditEvent> {
+  return mutate((db) => {
+    db.auditEvents.push(event);
+    return event;
+  });
+}
+
+async function listAudit(
+  { limit = 200, subject }: { limit?: number; subject?: string } = {},
+): Promise<readonly AuditEvent[]> {
+  const db = await readDatabase();
+  return db.auditEvents
+    .filter((e) => subject === undefined || e.subject === subject)
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, limit);
+}
+
 /** The file-backed implementation. */
 export const fileStore: Store = {
   kind: "file",
@@ -263,5 +327,11 @@ export const fileStore: Store = {
   saveSubscriber,
   updateSubscriberByToken,
   markIssueSent,
+  listAccounts,
+  getAccount,
+  findAccountByEmail,
+  saveAccount,
+  appendAudit,
+  listAudit,
   isEmpty,
 };

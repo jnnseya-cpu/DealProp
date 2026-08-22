@@ -1,7 +1,14 @@
 import { Pool, type PoolClient } from "pg";
 import type { BuyBox, FundingBox } from "@/domain/matching";
 import type { Subscriber } from "@/domain/newsletter";
-import type { Database, DealRecord, Store, SubscriberTokenField } from "@/store/schema";
+import type { Account } from "@/domain/accounts";
+import type {
+  AuditEvent,
+  Database,
+  DealRecord,
+  Store,
+  SubscriberTokenField,
+} from "@/store/schema";
 
 /**
  * Postgres-backed store.
@@ -48,6 +55,22 @@ const SCHEMA = `
     data jsonb NOT NULL,
     updated_at timestamptz NOT NULL DEFAULT now()
   );
+  CREATE TABLE IF NOT EXISTS accounts (
+    id text PRIMARY KEY,
+    email text NOT NULL UNIQUE,
+    data jsonb NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+  );
+  -- Append-only by construction as well as by convention: no UPDATE or DELETE
+  -- statement against this table exists anywhere in the codebase.
+  CREATE TABLE IF NOT EXISTS audit_events (
+    id text PRIMARY KEY,
+    at timestamptz NOT NULL,
+    subject text,
+    data jsonb NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS audit_events_at ON audit_events (at DESC);
+  CREATE INDEX IF NOT EXISTS audit_events_subject ON audit_events (subject);
   -- Confirmation and unsubscribe links are looked up by token on every click.
   CREATE INDEX IF NOT EXISTS subscribers_confirm_token
     ON subscribers ((data->>'confirmToken'));
@@ -236,6 +259,57 @@ export const postgresStore: Store = {
     return rowCount ?? 0;
   },
 
+  listAccounts: () => all<Account>("accounts"),
+  getAccount: (id) => one<Account>("accounts", id),
+
+  async findAccountByEmail(email: string): Promise<Account | undefined> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: Account }>(
+      "SELECT data FROM accounts WHERE lower(email) = lower($1)",
+      [email.trim()],
+    );
+    return rows[0]?.data;
+  },
+
+  async saveAccount(account: Account): Promise<Account> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO accounts (id, email, data) VALUES ($1, $2, $3)
+       ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, data = EXCLUDED.data, updated_at = now()`,
+      [account.id, account.email, JSON.stringify(account)],
+    );
+    return account;
+  },
+
+  async appendAudit(event: AuditEvent): Promise<AuditEvent> {
+    await ensureSchema();
+    // ON CONFLICT DO NOTHING rather than an upsert: a replayed write must not
+    // be able to rewrite history, only to be ignored.
+    await getPool().query(
+      `INSERT INTO audit_events (id, at, subject, data) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO NOTHING`,
+      [event.id, event.at, event.subject ?? null, JSON.stringify(event)],
+    );
+    return event;
+  },
+
+  async listAudit(
+    { limit = 200, subject }: { limit?: number; subject?: string } = {},
+  ): Promise<readonly AuditEvent[]> {
+    await ensureSchema();
+    const { rows } =
+      subject === undefined
+        ? await getPool().query<{ data: AuditEvent }>(
+            "SELECT data FROM audit_events ORDER BY at DESC LIMIT $1",
+            [limit],
+          )
+        : await getPool().query<{ data: AuditEvent }>(
+            "SELECT data FROM audit_events WHERE subject = $2 ORDER BY at DESC LIMIT $1",
+            [limit, subject],
+          );
+    return rows.map((r) => r.data);
+  },
+
   async replaceAll(db: Database): Promise<void> {
     await transaction(async (client) => {
       for (const [table, rows] of [
@@ -251,8 +325,23 @@ export const postgresStore: Store = {
           ]);
         }
       }
-      // Subscribers are consent records and survive a reseed. Wiping them
-      // would destroy the evidence of why an address was mailed.
+      // Subscribers, accounts and the audit trail survive a reseed. All three
+      // are evidence — of consent, of who had access, and of who looked at
+      // what — and a reseed is a development convenience.
+      for (const a of db.accounts) {
+        await client.query(
+          `INSERT INTO accounts (id, email, data) VALUES ($1, $2, $3)
+           ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, data = EXCLUDED.data, updated_at = now()`,
+          [a.id, a.email, JSON.stringify(a)],
+        );
+      }
+      for (const e of db.auditEvents) {
+        await client.query(
+          `INSERT INTO audit_events (id, at, subject, data) VALUES ($1, $2, $3, $4)
+           ON CONFLICT (id) DO NOTHING`,
+          [e.id, e.at, e.subject ?? null, JSON.stringify(e)],
+        );
+      }
       for (const s of db.subscribers) {
         await client.query(
           `INSERT INTO subscribers (id, email, data) VALUES ($1, $2, $3)

@@ -9,6 +9,10 @@ import {
   operatorCookieValue,
   operatorPasswordMatches,
 } from "@/lib/operator";
+import { createSession, SESSION_COOKIE, SESSION_SECONDS } from "@/lib/session";
+import { verifyPassword } from "@/lib/password";
+import { findAccountByEmail } from "@/store/repository";
+import { audit } from "@/lib/audit";
 
 /**
  * Operator sign-in.
@@ -23,9 +27,43 @@ export async function signIn(
 ): Promise<string | undefined> {
   const secret = process.env.OPERATOR_SECRET;
   const submitted = String(formData.get("password") ?? "");
+  const email = String(formData.get("email") ?? "").trim();
   const next = String(formData.get("next") ?? "/deals");
 
+  // A named account first. The shared password remains as the bootstrap — it
+  // is what creates the first administrator, and what a solo operator uses on
+  // day one — but a person with an account signs in as themselves so the audit
+  // trail has somebody to name.
+  if (email !== "") {
+    const account = await findAccountByEmail(email);
+    const ok =
+      account !== undefined &&
+      account.disabledAt === undefined &&
+      (await verifyPassword(submitted, account.passwordHash, account.passwordSalt));
+
+    if (!ok || account === undefined) {
+      // Deliberately the same message whether the address is unknown, the
+      // password is wrong, or the account is disabled. Distinguishing them
+      // tells an attacker which addresses are real.
+      await audit("sign-in-failed", { email });
+      return "That email and password do not match an active account.";
+    }
+
+    const jar = await cookies();
+    jar.set(SESSION_COOKIE, await createSession(account.id, secret ?? ""), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: SESSION_SECONDS,
+    });
+    await audit("sign-in", { account });
+    revalidatePath("/", "layout");
+    redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/deals");
+  }
+
   if (!(await operatorPasswordMatches(submitted, secret))) {
+    await audit("sign-in-failed", { detail: "shared operator password" });
     return "That is not the operator password.";
   }
 
@@ -54,6 +92,8 @@ export async function signIn(
 export async function signOut(): Promise<void> {
   const jar = await cookies();
   jar.delete(OPERATOR_COOKIE);
+  jar.delete(SESSION_COOKIE);
+  await audit("sign-out");
   // The mirror of sign-in: the router must not keep serving pages it cached
   // while the session was valid.
   revalidatePath("/", "layout");

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireOperator } from "@/app/operator/guard";
+import { requireOperator, viewerAccount } from "@/app/operator/guard";
+import { audit } from "@/lib/audit";
 import { getDeal, listFundingBoxes, listBuyBoxes } from "@/store/repository";
 import { runDealDirector } from "@/domain/director";
 import { toWorkingDeal } from "@/domain/workingDeal";
@@ -37,9 +38,18 @@ export const dynamic = "force-dynamic";
  */
 export default async function DealRoom({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requireOperator(`/deals/${id}`);
+  const viewer = await requireOperator(`/deals/${id}`);
   const record = await getDeal(id);
   if (record === undefined) notFound();
+
+  // Recorded on view, not on sign-in: the question asked later is who opened
+  // this seller's file, and a session that opened none is not the same as one
+  // that opened forty.
+  await audit("viewed-seller-data", {
+    ...(viewerAccount(viewer) !== undefined ? { account: viewerAccount(viewer) } : {}),
+    subject: record.id,
+    detail: record.reference,
+  });
 
   const working = toWorkingDeal(record.inputs);
   const briefing = runDealDirector(working.inputs);

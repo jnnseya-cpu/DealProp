@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireOperator } from "@/app/operator/guard";
+import { requirePermission, viewerAccount } from "@/app/operator/guard";
+import { audit } from "@/lib/audit";
 import { getDeal } from "@/store/repository";
 import { runDealDirector } from "@/domain/director";
 import { toWorkingDeal } from "@/domain/workingDeal";
@@ -42,9 +43,17 @@ export default async function MemorandumPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requireOperator(`/deals/${id}/memorandum`);
+  // Deal material, not merely seller data: this is the artefact that leaves
+  // the building, so an external viewer needs a current certification.
+  const viewer = await requirePermission("view-deal-material", `/deals/${id}/memorandum`);
   const record = await getDeal(id);
   if (record === undefined) notFound();
+
+  await audit("viewed-deal-material", {
+    ...(viewerAccount(viewer) !== undefined ? { account: viewerAccount(viewer) } : {}),
+    subject: record.id,
+    detail: record.reference,
+  });
 
   const working = toWorkingDeal(record.inputs);
   const briefing = runDealDirector(working.inputs);

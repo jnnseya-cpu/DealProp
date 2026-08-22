@@ -1,9 +1,16 @@
 import type { BuyBox, FundingBox } from "@/domain/matching";
 import type { Subscriber } from "@/domain/newsletter";
+import type { Account } from "@/domain/accounts";
 import { fileStore } from "@/store/fileStore";
-import type { Database, DealRecord, Store, SubscriberTokenField } from "@/store/schema";
+import type {
+  AuditEvent,
+  Database,
+  DealRecord,
+  Store,
+  SubscriberTokenField,
+} from "@/store/schema";
 
-export type { Database, DealRecord } from "@/store/schema";
+export type { AuditAction, AuditEvent, Database, DealRecord } from "@/store/schema";
 
 /**
  * The repository.
@@ -134,6 +141,35 @@ export async function updateSubscriberByToken(
 /** Record that an issue was sent, so a re-run cannot send it twice. */
 export async function markIssueSent(ids: readonly string[], weekKey: string): Promise<number> {
   return (await store()).markIssueSent(ids, weekKey);
+}
+
+// --- Accounts and audit ----------------------------------------------------
+
+export async function listAccounts(): Promise<readonly Account[]> {
+  return (await store()).listAccounts();
+}
+
+export async function getAccount(id: string): Promise<Account | undefined> {
+  return (await store()).getAccount(id);
+}
+
+export async function findAccountByEmail(email: string): Promise<Account | undefined> {
+  return (await store()).findAccountByEmail(email);
+}
+
+export async function saveAccount(account: Account): Promise<Account> {
+  return (await store()).saveAccount(account);
+}
+
+/** Append only. There is deliberately no update or delete. */
+export async function appendAudit(event: AuditEvent): Promise<AuditEvent> {
+  return (await store()).appendAudit(event);
+}
+
+export async function listAudit(
+  options?: { limit?: number; subject?: string },
+): Promise<readonly AuditEvent[]> {
+  return (await store()).listAudit(options);
 }
 
 /** True when the store has never been seeded. */
