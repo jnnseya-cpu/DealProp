@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TrackOnView } from "@/app/components/TrackOnView";
 import { SiteHeader } from "@/app/components/chrome";
 import { updateSubscriberByToken } from "@backend/store/repository";
 import { LINKS } from "@shared/domain/newsletter";
@@ -42,6 +43,7 @@ export default async function UnsubscribePage({
 
   return (
     <main className="min-h-screen">
+      <TrackOnView event="newsletter_unsubscribed" />
       <SiteHeader width="max-w-2xl" />
       <div className="mx-auto max-w-2xl px-6 py-20">
         {done ? (

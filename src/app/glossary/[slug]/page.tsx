@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { SiteHeader } from "@/app/components/chrome";
+import { TrackOnView } from "@/app/components/TrackOnView";
 import { loadCorpus } from "@backend/blog/corpus";
 import { siteUrl, SITE_NAME } from "@backend/site";
 import {
@@ -78,6 +79,11 @@ export default async function TermPage({ params }: { params: Promise<{ slug: str
             inDefinedTermSet: canonical(siteUrl(), "/glossary"),
           }),
         }}
+      />
+
+      <TrackOnView
+        event="glossary_term_viewed"
+        properties={{ content: term.slug, category: term.topic }}
       />
 
       <SiteHeader

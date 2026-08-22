@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { CONSENT_TEXT } from "@shared/domain/newsletter";
 import { subscribe, type SubscribeResult } from "./actions";
+import { track } from "@/app/components/Analytics";
 
 /**
  * Subscribe form.
@@ -30,7 +31,14 @@ export function SubscribeForm() {
   }
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form
+      action={formAction}
+      onSubmit={() => {
+        // The address itself never travels. Only that a signup was attempted.
+        track("newsletter_signup_submitted");
+      }}
+      className="space-y-6"
+    >
       <div>
         <label htmlFor="email" className="block text-sm text-ink-200">
           Email address

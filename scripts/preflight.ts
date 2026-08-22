@@ -332,6 +332,68 @@ function checkAssets(): void {
   }
 }
 
+/* ------------------------------------------------------------- analytics */
+
+function checkAnalytics(): void {
+  const meta = (env.NEXT_PUBLIC_META_PIXEL_ID ?? "").trim();
+  const ga = (env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? "").trim();
+
+  if (meta === "" && ga === "") {
+    warn(
+      "Analytics",
+      "Neither NEXT_PUBLIC_META_PIXEL_ID nor NEXT_PUBLIC_GA_MEASUREMENT_ID is set, so no pixel loads and the seller funnel is unmeasured.",
+      "Set one or both, or accept launching without conversion data. Both are NEXT_PUBLIC_ and therefore public by design — they are identifiers, not secrets.",
+    );
+    return;
+  }
+
+  if (ga !== "") {
+    if (ga.startsWith("GTM-")) {
+      // A container, not a measurement ID. Tag Manager lets a tag be added from
+      // its own console at any time, which would put a third-party script on
+      // pages this platform's route allowlist deliberately excludes — the Deal
+      // Room, the memorandum, a seller's own result page. The allowlist can only
+      // govern tags the code loads.
+      block(
+        "Analytics",
+        `NEXT_PUBLIC_GA_MEASUREMENT_ID is ${ga}, which is a Tag Manager container, not a GA4 measurement ID. A container can load tags added later from its console, on any page, outside the route allowlist that keeps pixels off pages carrying sellers' reported health and financial distress.`,
+        "Use the GA4 measurement ID (G-…). Do not route this platform through Tag Manager.",
+      );
+    } else if (!/^G-[A-Z0-9]{6,}$/i.test(ga)) {
+      warn(
+        "Analytics",
+        `NEXT_PUBLIC_GA_MEASUREMENT_ID is ${ga}, which is not the shape of a GA4 measurement ID (G-…). Google accepts it silently and reports nothing.`,
+        "Copy the measurement ID from the GA4 data stream.",
+      );
+    } else {
+      pass("Analytics", "Google Tag configured with a GA4 measurement ID.");
+    }
+  }
+
+  if (meta !== "") {
+    if (!/^\d{12,20}$/.test(meta)) {
+      warn(
+        "Analytics",
+        `NEXT_PUBLIC_META_PIXEL_ID is ${meta}, which is not the shape of a pixel ID (a long run of digits). fbevents.js accepts it and drops every event.`,
+        "Copy the pixel ID from Meta Events Manager.",
+      );
+    } else {
+      pass("Analytics", "Meta Pixel configured.");
+    }
+  }
+
+  // Both vendors set non-essential cookies, so PECR reg. 6 requires consent
+  // before they load. The banner is compiled in and the loader refuses without
+  // a granted cookie, so nothing here can be misconfigured at deploy time —
+  // this is the reminder that the requirement exists and that the excluded
+  // routes are load-bearing, not a preference.
+  warn(
+    "Analytics",
+    "A pixel is configured. Nothing loads before the visitor accepts, and the pipeline, Deal Room, memorandum and seller result pages are excluded in code.",
+    "Confirm the privacy notice names both vendors, and never add a tag outside src/app/components/Analytics.tsx — the route allowlist cannot govern a script it did not load.",
+  );
+}
+
 /* ------------------------------------------------------------------- run */
 
 async function main(): Promise<void> {
@@ -342,6 +404,7 @@ async function main(): Promise<void> {
   checkEmail();
   checkRegulatory();
   checkAssets();
+  checkAnalytics();
 
   const blockers = checks.filter((c) => c.level === "block");
   const warnings = checks.filter((c) => c.level === "warn");

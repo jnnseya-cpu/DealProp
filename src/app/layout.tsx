@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { appleStartupImages, PWA_COLOURS } from "@shared/pwa";
+import { Analytics } from "@/app/components/Analytics";
 import { ServiceWorker } from "./ServiceWorker";
 import "./globals.css";
 
@@ -51,6 +52,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-ink-950 text-ink-100 antialiased">
         {children}
         <ServiceWorker />
+        {/* Mounted once, at the root. It decides for itself whether to load
+            anything: an ID must be configured, consent given, and the current
+            route on the allowlist. */}
+        <Analytics />
       </body>
     </html>
   );

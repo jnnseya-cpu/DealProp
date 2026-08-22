@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { submitEnquiry } from "./actions";
+import { track } from "@/app/components/Analytics";
 
 /**
  * Seller intake form.
@@ -84,10 +85,31 @@ export function SellForm() {
   const canAdvance =
     (step === 0 && situation !== "") || (step === 1 && priorities.length > 0) || step >= 2;
 
+  // The top of the funnel. Once per mount, not once per render.
+  useEffect(() => {
+    track("sell_intake_started");
+  }, []);
+
+  /**
+   * Advance, and record it.
+   *
+   * The step number only — never the situation the seller chose. "Probate" or
+   * "divorce" against a browser Meta can join to a real identity is information
+   * about someone's family life, and no funnel report is worth that.
+   */
+  function advance(next: number): void {
+    track("sell_intake_step_completed", { step: step + 1 });
+    setStep(next);
+  }
+
   return (
     <form
       action={submitEnquiry}
-      onSubmit={() => setSubmitting(true)}
+      onSubmit={() => {
+        setSubmitting(true);
+        // The conversion. No answers travel with it — only that one happened.
+        track("sell_intake_submitted");
+      }}
       className="mx-auto max-w-3xl px-6 pb-32"
     >
       <Progress step={step} />
@@ -345,7 +367,7 @@ export function SellForm() {
         canAdvance={canAdvance}
         submitting={submitting}
         onBack={() => setStep((s) => Math.max(0, s - 1))}
-        onNext={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
+        onNext={() => advance(Math.min(STEPS.length - 1, step + 1))}
       />
     </form>
   );

@@ -68,6 +68,15 @@ A half-configured transport is how a deployment mails real people from the wrong
 address. `NEWSLETTER_SENDER_NAME` and `NEWSLETTER_SENDER_ADDRESS` are legally
 required in marketing email; the preflight blocks without them once email is on.
 
+**Analytics.** `NEXT_PUBLIC_META_PIXEL_ID` and `NEXT_PUBLIC_GA_MEASUREMENT_ID`
+are optional, public identifiers rather than secrets, and either may be left
+unset — the script is then never rendered. Use the GA4 **measurement** ID
+(`G-…`); the preflight blocks on a Tag Manager container (`GTM-…`), because a
+container can load a tag added later from its console, on any page, outside the
+route allowlist that keeps pixels off the Deal Room, the memorandum and a
+seller's own result page. Nothing loads before the visitor accepts the banner.
+Before switching either on, confirm the privacy notice names both vendors.
+
 **Site URL.** `NEXT_PUBLIC_SITE_URL` must be the public HTTPS origin with no
 trailing slash. Every canonical URL, the sitemap, and every newsletter confirm
 and unsubscribe link is built from it. Wrong here means the site quietly
@@ -80,8 +89,8 @@ canonicalises itself to localhost.
 ```bash
 npm ci
 npm run typecheck
-npm test              # 325
-npm run test:pg       # 326, both storage engines against a real database
+npm test              # 348
+npm run test:pg       # 349, both storage engines against a real database
 npm run build
 npm run preflight     # must exit 0
 ```
@@ -160,3 +169,8 @@ rather than block:
 - **No admin account.** Everything then happens under a shared password with no
   name in the audit trail.
 - **Store empty.** The honest state before capital is recruited.
+- **No pixel configured.** Lawful and quiet: the seller funnel is then
+  unmeasured.
+- **A pixel is configured.** The reminder that the route exclusions are
+  load-bearing and that no tag may be added outside
+  `src/app/components/Analytics.tsx`.

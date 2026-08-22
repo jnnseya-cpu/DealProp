@@ -30,7 +30,7 @@ uninformative: no version, no hostnames, no error text.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 325 tests
+npm test          # 348 tests
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 ```
@@ -84,6 +84,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Working deal | `src/shared/domain/workingDeal.ts` | Prices an enquiry that has no agreed price yet |
 | Newsletter | `src/shared/domain/newsletter.ts` | Consent gating, weekly idempotency, issue composition |
 | Trade partners | `src/shared/domain/partners.ts` | Who does the works, why, and the disclosure |
+| Analytics gate | `src/shared/domain/analytics.ts` | Which routes and events a pixel may ever see |
 | Email transport | `src/backend/email.ts` | Provider-agnostic, fails closed when unconfigured |
 | Store | `src/backend/store/` | One interface, two engines: Postgres or a JSON file |
 
@@ -266,6 +267,9 @@ Deliberately out of scope for this slice, in rough priority order:
   wanted from listings now come from open sources instead.
 - **Payments.** None. Subscriptions and success fees are modelled by
   `revenue.ts` and nothing charges anybody.
+- **Server-side conversions.** Meta's Conversions API and GA4 Measurement
+  Protocol are not wired up. Browser-side events only, so an ad blocker means no
+  event.
 - **Actual AI.** The "agents" are deterministic scoring and rules. This is a
   feature, not a gap: the financial engine must be reproducible and testable.
   LLMs belong at the edges — parsing a seller's narrative into a structured
@@ -384,7 +388,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 325 tests, Postgres suite skipped
+npm test          # 348 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -459,6 +463,50 @@ or delete — and records sign-ins, failures, denials, certifications, and every
 view of seller data or deal material. Access taken with the shared password
 appears with no name against it, which is the argument for giving people their
 own accounts.
+
+## Measurement
+
+Meta Pixel and Google Tag are both wired in, and both are gated four ways in
+`src/app/components/Analytics.tsx`. All four must hold before a single request
+leaves the browser:
+
+1. **An ID is configured.** No `NEXT_PUBLIC_META_PIXEL_ID` or
+   `NEXT_PUBLIC_GA_MEASUREMENT_ID` and the script is never rendered.
+2. **The visitor has agreed.** Both vendors set non-essential cookies, so PECR
+   reg. 6 requires consent before they load, not after. The banner offers
+   Accept and Decline with equal weight; anything other than an explicit
+   `granted` is treated as a refusal, including a tampered cookie.
+3. **The route is on the allowlist.** Deny by default, in
+   `src/shared/domain/analytics.ts`. `/`, `/sell`, `/blog`, `/glossary`,
+   `/newsletter` and `/offline` are trackable. The pipeline, the Deal Room, the
+   memorandum, `/sell/[id]`, every operator surface and every API route are not,
+   and a route nobody has classified is untracked until somebody decides
+   otherwise.
+4. **The event is known and its properties survive sanitising.**
+
+The exclusions are the part that matters. Those pages carry what sellers told
+us in confidence — reported financial distress, third-party pressure, age band,
+health and capacity concerns, which are special-category data under UK GDPR
+Art. 9 — and a pixel sends the page URL, title and referrer with every event. A
+seller's result page is a capability URL, so the URL *is* the credential. The
+check is re-run on every navigation, not only at mount: moving from the blog
+into the Deal Room must stop the pixel, not merely fail to restart it.
+
+Events carry counts and stages, never content: the step number of the intake
+form but never the seller's situation, a public blog slug but never an address
+or a postcode. `sanitiseProperties()` is the second gate and drops anything
+resembling an email address, a UK postcode, a capability token or a record
+number. Sign-in, investor certification and partner clicks are absent from the
+vocabulary entirely — they happen only on excluded routes, so an event for them
+could never fire; they are in the audit trail instead, which is where a
+conversion involving a named person belongs.
+
+Never load a tag from anywhere else, and never through Tag Manager. The
+allowlist can only govern scripts this code loads; a container can add one
+later, on any page, from a console. `npm run preflight` blocks on a `GTM-` ID
+for that reason.
+
+---
 
 ## Regulatory position
 

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { SiteHeader } from "@/app/components/chrome";
 import { Prose } from "@/app/components/prose";
+import { TrackOnView } from "@/app/components/TrackOnView";
 import { loadCorpus } from "@backend/blog/corpus";
 import { siteUrl, SITE_NAME } from "@backend/site";
 import {
@@ -90,6 +91,11 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           dangerouslySetInnerHTML={{ __html: JSON.stringify(faq) }}
         />
       )}
+
+      <TrackOnView
+        event="blog_post_viewed"
+        properties={{ content: post.slug, category: post.topic }}
+      />
 
       <SiteHeader
         trailing={
