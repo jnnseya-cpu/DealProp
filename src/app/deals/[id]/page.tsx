@@ -1,17 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireOperator, viewerAccount } from "@/app/operator/guard";
-import { audit } from "@/lib/audit";
-import { getDeal, listFundingBoxes, listBuyBoxes } from "@/store/repository";
-import { runDealDirector } from "@/domain/director";
-import { toWorkingDeal } from "@/domain/workingDeal";
-import { buildCloseReport } from "@/domain/completion";
-import { matchBuyBox, matchFundingBox, rankMatches, type MatchResult } from "@/domain/matching";
-import { dealRevenue } from "@/domain/revenue";
-import { referTradePartners } from "@/domain/partners";
+import { audit } from "@backend/audit";
+import { getDeal, listFundingBoxes, listBuyBoxes } from "@backend/store/repository";
+import { runDealDirector } from "@shared/domain/director";
+import { toWorkingDeal } from "@shared/domain/workingDeal";
+import { buildCloseReport } from "@shared/domain/completion";
+import { matchBuyBox, matchFundingBox, rankMatches, type MatchResult } from "@shared/domain/matching";
+import { dealRevenue } from "@shared/domain/revenue";
+import { referTradePartners } from "@shared/domain/partners";
 import { SignOutButton } from "@/app/operator/SignOutButton";
-import { add } from "@/lib/money";
-import { gbp, gbpSigned, months, percent } from "@/lib/format";
+import { add } from "@shared/money";
+import { gbp, gbpSigned, months, percent } from "@shared/format";
 import {
   KeyValue,
   Panel,

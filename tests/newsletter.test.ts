@@ -14,9 +14,9 @@ import {
   type PlatformStats,
   type SenderIdentity,
   type Subscriber,
-} from "@/domain/newsletter";
-import { consoleTransport, redactEmail, resolveTransport } from "@/lib/email";
-import { newToken, tokenMatches } from "@/lib/tokens";
+} from "@shared/domain/newsletter";
+import { consoleTransport, redactEmail, resolveTransport } from "@backend/email";
+import { newToken, tokenMatches } from "@backend/auth/tokens";
 
 function subscriber(overrides: Partial<Subscriber> = {}): Subscriber {
   return {

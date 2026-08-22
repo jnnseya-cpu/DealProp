@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { fromMajor, money, pct } from "@/lib/money";
+import { fromMajor, money, pct } from "@shared/money";
 import {
   disclosureFor,
   MAIN_CONTRACTOR_THRESHOLD,
   referTradePartners,
   TRADE_PARTNERS,
-} from "@/domain/partners";
-import type { PropertyFacts, PropertyIssue, SellerProfile } from "@/domain/types";
+} from "@shared/domain/partners";
+import type { PropertyFacts, PropertyIssue, SellerProfile } from "@shared/domain/types";
 
 function property(overrides: Partial<PropertyFacts> = {}): PropertyFacts {
   return {

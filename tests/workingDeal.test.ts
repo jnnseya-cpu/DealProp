@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { bps, fromMajor, pct, ZERO } from "@/lib/money";
-import { isUnpriced, toWorkingDeal } from "@/domain/workingDeal";
-import { appraise } from "@/domain/economics";
-import { scoreDeal } from "@/domain/dealScore";
-import { buildIntake } from "@/domain/intake";
-import type { DealInputs } from "@/domain/types";
+import { bps, fromMajor, pct, ZERO } from "@shared/money";
+import { isUnpriced, toWorkingDeal } from "@shared/domain/workingDeal";
+import { appraise } from "@shared/domain/economics";
+import { scoreDeal } from "@shared/domain/dealScore";
+import { buildIntake } from "@shared/domain/intake";
+import type { DealInputs } from "@shared/domain/types";
 
 /** An enquiry as seller intake stores it: no leverage, price at full value. */
 function enquiry(): DealInputs {

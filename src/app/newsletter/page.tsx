@@ -1,5 +1,5 @@
 import { SiteHeader } from "@/app/components/chrome";
-import { FEATURES } from "@/domain/newsletter";
+import { FEATURES } from "@shared/domain/newsletter";
 import { SubscribeForm } from "./SubscribeForm";
 
 export const metadata = {

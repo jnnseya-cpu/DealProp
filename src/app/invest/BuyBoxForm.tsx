@@ -1,8 +1,8 @@
 "use client";
 
-import { ALL_STRUCTURES, STRUCTURE_LABELS } from "@/domain/strategies";
-import type { BuyBox } from "@/domain/matching";
-import { toMajor } from "@/lib/money";
+import { ALL_STRUCTURES, STRUCTURE_LABELS } from "@shared/domain/strategies";
+import type { BuyBox } from "@shared/domain/matching";
+import { toMajor } from "@shared/money";
 import {
   CheckGroup,
   Field,

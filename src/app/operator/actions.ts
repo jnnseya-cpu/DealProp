@@ -8,11 +8,11 @@ import {
   OPERATOR_SESSION_SECONDS,
   operatorCookieValue,
   operatorPasswordMatches,
-} from "@/lib/operator";
-import { createSession, SESSION_COOKIE, SESSION_SECONDS } from "@/lib/session";
-import { verifyPassword } from "@/lib/password";
-import { findAccountByEmail } from "@/store/repository";
-import { audit } from "@/lib/audit";
+} from "@backend/auth/operator";
+import { createSession, SESSION_COOKIE, SESSION_SECONDS } from "@backend/auth/session";
+import { verifyPassword } from "@backend/auth/password";
+import { findAccountByEmail } from "@backend/store/repository";
+import { audit } from "@backend/audit";
 
 /**
  * Operator sign-in.

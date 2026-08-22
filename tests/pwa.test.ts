@@ -10,7 +10,7 @@ import {
   splashPath,
   splashPixels,
   type Orientation,
-} from "@/lib/pwa";
+} from "@shared/pwa";
 import manifest from "@/app/manifest";
 
 const PUBLIC = path.join(process.cwd(), "public");

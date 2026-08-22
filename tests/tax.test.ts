@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { fromMajor, toMajor } from "@/lib/money";
-import { stampDutyLandTax } from "@/domain/jurisdictions/gb-eng";
-import { landAndBuildingsTransactionTax } from "@/domain/jurisdictions/gb-sct";
-import { ukProfitTax } from "@/domain/jurisdictions/profitTax";
+import { fromMajor, toMajor } from "@shared/money";
+import { stampDutyLandTax } from "@shared/domain/jurisdictions/gb-eng";
+import { landAndBuildingsTransactionTax } from "@shared/domain/jurisdictions/gb-sct";
+import { ukProfitTax } from "@shared/domain/jurisdictions/profitTax";
 
 /**
  * These tests pin the encoded rate tables. They are expected to FAIL when the

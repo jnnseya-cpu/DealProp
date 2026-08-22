@@ -1,8 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import type { BoxFormResult } from "@/lib/formFields";
-import type { CategoryDefinition } from "@/domain/jurisdictions/uk-financial-promotion";
+import type { BoxFormResult } from "@shared/formFields";
+import type { CategoryDefinition } from "@shared/domain/jurisdictions/uk-financial-promotion";
 import { certify } from "./actions";
 
 /**

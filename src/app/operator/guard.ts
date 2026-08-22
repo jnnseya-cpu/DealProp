@@ -1,10 +1,10 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { assertOperator, OPERATOR_COOKIE } from "@/lib/operator";
-import { readSession, SESSION_COOKIE } from "@/lib/session";
-import { can, type Account, type Permission } from "@/domain/accounts";
-import { getAccount } from "@/store/repository";
-import { audit } from "@/lib/audit";
+import { assertOperator, OPERATOR_COOKIE } from "@backend/auth/operator";
+import { readSession, SESSION_COOKIE } from "@backend/auth/session";
+import { can, type Account, type Permission } from "@shared/domain/accounts";
+import { getAccount } from "@backend/store/repository";
+import { audit } from "@backend/audit";
 
 /**
  * Server-side access guards, called at the top of every protected page.

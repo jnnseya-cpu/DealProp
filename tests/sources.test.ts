@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fromMajor, toMajor } from "@/lib/money";
+import { fromMajor, toMajor } from "@shared/money";
 import {
   assertSourceUsable,
   attribute,
@@ -8,20 +8,20 @@ import {
   getSource,
   SourceNotPermitted,
   sourcePermits,
-} from "@/domain/sources";
+} from "@shared/domain/sources";
 import {
   belowStandard,
   pricePerSqm,
   registryPressure,
   type RegistrySignal,
-} from "@/domain/registrySignal";
+} from "@shared/domain/registrySignal";
 import {
   latestSale,
   medianPrice,
   parsePricePaidCsv,
   parsePricePaidJson,
-} from "@/lib/sources/landRegistry";
-import { currentCertificate, parseCertificates } from "@/lib/sources/epc";
+} from "@backend/sources/landRegistry";
+import { currentCertificate, parseCertificates } from "@backend/sources/epc";
 
 const NOW = new Date("2026-08-22T00:00:00.000Z");
 

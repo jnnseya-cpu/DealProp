@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { listDeals } from "@/store/repository";
-import { scoreDeal } from "@/domain/dealScore";
-import { toWorkingDeal } from "@/domain/workingDeal";
-import { gbp, gbpSigned, percent } from "@/lib/format";
+import { listDeals } from "@backend/store/repository";
+import { scoreDeal } from "@shared/domain/dealScore";
+import { toWorkingDeal } from "@shared/domain/workingDeal";
+import { gbp, gbpSigned, percent } from "@shared/format";
 import { scoreTone, SiteHeader, VERDICT_TONE } from "@/app/components/chrome";
 import { requireOperator } from "@/app/operator/guard";
 import { SignOutButton } from "@/app/operator/SignOutButton";

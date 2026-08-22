@@ -1,15 +1,15 @@
 import { notFound } from "next/navigation";
-import { getDeal, listBuyBoxes } from "@/store/repository";
-import { buildSellerRoutes, investorProfitOnRoute, type SellerRoute } from "@/domain/sellerRoutes";
-import { assessSellerProtection } from "@/domain/protection";
-import { referTradePartners } from "@/domain/partners";
-import { scoreDeal } from "@/domain/dealScore";
-import { countInterestedBuyers } from "@/domain/matching";
-import { getJurisdiction, isDealReady } from "@/domain/jurisdictions";
-import { gbp, percent } from "@/lib/format";
+import { getDeal, listBuyBoxes } from "@backend/store/repository";
+import { buildSellerRoutes, investorProfitOnRoute, type SellerRoute } from "@shared/domain/sellerRoutes";
+import { assessSellerProtection } from "@shared/domain/protection";
+import { referTradePartners } from "@shared/domain/partners";
+import { scoreDeal } from "@shared/domain/dealScore";
+import { countInterestedBuyers } from "@shared/domain/matching";
+import { getJurisdiction, isDealReady } from "@shared/domain/jurisdictions";
+import { gbp, percent } from "@shared/format";
 import { SiteHeader, TradeReferrals } from "@/app/components/chrome";
-import type { DealInputs, PropertyFacts, SellerProfile } from "@/domain/types";
-import type { Money } from "@/lib/money";
+import type { DealInputs, PropertyFacts, SellerProfile } from "@shared/domain/types";
+import type { Money } from "@shared/money";
 
 export const dynamic = "force-dynamic";
 

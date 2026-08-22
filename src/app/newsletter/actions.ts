@@ -1,7 +1,7 @@
 "use server";
 
-import { newToken } from "@/lib/tokens";
-import { resolveTransport, type EmailMessage } from "@/lib/email";
+import { newToken } from "@backend/auth/tokens";
+import { resolveTransport, type EmailMessage } from "@backend/email";
 import {
   absolute,
   CONSENT_TEXT,
@@ -9,8 +9,8 @@ import {
   normaliseEmail,
   type Audience,
   type Subscriber,
-} from "@/domain/newsletter";
-import { findSubscriberByEmail, saveSubscriber } from "@/store/repository";
+} from "@shared/domain/newsletter";
+import { findSubscriberByEmail, saveSubscriber } from "@backend/store/repository";
 
 /**
  * Newsletter subscription.

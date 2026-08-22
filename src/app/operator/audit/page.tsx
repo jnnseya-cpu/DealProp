@@ -2,7 +2,7 @@ import Link from "next/link";
 import { SiteHeader } from "@/app/components/chrome";
 import { SignOutButton } from "@/app/operator/SignOutButton";
 import { requirePermission } from "@/app/operator/guard";
-import { listAudit, type AuditAction } from "@/store/repository";
+import { listAudit, type AuditAction } from "@backend/store/repository";
 
 export const dynamic = "force-dynamic";
 

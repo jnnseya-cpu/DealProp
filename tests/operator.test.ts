@@ -6,8 +6,8 @@ import {
   operatorCookieValue,
   operatorPasswordMatches,
   verifyOperatorCookie,
-} from "@/lib/operator";
-import { createSession, readSession } from "@/lib/session";
+} from "@backend/auth/operator";
+import { createSession, readSession } from "@backend/auth/session";
 
 const SECRET = "correct-horse-battery-staple";
 

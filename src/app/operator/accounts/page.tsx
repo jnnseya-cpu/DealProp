@@ -2,8 +2,8 @@ import Link from "next/link";
 import { SiteHeader } from "@/app/components/chrome";
 import { SignOutButton } from "@/app/operator/SignOutButton";
 import { requireOperator } from "@/app/operator/guard";
-import { certificationStatus, publicAccount, ROLE_LABELS } from "@/domain/accounts";
-import { listAccounts } from "@/store/repository";
+import { certificationStatus, publicAccount, ROLE_LABELS } from "@shared/domain/accounts";
+import { listAccounts } from "@backend/store/repository";
 import { NewAccountForm } from "./NewAccountForm";
 import { AccountControls } from "./AccountControls";
 

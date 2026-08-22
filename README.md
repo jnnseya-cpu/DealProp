@@ -18,7 +18,7 @@ customer, and the product says so.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 295 tests
+npm test          # 302 tests
 npm run typecheck
 ```
 
@@ -48,27 +48,27 @@ listed honestly in [Not built yet](#not-built-yet).
 
 | Engine | File | What it does |
 |---|---|---|
-| Money primitives | `src/lib/money.ts` | Integer pence behind a branded type |
-| Jurisdiction packs | `src/domain/jurisdictions/` | All country-specific law, isolated |
-| Appraisal | `src/domain/economics.ts` | Full cost stack, after-tax profit, true discount |
-| Seller diagnostics | `src/domain/motivation.ts` | Motivation, urgency, complexity, flexibility |
-| Seller Protection | `src/domain/protection.ts` | Can **block** a deal outright |
-| Red Team | `src/domain/redteam.ts` | Nine stress scenarios, tiered |
-| Deal Score | `src/domain/dealScore.ts` | Nine components + verdict |
-| Capital Stack | `src/domain/capitalStack.ts` | The £0-own-capital solver |
-| Strategy Router | `src/domain/strategies.ts` | 14 strategies tested, most rejected |
-| GoldMine | `src/domain/goldmine.ts` | Stale-listing mining, why-unsold diagnosis |
-| Matching | `src/domain/matching.ts` | Buy Box / Funding Box, explainable |
-| Close | `src/domain/completion.ts` | Close Score, blockers, critical path |
-| Revenue | `src/domain/revenue.ts` | Monetisation, permission-gated |
-| Deal Director | `src/domain/director.ts` | Runs everything, returns one position |
-| Seller intake | `src/domain/intake.ts` | Seller answers → engine inputs, with Truth Engine checks |
-| Seller routes | `src/domain/sellerRoutes.ts` | Inverts the engine: what the *seller* receives |
-| Working deal | `src/domain/workingDeal.ts` | Prices an enquiry that has no agreed price yet |
-| Newsletter | `src/domain/newsletter.ts` | Consent gating, weekly idempotency, issue composition |
-| Trade partners | `src/domain/partners.ts` | Who does the works, why, and the disclosure |
-| Email transport | `src/lib/email.ts` | Provider-agnostic, fails closed when unconfigured |
-| Store | `src/store/` | One interface, two engines: Postgres or a JSON file |
+| Money primitives | `src/shared/money.ts` | Integer pence behind a branded type |
+| Jurisdiction packs | `src/shared/domain/jurisdictions/` | All country-specific law, isolated |
+| Appraisal | `src/shared/domain/economics.ts` | Full cost stack, after-tax profit, true discount |
+| Seller diagnostics | `src/shared/domain/motivation.ts` | Motivation, urgency, complexity, flexibility |
+| Seller Protection | `src/shared/domain/protection.ts` | Can **block** a deal outright |
+| Red Team | `src/shared/domain/redteam.ts` | Nine stress scenarios, tiered |
+| Deal Score | `src/shared/domain/dealScore.ts` | Nine components + verdict |
+| Capital Stack | `src/shared/domain/capitalStack.ts` | The £0-own-capital solver |
+| Strategy Router | `src/shared/domain/strategies.ts` | 14 strategies tested, most rejected |
+| GoldMine | `src/shared/domain/goldmine.ts` | Stale-listing mining, why-unsold diagnosis |
+| Matching | `src/shared/domain/matching.ts` | Buy Box / Funding Box, explainable |
+| Close | `src/shared/domain/completion.ts` | Close Score, blockers, critical path |
+| Revenue | `src/shared/domain/revenue.ts` | Monetisation, permission-gated |
+| Deal Director | `src/shared/domain/director.ts` | Runs everything, returns one position |
+| Seller intake | `src/shared/domain/intake.ts` | Seller answers → engine inputs, with Truth Engine checks |
+| Seller routes | `src/shared/domain/sellerRoutes.ts` | Inverts the engine: what the *seller* receives |
+| Working deal | `src/shared/domain/workingDeal.ts` | Prices an enquiry that has no agreed price yet |
+| Newsletter | `src/shared/domain/newsletter.ts` | Consent gating, weekly idempotency, issue composition |
+| Trade partners | `src/shared/domain/partners.ts` | Who does the works, why, and the disclosure |
+| Email transport | `src/backend/email.ts` | Provider-agnostic, fails closed when unconfigured |
+| Store | `src/backend/store/` | One interface, two engines: Postgres or a JSON file |
 
 ---
 
@@ -76,7 +76,7 @@ listed honestly in [Not built yet](#not-built-yet).
 
 ### 1. Money is integer pence, never floats
 
-`src/lib/money.ts` exposes a branded `Money` type. At transaction scale a
+`src/shared/money.ts` exposes a branded `Money` type. At transaction scale a
 half-penny drift compounds into visible disagreement between the deal model,
 the memorandum and the completion statement. "The numbers don't tie" destroys
 credibility faster than a bad deal does.
@@ -110,7 +110,7 @@ absent evidence is treated as a reason to be *more* careful, never less.
 
 ### 4. Jurisdiction packs isolate the law
 
-Nothing outside `src/domain/jurisdictions/` may hardcode SDLT, "solicitor", or
+Nothing outside `src/shared/domain/jurisdictions/` may hardcode SDLT, "solicitor", or
 any other England-shaped assumption. England/NI and Scotland are implemented
 with genuinely independent tax tables — LBTT bands differ, the Additional
 Dwelling Supplement is 8% against SDLT's 5%, and Scotland has no non-resident
@@ -203,7 +203,7 @@ The two platforms do this completely differently, and both are covered:
   entry shows a blank white screen on launch, which reads as a crash. 22 images
   cover 11 device families in both orientations.
 
-`src/lib/pwa.ts` is the single source for the device table, icon set and
+`src/shared/pwa.ts` is the single source for the device table, icon set and
 colours; the asset generator and the document head both read it, so a device
 cannot be listed in one and missing from the other. Tests assert every declared
 image exists on disk and every media query is unique.
@@ -273,7 +273,7 @@ licences, most of what actually predicts a motivated sale.
 | Companies House | Open Government Licence, free | An owner in liquidation or dissolution |
 | Portal listings | **None** | Refused. `assertSourceUsable()` throws. |
 
-`src/domain/sources.ts` is the gate, and it works the way `dealRevenue()` does:
+`src/shared/domain/sources.ts` is the gate, and it works the way `dealRevenue()` does:
 a source with no recorded licence cannot be read, and a licence that permits
 internal analysis does not permit redistribution. Portal listings are *in* the
 registry, with no licence and a written reason, because a source that is simply
@@ -282,7 +282,7 @@ decision somebody made. A seller's own account of their situation is likewise
 marked internal-analysis only: someone describing a divorce to get help selling
 has not agreed to that reaching an investor pack.
 
-`src/domain/registrySignal.ts` scores owner motivation from those records
+`src/shared/domain/registrySignal.ts` scores owner motivation from those records
 instead of from listing behaviour:
 
 - **An EPC lodged with no sale following.** An EPC is a legal precondition of
@@ -329,7 +329,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 295 tests, Postgres suite skipped
+npm test          # 302 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -381,7 +381,7 @@ and an annual renewal:
 | Restricted investor | COBS 4.7.10R | **No** — that exemption is not written for this |
 | Nothing held or lapsed | — | **No** |
 
-`can()` in `src/domain/accounts.ts` is the only place that decision is made.
+`can()` in `src/shared/domain/accounts.ts` is the only place that decision is made.
 Four properties are enforced by tests:
 
 - **An expired certification is no certification.** Twelve months from

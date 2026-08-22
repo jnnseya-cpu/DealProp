@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { tokenMatches } from "@/lib/tokens";
-import { redactEmail, resolveTransport } from "@/lib/email";
+import { tokenMatches } from "@backend/auth/tokens";
+import { redactEmail, resolveTransport } from "@backend/email";
 import {
   absolute,
   composeIssue,
@@ -8,10 +8,10 @@ import {
   recipientsForWeek,
   type PlatformStats,
   type SenderIdentity,
-} from "@/domain/newsletter";
-import { listBuyBoxes, listDeals, listFundingBoxes, listSubscribers, markIssueSent } from "@/store/repository";
-import { scoreDeal } from "@/domain/dealScore";
-import { toWorkingDeal } from "@/domain/workingDeal";
+} from "@shared/domain/newsletter";
+import { listBuyBoxes, listDeals, listFundingBoxes, listSubscribers, markIssueSent } from "@backend/store/repository";
+import { scoreDeal } from "@shared/domain/dealScore";
+import { toWorkingDeal } from "@shared/domain/workingDeal";
 
 export const dynamic = "force-dynamic";
 

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { bps, fromMajor, toMajor, ZERO } from "@/lib/money";
-import { buildIntake, type IntakeAnswers } from "@/domain/intake";
-import { buildSellerRoutes, investorProfitOnRoute } from "@/domain/sellerRoutes";
-import { assessSellerProtection } from "@/domain/protection";
+import { bps, fromMajor, toMajor, ZERO } from "@shared/money";
+import { buildIntake, type IntakeAnswers } from "@shared/domain/intake";
+import { buildSellerRoutes, investorProfitOnRoute } from "@shared/domain/sellerRoutes";
+import { assessSellerProtection } from "@shared/domain/protection";
 
 const baseAnswers: IntakeAnswers = {
   situation: "probate",

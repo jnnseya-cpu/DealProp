@@ -1,14 +1,14 @@
 import Link from "next/link";
-import { runDealDirector } from "@/domain/director";
-import { dealRevenue } from "@/domain/revenue";
-import { HEAT_LABELS, scoreGoldMine } from "@/domain/goldmine";
-import { buildCloseReport } from "@/domain/completion";
-import { countInterestedBuyers, matchFundingBox, rankMatches } from "@/domain/matching";
-import { SEED_BUY_BOXES, SEED_DEALS, SEED_FUNDING_BOXES } from "@/store/seed";
-import { add, sub, type Money } from "@/lib/money";
-import { gbp, gbpSigned, percent } from "@/lib/format";
+import { runDealDirector } from "@shared/domain/director";
+import { dealRevenue } from "@shared/domain/revenue";
+import { HEAT_LABELS, scoreGoldMine } from "@shared/domain/goldmine";
+import { buildCloseReport } from "@shared/domain/completion";
+import { countInterestedBuyers, matchFundingBox, rankMatches } from "@shared/domain/matching";
+import { SEED_BUY_BOXES, SEED_DEALS, SEED_FUNDING_BOXES } from "@backend/store/seed";
+import { add, sub, type Money } from "@shared/money";
+import { gbp, gbpSigned, percent } from "@shared/format";
 import { Mark, scoreBg, scoreTone, VERDICT_TONE } from "@/app/components/chrome";
-import { BUYER_TIERS } from "@/domain/revenue";
+import { BUYER_TIERS } from "@shared/domain/revenue";
 
 /**
  * Landing page.

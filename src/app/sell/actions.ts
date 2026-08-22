@@ -2,14 +2,14 @@
 
 import { randomBytes } from "node:crypto";
 import { redirect } from "next/navigation";
-import { bps, fromMajor, ZERO } from "@/lib/money";
+import { bps, fromMajor, ZERO } from "@shared/money";
 import {
   optionalMoney,
   optionalNumber,
   requireOneOf,
   requiredMoney,
-} from "@/lib/formFields";
-import { buildIntake, type IntakeAnswers, type PropertyCondition } from "@/domain/intake";
+} from "@shared/formFields";
+import { buildIntake, type IntakeAnswers, type PropertyCondition } from "@shared/domain/intake";
 import type {
   JurisdictionCode,
   PropertyIssue,
@@ -17,10 +17,10 @@ import type {
   SellerPriority,
   SellerSituation,
   Tenure,
-} from "@/domain/types";
-import { allSituations } from "@/domain/motivation";
-import { newToken } from "@/lib/tokens";
-import { saveDeal } from "@/store/repository";
+} from "@shared/domain/types";
+import { allSituations } from "@shared/domain/motivation";
+import { newToken } from "@backend/auth/tokens";
+import { saveDeal } from "@backend/store/repository";
 
 /**
  * Intake submission.

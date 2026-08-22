@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { appleStartupImages, PWA_COLOURS } from "@/lib/pwa";
+import { appleStartupImages, PWA_COLOURS } from "@shared/pwa";
 import { ServiceWorker } from "./ServiceWorker";
 import "./globals.css";
 

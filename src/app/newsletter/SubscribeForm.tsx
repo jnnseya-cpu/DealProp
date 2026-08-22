@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { CONSENT_TEXT } from "@/domain/newsletter";
+import { CONSENT_TEXT } from "@shared/domain/newsletter";
 import { subscribe, type SubscribeResult } from "./actions";
 
 /**

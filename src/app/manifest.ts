@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { PWA_COLOURS, PWA_ICONS } from "@/lib/pwa";
+import { PWA_COLOURS, PWA_ICONS } from "@shared/pwa";
 
 /**
  * Web app manifest.

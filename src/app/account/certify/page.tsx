@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SiteHeader } from "@/app/components/chrome";
-import { certificationStatus } from "@/domain/accounts";
-import { UK_INVESTOR_CATEGORISATION } from "@/domain/jurisdictions/uk-financial-promotion";
+import { certificationStatus } from "@shared/domain/accounts";
+import { UK_INVESTOR_CATEGORISATION } from "@shared/domain/jurisdictions/uk-financial-promotion";
 import { currentViewer } from "@/app/operator/guard";
 import { CertifyForm } from "./CertifyForm";
 

@@ -1,15 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireOneOf, type BoxFormResult } from "@/lib/formFields";
+import { requireOneOf, type BoxFormResult } from "@shared/formFields";
 import {
   categoryDefinition,
   UK_INVESTOR_CATEGORISATION,
   type InvestorCategory,
-} from "@/domain/jurisdictions/uk-financial-promotion";
-import { saveAccount } from "@/store/repository";
+} from "@shared/domain/jurisdictions/uk-financial-promotion";
+import { saveAccount } from "@backend/store/repository";
 import { currentViewer } from "@/app/operator/guard";
-import { audit } from "@/lib/audit";
+import { audit } from "@backend/audit";
 
 /**
  * Investor self-certification.

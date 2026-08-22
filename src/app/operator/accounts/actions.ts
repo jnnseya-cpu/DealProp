@@ -2,12 +2,12 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { requireOneOf, requiredText, type BoxFormResult } from "@/lib/formFields";
-import { hashPassword, passwordProblem } from "@/lib/password";
-import { ALL_ROLES, type Account, type Role } from "@/domain/accounts";
-import { findAccountByEmail, getAccount, saveAccount } from "@/store/repository";
+import { requireOneOf, requiredText, type BoxFormResult } from "@shared/formFields";
+import { hashPassword, passwordProblem } from "@backend/auth/password";
+import { ALL_ROLES, type Account, type Role } from "@shared/domain/accounts";
+import { findAccountByEmail, getAccount, saveAccount } from "@backend/store/repository";
 import { currentViewer, viewerAccount } from "@/app/operator/guard";
-import { audit } from "@/lib/audit";
+import { audit } from "@backend/audit";
 
 /**
  * Account management.

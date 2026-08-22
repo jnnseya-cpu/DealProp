@@ -1,6 +1,6 @@
 "use client";
 
-import { ALL_ROLES, ROLE_LABELS } from "@/domain/accounts";
+import { ALL_ROLES, ROLE_LABELS } from "@shared/domain/accounts";
 import { Field, MandateForm, Select, TextInput } from "@/app/components/mandate";
 import { createAccount } from "./actions";
 

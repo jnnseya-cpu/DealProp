@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { add, applyBps, bps, fromMajor, money, pct, ratioBps, scale, sub, toMajor } from "@/lib/money";
+import { add, applyBps, bps, fromMajor, money, pct, ratioBps, scale, sub, toMajor } from "@shared/money";
 
 describe("money", () => {
   it("rejects non-integer minor units", () => {

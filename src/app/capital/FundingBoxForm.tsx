@@ -1,7 +1,7 @@
 "use client";
 
-import { FUNDER_KIND_LABELS, type FundingBox } from "@/domain/matching";
-import { toMajor } from "@/lib/money";
+import { FUNDER_KIND_LABELS, type FundingBox } from "@shared/domain/matching";
+import { toMajor } from "@shared/money";
 import {
   CheckGroup,
   Field,

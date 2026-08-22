@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { newToken } from "@/lib/tokens";
+import { newToken } from "@backend/auth/tokens";
 import {
   checkbox,
   type BoxFormResult,
@@ -11,11 +11,11 @@ import {
   requiredPercent,
   requiredText,
   textList,
-} from "@/lib/formFields";
-import type { BuyBox } from "@/domain/matching";
-import { ALL_STRUCTURES } from "@/domain/strategies";
-import type { JurisdictionCode, PropertyType, StructureKind } from "@/domain/types";
-import { deleteBuyBox, getBuyBox, saveBuyBox } from "@/store/repository";
+} from "@shared/formFields";
+import type { BuyBox } from "@shared/domain/matching";
+import { ALL_STRUCTURES } from "@shared/domain/strategies";
+import type { JurisdictionCode, PropertyType, StructureKind } from "@shared/domain/types";
+import { deleteBuyBox, getBuyBox, saveBuyBox } from "@backend/store/repository";
 
 /**
  * Buy Box mandates.

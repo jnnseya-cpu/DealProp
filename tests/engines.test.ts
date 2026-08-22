@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { bps, fromMajor, pct } from "@/lib/money";
-import { appraise } from "@/domain/economics";
-import { assessSellerProtection } from "@/domain/protection";
-import { runRedTeam } from "@/domain/redteam";
-import { scoreDeal } from "@/domain/dealScore";
-import { buildCapitalStack, DEFAULT_PREFERENCES } from "@/domain/capitalStack";
-import { buildExitMatrix, capitalRecycle, routeStrategies } from "@/domain/strategies";
-import { categoriseHeat, diagnoseUnsold, scoreGoldMine, sellerPressure } from "@/domain/goldmine";
-import { buildCloseReport, STANDARD_MILESTONES, type Milestone, type MilestoneStatus } from "@/domain/completion";
-import { countInterestedBuyers, matchBuyBox, matchFundingBox } from "@/domain/matching";
-import { SEED_BUY_BOXES, SEED_FUNDING_BOXES } from "@/store/seed";
-import type { DealInputs, FinanceTerms, PropertyFacts, SellerProfile } from "@/domain/types";
-import type { ListingSignal } from "@/domain/goldmine";
+import { bps, fromMajor, pct } from "@shared/money";
+import { appraise } from "@shared/domain/economics";
+import { assessSellerProtection } from "@shared/domain/protection";
+import { runRedTeam } from "@shared/domain/redteam";
+import { scoreDeal } from "@shared/domain/dealScore";
+import { buildCapitalStack, DEFAULT_PREFERENCES } from "@shared/domain/capitalStack";
+import { buildExitMatrix, capitalRecycle, routeStrategies } from "@shared/domain/strategies";
+import { categoriseHeat, diagnoseUnsold, scoreGoldMine, sellerPressure } from "@shared/domain/goldmine";
+import { buildCloseReport, STANDARD_MILESTONES, type Milestone, type MilestoneStatus } from "@shared/domain/completion";
+import { countInterestedBuyers, matchBuyBox, matchFundingBox } from "@shared/domain/matching";
+import { SEED_BUY_BOXES, SEED_FUNDING_BOXES } from "@backend/store/seed";
+import type { DealInputs, FinanceTerms, PropertyFacts, SellerProfile } from "@shared/domain/types";
+import type { ListingSignal } from "@shared/domain/goldmine";
 
 const finance: FinanceTerms = {
   ltvBps: pct(70),

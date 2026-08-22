@@ -18,12 +18,13 @@ Answer "what already exists?" from here, not by re-deriving it.
 
 | Layer | Where | Rule |
 |---|---|---|
-| Pages | `src/app` | Renders. **Never computes a figure.** |
+| Frontend | `src/app` | Renders. **Never computes a figure.** Next requires this path. |
 | Shared UI | `src/app/components/chrome.tsx` | Mark, header, verdict vocabulary, score colours |
-| Store | `src/store/` | `repository` picks the engine; `postgresStore` or `fileStore`. No domain logic. |
+| Backend | `src/backend` | Server only: `store/`, `auth/`, `sources/`, email, audit. |
+| Store | `src/backend/store/` | `repository` picks the engine; `postgresStore` or `fileStore`. No domain logic. |
 | Domain | `src/domain` | Pure, framework-free, fully tested |
-| Money | `src/lib/money.ts` | Integer pence, branded types. Depends on nothing. |
-| Formatting | `src/lib/format.ts` | Pure. Imported by domain — **no Tailwind here.** |
+| Money | `src/shared/money.ts` | Integer pence, branded types. Depends on nothing. |
+| Formatting | `src/shared/format.ts` | Pure. Imported by domain — **no Tailwind here.** |
 
 Stack: Next.js 15 (App Router, server components), React 19, TypeScript strict,
 Tailwind v4, Vitest. No auth, no database, no payments, no external APIs.
@@ -37,12 +38,12 @@ seller-facing options cannot disagree.
 
 ### Built and working — do not rebuild
 
-`src/domain/` (18 files): `types`, `newsletter`, `economics`, `motivation`, `protection`,
+`src/shared/domain/` (18 files): `types`, `newsletter`, `economics`, `motivation`, `protection`,
 `redteam`, `dealScore`, `capitalStack`, `strategies`, `goldmine`, `matching`,
 `completion`, `revenue`, `director`, `intake`, `sellerRoutes`, `workingDeal`,
 `partners`, `sources`, `registrySignal`, `accounts`.
 
-`src/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
+`src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
 GB-WLS are excluded from `isDealReady`).
 
@@ -52,15 +53,15 @@ pipeline, `/deals/[id]` Deal Room, `/deals/[id]/memorandum` print pack,
 unsubscribe), `/operator` sign-in.
 Access control: `src/middleware.ts` gates `/deals`, `/invest`, `/capital`,
 `/account` behind either credential and fails closed without `OPERATOR_SECRET`.
-`src/app/operator/guard.ts` is the per-page lock; `src/domain/accounts.ts`
+`src/app/operator/guard.ts` is the per-page lock; `src/shared/domain/accounts.ts`
 `can()` is the only place a permission decision is made.
 API: `/api/cron/newsletter` weekly send, secret-protected and idempotent.
-PWA: installable, `src/lib/pwa.ts` is the single source for devices/icons/colours.
+PWA: installable, `src/shared/pwa.ts` is the single source for devices/icons/colours.
 Assets regenerate with `npm run pwa:assets` — never hand-edit `public/`.
 Go-to-market: `docs/GO-TO-MARKET.md` is the source; `npm run docs:pdf`
 renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
 
-295 tests in `tests/` (296 with Postgres). All pass. Build succeeds. All routes return 200.
+302 tests in `tests/` (303 with Postgres). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -180,7 +181,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 295 tests
+npx vitest run       # 302 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import type { TradeReferralReport } from "@/domain/partners";
-import type { Verdict } from "@/domain/types";
+import type { TradeReferralReport } from "@shared/domain/partners";
+import type { Verdict } from "@shared/domain/types";
 
 /**
  * Shared chrome.

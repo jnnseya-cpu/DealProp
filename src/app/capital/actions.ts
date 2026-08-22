@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { newToken } from "@/lib/tokens";
+import { newToken } from "@backend/auth/tokens";
 import {
   checkbox,
   type BoxFormResult,
@@ -12,10 +12,10 @@ import {
   requiredPercent,
   requiredText,
   textList,
-} from "@/lib/formFields";
-import type { FunderKind, FundingBox } from "@/domain/matching";
-import type { JurisdictionCode, PropertyType } from "@/domain/types";
-import { deleteFundingBox, getFundingBox, saveFundingBox } from "@/store/repository";
+} from "@shared/formFields";
+import type { FunderKind, FundingBox } from "@shared/domain/matching";
+import type { JurisdictionCode, PropertyType } from "@shared/domain/types";
+import { deleteFundingBox, getFundingBox, saveFundingBox } from "@backend/store/repository";
 
 /**
  * Funding Box mandates.

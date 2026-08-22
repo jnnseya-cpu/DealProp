@@ -2,11 +2,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { fromMajor, pct } from "@/lib/money";
-import type { BuyBox } from "@/domain/matching";
-import type { Subscriber } from "@/domain/newsletter";
-import type { DealRecord, Store } from "@/store/schema";
-import { fileStore } from "@/store/fileStore";
+import { fromMajor, pct } from "@shared/money";
+import type { BuyBox } from "@shared/domain/matching";
+import type { Subscriber } from "@shared/domain/newsletter";
+import type { DealRecord, Store } from "@backend/store/schema";
+import { fileStore } from "@backend/store/fileStore";
 
 /**
  * Contract tests for the store.
@@ -253,7 +253,7 @@ if (TEST_URL === undefined || TEST_URL === "") {
 } else {
   process.env.DATABASE_URL = TEST_URL;
 
-  const { postgresStore, closePostgres } = await import("@/store/postgresStore");
+  const { postgresStore, closePostgres } = await import("@backend/store/postgresStore");
   const { Pool } = await import("pg");
   const pool = new Pool({ connectionString: TEST_URL });
 

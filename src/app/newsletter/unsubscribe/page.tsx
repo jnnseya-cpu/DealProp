@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SiteHeader } from "@/app/components/chrome";
-import { updateSubscriberByToken } from "@/store/repository";
-import { LINKS } from "@/domain/newsletter";
+import { updateSubscriberByToken } from "@backend/store/repository";
+import { LINKS } from "@shared/domain/newsletter";
 
 export const dynamic = "force-dynamic";
 

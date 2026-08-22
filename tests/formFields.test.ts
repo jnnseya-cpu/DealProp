@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fromMajor, toMajor } from "@/lib/money";
+import { fromMajor, toMajor } from "@shared/money";
 import {
   checkbox,
   manyOf,
@@ -11,7 +11,7 @@ import {
   requiredPercent,
   requiredText,
   textList,
-} from "@/lib/formFields";
+} from "@shared/formFields";
 
 const ALLOWED = new Set(["a", "b", "c"]);
 

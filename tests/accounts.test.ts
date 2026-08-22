@@ -6,12 +6,12 @@ import {
   publicAccount,
   ROLE_LABELS,
   type Account,
-} from "@/domain/accounts";
+} from "@shared/domain/accounts";
 import {
   categoryDefinition,
   UK_INVESTOR_CATEGORISATION,
-} from "@/domain/jurisdictions/uk-financial-promotion";
-import { hashPassword, passwordProblem, verifyPassword } from "@/lib/password";
+} from "@shared/domain/jurisdictions/uk-financial-promotion";
+import { hashPassword, passwordProblem, verifyPassword } from "@backend/auth/password";
 
 const NOW = new Date("2026-08-22T00:00:00.000Z");
 

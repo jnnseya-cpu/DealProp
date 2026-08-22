@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { listDeals, listFundingBoxes } from "@/store/repository";
-import { scoreDeal } from "@/domain/dealScore";
-import { toWorkingDeal } from "@/domain/workingDeal";
-import { FUNDER_KIND_LABELS, matchFundingBox, type FundingBox } from "@/domain/matching";
-import { add } from "@/lib/money";
-import { gbp, months, percent } from "@/lib/format";
+import { listDeals, listFundingBoxes } from "@backend/store/repository";
+import { scoreDeal } from "@shared/domain/dealScore";
+import { toWorkingDeal } from "@shared/domain/workingDeal";
+import { FUNDER_KIND_LABELS, matchFundingBox, type FundingBox } from "@shared/domain/matching";
+import { add } from "@shared/money";
+import { gbp, months, percent } from "@shared/format";
 import { SiteHeader } from "@/app/components/chrome";
 import { MandateControls } from "@/app/components/mandate";
 import { requireOperator } from "@/app/operator/guard";

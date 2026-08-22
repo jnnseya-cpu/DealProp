@@ -1,17 +1,17 @@
 import Link from "next/link";
-import { listBuyBoxes, listDeals } from "@/store/repository";
-import { scoreDeal } from "@/domain/dealScore";
-import { toWorkingDeal } from "@/domain/workingDeal";
-import { matchBuyBox } from "@/domain/matching";
-import { STRUCTURE_LABELS } from "@/domain/strategies";
-import { gbp, percent } from "@/lib/format";
+import { listBuyBoxes, listDeals } from "@backend/store/repository";
+import { scoreDeal } from "@shared/domain/dealScore";
+import { toWorkingDeal } from "@shared/domain/workingDeal";
+import { matchBuyBox } from "@shared/domain/matching";
+import { STRUCTURE_LABELS } from "@shared/domain/strategies";
+import { gbp, percent } from "@shared/format";
 import { SiteHeader } from "@/app/components/chrome";
 import { MandateControls } from "@/app/components/mandate";
 import { requireOperator } from "@/app/operator/guard";
 import { SignOutButton } from "@/app/operator/SignOutButton";
 import { BuyBoxForm } from "./BuyBoxForm";
 import { removeBuyBox, setBuyBoxActive } from "./actions";
-import type { BuyBox } from "@/domain/matching";
+import type { BuyBox } from "@shared/domain/matching";
 
 export const dynamic = "force-dynamic";
 

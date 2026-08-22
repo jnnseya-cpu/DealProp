@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { bps, fromMajor, pct, toMajor } from "@/lib/money";
-import { appraise, financeInterest, maxViablePrice } from "@/domain/economics";
-import type { DealInputs, FinanceTerms, PropertyFacts, SellerProfile } from "@/domain/types";
+import { bps, fromMajor, pct, toMajor } from "@shared/money";
+import { appraise, financeInterest, maxViablePrice } from "@shared/domain/economics";
+import type { DealInputs, FinanceTerms, PropertyFacts, SellerProfile } from "@shared/domain/types";
 
 const finance: FinanceTerms = {
   ltvBps: pct(70),

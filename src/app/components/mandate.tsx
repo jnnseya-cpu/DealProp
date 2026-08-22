@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import type { BoxFormResult } from "@/lib/formFields";
+import type { BoxFormResult } from "@shared/formFields";
 
 /**
  * Mandate form primitives.

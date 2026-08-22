@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { OPERATOR_COOKIE, verifyOperatorCookie } from "@/lib/operator";
-import { readSession, SESSION_COOKIE } from "@/lib/session";
+import { OPERATOR_COOKIE, verifyOperatorCookie } from "@backend/auth/operator";
+import { readSession, SESSION_COOKIE } from "@backend/auth/session";
 
 /**
  * Deny-by-default gate over the operator surfaces.

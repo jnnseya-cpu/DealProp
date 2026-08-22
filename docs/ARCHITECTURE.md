@@ -6,41 +6,47 @@ How Lode is put together, why it is shaped this way, and where to extend it.
 
 ## 1. Layering
 
+Three layers, and the split is enforced by `tests/boundaries.test.ts` rather
+than by convention. A rule written in a README lasts until the first person in
+a hurry; a failing test lasts.
+
 ```
-  ┌──────────────────────────────────────────────┐
-  │  src/app          Next.js pages (server)     │  renders, never computes
-  │    components/chrome.tsx  shared UI vocabulary│
-  ├──────────────────────────────────────────────┤
-  │  src/store        Repository over JSON        │  no domain logic
-  ├──────────────────────────────────────────────┤
-  │  src/domain       The engine                  │  pure, framework-free
-  │    director.ts      orchestrates everything   │
-  │    dealScore.ts     score + verdict           │
-  │    strategies.ts    router, exits, recycling  │
-  │    economics.ts     appraisal                 │
-  │    capitalStack.ts  funding solver            │
-  │    matching.ts      buy/funding boxes         │
-  │    redteam.ts       stress testing            │
-  │    protection.ts    seller safeguards         │
-  │    goldmine.ts      opportunity mining        │
-  │    completion.ts    close score, critical path│
-  │    revenue.ts       monetisation              │
-  │    motivation.ts    seller diagnostics        │
-  │    jurisdictions/   ALL country-specific law  │
-  ├──────────────────────────────────────────────┤
-  │  src/lib/money.ts  Integer-pence primitives   │  depends on nothing
-  └──────────────────────────────────────────────┘
+  ┌──────────────────────────────────────────────────────────┐
+  │  src/app        FRONTEND — pages, components, actions     │
+  │                 At this path because Next requires it.    │
+  │                 May import both layers below.             │
+  ├──────────────────────────────────────────────────────────┤
+  │  src/backend    SERVER ONLY — storage, credentials,       │
+  │                 external adapters                         │
+  │    store/         repository, fileStore, postgresStore    │
+  │    auth/          operator, session, password, tokens     │
+  │    sources/       Land Registry, EPC                      │
+  │    email.ts, audit.ts                                     │
+  │                 May import shared. Never imports a page.  │
+  ├──────────────────────────────────────────────────────────┤
+  │  src/shared     PURE AND ISOMORPHIC                       │
+  │    domain/        the engine — 21 modules                 │
+  │    money.ts       integer-pence primitives                │
+  │    format.ts, formFields.ts, pwa.ts                       │
+  │                 No Node APIs. No React. No Next. No       │
+  │                 database. No process.env.                 │
+  └──────────────────────────────────────────────────────────┘
 ```
 
-**Dependency rule:** arrows point downward only. `src/domain` imports nothing
-from `src/app` or `src/store`. The store imports domain *types* but no domain
-*functions*. This is what makes the engine testable without a browser, a
-database or a network, and it is why 229 tests run in under a second.
+Aliases: `@shared/*`, `@backend/*`, `@/*` for app-internal imports.
 
-**The single-source rule:** the UI never computes a figure. `runDealDirector()`
-returns one coherent position, and the page renders it. This is why the
-memorandum, the Deal Score and the seller-facing options cannot disagree with
-one another — there is only one place the number can come from.
+**Why shared is the strict one.** `src/shared/domain` decides every score,
+verdict and tax figure. The moment it can reach a database, a request or an
+environment variable, the same inputs stop producing the same answer — and a
+screening figure nobody can reproduce is worth nothing to the lender being
+shown it. The boundary test asserts it imports no `node:`, no `pg`, no `react`,
+no `next`, and reads no `process.env`. It is also why the suite runs in about
+two seconds with no server, no browser and no network.
+
+**Why the store may name domain types but not call domain functions.** The
+store puts records in and takes them out. A store that calls into the engine is
+a second place decisions get made, and then two engines disagree. The boundary
+test allows `import type` from `@shared/domain` and rejects a value import.
 
 ---
 
@@ -99,7 +105,7 @@ every deal into one band — see §5.
 
 ## 4. Adding a jurisdiction
 
-1. Create `src/domain/jurisdictions/xx-yy.ts` implementing `JurisdictionPack`.
+1. Create `src/shared/domain/jurisdictions/xx-yy.ts` implementing `JurisdictionPack`.
 2. Encode transfer tax as an explicit **band table**, not inline arithmetic, so
    updating rates is a data edit against a failing test.
 3. Implement `profitTax` returning `requiresProfessionalReview: true` and real
@@ -150,7 +156,7 @@ advisories more than once — CVE-2025-29927 let a crafted
 render special-category personal data. A framework bug should not be the only
 thing between an attacker and a seller's reported health concerns.
 
-`src/lib/operator.ts` holds the session logic and uses Web Crypto rather than
+`src/backend/auth/operator.ts` holds the session logic and uses Web Crypto rather than
 `node:crypto`, because middleware runs in the edge runtime where `node:crypto`
 is unavailable. `lib/tokens.ts` keeps using `node:crypto` since it only ever
 runs on the server.
@@ -167,7 +173,7 @@ newsletter confirm and unsubscribe links.
 
 ## 6. Storage
 
-`src/store/` is three files and one interface:
+`src/backend/store/` is three files and one interface:
 
 - `schema.ts` — `DealRecord`, `Database`, and the `Store` interface both engines
   implement
@@ -230,7 +236,7 @@ These had each been re-implemented per page, which is how a verdict ends up
 labelled "Negotiate" on one screen and something else on another. One
 definition each.
 
-The same rule applies to `src/lib/format.ts`, which is pure and framework-free
+The same rule applies to `src/shared/format.ts`, which is pure and framework-free
 so the domain layer can use it. Five modules had each grown a private `fmt()`
 that formatted pounds slightly differently — money shown to a seller in one
 place and a lender in another must be formatted identically, or the figures

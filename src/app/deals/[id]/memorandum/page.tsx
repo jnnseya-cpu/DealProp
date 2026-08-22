@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
-import { audit } from "@/lib/audit";
-import { getDeal } from "@/store/repository";
-import { runDealDirector } from "@/domain/director";
-import { toWorkingDeal } from "@/domain/workingDeal";
-import { buildCloseReport } from "@/domain/completion";
-import { referTradePartners } from "@/domain/partners";
-import { getJurisdiction } from "@/domain/jurisdictions";
-import { STRUCTURE_LABELS } from "@/domain/strategies";
-import { add } from "@/lib/money";
-import { gbp, gbpSigned, months, percent } from "@/lib/format";
+import { audit } from "@backend/audit";
+import { getDeal } from "@backend/store/repository";
+import { runDealDirector } from "@shared/domain/director";
+import { toWorkingDeal } from "@shared/domain/workingDeal";
+import { buildCloseReport } from "@shared/domain/completion";
+import { referTradePartners } from "@shared/domain/partners";
+import { getJurisdiction } from "@shared/domain/jurisdictions";
+import { STRUCTURE_LABELS } from "@shared/domain/strategies";
+import { add } from "@shared/money";
+import { gbp, gbpSigned, months, percent } from "@shared/format";
 import { VERDICT_TONE } from "@/app/components/chrome";
 import "./memorandum.css";
 

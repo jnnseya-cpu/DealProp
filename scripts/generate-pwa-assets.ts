@@ -25,7 +25,7 @@ import {
   PWA_ICONS,
   splashPath,
   splashPixels,
-} from "../src/lib/pwa";
+} from "../src/shared/pwa";
 
 const { background: INK_950, foreground: INK_100, muted: INK_400, accent: LODE_400 } =
   PWA_COLOURS;
