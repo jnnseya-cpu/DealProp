@@ -18,7 +18,7 @@ customer, and the product says so.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 229 tests
+npm test          # 265 tests
 npm run typecheck
 ```
 
@@ -241,11 +241,9 @@ source reaches the output and that no markdown survives unconverted.
 
 Deliberately out of scope for this slice, in rough priority order:
 
-- **GoldMine data sourcing.** The scoring engine is complete and consumes a
-  `ListingSignal` interface. No adapter is written, because the major portals
-  prohibit scraping in their terms and property data carries licensing and
-  data-protection obligations. Connecting a source is a legal decision that
-  must precede the code. See `docs/REGULATORY.md`.
+- **Portal listing data.** Still refused, permanently and by code — see
+  [Where the data comes from](#where-the-data-comes-from). The signals GoldMine
+  wanted from listings now come from open sources instead.
 - **User accounts, roles and payments.** None exist. The operator surfaces are
   gated by a single shared password (see below), which closes the data-exposure
   hole but is not per-person authentication and carries no audit trail. Investor
@@ -258,6 +256,56 @@ Deliberately out of scope for this slice, in rough priority order:
   arithmetic that decides whether someone loses their house deposit.
 
 ---
+
+## Where the data comes from
+
+GoldMine was blocked on the wrong question. The obvious input — portal listings
+— is the one input nobody may lawfully take: the portals prohibit scraping and
+use needs a commercial agreement or a licensed reseller. The answer is not a
+cleverer scraper, it is **different data**. The UK publishes, under open
+licences, most of what actually predicts a motivated sale.
+
+| Source | Licence | What it gives |
+|---|---|---|
+| HM Land Registry Price Paid Data | Open Government Licence, free | Every registered sale since 1995 → years since last sale, arm's-length medians |
+| EPC register | Open, free with registration | **Floor area**, rating, lodgement date |
+| Land Registry corporate ownership | Open, registration | Corporate and overseas landlords |
+| Companies House | Open Government Licence, free | An owner in liquidation or dissolution |
+| Portal listings | **None** | Refused. `assertSourceUsable()` throws. |
+
+`src/domain/sources.ts` is the gate, and it works the way `dealRevenue()` does:
+a source with no recorded licence cannot be read, and a licence that permits
+internal analysis does not permit redistribution. Portal listings are *in* the
+registry, with no licence and a written reason, because a source that is simply
+absent looks like an oversight while one that is present and refused is a
+decision somebody made. A seller's own account of their situation is likewise
+marked internal-analysis only: someone describing a divorce to get help selling
+has not agreed to that reaching an investor pack.
+
+`src/domain/registrySignal.ts` scores owner motivation from those records
+instead of from listing behaviour:
+
+- **An EPC lodged with no sale following.** An EPC is a legal precondition of
+  marketing, so one lodged eighteen months ago with nothing registered since is
+  a sale that was prepared and did not complete. This replaces relist counts.
+- **A rating below the letting standard.** Where the jurisdiction has one, the
+  owner must spend money or stop letting — a decision with a statutory deadline.
+  MEES lives on the England pack; Scotland and Northern Ireland deliberately do
+  not have it, and a test asserts the signal stays silent there.
+- **Years since last sale**, because accumulated equity is what makes a discount
+  affordable to a seller rather than impossible.
+- **Floor area**, so comparison is £/sqm rather than bedroom count. A three-bed
+  terrace can be 70sqm or 110sqm and the difference is the entire margin.
+
+Every field is optional and absent means unknown. `confidenceBps` is reported
+next to the score and `missing` names what would improve it, because a high
+score built on two fields is not the same as one built on six.
+
+**Not yet verified live.** Parsing is covered by fixture tests built from the
+published field definitions, but no request has been made to either endpoint
+from the build environment — outbound network access is blocked there. Run
+`fetchPricePaid()` and `fetchCertificates()` against the real services before
+relying on them.
 
 ## Persistence
 
@@ -281,7 +329,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 229 tests, Postgres suite skipped
+npm test          # 265 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 

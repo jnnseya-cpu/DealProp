@@ -40,7 +40,7 @@ seller-facing options cannot disagree.
 `src/domain/` (18 files): `types`, `newsletter`, `economics`, `motivation`, `protection`,
 `redteam`, `dealScore`, `capitalStack`, `strategies`, `goldmine`, `matching`,
 `completion`, `revenue`, `director`, `intake`, `sellerRoutes`, `workingDeal`,
-`partners`.
+`partners`, `sources`, `registrySignal`.
 
 `src/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -59,7 +59,7 @@ Assets regenerate with `npm run pwa:assets` — never hand-edit `public/`.
 Go-to-market: `docs/GO-TO-MARKET.md` is the source; `npm run docs:pdf`
 renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
 
-229 tests in `tests/` (230 with Postgres). All pass. Build succeeds. All routes return 200.
+265 tests in `tests/` (266 with Postgres). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -91,11 +91,15 @@ renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
     closed without `OPERATOR_SECRET`. Seller
     links are capability URLs from a CSPRNG — never derived from guessable
     facts about the property.
-14. **`DATABASE_URL` decides the store, nothing else.** Set means Postgres;
+14. **No data source may be read without a recorded licence.**
+    `assertSourceUsable()` throws at ingestion, not at display — the exposure is
+    created by taking the data. Portal listings stay in the registry, refused,
+    with the reason written down. Never scrape.
+15. **`DATABASE_URL` decides the store, nothing else.** Set means Postgres;
     unset means the JSON file, which is a development convenience and is wrong
     on any host that runs more than one instance. Both engines pass the same
     contract suite.
-15. **Engines are deterministic.** LLMs belong at the edges proposing
+16. **Engines are deterministic.** LLMs belong at the edges proposing
     structured values — never deciding a score or clearing a flag.
 
 ### Outstanding
@@ -104,7 +108,8 @@ renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
   reaches a private investor (`docs/REGULATORY.md` §2). The shared operator
   password closes the data-exposure hole; it is not accounts and has no audit
   trail.
-- GoldMine adapter — **only** after a licensed data source exists. Do not scrape.
+- GoldMine live import — parsers exist and are fixture-tested; no live call has
+  been made (egress blocked in the build environment). Verify before relying.
 
 ---
 
@@ -173,7 +178,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 229 tests
+npx vitest run       # 265 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

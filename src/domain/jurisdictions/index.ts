@@ -11,7 +11,12 @@ import { US_GEN } from "./us-gen";
  */
 const PACKS: Record<JurisdictionCode, JurisdictionPack> = {
   "GB-ENG": GB_ENG,
-  "GB-NIR": { ...GB_ENG, code: "GB-NIR", name: "Northern Ireland" },
+  // Northern Ireland borrows the England rates but NOT its letting energy
+  // standard: MEES is an England and Wales instrument and does not extend
+  // here. Inheriting it would flag compliant Northern Irish landlords as
+  // forced sellers, which is the failure mode the jurisdiction split exists to
+  // prevent.
+  "GB-NIR": niPack(),
   "GB-SCT": GB_SCT,
   "GB-WLS": {
     ...GB_ENG,
@@ -38,6 +43,11 @@ const DEAL_READY: ReadonlySet<JurisdictionCode> = new Set<JurisdictionCode>([
   "GB-NIR",
   "GB-SCT",
 ]);
+
+function niPack(): JurisdictionPack {
+  const { lettingEnergyStandard: _unused, ...rest } = GB_ENG;
+  return { ...rest, code: "GB-NIR", name: "Northern Ireland" };
+}
 
 export function getJurisdiction(code: JurisdictionCode): JurisdictionPack {
   const pack = PACKS[code];

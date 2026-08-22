@@ -233,4 +233,19 @@ export const GB_ENG: JurisdictionPack = {
       authority: "Approved redress schemes",
     },
   ],
+
+  /**
+   * MEES. Since 1 April 2023 it has been unlawful to *continue* letting a
+   * domestic property rated F or G, not merely to grant a new tenancy, unless
+   * a valid exemption is registered. A landlord holding an F or G therefore has
+   * a decision with a deadline behind it, which is why this is the strongest
+   * landlord-exit signal available in open data.
+   */
+  lettingEnergyStandard: {
+    minimumRating: "E",
+    inForceFrom: "2023-04-01",
+    label: "Minimum Energy Efficiency Standard (MEES)",
+    citation:
+      "Energy Efficiency (Private Rented Property) (England and Wales) Regulations 2015, as amended",
+  },
 };

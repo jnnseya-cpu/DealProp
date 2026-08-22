@@ -173,4 +173,9 @@ export const GB_SCT: JurisdictionPack = {
       authority: "Law Society of Scotland",
     },
   ],
+
+  // Deliberately no lettingEnergyStandard. Scotland consulted on a minimum
+  // EPC standard for private rented housing and did not bring one into force;
+  // MEES does not extend here. Assuming the England and Wales rule applied
+  // would flag compliant Scottish landlords as forced sellers.
 };

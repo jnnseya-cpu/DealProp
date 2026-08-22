@@ -41,6 +41,34 @@ export interface JurisdictionPack {
 
   /** Compliance obligations triggered by operating this deal here. */
   readonly obligations: readonly RegulatoryObligation[];
+
+  /**
+   * The minimum energy rating a property must reach before it may lawfully be
+   * let, where such a standard exists.
+   *
+   * This is the strongest landlord-exit signal in the open data: a rating below
+   * the standard means the owner must spend money or stop letting, and that is
+   * a decision with a deadline attached. It lives on the pack because it is
+   * country-specific law — England and Wales enforce it through MEES, Scotland
+   * abandoned its equivalent, and nothing outside `jurisdictions/` may assume
+   * which is which.
+   *
+   * Undefined where the jurisdiction has no such standard, or where it has not
+   * been researched. Absent means the signal does not fire, never that the
+   * property is compliant.
+   */
+  readonly lettingEnergyStandard?: LettingEnergyStandard;
+}
+
+export type EpcRating = "A" | "B" | "C" | "D" | "E" | "F" | "G";
+
+export interface LettingEnergyStandard {
+  /** The worst rating that may still be let. */
+  readonly minimumRating: EpcRating;
+  /** When this became or becomes enforceable. ISO-8601. */
+  readonly inForceFrom: string;
+  readonly label: string;
+  readonly citation: string;
 }
 
 export interface TransferTaxInput {
