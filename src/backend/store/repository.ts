@@ -4,13 +4,20 @@ import type { Account } from "@shared/domain/accounts";
 import { fileStore } from "@backend/store/fileStore";
 import type {
   AuditEvent,
+  BlogViewCount,
   Database,
   DealRecord,
   Store,
   SubscriberTokenField,
 } from "@backend/store/schema";
 
-export type { AuditAction, AuditEvent, Database, DealRecord } from "@backend/store/schema";
+export type {
+  AuditAction,
+  AuditEvent,
+  BlogViewCount,
+  Database,
+  DealRecord,
+} from "@backend/store/schema";
 
 /**
  * The repository.
@@ -162,6 +169,14 @@ export async function saveAccount(account: Account): Promise<Account> {
 }
 
 /** Append only. There is deliberately no update or delete. */
+export async function recordBlogView(slug: string, at: string): Promise<BlogViewCount> {
+  return (await store()).recordBlogView(slug, at);
+}
+
+export async function listBlogViews(): Promise<readonly BlogViewCount[]> {
+  return (await store()).listBlogViews();
+}
+
 export async function appendAudit(event: AuditEvent): Promise<AuditEvent> {
   return (await store()).appendAudit(event);
 }

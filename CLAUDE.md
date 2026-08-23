@@ -38,10 +38,10 @@ seller-facing options cannot disagree.
 
 ### Built and working — do not rebuild
 
-`src/shared/domain/` (23 files): `types`, `newsletter`, `economics`, `motivation`, `protection`,
+`src/shared/domain/` (24 files): `types`, `newsletter`, `economics`, `motivation`, `protection`,
 `redteam`, `dealScore`, `capitalStack`, `strategies`, `goldmine`, `matching`,
 `completion`, `revenue`, `director`, `intake`, `sellerRoutes`, `workingDeal`,
-`partners`, `sources`, `registrySignal`, `accounts`, `blog`, `analytics`.
+`partners`, `sources`, `registrySignal`, `accounts`, `blog`, `analytics`, `seo`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -65,9 +65,11 @@ renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
 Analytics: Meta Pixel and Google Tag load from `src/app/components/Analytics.tsx`
 only, gated on a configured ID, granted consent, an allowlisted route and a known
 event. `src/shared/domain/analytics.ts` decides where and what; `src/shared/consent.ts`
-decides whether.
+decides whether; `src/shared/eventQueue.ts` holds events until the vendor scripts
+exist. Blog opens are counted independently at `POST /api/blog/view` and shown
+with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
-348 tests in `tests/` (349 with Postgres). All pass. Build succeeds. All routes return 200.
+379 tests in `tests/` (380 with Postgres). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -121,7 +123,14 @@ decides whether.
     Never load a tag outside `Analytics.tsx` and never through Tag Manager —
     the allowlist cannot govern a script it did not load. Events carry counts
     and stages, never the seller's situation, address or postcode.
-21. **Engines are deterministic.** LLMs belong at the edges proposing
+21. **Blog opens are counted on our own server, not by a pixel.** A count per
+    slug and nothing else — no identifier, no per-view row — so it needs no
+    consent and survives an ad blocker. Never add a visitor identifier to it,
+    and never deduplicate it with device storage.
+22. **The SEO score is an audit, not a prediction.** It checks only what this
+    codebase controls. Never add a check that claims to know a ranking, a
+    backlink or a search volume.
+23. **Engines are deterministic.** LLMs belong at the edges proposing
     structured values — never deciding a score or clearing a flag.
 
 ### Outstanding
@@ -197,7 +206,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 348 tests
+npx vitest run       # 379 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

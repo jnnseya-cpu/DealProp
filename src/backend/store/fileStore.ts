@@ -5,6 +5,7 @@ import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type {
   AuditEvent,
+  BlogViewCount,
   Database,
   DealRecord,
   Store,
@@ -51,6 +52,7 @@ function emptyDatabase(): Database {
     subscribers: [],
     accounts: [],
     auditEvents: [],
+    blogViews: [],
   };
 }
 
@@ -67,6 +69,10 @@ async function readDatabase(): Promise<Database> {
       subscribers: parsed.subscribers ?? [],
       accounts: parsed.accounts ?? [],
       auditEvents: parsed.auditEvents ?? [],
+      // Absent in any store written before view counting existed. Defaulted
+      // rather than migrated: an unread post and a post nobody has counted yet
+      // are the same number.
+      blogViews: parsed.blogViews ?? [],
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -289,6 +295,33 @@ async function saveAccount(account: Account): Promise<Account> {
   });
 }
 
+/**
+ * Increment inside the write lock.
+ *
+ * `mutate` serialises through the write chain, so the read and the increment
+ * are one operation and two concurrent views cannot both read 5 and both
+ * write 6.
+ */
+async function recordBlogView(slug: string, at: string): Promise<BlogViewCount> {
+  return mutate((db) => {
+    const index = db.blogViews.findIndex((v) => v.slug === slug);
+    const current = index >= 0 ? db.blogViews[index] : undefined;
+    const next: BlogViewCount = {
+      slug,
+      views: (current?.views ?? 0) + 1,
+      lastViewedAt: at,
+    };
+    if (index >= 0) db.blogViews[index] = next;
+    else db.blogViews.push(next);
+    return next;
+  });
+}
+
+async function listBlogViews(): Promise<readonly BlogViewCount[]> {
+  const db = await readDatabase();
+  return [...db.blogViews].sort((a, b) => b.views - a.views);
+}
+
 /** Append only. There is deliberately no update or delete for audit events. */
 async function appendAudit(event: AuditEvent): Promise<AuditEvent> {
   return mutate((db) => {
@@ -331,6 +364,8 @@ export const fileStore: Store = {
   getAccount,
   findAccountByEmail,
   saveAccount,
+  recordBlogView,
+  listBlogViews,
   appendAudit,
   listAudit,
   isEmpty,

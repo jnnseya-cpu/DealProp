@@ -209,7 +209,7 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       // Subscribers are consent records. Wiping them on reseed would destroy
       // the evidence of why an address was mailed.
       await store.saveSubscriber(subscriber({ status: "confirmed" }));
-      await store.replaceAll({ deals: [dealRecord()], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [] });
+      await store.replaceAll({ deals: [dealRecord()], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [] });
       expect(await store.listSubscribers()).toHaveLength(1);
       expect(await store.listDeals()).toHaveLength(1);
     });
@@ -221,7 +221,62 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       await store.saveDeal(dealRecord());
       expect(await store.isEmpty()).toBe(false);
     });
+
+    describe("blog view counts", () => {
+      it("starts at one and climbs", async () => {
+        expect(await store.recordBlogView("a-post", "2026-08-01T00:00:00.000Z")).toMatchObject({
+          slug: "a-post",
+          views: 1,
+        });
+        expect(await store.recordBlogView("a-post", "2026-08-01T00:01:00.000Z")).toMatchObject({
+          views: 2,
+        });
+      });
+
+      it("counts each post separately", async () => {
+        await store.recordBlogView("a-post", "2026-08-01T00:00:00.000Z");
+        await store.recordBlogView("a-post", "2026-08-01T00:00:00.000Z");
+        await store.recordBlogView("b-post", "2026-08-01T00:00:00.000Z");
+
+        const views = await store.listBlogViews();
+        expect(views.find((v) => v.slug === "a-post")?.views).toBe(2);
+        expect(views.find((v) => v.slug === "b-post")?.views).toBe(1);
+      });
+
+      it("loses no count when views arrive at the same time", async () => {
+        // The whole reason both engines increment atomically rather than reading,
+        // adding one and writing back. A read-modify-write drops most of these.
+        await Promise.all(
+          Array.from({ length: 25 }, () => store.recordBlogView("busy", "2026-08-01T00:00:00.000Z")),
+        );
+
+        const busy = (await store.listBlogViews()).find((v) => v.slug === "busy");
+        expect(busy?.views).toBe(25);
+      });
+
+      it("returns the most-read post first", async () => {
+        await store.recordBlogView("quiet", "2026-08-01T00:00:00.000Z");
+        for (let i = 0; i < 3; i += 1) {
+          await store.recordBlogView("loud", "2026-08-01T00:00:00.000Z");
+        }
+
+        expect((await store.listBlogViews())[0]?.slug).toBe("loud");
+      });
+
+      it("records when a post was last opened", async () => {
+        await store.recordBlogView("a-post", "2026-08-01T00:00:00.000Z");
+        await store.recordBlogView("a-post", "2026-08-02T09:30:00.000Z");
+
+        const row = (await store.listBlogViews()).find((v) => v.slug === "a-post");
+        expect(row?.lastViewedAt).toBe("2026-08-02T09:30:00.000Z");
+      });
+
+      it("reports nothing for a post nobody has opened", async () => {
+        expect(await store.listBlogViews()).toEqual([]);
+      });
+    });
   });
+
 }
 
 // A scratch file, so the suite does not truncate the developer's own seeded
@@ -241,7 +296,7 @@ contract(
     // Queue through the write chain first. Deleting the file outright would
     // race a write still in flight from the previous test, which would then
     // land after the delete and recreate it.
-    await fileStore.replaceAll({ deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [] });
+    await fileStore.replaceAll({ deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [] });
     rmSync(process.env.LODE_DATA_FILE ?? "", { force: true });
   },
 );

@@ -30,7 +30,7 @@ uninformative: no version, no hostnames, no error text.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 348 tests
+npm test          # 379 tests
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 ```
@@ -60,6 +60,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Sign in | `/operator` | Named account, or the shared password as bootstrap |
 | Accounts | `/operator/accounts` | Create, disable, see certification status |
 | Audit trail | `/operator/audit` | Append-only: who saw what, and when |
+| Blog performance | `/operator/blog` | Opens per post and the SEO audit, worst first |
 | Certification | `/account/certify` | Investor self-certification under the FPO |
 | Offline | `/offline` | Service-worker fallback; deliberately shows no figures |
 
@@ -85,6 +86,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Newsletter | `src/shared/domain/newsletter.ts` | Consent gating, weekly idempotency, issue composition |
 | Trade partners | `src/shared/domain/partners.ts` | Who does the works, why, and the disclosure |
 | Analytics gate | `src/shared/domain/analytics.ts` | Which routes and events a pixel may ever see |
+| SEO audit | `src/shared/domain/seo.ts` | Scores every post against what this codebase controls |
 | Email transport | `src/backend/email.ts` | Provider-agnostic, fails closed when unconfigured |
 | Store | `src/backend/store/` | One interface, two engines: Postgres or a JSON file |
 
@@ -388,7 +390,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 348 tests, Postgres suite skipped
+npm test          # 379 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -505,6 +507,43 @@ Never load a tag from anywhere else, and never through Tag Manager. The
 allowlist can only govern scripts this code loads; a container can add one
 later, on any page, from a console. `npm run preflight` blocks on a `GTM-` ID
 for that reason.
+
+### Opens, counted here rather than there
+
+A pixel reports to Meta and Google and to nobody else. Reading it back means
+opening someone else's dashboard, it stops entirely for the large fraction of
+readers who decline the banner or run an ad blocker, and it cannot be shown on
+an operator page beside the post it describes.
+
+So blog posts are also counted on this server. `POST /api/blog/view` increments
+one number per slug — no IP address, no user agent, no identifier, no per-view
+row — which is why it needs no consent under PECR reg. 6 and keeps counting when
+both vendors are blocked. The slug is checked against the real corpus before
+anything is written, and an unknown slug gets the same response as a malformed
+body so the endpoint cannot be used to enumerate what exists.
+
+The counter is not deduplicated per visitor, deliberately: doing that would mean
+writing to the reader's device, which needs consent to answer a question a plain
+count already answers. It measures page opens, and that is what the dashboard
+calls it.
+
+### The SEO score
+
+`src/shared/domain/seo.ts` audits every post against ten checks — title and
+description length against what Google actually renders, URL shape, body length,
+section headings, internal links, glossary coverage, whether anything links to
+the page, and rich-result eligibility. Each check returns a finding in figures
+and, where it fails, what to do about it; the score is derived from the findings
+rather than the other way round.
+
+Checks with a floor and a target grade in between, so a post with four internal
+links and one with none are not reported identically — the point is to know what
+to fix first.
+
+It is **not** a ranking prediction, and nothing in it can see a backlink, a
+competitor or a search volume. It checks what is inside this codebase, which is
+the part that can actually be changed. `/operator/blog` shows it beside the open
+count, worst post first.
 
 ---
 

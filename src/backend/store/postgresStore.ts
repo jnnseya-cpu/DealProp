@@ -4,6 +4,7 @@ import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type {
   AuditEvent,
+  BlogViewCount,
   Database,
   DealRecord,
   Store,
@@ -72,6 +73,14 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS audit_events_at ON audit_events (at DESC);
   CREATE INDEX IF NOT EXISTS audit_events_subject ON audit_events (subject);
   -- Confirmation and unsubscribe links are looked up by token on every click.
+  -- A counter per post. No visitor identifier of any kind is stored, so there
+  -- is nothing here that needs protecting and nothing that could identify a
+  -- reader.
+  CREATE TABLE IF NOT EXISTS blog_views (
+    slug text PRIMARY KEY,
+    views bigint NOT NULL DEFAULT 0,
+    last_viewed_at timestamptz NOT NULL DEFAULT now()
+  );
   CREATE INDEX IF NOT EXISTS subscribers_confirm_token
     ON subscribers ((data->>'confirmToken'));
   CREATE INDEX IF NOT EXISTS subscribers_unsubscribe_token
@@ -294,6 +303,45 @@ export const postgresStore: Store = {
     return account;
   },
 
+  /**
+   * One statement, so concurrent views cannot lose each other.
+   *
+   * `views + 1` is evaluated by the database against the row it just locked for
+   * the update, which a read-then-write from the application cannot promise.
+   */
+  async recordBlogView(slug: string, at: string): Promise<BlogViewCount> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ views: string; last_viewed_at: Date }>(
+      `INSERT INTO blog_views (slug, views, last_viewed_at) VALUES ($1, 1, $2)
+       ON CONFLICT (slug) DO UPDATE
+         SET views = blog_views.views + 1, last_viewed_at = EXCLUDED.last_viewed_at
+       RETURNING views, last_viewed_at`,
+      [slug, at],
+    );
+    const row = rows[0];
+    // bigint arrives as a string from pg, deliberately, because it can exceed
+    // what a JS number holds exactly. A view count never will.
+    return {
+      slug,
+      views: row === undefined ? 1 : Number(row.views),
+      lastViewedAt: at,
+    };
+  },
+
+  async listBlogViews(): Promise<readonly BlogViewCount[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{
+      slug: string;
+      views: string;
+      last_viewed_at: Date;
+    }>("SELECT slug, views, last_viewed_at FROM blog_views ORDER BY views DESC");
+    return rows.map((r) => ({
+      slug: r.slug,
+      views: Number(r.views),
+      lastViewedAt: r.last_viewed_at.toISOString(),
+    }));
+  },
+
   async appendAudit(event: AuditEvent): Promise<AuditEvent> {
     await ensureSchema();
     // ON CONFLICT DO NOTHING rather than an upsert: a replayed write must not
@@ -353,6 +401,19 @@ export const postgresStore: Store = {
           `INSERT INTO audit_events (id, at, subject, data) VALUES ($1, $2, $3, $4)
            ON CONFLICT (id) DO NOTHING`,
           [e.id, e.at, e.subject ?? null, JSON.stringify(e)],
+        );
+      }
+      // View counts survive a reseed for the same reason the audit trail does:
+      // they are a record of something that happened, and a reseed is a
+      // development convenience. Restored with GREATEST so replaying an older
+      // export cannot walk a live counter backwards.
+      for (const v of db.blogViews) {
+        await client.query(
+          `INSERT INTO blog_views (slug, views, last_viewed_at) VALUES ($1, $2, $3)
+           ON CONFLICT (slug) DO UPDATE
+             SET views = GREATEST(blog_views.views, EXCLUDED.views),
+                 last_viewed_at = GREATEST(blog_views.last_viewed_at, EXCLUDED.last_viewed_at)`,
+          [v.slug, v.views, v.lastViewedAt],
         );
       }
       for (const s of db.subscribers) {

@@ -89,8 +89,8 @@ canonicalises itself to localhost.
 ```bash
 npm ci
 npm run typecheck
-npm test              # 348
-npm run test:pg       # 349, both storage engines against a real database
+npm test              # 379
+npm run test:pg       # 380, both storage engines against a real database
 npm run build
 npm run preflight     # must exit 0
 ```
@@ -117,12 +117,15 @@ In this order.
 3. **Create an administrator account** at `/operator/accounts`, sign out, sign
    in as that account. From here on the audit trail has a name against every
    action. The shared password is the bootstrap, not the way to work.
-4. **Check `/operator/audit`** shows the sign-ins. If it is empty, the store is
+4. **Open `/operator/blog`** and confirm the post list renders with an SEO score
+   against each one. Opens start at zero and do not backfill — the counter
+   begins when the first reader arrives.
+5. **Check `/operator/audit`** shows the sign-ins. If it is empty, the store is
    not persisting.
-5. **Confirm `/deals` is unreachable signed out**, and that the
+6. **Confirm `/deals` is unreachable signed out**, and that the
    `x-middleware-subrequest` header does not get past it.
-6. **Fetch `/robots.txt`** and confirm the operator paths are disallowed.
-7. **Submit a test enquiry at `/sell`** and confirm the resulting URL is a long
+7. **Fetch `/robots.txt`** and confirm the operator paths are disallowed.
+8. **Submit a test enquiry at `/sell`** and confirm the resulting URL is a long
    random token, not a guessable identifier.
 
 ---

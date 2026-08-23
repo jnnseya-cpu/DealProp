@@ -12,8 +12,14 @@ import {
   type AnalyticsEvent,
   type EventProperties,
 } from "@shared/domain/analytics";
-import { consentAllowsAnalytics, type ConsentState } from "@shared/consent";
+import {
+  CONSENT_COOKIE,
+  consentAllowsAnalytics,
+  parseConsent,
+  type ConsentState,
+} from "@shared/consent";
 import { ConsentBanner } from "@/app/components/ConsentBanner";
+import { createEventQueue } from "@shared/eventQueue";
 
 /**
  * Meta Pixel and Google Tag, loaded together and gated the same way.
@@ -47,13 +53,43 @@ declare global {
     fbq?: any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     _fbq?: any;
-    /** Set by the loader so `track` can refuse without re-reading the cookie. */
-    __lodeConsent?: boolean;
   }
 }
 
 const META_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID ?? "";
 const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? "";
+
+/**
+ * Events fired before the vendor scripts have run.
+ *
+ * Both tags load with `afterInteractive`, so neither vendor's function exists
+ * while the page is mounting — and a page that records a view on mount is doing
+ * exactly that. The first version of this file called them directly and every
+ * such event was dropped: `blog_post_viewed` and `glossary_term_viewed` never
+ * fired once, on any page, while `page_view` appeared to work because its
+ * effect re-runs when consent resolves. The queue is in `eventQueue.ts` so the
+ * ordering can be tested rather than watched.
+ *
+ * Only events that already passed the consent check are queued, so nothing
+ * collected before agreement can be sent by a later flush.
+ *
+ * Both init snippets install a buffer of their own — `dataLayer` for Google, an
+ * internal queue for Meta — so once they have run, an event is safe to hand
+ * over even before the remote library arrives. Waiting for the snippet is
+ * therefore enough; waiting for the network is not required.
+ */
+const VENDORS_EXPECTED = (GA_ID !== "" ? 1 : 0) + (META_ID !== "" ? 1 : 0);
+const queue = createEventQueue(VENDORS_EXPECTED);
+
+/** Consent, read at the moment of the call rather than from a flag set later. */
+function consentNow(): boolean {
+  if (typeof document === "undefined") return false;
+  const raw = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(`${CONSENT_COOKIE}=`))
+    ?.split("=")[1];
+  return consentAllowsAnalytics(parseConsent(raw));
+}
 
 /**
  * Send an event.
@@ -65,29 +101,29 @@ const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? "";
  */
 export function track(event: AnalyticsEvent, properties: EventProperties = {}): void {
   if (typeof window === "undefined") return;
-
-  const path = window.location.pathname;
-  if (!mayTrack(event, path)) return;
-  if (!window.__lodeConsent) return;
+  if (!mayTrack(event, window.location.pathname)) return;
+  if (!consentNow()) return;
 
   const clean = sanitiseProperties(properties);
+  const standard = META_STANDARD_EVENTS[event];
 
-  try {
-    window.gtag?.("event", event, clean);
-  } catch {
-    // A vendor script that throws must not take the page with it.
-  }
-
-  try {
-    const standard = META_STANDARD_EVENTS[event];
-    if (standard !== undefined) {
-      window.fbq?.("track", standard, clean);
-    } else {
-      window.fbq?.("trackCustom", event, clean);
+  queue.deliver(() => {
+    try {
+      window.gtag?.("event", event, clean);
+    } catch {
+      // A vendor script that throws must not take the page with it.
     }
-  } catch {
-    // As above.
-  }
+
+    try {
+      if (standard !== undefined) {
+        window.fbq?.("track", standard, clean);
+      } else {
+        window.fbq?.("trackCustom", event, clean);
+      }
+    } catch {
+      // As above.
+    }
+  });
 }
 
 export function Analytics() {
@@ -96,17 +132,13 @@ export function Analytics() {
   const lastPath = useRef<string | undefined>(undefined);
 
   const allowed = consentAllowsAnalytics(consent);
-  const configured = META_ID !== "" || GA_ID !== "";
+  const configured = VENDORS_EXPECTED > 0;
   const trackable = isTrackableRoute(pathname);
   const active = allowed && configured && trackable;
 
   const onChange = useCallback((next: ConsentState) => {
     setConsent(next);
   }, []);
-
-  useEffect(() => {
-    window.__lodeConsent = allowed;
-  }, [allowed]);
 
   // A page view per navigation. Next does not reload between routes, so
   // neither vendor sends one by itself after the first.
@@ -118,14 +150,32 @@ export function Analytics() {
 
     // The path is sent explicitly rather than left to the vendor's own
     // location read, so what is reported is the sanitised path and never a
-    // query string.
-    window.gtag?.("event", "page_view", { page_path: path });
-    window.fbq?.("track", "PageView");
+    // query string. Queued like every other event: on a first load this runs
+    // before the vendor scripts do.
+    queue.deliver(() => {
+      try {
+        window.gtag?.("event", "page_view", { page_path: path });
+      } catch {
+        // As in `track`.
+      }
+      try {
+        window.fbq?.("track", "PageView");
+      } catch {
+        // As above.
+      }
+    });
   }, [active, pathname]);
 
   return (
     <>
-      <ConsentBanner onChange={onChange} />
+      {/*
+        Only ask where the answer changes something. With no pixel configured
+        there is nothing to consent to, and on an excluded route — the pipeline,
+        the Deal Room, a seller's own result page — nothing loads whatever the
+        visitor says. A banner there is a consent request for a thing that
+        cannot happen, which teaches people to dismiss the ones that matter.
+      */}
+      {configured && trackable && <ConsentBanner onChange={onChange} />}
 
       {active && GA_ID !== "" && (
         <>
@@ -134,7 +184,7 @@ export function Analytics() {
             strategy="afterInteractive"
             src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
           />
-          <Script id="ga-init" strategy="afterInteractive">
+          <Script id="ga-init" strategy="afterInteractive" onReady={queue.senderReady}>
             {`
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
@@ -156,7 +206,7 @@ export function Analytics() {
       )}
 
       {active && META_ID !== "" && (
-        <Script id="meta-pixel" strategy="afterInteractive">
+        <Script id="meta-pixel" strategy="afterInteractive" onReady={queue.senderReady}>
           {`
             !function(f,b,e,v,n,t,s)
             {if(f.fbq)return;n=f.fbq=function(){n.callMethod?

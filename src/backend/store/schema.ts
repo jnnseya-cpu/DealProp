@@ -30,6 +30,27 @@ export interface DealRecord {
   readonly status: "new" | "qualified" | "in-market" | "funded" | "completed" | "withdrawn";
 }
 
+/**
+ * How many times a post has been opened.
+ *
+ * A count and nothing else. No visitor identifier, no IP address, no user
+ * agent, no timestamp per view — so there is no personal data here to protect
+ * and nothing that could be turned back into a person. That is deliberate: the
+ * question worth answering is "which posts are read", and answering it does not
+ * require knowing who read them.
+ *
+ * It is also why this works when the pixels do not. An ad blocker, a declined
+ * consent banner or a blocked vendor domain all stop Meta and Google; none of
+ * them stop this, because it is a request to our own server that stores no
+ * device data and therefore needs no consent under PECR reg. 6.
+ */
+export interface BlogViewCount {
+  readonly slug: string;
+  readonly views: number;
+  /** ISO-8601, of the most recent view. Not a per-view log. */
+  readonly lastViewedAt: string;
+}
+
 export interface Database {
   deals: DealRecord[];
   buyBoxes: BuyBox[];
@@ -37,6 +58,7 @@ export interface Database {
   subscribers: Subscriber[];
   accounts: Account[];
   auditEvents: AuditEvent[];
+  blogViews: BlogViewCount[];
 }
 
 /**
@@ -114,6 +136,15 @@ export interface Store {
   getAccount(id: string): Promise<Account | undefined>;
   findAccountByEmail(email: string): Promise<Account | undefined>;
   saveAccount(account: Account): Promise<Account>;
+
+  /**
+   * Increment one post's counter and return the new total.
+   *
+   * A read-modify-write from concurrent requests loses counts, so both engines
+   * do this as a single atomic operation rather than a get followed by a put.
+   */
+  recordBlogView(slug: string, at: string): Promise<BlogViewCount>;
+  listBlogViews(): Promise<readonly BlogViewCount[]>;
 
   /** Append only. There is deliberately no update or delete. */
   appendAudit(event: AuditEvent): Promise<AuditEvent>;

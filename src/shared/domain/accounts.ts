@@ -39,7 +39,15 @@ export type Permission =
   | "view-deal-material"
   /** Create and edit Buy Boxes and Funding Boxes. */
   | "manage-mandates"
-  | "view-audit-log";
+  | "view-audit-log"
+  /**
+   * Blog performance: view counts and the SEO audit.
+   *
+   * Its own permission rather than borrowing one, because it is the only
+   * operator surface that carries no seller information at all — a marketing
+   * hire needs it and must not thereby be handed the pipeline.
+   */
+  | "view-content-performance";
 
 /**
  * What each role may do, before categorisation is considered.
@@ -55,8 +63,14 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "view-deal-material",
     "manage-mandates",
     "view-audit-log",
+    "view-content-performance",
   ],
-  operator: ["view-seller-data", "view-deal-material", "manage-mandates"],
+  operator: [
+    "view-seller-data",
+    "view-deal-material",
+    "manage-mandates",
+    "view-content-performance",
+  ],
   investor: ["view-deal-material"],
   funder: ["view-deal-material"],
 };
@@ -235,6 +249,7 @@ const PERMISSION_LABELS: Record<Permission, string> = {
   "view-deal-material": "be sent deal material",
   "manage-mandates": "create or edit mandates",
   "view-audit-log": "read the audit trail",
+  "view-content-performance": "see how the blog is performing",
 };
 
 /** Convenience for the common question, keeping the reason available. */
