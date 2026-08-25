@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { ZERO } from "@shared/money";
+import { money, ZERO } from "@shared/money";
 import {
   creditPack,
+  DISPUTE_FEE,
   GRANTED_CREDIT_MONTHS,
   plan,
   priceBreakdown,
@@ -11,14 +12,20 @@ import {
   type CustomerKind,
 } from "@shared/domain/pricing";
 import { expiryFrom } from "@shared/domain/ledger";
+import { confirmationMatches, CURRENCY } from "@shared/domain/charging";
+import { entitlementsFor, periodAllowance } from "@shared/domain/entitlements";
 import type { Subscription, SubscriptionStatus } from "@shared/domain/entitlements";
 import { isHandledEvent, verifyWebhook, type BillingEventType } from "@backend/billing/webhook";
+import { mayStartTrial } from "@shared/domain/accounts";
 import {
   applyTopUp,
   claimBillingEvent,
+  getAccount,
   getSubscription,
+  saveAccount,
+  recordNote,
+  reverseLotsForPayment,
   saveSubscription,
-  voidLotsForPayment,
 } from "@backend/store/repository";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +71,8 @@ interface BillingEvent {
   /** The provider's payment id, which a later refund or dispute names. */
   readonly paymentReference?: string;
   readonly amountMinorUnits?: number;
+  /** On a refund: the cash actually returned. Absent means the whole payment. */
+  readonly refundedMinorUnits?: number;
   readonly currency?: string;
   readonly packId?: string;
   readonly planId?: string;
@@ -130,6 +139,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       case "payment.refunded":
       case "payment.disputed":
         return await handleReversal(event, at);
+      case "subscription.trial_started":
+        return await handleTrial(event, at);
       case "subscription.activated":
       case "subscription.renewed":
       case "subscription.payment_failed":
@@ -166,14 +177,13 @@ async function handlePayment(event: BillingEvent, at: string): Promise<NextRespo
   });
   const expected = priceBreakdown(pack.price, pack.statedAs, tax);
 
-  if (event.amountMinorUnits !== (expected.gross as number)) {
-    process.stderr.write(
-      `billing webhook ${event.id}: paid ${String(event.amountMinorUnits)} against an expected ${expected.gross}\n`,
-    );
-    return ok("The amount paid does not match the catalogue price. Nothing applied.");
-  }
-  if ((event.currency ?? "GBP").toUpperCase() !== "GBP") {
-    return ok("Payment in another currency. Nothing applied.");
+  const check = confirmationMatches(
+    { gross: expected.gross, currency: CURRENCY },
+    { amountMinorUnits: event.amountMinorUnits, currency: event.currency },
+  );
+  if (!check.matches) {
+    process.stderr.write(`billing webhook ${event.id}: ${check.reason}\n`);
+    return ok(`${check.reason} Nothing applied.`);
   }
 
   const paymentReference = event.paymentReference ?? event.id;
@@ -217,10 +227,41 @@ async function handlePayment(event: BillingEvent, at: string): Promise<NextRespo
  */
 async function handleReversal(event: BillingEvent, at: string): Promise<NextResponse> {
   const paymentReference = event.paymentReference ?? event.id;
-  const reason = event.type === "payment.disputed" ? "chargeback" : "refund";
-  const voided = await voidLotsForPayment(paymentReference, reason, at, randomUUID());
+  const dispute = event.type === "payment.disputed";
 
-  if (reason === "chargeback") {
+  // A dispute always takes the whole payment. A refund may be partial, and
+  // treating a partial refund as a full one strips balance the customer still
+  // owns — which produces a second dispute, from a customer who is by then
+  // right.
+  const refundedGross =
+    dispute || event.refundedMinorUnits === undefined
+      ? ("full" as const)
+      : money(event.refundedMinorUnits);
+
+  const result = await reverseLotsForPayment({
+    paymentReference,
+    refundedGross,
+    kind: dispute ? "chargeback" : "refund",
+    at,
+    entryIdPrefix: randomUUID(),
+  });
+
+  if (dispute) {
+    // The provider charges a fee whichever way the dispute goes, so it is a
+    // cost we have already incurred. Recorded against the account it arose from
+    // and kept apart from what the customer owes, because winning the dispute
+    // does not give it back.
+    await recordNote({
+      accountId: event.accountId,
+      idempotencyKey: `fee:${paymentReference}`,
+      at,
+      kind: "fee",
+      amount: money(-DISPUTE_FEE),
+      entryId: randomUUID(),
+      reference: paymentReference,
+      reason: "Dispute fee charged by the payment provider.",
+    });
+
     const existing = await getSubscription(event.accountId);
     if (existing !== undefined) {
       await saveSubscription({
@@ -234,7 +275,99 @@ async function handleReversal(event: BillingEvent, at: string): Promise<NextResp
     }
   }
 
-  return ok(`${voided} lot(s) reversed.`);
+  return ok(
+    `${result.lotsReversed} lot(s) reversed, £${(result.balanceRemoved / 100).toFixed(2)} removed${
+      result.debt > 0 ? `, £${(result.debt / 100).toFixed(2)} owed` : ""
+    }.`,
+  );
+}
+
+/**
+ * The balance a paid plan includes, granted once per period.
+ *
+ * Keyed on the period rather than the event, so a renewal delivered twice — or
+ * an `activated` and a `renewed` describing the same period — grants it once.
+ * It expires when the period does: an allowance that rolls over is not an
+ * allowance, it is a discount that compounds.
+ */
+async function grantPeriodAllowance(subscription: Subscription, at: string): Promise<void> {
+  const entitlements = entitlementsFor(subscription, new Date(at));
+  const allowance = periodAllowance(entitlements);
+  if (allowance <= ZERO) return;
+
+  await applyTopUp({
+    accountId: subscription.accountId,
+    idempotencyKey: `allowance:${subscription.id}:${subscription.currentPeriodStart}`,
+    at,
+    // Granted, not purchased: a plan allowance was never paid for separately,
+    // so there is no cash behind it and none can come back out of it.
+    purchased: {
+      lotId: randomUUID(),
+      amount: ZERO,
+      cashGross: ZERO,
+      cashTax: ZERO,
+      expiresAt: subscription.currentPeriodEnd,
+    },
+    granted: {
+      lotId: randomUUID(),
+      amount: allowance,
+      expiresAt: subscription.currentPeriodEnd,
+    },
+    paymentReference: `plan:${subscription.id}:${subscription.currentPeriodStart}`,
+    entryIdPrefix: randomUUID(),
+    reason: `${entitlements.planId} allowance for the period from ${subscription.currentPeriodStart.slice(0, 10)}`,
+  });
+}
+
+/**
+ * Starting a free trial.
+ *
+ * Separate from every other subscription event because it is the only one that
+ * hands over the product without a payment, which makes it the only one worth
+ * abusing by repetition. One per account, recorded on the account itself so
+ * cancelling and starting again does not reset it.
+ *
+ * What this does not solve is somebody registering a second account with a
+ * second address. Nothing in the application layer can; that belongs at the
+ * payment provider, which can see the card, and to requiring a payment method
+ * up front. Both are written down as outstanding rather than quietly assumed.
+ */
+async function handleTrial(event: BillingEvent, at: string): Promise<NextResponse> {
+  const account = await getAccount(event.accountId);
+  if (account === undefined) {
+    return ok("No such account. Nothing applied.");
+  }
+
+  const decision = mayStartTrial(account);
+  if (!decision.allowed) {
+    process.stderr.write(`billing webhook ${event.id}: trial refused — ${decision.reason}\n`);
+    return ok(decision.reason);
+  }
+
+  const chosen = event.planId === undefined ? undefined : plan(event.planId as never);
+  if (chosen === undefined) {
+    return ok("No plan named for the trial. Nothing applied.");
+  }
+
+  const existing = await getSubscription(event.accountId);
+  const occurredAt = event.occurredAt ?? at;
+
+  await saveAccount({ ...account, trialClaimedAt: occurredAt });
+  await saveSubscription({
+    id: existing?.id ?? randomUUID(),
+    accountId: event.accountId,
+    planId: chosen.id,
+    status: "trialing",
+    currentPeriodStart: event.periodStart ?? at,
+    currentPeriodEnd: event.periodEnd ?? at,
+    trialEndsAt: event.periodEnd ?? at,
+    lastEventAt: occurredAt,
+    lastEventId: event.id,
+  });
+
+  // No allowance is granted. A trial unlocks the features and none of the
+  // things whose whole value transfers on first use.
+  return ok(`Trial started on ${chosen.name}.`);
 }
 
 /** Statuses this platform recognises, mapped from the event that carries them. */
@@ -295,5 +428,12 @@ async function handleSubscription(event: BillingEvent, at: string): Promise<Next
   };
 
   await saveSubscription(subscription);
+
+  // Only on a period that is actually paid for. A failed payment or a
+  // cancellation must not hand over another month of credits on its way out.
+  if (status === "active") {
+    await grantPeriodAllowance(subscription, at);
+  }
+
   return ok(`Subscription ${status}.`);
 }

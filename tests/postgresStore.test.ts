@@ -358,7 +358,7 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         }
       });
 
-      it("voids the whole lot on a chargeback, spent or not", async () => {
+      it("takes back the whole lot on a dispute, spent or not", async () => {
         // The money came back out in full, so the reversal is in full. What was
         // already consumed is a loss, and it has to be visible as one.
         await store.applyTopUp(topUp());
@@ -372,8 +372,15 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
           reason: "op",
         });
 
-        const voided = await store.voidLotsForPayment("pay_abc", "chargeback", later, "cb1");
-        expect(voided).toBe(1);
+        const result = await store.reverseLotsForPayment({
+          paymentReference: "pay_abc",
+          refundedGross: "full",
+          kind: "chargeback",
+          at: later,
+          entryIdPrefix: "cb1",
+        });
+        expect(result.lotsReversed).toBe(1);
+        expect(result.debt).toBe(fromMajor(70));
 
         const lots = await store.listCreditLots("acc-1");
         const entries = await store.listLedgerEntries("acc-1");
@@ -383,6 +390,98 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         const position = standing(lots, entries, new Date(later));
         expect(position.owed).toBe(fromMajor(70));
         expect(position.maySpend).toBe(false);
+      });
+
+      it("takes only what a partial refund paid for, leaving the rest spendable", async () => {
+        // Stripping balance a customer still owns is the fastest way to turn a
+        // refund into a dispute.
+        await store.applyTopUp(topUp());
+
+        const result = await store.reverseLotsForPayment({
+          paymentReference: "pay_abc",
+          refundedGross: fromMajor(40),
+          kind: "refund",
+          at: later,
+          entryIdPrefix: "rf1",
+        });
+
+        expect(result.balanceRemoved).toBe(fromMajor(40));
+        expect(result.debt).toBe(0);
+
+        const lots = await store.listCreditLots("acc-1");
+        expect(lots[0]?.voidedAt).toBeUndefined();
+        expect(availableBalance(lots, new Date(later))).toBe(fromMajor(60));
+      });
+
+      it("counts a plan allowance up to its limit and no further", async () => {
+        const use = (item: string) =>
+          store.recordAllowanceUse({
+            accountId: "acc-1",
+            idempotencyKey: `memo:acc-1:${item}:${at}`,
+            at: later,
+            periodStart: at,
+            limit: 2,
+            entryId: `al-${item}`,
+            reference: item,
+            reason: "memorandum",
+          });
+
+        expect((await use("deal-1")).allowed).toBe(true);
+        expect((await use("deal-2")).allowed).toBe(true);
+        const third = await use("deal-3");
+        expect(third.allowed).toBe(false);
+        expect(third.used).toBe(2);
+      });
+
+      it("does not charge twice for reopening the same item", async () => {
+        const once = {
+          accountId: "acc-1",
+          idempotencyKey: "memo:acc-1:deal-1",
+          at: later,
+          periodStart: at,
+          limit: 1,
+          entryId: "al-1",
+          reference: "deal-1",
+          reason: "memorandum",
+        };
+        expect((await store.recordAllowanceUse(once)).allowed).toBe(true);
+        const again = await store.recordAllowanceUse({ ...once, entryId: "al-2" });
+        expect(again.allowed).toBe(true);
+        expect(again.duplicate).toBe(true);
+      });
+
+      it("cannot be raced past its allowance limit", async () => {
+        // Two simultaneous opens must not both see the count below the limit.
+        const attempts = await Promise.all(
+          Array.from({ length: 10 }, (_, i) =>
+            store.recordAllowanceUse({
+              accountId: "acc-1",
+              idempotencyKey: `memo:acc-1:deal-${i}`,
+              at: later,
+              periodStart: at,
+              limit: 3,
+              entryId: `al-${i}`,
+              reference: `deal-${i}`,
+              reason: "memorandum",
+            }),
+          ),
+        );
+        expect(attempts.filter((a) => a.allowed).length).toBe(3);
+      });
+
+      it("records a note once, however often it is retried", async () => {
+        const note = {
+          accountId: "acc-1",
+          idempotencyKey: "fee:pay_abc",
+          at: later,
+          kind: "fee" as const,
+          amount: -fromMajor(15) as never,
+          entryId: "fee-1",
+          reason: "Dispute fee.",
+        };
+        expect(await store.recordNote(note)).toBe(true);
+        expect(await store.recordNote({ ...note, entryId: "fee-2" })).toBe(false);
+        expect((await store.listLedgerEntries("acc-1")).filter((e) => e.kind === "fee")).toHaveLength(1);
       });
 
       it("writes off lapsed balance with an entry rather than silently", async () => {

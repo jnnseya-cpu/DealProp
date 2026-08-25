@@ -470,6 +470,20 @@ export function creditPack(id: string): CreditPack | undefined {
 export const PURCHASED_CREDIT_MONTHS = 12;
 export const GRANTED_CREDIT_MONTHS = 3;
 
+/**
+ * What a disputed payment costs us before anything else.
+ *
+ * Payment providers charge a fixed fee per dispute and keep it whichever way
+ * the dispute goes. It is a real cost of a customer choosing to dispute rather
+ * than ask, it is not returned by winning, and a platform that does not record
+ * it cannot see what a serial disputer is worth, which is usually a large
+ * negative number.
+ *
+ * Fifteen pounds is the common figure across UK providers. Check it against the
+ * contract actually signed; it is here so there is one place to change it.
+ */
+export const DISPUTE_FEE: Money = fromMajor(15);
+
 /* ------------------------------------------------------ metered operations */
 
 /**

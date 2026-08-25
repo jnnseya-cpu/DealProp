@@ -3,8 +3,13 @@ import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import { fileStore } from "@backend/store/fileStore";
 import type {
+  AllowanceInput,
+  AllowanceResult,
   AuditEvent,
   BlogViewCount,
+  NoteInput,
+  ReversalInput,
+  ReversalResult,
   SpendInput,
   SpendResult,
   TopUpInput,
@@ -16,15 +21,20 @@ import type {
 } from "@backend/store/schema";
 
 export type {
+  AllowanceInput,
+  AllowanceResult,
   AuditAction,
   AuditEvent,
   BlogViewCount,
-  Database,
-  DealRecord,
+  NoteInput,
+  ReversalInput,
+  ReversalResult,
   SpendInput,
   SpendResult,
   TopUpInput,
   TopUpResult,
+  Database,
+  DealRecord,
 } from "@backend/store/schema";
 
 /**
@@ -211,13 +221,16 @@ export async function spendCredits(input: SpendInput): Promise<SpendResult> {
   return (await store()).spendCredits(input);
 }
 
-export async function voidLotsForPayment(
-  paymentReference: string,
-  reason: string,
-  at: string,
-  entryIdPrefix: string,
-) {
-  return (await store()).voidLotsForPayment(paymentReference, reason, at, entryIdPrefix);
+export async function reverseLotsForPayment(input: ReversalInput): Promise<ReversalResult> {
+  return (await store()).reverseLotsForPayment(input);
+}
+
+export async function recordAllowanceUse(input: AllowanceInput): Promise<AllowanceResult> {
+  return (await store()).recordAllowanceUse(input);
+}
+
+export async function recordNote(input: NoteInput): Promise<boolean> {
+  return (await store()).recordNote(input);
 }
 
 export async function expireLapsedCredits(now: string, entryIdPrefix: string) {

@@ -68,7 +68,10 @@ may state one, and `revenue.ts` derives its published tiers from it.
 `ledger.ts` holds prepaid balance as lots; `entitlements.ts` derives what a plan
 grants; `charging.ts` decides whether a charge may happen. `/api/billing/webhook`
 is the only inbound money path and fails closed without `BILLING_WEBHOOK_SECRET`.
-`/operator/billing` shows every account's position, computed from the ledger.
+`/operator/billing` shows every account's position, computed from the ledger, and
+is the only recorded path for a manual adjustment. `meter()` in
+`src/backend/billing/meter.ts` charges the memorandum per period;
+`/api/cron/billing` expires lapsed balance nightly.
 Analytics: Meta Pixel and Google Tag load from `src/app/components/Analytics.tsx`
 only, gated on a configured ID, granted consent, an allowlisted route and a known
 event. `src/shared/domain/analytics.ts` decides where and what; `src/shared/consent.ts`
@@ -76,7 +79,7 @@ decides whether; `src/shared/eventQueue.ts` holds events until the vendor script
 exist. Blog opens are counted independently at `POST /api/blog/view` and shown
 with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
-458 tests in `tests/` (459 with Postgres). All pass. Build succeeds. All routes return 200.
+488 tests in `tests/` (489 with Postgres). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -160,7 +163,22 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 29. **Server actions check their own permission.** They are POST endpoints of
     their own; the page guard does not cover them and the middleware matcher is
     one layer.
-30. **Engines are deterministic.** LLMs belong at the edges proposing
+30. **A control that nothing calls is not a control.** Before claiming something
+    is closed, check it has a live call site. The catalogue, ledger and
+    entitlements were all correct and inert for a commit — the memorandum cap,
+    metered spending, period allowances and expiry each existed and enforced
+    nothing.
+31. **Metered use is counted in the ledger, never from the audit trail.** The
+    audit write is best-effort and swallows failures by design, so a logging
+    blip would hand out an uncapped allowance.
+32. **A manual money movement has a named author, a reason and a ceiling.**
+    Never the shared operator password — there is nobody behind it to be the
+    author. Balance granted by hand is a grant, never a purchase, so it can
+    never be refunded out as cash.
+33. **A reversal's share is computed per payment, not per lot.** A bonus lot has
+    no cash behind it; deciding the share from it alone wiped whole bonuses on
+    partial refunds.
+34. **Engines are deterministic.** LLMs belong at the edges proposing
     structured values — never deciding a score or clearing a flag.
 
 ### Outstanding
@@ -236,7 +254,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 458 tests
+npx vitest run       # 488 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

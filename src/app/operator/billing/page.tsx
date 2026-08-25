@@ -2,9 +2,10 @@ import Link from "next/link";
 import { SiteHeader } from "@/app/components/chrome";
 import { SignOutButton } from "@/app/operator/SignOutButton";
 import { requirePermission } from "@/app/operator/guard";
+import { AdjustmentForm } from "./AdjustmentForm";
 import { listAccounts, listCreditLots, listLedgerEntries, listSubscriptions } from "@backend/store/repository";
 import { entitlementsFor } from "@shared/domain/entitlements";
-import { standing } from "@shared/domain/ledger";
+import { quoteRefund, standing } from "@shared/domain/ledger";
 import { plan } from "@shared/domain/pricing";
 import { gbpPrecise } from "@shared/format";
 import { add } from "@shared/money";
@@ -46,6 +47,10 @@ export default async function BillingPage() {
         subscription,
         entitlements: entitlementsFor(subscription, now),
         position: standing(lots, entries, now),
+        // What would have to be returned if every customer asked today. Not the
+        // same as the balance: a bonus has no cash behind it and an expired lot
+        // has none left, so quoting the balance as a liability overstates it.
+        refundable: add(...lots.map((lot) => quoteRefund(lot, now).gross)),
         lots,
         entries,
       };
@@ -56,6 +61,8 @@ export default async function BillingPage() {
   // add() keeps the branded type rather than a cast: the brand exists to catch
   // exactly this, and suppressing it here would be suppressing it everywhere.
   const held = add(...rows.map((r) => r.position.available));
+  const refundable = add(...rows.map((r) => r.refundable));
+  const disputeCosts = add(...rows.map((r) => r.position.fees));
   const paying = rows.filter((r) => r.entitlements.planId !== "buyer-explorer");
 
   return (
@@ -81,16 +88,23 @@ export default async function BillingPage() {
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-300">
           Balances are computed from the ledger on every render, not stored. Prepaid balance is a
           liability until it is spent or expires — the total below is what is owed in service, not
-          revenue.
+          revenue. Refundable is the cash element of it: a bonus was never paid for and an expired
+          lot has nothing left, so neither is money that could be asked back.
         </p>
 
-        <dl className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <dl className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="Balance outstanding" value={gbpPrecise(held)} />
+          <Stat label="Refundable in cash" value={gbpPrecise(refundable)} />
           <Stat label="On a paid plan" value={`${paying.length}`} />
           <Stat
             label="Owing after a reversal"
             value={`${owing.length}`}
             tone={owing.length > 0 ? "text-red-300" : "text-emerald-300"}
+          />
+          <Stat
+            label="Dispute fees paid"
+            value={gbpPrecise(disputeCosts)}
+            tone={disputeCosts > 0 ? "text-amber-300" : undefined}
           />
         </dl>
 
@@ -104,6 +118,8 @@ export default async function BillingPage() {
             </p>
           </div>
         )}
+
+        <AdjustmentForm accounts={accounts.map((a) => ({ id: a.id, email: a.email }))} />
 
         {rows.length === 0 ? (
           <p className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-8 text-sm text-ink-400">

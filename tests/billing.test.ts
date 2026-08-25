@@ -15,6 +15,8 @@ import {
   expiryFrom,
   planSpend,
   quoteRefund,
+  reversalImpact,
+  reversalShare,
   standing,
   type CreditLot,
   type LedgerEntry,
@@ -27,6 +29,7 @@ import {
   type Subscription,
 } from "@shared/domain/entitlements";
 import { authorisePurchase, confirmationMatches } from "@shared/domain/charging";
+import { mayStartTrial } from "@shared/domain/accounts";
 import {
   isHandledEvent,
   parseSignatureHeader,
@@ -230,46 +233,126 @@ describe("refunds never pay out more than came in", () => {
 });
 
 describe("a reversal after the balance was used", () => {
-  it("shows what is owed and stops further spending", () => {
-    const spent = lot({ remaining: fromMajor(30), voidedAt: "2026-08-20T00:00:00.000Z", voidedReason: "chargeback" });
-    const entries: LedgerEntry[] = [
-      {
-        id: "e1",
-        at: "2026-08-20T00:00:00.000Z",
-        accountId: "acc-1",
-        kind: "chargeback",
-        amount: -fromMajor(100) as LedgerEntry["amount"],
-        idempotencyKey: "cb-1",
-        reason: "Disputed",
-      },
-    ];
+  const debt = (amount: number): LedgerEntry => ({
+    id: "d1",
+    at: "2026-08-20T00:00:00.000Z",
+    accountId: "acc-1",
+    kind: "debt",
+    amount: amount as LedgerEntry["amount"],
+    idempotencyKey: "debt-1",
+    reason: "Spent before the payment was reversed.",
+  });
 
-    const position = standing([spent], entries, NOW);
+  it("shows what is owed and stops further spending", () => {
+    const position = standing([lot({ remaining: ZERO })], [debt(-fromMajor(70))], NOW);
     expect(position.owed).toBe(fromMajor(70));
     expect(position.maySpend).toBe(false);
-    expect(position.available).toBe(ZERO);
   });
 
   it("owes nothing where the whole lot was still unspent", () => {
     const untouched = lot({ voidedAt: "2026-08-20T00:00:00.000Z", voidedReason: "chargeback" });
-    const entries: LedgerEntry[] = [
-      {
-        id: "e1",
-        at: "2026-08-20T00:00:00.000Z",
-        accountId: "acc-1",
-        kind: "chargeback",
-        amount: -fromMajor(100) as LedgerEntry["amount"],
-        idempotencyKey: "cb-1",
-        reason: "Disputed",
-      },
-    ];
-    const position = standing([untouched], entries, NOW);
+    const position = standing([untouched], [], NOW);
+    expect(position.owed).toBe(ZERO);
+    expect(position.maySpend).toBe(true);
+  });
+
+  it("clears the debt when it is written off, rather than doubling it", () => {
+    // A write-off is a positive debt entry. Summing magnitudes rather than
+    // signs would make forgiving a debt increase it.
+    const position = standing(
+      [lot({ remaining: ZERO })],
+      [debt(-fromMajor(70)), { ...debt(fromMajor(70)), id: "d2", idempotencyKey: "w-1" }],
+      NOW,
+    );
+    expect(position.owed).toBe(ZERO);
+    expect(position.maySpend).toBe(true);
+  });
+
+  it("never turns an over-generous write-off into a balance", () => {
+    const position = standing(
+      [lot({ remaining: ZERO })],
+      [debt(-fromMajor(10)), { ...debt(fromMajor(999)), id: "d2", idempotencyKey: "w-1" }],
+      NOW,
+    );
+    expect(position.owed).toBe(ZERO);
+  });
+
+  it("keeps provider fees apart from what the customer owes", () => {
+    // Winning a dispute does not give the fee back, so it is our cost and not a
+    // debt to pursue. Rolling them together would overstate one or hide the other.
+    const fee: LedgerEntry = {
+      id: "f1",
+      at: "2026-08-20T00:00:00.000Z",
+      accountId: "acc-1",
+      kind: "fee",
+      amount: -fromMajor(15) as LedgerEntry["amount"],
+      idempotencyKey: "fee-1",
+      reason: "Dispute fee.",
+    };
+    const position = standing([lot()], [fee], NOW);
+    expect(position.fees).toBe(fromMajor(15));
     expect(position.owed).toBe(ZERO);
     expect(position.maySpend).toBe(true);
   });
 
   it("lets an ordinary account spend", () => {
     expect(standing([lot()], [], NOW).maySpend).toBe(true);
+  });
+});
+
+describe("what a reversal actually takes back", () => {
+  it("takes everything and owes nothing where nothing was spent", () => {
+    const impact = reversalImpact(lot(), 1);
+    expect(impact.balanceRemoved).toBe(fromMajor(100));
+    expect(impact.debt).toBe(ZERO);
+    expect(impact.voids).toBe(true);
+  });
+
+  it("owes what was already consumed on a full reversal", () => {
+    const impact = reversalImpact(lot({ remaining: fromMajor(30) }), 1);
+    expect(impact.balanceRemoved).toBe(fromMajor(30));
+    expect(impact.debt).toBe(fromMajor(70));
+  });
+
+  it("takes only what a partial refund paid for, and owes nothing", () => {
+    // Stripping balance the customer still owns produces the second dispute,
+    // from a customer who is by then right.
+    const impact = reversalImpact(lot({ remaining: fromMajor(30) }), 0.3);
+    expect(impact.balanceRemoved).toBe(fromMajor(30));
+    expect(impact.debt).toBe(ZERO);
+    expect(impact.voids).toBe(false);
+  });
+
+  it("owes the shortfall where a partial refund exceeds what is unspent", () => {
+    const impact = reversalImpact(lot({ remaining: fromMajor(30) }), 0.5);
+    expect(impact.balanceRemoved).toBe(fromMajor(30));
+    expect(impact.debt).toBe(fromMajor(20));
+  });
+
+  it("does nothing to a lot already reversed", () => {
+    const impact = reversalImpact(lot({ voidedAt: "2026-08-10T00:00:00.000Z" }), 1);
+    expect(impact.balanceRemoved).toBe(ZERO);
+    expect(impact.debt).toBe(ZERO);
+  });
+
+  it("claws a bonus back in the same proportion as the payment", () => {
+    // The bug this replaced: the share was computed per lot, so a bonus lot
+    // with no cash behind it looked fully refunded and was wiped whole. A £40
+    // refund of a £100 top-up carrying a £5 bonus took £45.
+    const purchased = lot({ id: "paid", cashGross: fromMajor(100) });
+    const bonus = lot({ id: "bonus", kind: "granted", original: fromMajor(5), remaining: fromMajor(5), cashGross: ZERO });
+
+    const share = reversalShare([purchased, bonus], fromMajor(40));
+    expect(reversalImpact(purchased, share).balanceRemoved).toBe(fromMajor(40));
+    expect(reversalImpact(bonus, share).balanceRemoved).toBe(fromMajor(2));
+  });
+
+  it("treats a reversal with no cash recorded as a full one", () => {
+    expect(reversalShare([lot({ cashGross: ZERO })], fromMajor(5))).toBe(1);
+  });
+
+  it("never claws back more than the payment, whatever the provider reports", () => {
+    expect(reversalShare([lot({ cashGross: fromMajor(100) })], fromMajor(500))).toBe(1);
   });
 });
 
@@ -503,30 +586,26 @@ describe("a purchase request cannot name its own price", () => {
 });
 
 describe("confirming what was actually paid", () => {
-  const pending = {
-    id: "chg-1",
-    accountId: "acc-1",
-    request: { kind: "topup" as const, packId: "topup-100" },
-    expectedGross: fromMajor(100),
-    currency: "GBP",
-    createdAt: "2026-08-25T00:00:00.000Z",
-    idempotencyKey: "chg-1",
-  };
+  const expected = { gross: fromMajor(100), currency: "GBP" };
 
-  it("accepts the amount that was asked for", () => {
-    expect(confirmationMatches(pending, { amountMinorUnits: 10_000, currency: "GBP" }).matches).toBe(true);
+  it("accepts the amount the catalogue would have charged", () => {
+    expect(confirmationMatches(expected, { amountMinorUnits: 10_000, currency: "GBP" }).matches).toBe(true);
   });
 
   it("refuses an underpayment", () => {
-    expect(confirmationMatches(pending, { amountMinorUnits: 1, currency: "GBP" }).matches).toBe(false);
+    expect(confirmationMatches(expected, { amountMinorUnits: 1, currency: "GBP" }).matches).toBe(false);
   });
 
   it("refuses an overpayment, which usually means the wrong charge", () => {
-    expect(confirmationMatches(pending, { amountMinorUnits: 50_000, currency: "GBP" }).matches).toBe(false);
+    expect(confirmationMatches(expected, { amountMinorUnits: 50_000, currency: "GBP" }).matches).toBe(false);
   });
 
   it("refuses another currency", () => {
-    expect(confirmationMatches(pending, { amountMinorUnits: 10_000, currency: "USD" }).matches).toBe(false);
+    expect(confirmationMatches(expected, { amountMinorUnits: 10_000, currency: "USD" }).matches).toBe(false);
+  });
+
+  it("refuses a confirmation with no amount at all", () => {
+    expect(confirmationMatches(expected, { amountMinorUnits: undefined, currency: "GBP" }).matches).toBe(false);
   });
 });
 
@@ -599,5 +678,24 @@ describe("the endpoint that would otherwise give the platform away", () => {
     const result = verifyWebhook(body, forged, NOW, SECRET);
     expect(result.reason).not.toContain(SECRET);
     expect(result.reason).not.toContain(forged);
+  });
+});
+
+/* ----------------------------------------------------------------- trials */
+
+describe("a trial is one per account", () => {
+  it("allows the first", () => {
+    expect(mayStartTrial({}).allowed).toBe(true);
+  });
+
+  it("refuses a second, whatever happened to the first", () => {
+    // Cancelling and starting again is the cheapest version of never paying.
+    const decision = mayStartTrial({ trialClaimedAt: "2026-01-01T00:00:00.000Z" });
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toContain("2026-01-01");
+  });
+
+  it("refuses a disabled account", () => {
+    expect(mayStartTrial({ disabledAt: "2026-05-01T00:00:00.000Z" }).allowed).toBe(false);
   });
 });

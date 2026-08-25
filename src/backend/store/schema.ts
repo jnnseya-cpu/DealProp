@@ -69,6 +69,22 @@ export interface Database {
   billingEvents: ProcessedEvent[];
 }
 
+export interface ReversalInput {
+  readonly paymentReference: string;
+  /** "full" for a dispute; the cash actually returned for a refund. */
+  readonly refundedGross: Money | "full";
+  readonly kind: "refund" | "chargeback";
+  readonly at: string;
+  readonly entryIdPrefix: string;
+}
+
+export interface ReversalResult {
+  readonly lotsReversed: number;
+  readonly balanceRemoved: Money;
+  /** Service consumed that the reversal has now taken payment for. */
+  readonly debt: Money;
+}
+
 export interface ProcessedEvent {
   readonly eventId: string;
   readonly at: string;
@@ -119,6 +135,47 @@ export interface SpendInput {
   readonly entryIdPrefix: string;
   /** What is being paid for, for the ledger line. */
   readonly reference: string;
+  readonly reason: string;
+}
+
+/**
+ * One use of a plan allowance.
+ *
+ * Counted in the ledger rather than from the audit trail, because the audit
+ * write is best-effort by design and a swallowed failure would hand out an
+ * uncapped allowance. The key makes a repeat use of the same item in the same
+ * period free rather than counting twice.
+ */
+export interface AllowanceInput {
+  readonly accountId: string;
+  readonly idempotencyKey: string;
+  readonly at: string;
+  /** Only uses at or after this count towards the limit. */
+  readonly periodStart: string;
+  readonly limit: number;
+  readonly entryId: string;
+  readonly reference: string;
+  readonly reason: string;
+}
+
+export interface AllowanceResult {
+  readonly allowed: boolean;
+  /** True where this exact item was already counted in this period. */
+  readonly duplicate: boolean;
+  readonly used: number;
+  readonly limit: number;
+  readonly reason: string;
+}
+
+/** A movement that carries no balance: a debt, a provider fee, or a correction. */
+export interface NoteInput {
+  readonly accountId: string;
+  readonly idempotencyKey: string;
+  readonly at: string;
+  readonly kind: "debt" | "fee" | "adjustment";
+  readonly amount: Money;
+  readonly entryId: string;
+  readonly reference?: string;
   readonly reason: string;
 }
 
@@ -248,18 +305,20 @@ export interface Store {
   spendCredits(input: SpendInput): Promise<SpendResult>;
 
   /**
-   * Void every lot from one payment, spent or not.
+   * Reverse the lots from one payment, in proportion to the cash returned.
    *
-   * A chargeback takes the money back whether or not the balance was used, so
-   * the lots go whether or not they have anything left in them. What was
-   * already consumed becomes a debt, which `standing()` surfaces.
+   * A dispute takes everything back; a refund may be partial, and stripping
+   * balance a customer still owns produces the second dispute — from a customer
+   * who is by then correct. Whatever the reversal reaches beyond what is still
+   * unspent is service already delivered, and is written as a debt.
    */
-  voidLotsForPayment(
-    paymentReference: string,
-    reason: string,
-    at: string,
-    entryIdPrefix: string,
-  ): Promise<number>;
+  reverseLotsForPayment(input: ReversalInput): Promise<ReversalResult>;
+
+  /** Count one use of a plan allowance, atomically, against its limit. */
+  recordAllowanceUse(input: AllowanceInput): Promise<AllowanceResult>;
+
+  /** Append a movement that carries no balance. Idempotent, like every other. */
+  recordNote(input: NoteInput): Promise<boolean>;
 
   /** Write off lapsed balance, recording an entry for each. */
   expireLapsedCredits(now: string, entryIdPrefix: string): Promise<number>;

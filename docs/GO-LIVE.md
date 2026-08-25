@@ -102,13 +102,16 @@ canonicalises itself to localhost.
 ```bash
 npm ci
 npm run typecheck
-npm test              # 458
-npm run test:pg       # 459, both storage engines against a real database
+npm test              # 488
+npm run test:pg       # 489, both storage engines against a real database
 npm run build
 npm run preflight     # must exit 0
 ```
 
-The repository has `vercel.json` with the Monday 08:00 newsletter cron. Any host
+The repository has `vercel.json` with the Monday 08:00 newsletter cron and a
+nightly 03:00 billing cron. The billing one expires lapsed prepaid balance; skip
+it and the twelve-month expiry disclosed at the point of sale never happens, and
+the liability is carried for ever. Any host
 works — the app is a standard Next.js server — but the cron must be driven from
 somewhere, and `/api/cron/newsletter` fails closed without `CRON_SECRET`.
 

@@ -61,7 +61,29 @@ export type EntryKind =
   | "expire"
   | "refund"
   | "chargeback"
-  | "adjustment";
+  /** A goodwill credit or correction. Always carries a named author and a reason. */
+  | "adjustment"
+  /**
+   * One use of a plan allowance, at no cost.
+   *
+   * Carries no money — the amount is zero — but it is written to the ledger
+   * rather than counted from the audit trail, for two reasons. The audit write
+   * is best-effort and swallows its failures, so a logging blip would silently
+   * hand out an uncapped allowance; and the ledger's unique key makes reopening
+   * the same document twice in a period free, which is what a customer expects
+   * and what stops a cap becoming a trap.
+   */
+  | "allowance"
+  /**
+   * Service consumed and then paid for again out of our pocket.
+   *
+   * Written when a reversal takes back more than was left unspent. It moves no
+   * balance — the balance is already gone — so it exists purely to make the
+   * loss a number rather than an absence.
+   */
+  | "debt"
+  /** A cost the provider charged us, such as a dispute fee. */
+  | "fee";
 
 /**
  * One movement, appended and never changed.
@@ -118,12 +140,29 @@ export function availableBalance(lots: readonly CreditLot[], now: Date): Money {
  */
 export interface Standing {
   readonly available: Money;
+  /** Service delivered, then taken back. What we are out of pocket. */
   readonly owed: Money;
+  /** Fees the provider charged us, chiefly on disputes. Never recoverable here. */
+  readonly fees: Money;
   /** False while anything is owed: no further spending until it is settled. */
   readonly maySpend: boolean;
   readonly reason: string;
 }
 
+/**
+ * The account's true position, which can be worse than zero.
+ *
+ * Debt is read from explicit `debt` entries rather than reconstructed from lot
+ * arithmetic. The reversal decides how much was consumed at the moment it
+ * happens, when the lot's state is known; recomputing it later from a lot that
+ * has since expired or been partly refunded gives a different answer every time
+ * it is asked, and a debt figure that moves is a debt figure nobody trusts.
+ *
+ * Fees are kept apart from debt on purpose. What a customer consumed and did
+ * not pay for is arguably theirs to settle; a dispute fee the provider charged
+ * us is our cost whatever the outcome. Rolling the two together would either
+ * overstate what may be pursued or hide what a serial disputer actually costs.
+ */
 export function standing(
   lots: readonly CreditLot[],
   entries: readonly LedgerEntry[],
@@ -131,26 +170,21 @@ export function standing(
 ): Standing {
   const available = availableBalance(lots, now);
 
-  // What was clawed back beyond what was still sitting unspent. A chargeback
-  // for £100 against a lot with £30 left costs us the £70 already consumed.
-  let owed = ZERO;
-  for (const entry of entries) {
-    if (entry.kind !== "chargeback") continue;
-    owed = add(owed, money(Math.abs(entry.amount)));
-  }
-  for (const lot of lots) {
-    if (lot.voidedAt === undefined) continue;
-    if (lot.voidedReason !== "chargeback") continue;
-    // The unspent part was recovered by voiding the lot, so only the consumed
-    // part is a real loss.
-    owed = sub(owed, lot.remaining);
-  }
-  if (owed < 0) owed = ZERO;
+  // Signed, not absolute. Debt entries are negative when incurred and positive
+  // when written off, so summing the magnitudes would make a write-off increase
+  // the debt it was meant to clear. Floored at zero: an over-generous write-off
+  // is a mistake to correct, not a balance to hand back.
+  const signedTotal = (kind: EntryKind): number =>
+    entries.filter((e) => e.kind === kind).reduce((total, e) => total + e.amount, 0);
+
+  const owed = money(Math.max(0, -signedTotal("debt")));
+  const fees = money(Math.max(0, -signedTotal("fee")));
 
   if (owed > 0) {
     return {
       available,
       owed,
+      fees,
       maySpend: false,
       reason: `A payment was reversed after the balance was spent. £${(owed / 100).toFixed(2)} is outstanding and spending is suspended until it is settled.`,
     };
@@ -159,12 +193,95 @@ export function standing(
   return {
     available,
     owed: ZERO,
+    fees,
     maySpend: true,
     reason:
       available > 0
         ? `£${(available / 100).toFixed(2)} available.`
         : "No prepaid balance. Top up to run metered operations.",
   };
+}
+
+/* -------------------------------------------------------------- reversals */
+
+export interface Reversal {
+  /** Balance to remove from the lot. Never more than it has left. */
+  readonly balanceRemoved: Money;
+  /** Balance already consumed that the reversal has now taken payment for. */
+  readonly debt: Money;
+  /** True where nothing is left and the lot should be closed outright. */
+  readonly voids: boolean;
+  readonly reason: string;
+}
+
+/**
+ * What a refund or dispute does to one lot.
+ *
+ * A chargeback takes everything, so it is the full-reversal case. A refund may
+ * be partial, and treating a partial refund as a full one would strip balance
+ * the customer still owns and has paid for — which produces the second dispute,
+ * from a customer who is now right.
+ *
+ * The balance removed is proportional to the cash returned. Whatever that
+ * proportion covers beyond what is still sitting unspent is service already
+ * delivered and now unpaid for, which is the debt.
+ *
+ *   £100 paid, nothing spent, all refunded   → remove £100, no debt.
+ *   £100 paid, £70 spent, all refunded       → remove £30, £70 owed.
+ *   £100 paid, £70 spent, 30% refunded       → remove £30, no debt.
+ *   £100 paid, £70 spent, 50% refunded       → remove £30, £20 owed.
+ *
+ * The share is decided once per payment by `reversalShare`, never per lot.
+ */
+export function reversalImpact(lot: CreditLot, proportion: number): Reversal {
+  if (lot.voidedAt !== undefined) {
+    return {
+      balanceRemoved: ZERO,
+      debt: ZERO,
+      voids: false,
+      reason: "Already reversed. A second reversal of one payment takes nothing further.",
+    };
+  }
+
+  const share = Math.min(1, Math.max(0, proportion));
+  const clawedBack = money(Math.round(lot.original * share));
+
+  const balanceRemoved = money(Math.min(clawedBack, lot.remaining));
+  const debt = money(Math.max(0, clawedBack - lot.remaining));
+
+  return {
+    balanceRemoved,
+    debt,
+    voids: share >= 1,
+    reason:
+      share >= 1
+        ? "The payment was reversed in full, so the lot is closed."
+        : `${Math.round(share * 100)}% of the payment was returned.`,
+  };
+}
+
+/**
+ * How much of a payment a reversal takes back, as a share of the whole.
+ *
+ * Computed once per payment rather than per lot, which is the correction to an
+ * earlier version that computed it per lot. A £100 top-up that carries a £5
+ * bonus is two lots, and the bonus has no cash behind it — so a per-lot
+ * calculation saw a lot with zero cash, concluded it was fully refunded, and
+ * wiped the whole bonus for a partial refund. A £40 refund took £45.
+ *
+ * A refund of two fifths of a payment takes back two fifths of everything that
+ * payment granted, bonus included. Capped at one: a provider cannot refund more
+ * than it took, and if it reports otherwise the excess is not ours to claw back
+ * from a balance.
+ */
+export function reversalShare(
+  lots: readonly CreditLot[],
+  refundedGross: Money | "full",
+): number {
+  if (refundedGross === "full") return 1;
+  const cashTaken = lots.reduce<number>((total, lot) => total + lot.cashGross, 0);
+  if (cashTaken <= 0) return 1;
+  return Math.min(1, refundedGross / cashTaken);
 }
 
 /* ------------------------------------------------------------ allocation */

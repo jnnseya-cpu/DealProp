@@ -2,18 +2,25 @@ import { Pool, type PoolClient } from "pg";
 import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
-import { money, sub, ZERO, type Money } from "@shared/money";
+import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   availableBalance,
   dueForExpiry,
   planSpend,
+  reversalImpact,
+  reversalShare,
   type CreditLot,
   type LedgerEntry,
 } from "@shared/domain/ledger";
 import type { Subscription } from "@shared/domain/entitlements";
 import type {
+  AllowanceInput,
+  AllowanceResult,
   AuditEvent,
   BlogViewCount,
+  NoteInput,
+  ReversalInput,
+  ReversalResult,
   SpendInput,
   SpendResult,
   TopUpInput,
@@ -141,6 +148,22 @@ const SCHEMA = `
     reason text NOT NULL
   );
   CREATE INDEX IF NOT EXISTS ledger_entries_account ON ledger_entries (account_id, at);
+  -- Append-only enforced by the database, not by convention.
+  --
+  -- Every statement in this codebase against this table is an INSERT, but that
+  -- is a fact about today's code. These rules make it a fact about the table:
+  -- an UPDATE or DELETE from a later refactor, a migration script, or somebody
+  -- at a psql prompt is silently discarded rather than quietly rewriting what
+  -- money did. A ledger that can be edited answers no question worth asking,
+  -- and the question is always asked after money has already gone missing.
+  CREATE OR REPLACE RULE ledger_entries_no_update AS
+    ON UPDATE TO ledger_entries DO INSTEAD NOTHING;
+  CREATE OR REPLACE RULE ledger_entries_no_delete AS
+    ON DELETE TO ledger_entries DO INSTEAD NOTHING;
+  CREATE OR REPLACE RULE audit_events_no_update AS
+    ON UPDATE TO audit_events DO INSTEAD NOTHING;
+  CREATE OR REPLACE RULE audit_events_no_delete AS
+    ON DELETE TO audit_events DO INSTEAD NOTHING;
   CREATE INDEX IF NOT EXISTS subscribers_confirm_token
     ON subscribers ((data->>'confirmToken'));
   CREATE INDEX IF NOT EXISTS subscribers_unsubscribe_token
@@ -716,39 +739,144 @@ export const postgresStore: Store = {
     });
   },
 
-  async voidLotsForPayment(
-    paymentReference: string,
-    reason: string,
-    at: string,
-    entryIdPrefix: string,
-  ): Promise<number> {
+  async reverseLotsForPayment(input: ReversalInput): Promise<ReversalResult> {
     return transaction(async (client) => {
       const { rows } = await client.query<LotRow>(
         "SELECT * FROM credit_lots WHERE payment_reference = $1 AND voided_at IS NULL FOR UPDATE",
-        [paymentReference],
+        [input.paymentReference],
       );
-      let index = 0;
+
+      let lotsReversed = 0;
+      let balanceRemoved = ZERO;
+      let debt = ZERO;
+
+      // One share for the whole payment, decided before any lot is touched.
+      const share = reversalShare(rows.map(toLot), input.refundedGross);
+
       for (const row of rows) {
         const lot = toLot(row);
+        const impact = reversalImpact(lot, share);
+        if (impact.balanceRemoved <= 0 && impact.debt <= 0 && !impact.voids) continue;
+
         await client.query(
-          "UPDATE credit_lots SET voided_at = $2, voided_reason = $3 WHERE id = $1",
-          [lot.id, at, reason],
+          `UPDATE credit_lots
+             SET remaining = remaining - $2,
+                 voided_at = CASE WHEN $3 THEN $4::timestamptz ELSE voided_at END,
+                 voided_reason = CASE WHEN $3 THEN $5 ELSE voided_reason END
+           WHERE id = $1`,
+          [lot.id, impact.balanceRemoved, impact.voids, input.at, input.kind],
         );
+
         await insertEntry(client, {
-          id: `${entryIdPrefix}-${index}`,
-          at,
+          id: `${input.entryIdPrefix}-${lotsReversed}`,
+          at: input.at,
           accountId: lot.accountId,
-          kind: reason === "chargeback" ? "chargeback" : "refund",
-          amount: money(-lot.original),
+          kind: input.kind,
+          amount: money(-impact.balanceRemoved),
           lotId: lot.id,
-          reference: paymentReference,
-          idempotencyKey: `${reason}:${paymentReference}:${lot.id}`,
-          reason: `Payment ${paymentReference} reversed (${reason}).`,
+          reference: input.paymentReference,
+          idempotencyKey: `${input.kind}:${input.paymentReference}:${lot.id}`,
+          reason: `Payment ${input.paymentReference} reversed. ${impact.reason}`,
         });
-        index += 1;
+
+        if (impact.debt > 0) {
+          await insertEntry(client, {
+            id: `${input.entryIdPrefix}-${lotsReversed}-debt`,
+            at: input.at,
+            accountId: lot.accountId,
+            kind: "debt",
+            amount: money(-impact.debt),
+            lotId: lot.id,
+            reference: input.paymentReference,
+            idempotencyKey: `debt:${input.paymentReference}:${lot.id}`,
+            reason: "Balance was spent before the payment was reversed.",
+          });
+          debt = add(debt, impact.debt);
+        }
+
+        balanceRemoved = add(balanceRemoved, impact.balanceRemoved);
+        lotsReversed += 1;
       }
-      return rows.length;
+
+      return { lotsReversed, balanceRemoved, debt };
     });
+  },
+
+  async recordAllowanceUse(input: AllowanceInput): Promise<AllowanceResult> {
+    return transaction(async (client) => {
+      // Lock the account's allowance rows for the period before counting them,
+      // so two simultaneous opens cannot both see the count below the limit.
+      const { rows } = await client.query<{ idempotency_key: string }>(
+        `SELECT idempotency_key FROM ledger_entries
+          WHERE account_id = $1 AND kind = 'allowance' AND at >= $2
+          FOR UPDATE`,
+        [input.accountId, input.periodStart],
+      );
+
+      const used = rows.length;
+      if (rows.some((r) => r.idempotency_key === input.idempotencyKey)) {
+        return {
+          allowed: true,
+          duplicate: true,
+          used,
+          limit: input.limit,
+          reason: "Already counted in this period.",
+        };
+      }
+
+      if (used >= input.limit) {
+        return {
+          allowed: false,
+          duplicate: false,
+          used,
+          limit: input.limit,
+          reason:
+            input.limit === 0
+              ? "This plan does not include any."
+              : `All ${input.limit} included this period have been used.`,
+        };
+      }
+
+      await insertEntry(client, {
+        id: input.entryId,
+        at: input.at,
+        accountId: input.accountId,
+        kind: "allowance",
+        amount: ZERO,
+        reference: input.reference,
+        idempotencyKey: input.idempotencyKey,
+        reason: input.reason,
+      });
+
+      return {
+        allowed: true,
+        duplicate: false,
+        used: used + 1,
+        limit: input.limit,
+        reason: `${used + 1} of ${input.limit} used this period.`,
+      };
+    });
+  },
+
+  async recordNote(input: NoteInput): Promise<boolean> {
+    await ensureSchema();
+    const { rowCount } = await getPool().query(
+      `INSERT INTO ledger_entries
+         (id, idempotency_key, account_id, kind, amount, reference, at, reason)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (idempotency_key) DO NOTHING`,
+      [
+        input.entryId,
+        input.idempotencyKey,
+        input.accountId,
+        input.kind,
+        input.amount,
+        input.reference ?? null,
+        input.at,
+        input.reason,
+      ],
+    );
+    return (rowCount ?? 0) > 0;
   },
 
   async expireLapsedCredits(now: string, entryIdPrefix: string): Promise<number> {

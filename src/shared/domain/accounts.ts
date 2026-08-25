@@ -98,6 +98,15 @@ export interface Account {
   readonly createdAt: string;
   /** Set when access is withdrawn. Disabled accounts keep their audit trail. */
   readonly disabledAt?: string;
+  /**
+   * When this account last started a free trial.
+   *
+   * Recorded so a second one cannot be started. A trial is the one thing on the
+   * platform that hands over the product for nothing, and a trial that can be
+   * restarted is a subscription nobody ever has to buy — the cost of finding
+   * that out is a month of product per attempt.
+   */
+  readonly trialClaimedAt?: string;
   readonly certification?: InvestorCertification;
 }
 
@@ -258,6 +267,38 @@ export function mayReceiveDealMaterial(
   now: Date = new Date(),
 ): AccessDecision {
   return can(account, "view-deal-material", now);
+}
+
+export interface TrialDecision {
+  readonly allowed: boolean;
+  readonly reason: string;
+}
+
+/**
+ * Whether this account may start a free trial.
+ *
+ * One per account, ever. This does not stop somebody registering a second
+ * account with a second address — nothing in software does, and pretending
+ * otherwise is worse than knowing it — but it does stop the cheapest version,
+ * which is cancelling and restarting on the same account indefinitely.
+ *
+ * The rest of that defence belongs at the payment provider, which can see the
+ * card, and to requiring a payment method before a trial starts. Both are
+ * recorded as outstanding rather than assumed.
+ */
+export function mayStartTrial(
+  account: Pick<Account, "trialClaimedAt" | "disabledAt">,
+): TrialDecision {
+  if (account.disabledAt !== undefined) {
+    return { allowed: false, reason: "This account has been disabled." };
+  }
+  if (account.trialClaimedAt !== undefined) {
+    return {
+      allowed: false,
+      reason: `A trial was already started on ${account.trialClaimedAt.slice(0, 10)}. Trials are one per account.`,
+    };
+  }
+  return { allowed: true, reason: "No trial has been started on this account." };
 }
 
 export const ALL_ROLES: readonly Role[] = ["admin", "operator", "investor", "funder"];

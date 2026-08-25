@@ -152,51 +152,39 @@ export function amountInMinorUnits(price: PriceBreakdown): number {
 /** The currency everything above is denominated in. */
 export const CURRENCY = "GBP";
 
-/**
- * A charge that has been authorised but not yet placed.
- *
- * Held so that the amount the provider is asked for and the amount later
- * confirmed by a webhook can be compared. Without that comparison, a webhook
- * saying "paid" is taken on trust for whatever figure it names, and the figure
- * it names is not necessarily the one we asked for.
- */
-export interface PendingCharge {
-  readonly id: string;
-  readonly accountId: string;
-  readonly request: PurchaseRequest;
-  readonly expectedGross: Money;
-  readonly currency: string;
-  readonly createdAt: string;
-  readonly idempotencyKey: string;
-}
-
 export interface ConfirmationCheck {
   readonly matches: boolean;
   readonly reason: string;
 }
 
 /**
- * Does what the provider says was paid match what we asked for?
+ * Does what the provider says was paid match what we would have charged?
  *
- * Underpayment is the obvious case. Overpayment is checked too, because it
- * usually means the confirmation belongs to a different charge, and applying it
- * to this one delivers the wrong thing and leaves a real payment unfulfilled.
+ * The expected figure is recomputed from the catalogue at the moment the
+ * confirmation arrives, rather than read back from a charge we stored earlier.
+ * One fewer table, one fewer thing to fall out of step, and the answer comes
+ * from the same source that would have priced the sale.
+ *
+ * Underpayment is the obvious case. Overpayment is refused too, because it
+ * usually means the confirmation belongs to a different charge — and applying
+ * it here delivers the wrong thing while leaving a real payment unfulfilled.
  */
 export function confirmationMatches(
-  pending: PendingCharge,
-  paid: { readonly amountMinorUnits: number; readonly currency: string },
+  expected: { readonly gross: Money; readonly currency: string },
+  paid: { readonly amountMinorUnits: number | undefined; readonly currency: string | undefined },
 ): ConfirmationCheck {
-  if (paid.currency.toUpperCase() !== pending.currency.toUpperCase()) {
+  const paidCurrency = (paid.currency ?? CURRENCY).toUpperCase();
+  if (paidCurrency !== expected.currency.toUpperCase()) {
     return {
       matches: false,
-      reason: `Paid in ${paid.currency} against a charge raised in ${pending.currency}. A currency mismatch is never a rounding difference.`,
+      reason: `Paid in ${paidCurrency} against a charge raised in ${expected.currency}. A currency mismatch is never a rounding difference.`,
     };
   }
-  if (paid.amountMinorUnits !== (pending.expectedGross as number)) {
+  if (paid.amountMinorUnits !== (expected.gross as number)) {
     return {
       matches: false,
-      reason: `Confirmation is for ${paid.amountMinorUnits} minor units against an expected ${pending.expectedGross}. Nothing is fulfilled on a mismatch.`,
+      reason: `Confirmation is for ${String(paid.amountMinorUnits)} minor units against an expected ${expected.gross}. Nothing is fulfilled on a mismatch.`,
     };
   }
-  return { matches: true, reason: "The confirmed amount matches the authorised charge." };
+  return { matches: true, reason: "The confirmed amount matches the catalogue price." };
 }

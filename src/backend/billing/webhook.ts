@@ -166,6 +166,7 @@ export function signPayload(rawBody: string, timestamp: number, secret: string):
  */
 export const HANDLED_EVENTS = [
   "payment.succeeded",
+  "subscription.trial_started",
   "payment.refunded",
   "payment.disputed",
   "subscription.activated",

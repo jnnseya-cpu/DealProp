@@ -30,7 +30,7 @@ uninformative: no version, no hostnames, no error text.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 458 tests
+npm test          # 488 tests
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 ```
@@ -61,7 +61,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Accounts | `/operator/accounts` | Create, disable, see certification status |
 | Audit trail | `/operator/audit` | Append-only: who saw what, and when |
 | Blog performance | `/operator/blog` | Opens per post and the SEO audit, worst first |
-| Billing | `/operator/billing` | Every account's plan, balance and ledger position |
+| Billing | `/operator/billing` | Plans, balances, refundable cash, dispute costs, adjustments |
 | Certification | `/account/certify` | Investor self-certification under the FPO |
 | Offline | `/offline` | Service-worker fallback; deliberately shows no figures |
 
@@ -282,6 +282,17 @@ Deliberately out of scope for this slice, in rough priority order:
   does not exist yet, and a divergence would currently go unnoticed.
 - **Dunning email.** A failed payment reduces entitlement correctly and tells
   nobody.
+- **A checkout page.** `authorisePurchase()` and `coolingOff()` are the seam a
+  checkout will call and are unreachable until one exists. They are tested but
+  not yet wired, which is stated here rather than left to be discovered.
+- **Stopping one person opening several accounts.** One trial per account is
+  enforced; one trial per *person* is not, and nothing in an application can do
+  it. That belongs at the provider, which can see the card, and to requiring a
+  payment method before a trial starts.
+- **Rate limiting.** Nothing throttles sign-in or the webhook. Card-testing and
+  credential-stuffing are unaddressed.
+- **Seats.** `seats` is in the catalogue and enforced nowhere, because there is
+  no team feature to enforce it against.
 - **Server-side conversions.** Meta's Conversions API and GA4 Measurement
   Protocol are not wired up. Browser-side events only, so an ad blocker means no
   event.
@@ -403,7 +414,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 458 tests, Postgres suite skipped
+npm test          # 488 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -620,9 +631,13 @@ removes the buy-low-spend-high arbitrage entirely.
 - **Spending order is soonest-expiry first, granted before purchased.** Spending
   the paid balance first would let somebody consume the free part and withdraw
   the paid part.
-- **A chargeback voids the whole lot, spent or not.** What was already consumed
-  becomes a visible debt and spending stops, rather than being clamped to zero
-  and quietly absorbed.
+- **A reversal takes back a share of the payment, not a share of each lot.** A
+  dispute takes everything; a partial refund takes the same proportion of
+  everything that payment granted, bonus included. Whatever it reaches beyond
+  what is still unspent becomes a visible debt and spending stops, rather than
+  being clamped to zero and quietly absorbed. Dispute fees are recorded
+  separately — winning does not give them back, so they are our cost and not a
+  debt to pursue.
 - **Lots expire** — twelve months on money paid, three on balance given away —
   and expiry is written to the ledger, never silently.
 
@@ -643,6 +658,9 @@ answer is computed from them every time. Which closes, specifically:
 | Trial takes the whole library | Trial unlocks features but caps memoranda at one and grants no balance |
 | Downgrade keeps ten mandates on a three-mandate plan | `withinPlan()` covers the oldest and stops counting the rest; nothing is deleted |
 | Chargeback, then carry on using it | Account suspended, and no ordinary renewal event lifts that |
+| Cancel the trial, start another | One trial per account, recorded on the account so restarting does not reset it |
+| Subscribe once, take every memorandum | Metered per period; overage charged to balance |
+| Downgrade, keep the extra mandates | Excess stops counting and stops being shown to sellers |
 
 Mandate limits are enforced in the server actions, which now check their own
 permission and ownership. A server action is its own POST endpoint — the page's
@@ -663,6 +681,54 @@ this ends the right, a consumer can use the service for thirteen days and still
 be owed the whole fee back. `coolingOff()` returns `full` in that case and
 `pro-rata` where the agreement was taken — it is the difference between those two
 on every cancellation in the first fortnight.
+
+### The product itself is metered
+
+The memorandum is the artefact that leaves the building permanently, so it is
+the one thing worth subscribing for a single month to take. A plan that lists
+twenty and counts none of them sells the whole library for one month of the
+cheapest plan that includes them — after which the customer cancels and the
+value never comes back.
+
+`meter()` runs before anything renders, in this order: already paid for this
+period, then included in the plan, then chargeable to the prepaid balance, then
+no. Reopening a memorandum already taken in the period is free, which is what a
+customer expects and what stops a cap becoming a trap. Going past the allowance
+charges the balance rather than refusing, because refusing caps revenue at the
+plan price and turns the heaviest users away.
+
+Uses are counted in the **ledger**, not from the audit trail. The audit write is
+best-effort and swallows its failures by design, so counting from it would mean
+a logging blip silently handing out an uncapped allowance.
+
+Staff are never metered. Ten simultaneous requests against an allowance of three
+succeed exactly three times.
+
+### Housekeeping that has to actually run
+
+`POST /api/cron/billing`, nightly, authenticated on `CRON_SECRET` and failing
+closed without it. It expires lapsed balance and writes an entry for each lot.
+
+Expiry existed as a date on every lot before this and nothing acted on it, which
+made the disclosed twelve-month limit a comment. A liability that never lapses is
+carried indefinitely and redeemed years later against costs that have since
+risen.
+
+### Moving money by hand, on the record
+
+Without a recorded path, a goodwill credit gets made at a database prompt: no
+author, no reason, no audit line, indistinguishable from somebody crediting
+themselves. So `/operator/billing` has one, and it is narrow — named
+administrators only (never the shared password, which has nobody behind it to be
+an author), a required reason, a ceiling per adjustment so a slipped decimal is a
+small mistake, and both an audit entry and a ledger entry.
+
+Balance granted this way is a **grant, never a purchase**. It has no cash behind
+it, so it can never be refunded out as cash.
+
+Debts can be written off the same way. The original entry stays exactly where it
+is — the ledger records that the debt happened and that it was forgiven, not that
+it never existed.
 
 ### Charging something we are not allowed to charge
 

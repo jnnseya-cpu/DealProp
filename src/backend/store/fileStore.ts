@@ -8,13 +8,20 @@ import {
   dueForExpiry,
   planSpend,
   availableBalance,
+  reversalImpact,
+  reversalShare,
   type CreditLot,
   type LedgerEntry,
 } from "@shared/domain/ledger";
 import type { Subscription } from "@shared/domain/entitlements";
 import type {
+  AllowanceInput,
+  AllowanceResult,
   AuditEvent,
   BlogViewCount,
+  NoteInput,
+  ReversalInput,
+  ReversalResult,
   SpendInput,
   SpendResult,
   TopUpInput,
@@ -506,33 +513,127 @@ async function spendCredits(input: SpendInput): Promise<SpendResult> {
   });
 }
 
-async function voidLotsForPayment(
-  paymentReference: string,
-  reason: string,
-  at: string,
-  entryIdPrefix: string,
-): Promise<number> {
+async function reverseLotsForPayment(input: ReversalInput): Promise<ReversalResult> {
   return mutate((db) => {
-    let voided = 0;
+    let lotsReversed = 0;
+    let balanceRemoved = ZERO;
+    let debt = ZERO;
+
+    // One share for the whole payment, decided before any lot is touched.
+    const ofPayment = db.creditLots.filter(
+      (lot) => lot.paymentReference === input.paymentReference && lot.voidedAt === undefined,
+    );
+    const share = reversalShare(ofPayment, input.refundedGross);
+
     db.creditLots.forEach((lot, index) => {
-      if (lot.paymentReference !== paymentReference || lot.voidedAt !== undefined) return;
-      db.creditLots[index] = { ...lot, voidedAt: at, voidedReason: reason };
+      if (lot.paymentReference !== input.paymentReference || lot.voidedAt !== undefined) return;
+      const impact = reversalImpact(lot, share);
+      if (impact.balanceRemoved <= 0 && impact.debt <= 0 && !impact.voids) return;
+
+      db.creditLots[index] = {
+        ...lot,
+        remaining: sub(lot.remaining, impact.balanceRemoved),
+        ...(impact.voids ? { voidedAt: input.at, voidedReason: input.kind } : {}),
+      };
+
       db.ledgerEntries.push({
-        id: `${entryIdPrefix}-${voided}`,
-        at,
+        id: `${input.entryIdPrefix}-${lotsReversed}`,
+        at: input.at,
         accountId: lot.accountId,
-        kind: reason === "chargeback" ? "chargeback" : "refund",
-        // The whole lot is reversed, not merely what is left: the money came
-        // back out in full, so the ledger has to show that in full.
-        amount: money(-lot.original),
+        kind: input.kind,
+        amount: money(-impact.balanceRemoved),
         lotId: lot.id,
-        reference: paymentReference,
-        idempotencyKey: `${reason}:${paymentReference}:${lot.id}`,
-        reason: `Payment ${paymentReference} reversed (${reason}).`,
+        reference: input.paymentReference,
+        idempotencyKey: `${input.kind}:${input.paymentReference}:${lot.id}`,
+        reason: `Payment ${input.paymentReference} reversed. ${impact.reason}`,
       });
-      voided += 1;
+
+      if (impact.debt > 0) {
+        db.ledgerEntries.push({
+          id: `${input.entryIdPrefix}-${lotsReversed}-debt`,
+          at: input.at,
+          accountId: lot.accountId,
+          kind: "debt",
+          amount: money(-impact.debt),
+          lotId: lot.id,
+          reference: input.paymentReference,
+          idempotencyKey: `debt:${input.paymentReference}:${lot.id}`,
+          reason: "Balance was spent before the payment was reversed.",
+        });
+        debt = add(debt, impact.debt);
+      }
+
+      balanceRemoved = add(balanceRemoved, impact.balanceRemoved);
+      lotsReversed += 1;
     });
-    return voided;
+
+    return { lotsReversed, balanceRemoved, debt };
+  });
+}
+
+async function recordAllowanceUse(input: AllowanceInput): Promise<AllowanceResult> {
+  return mutate((db) => {
+    const mine = db.ledgerEntries.filter((e) => e.accountId === input.accountId);
+    if (mine.some((e) => e.idempotencyKey === input.idempotencyKey)) {
+      const used = mine.filter((e) => e.kind === "allowance" && e.at >= input.periodStart).length;
+      return {
+        allowed: true,
+        duplicate: true,
+        used,
+        limit: input.limit,
+        reason: "Already counted in this period.",
+      };
+    }
+
+    const used = mine.filter((e) => e.kind === "allowance" && e.at >= input.periodStart).length;
+    if (used >= input.limit) {
+      return {
+        allowed: false,
+        duplicate: false,
+        used,
+        limit: input.limit,
+        reason:
+          input.limit === 0
+            ? "This plan does not include any."
+            : `All ${input.limit} included this period have been used.`,
+      };
+    }
+
+    db.ledgerEntries.push({
+      id: input.entryId,
+      at: input.at,
+      accountId: input.accountId,
+      kind: "allowance",
+      amount: ZERO,
+      reference: input.reference,
+      idempotencyKey: input.idempotencyKey,
+      reason: input.reason,
+    });
+
+    return {
+      allowed: true,
+      duplicate: false,
+      used: used + 1,
+      limit: input.limit,
+      reason: `${used + 1} of ${input.limit} used this period.`,
+    };
+  });
+}
+
+async function recordNote(input: NoteInput): Promise<boolean> {
+  return mutate((db) => {
+    if (db.ledgerEntries.some((e) => e.idempotencyKey === input.idempotencyKey)) return false;
+    db.ledgerEntries.push({
+      id: input.entryId,
+      at: input.at,
+      accountId: input.accountId,
+      kind: input.kind,
+      amount: input.amount,
+      ...(input.reference !== undefined ? { reference: input.reference } : {}),
+      idempotencyKey: input.idempotencyKey,
+      reason: input.reason,
+    });
+    return true;
   });
 }
 
@@ -638,7 +739,9 @@ export const fileStore: Store = {
   listLedgerEntries,
   applyTopUp,
   spendCredits,
-  voidLotsForPayment,
+  reverseLotsForPayment,
+  recordAllowanceUse,
+  recordNote,
   expireLapsedCredits,
   appendAudit,
   listAudit,

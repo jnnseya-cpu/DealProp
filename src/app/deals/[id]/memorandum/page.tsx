@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
+import { meter } from "@backend/billing/meter";
 import { getDeal } from "@backend/store/repository";
 import { runDealDirector } from "@shared/domain/director";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
@@ -36,6 +37,14 @@ export const metadata = {
  *     investor is a financial promotion under FSMA s.21, and the platform is
  *     not authorised. The notice is at the top, not in a footer, because its
  *     purpose is to be read before the figures are.
+ *
+ * It is also the one page where the product itself leaves permanently, so it is
+ * metered. A plan that lists twenty memoranda and counts none of them sells one
+ * month of the cheapest plan including them in exchange for the whole library —
+ * after which the customer cancels and the value never comes back. Reopening a
+ * memorandum already taken this period is free; going past what the plan
+ * includes charges the prepaid balance rather than refusing, because refusing
+ * caps revenue at the plan price and turns the best customers away.
  */
 export default async function MemorandumPage({
   params,
@@ -49,10 +58,22 @@ export default async function MemorandumPage({
   const record = await getDeal(id);
   if (record === undefined) notFound();
 
+  // Metered before anything is rendered. Checking after the figures are on the
+  // page would be a paywall the reader has already walked through.
+  const charge = await meter(viewerAccount(viewer), "memorandum-export", record.id);
+  if (!charge.allowed) {
+    await audit("access-denied", {
+      ...(viewerAccount(viewer) !== undefined ? { account: viewerAccount(viewer) } : {}),
+      subject: record.id,
+      detail: charge.reason,
+    });
+    return <OutOfAllowance reason={charge.reason} dealId={record.id} />;
+  }
+
   await audit("viewed-deal-material", {
     ...(viewerAccount(viewer) !== undefined ? { account: viewerAccount(viewer) } : {}),
     subject: record.id,
-    detail: record.reference,
+    detail: `${record.reference} (${charge.outcome})`,
   });
 
   const working = toWorkingDeal(record.inputs);
@@ -341,5 +362,38 @@ function Row({ k, v, strong = false }: { k: string; v: string; strong?: boolean 
       <th scope="row">{k}</th>
       <td className="num">{v}</td>
     </tr>
+  );
+}
+
+/**
+ * Shown where the plan's memoranda are used up and the balance cannot cover
+ * another.
+ *
+ * Deliberately explicit about which of the two ran out and what it would cost,
+ * because "upgrade to continue" with no figure is the pattern that makes people
+ * assume they are being squeezed rather than metered.
+ */
+function OutOfAllowance({ reason, dealId }: { reason: string; dealId: string }) {
+  return (
+    <main className="mx-auto max-w-2xl px-6 py-24">
+      <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+        Memorandum
+      </span>
+      <h1 className="mt-4 font-display text-3xl leading-tight text-ink-100">
+        Not available on your plan right now
+      </h1>
+      <p className="mt-4 text-sm leading-relaxed text-ink-300">{reason}</p>
+      <p className="mt-6 text-sm leading-relaxed text-ink-400">
+        Memoranda you have already opened this period stay open at no further cost.
+      </p>
+      <div className="mt-8 flex gap-4">
+        <Link
+          href={`/deals/${dealId}`}
+          className="rounded-xl border hairline px-5 py-2.5 text-sm text-ink-200 transition hover:border-ink-500"
+        >
+          Back to the Deal Room
+        </Link>
+      </div>
+    </main>
   );
 }

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { getDeal, listBuyBoxes } from "@backend/store/repository";
+import { getDeal } from "@backend/store/repository";
+import { coveredBuyBoxes } from "@backend/billing/mandates";
 import { buildSellerRoutes, investorProfitOnRoute, type SellerRoute } from "@shared/domain/sellerRoutes";
 import { assessSellerProtection } from "@shared/domain/protection";
 import { referTradePartners } from "@shared/domain/partners";
@@ -137,7 +138,10 @@ async function countBuyers(
   inputs: DealInputs,
   price: Money,
 ): Promise<{ total: number; fast: number }> {
-  const boxes = await listBuyBoxes();
+  // Covered mandates only. A mandate past what its owner's plan includes is
+  // not demand anybody is currently paying to hold, and this number is shown to
+  // a seller deciding whether to sell their home.
+  const boxes = await coveredBuyBoxes();
   if (boxes.length === 0) return { total: 0, fast: 0 };
   // Scored at the best available route's price, using a conventional funded
   // purchase, because that is the shape most Buy Boxes are written against.
