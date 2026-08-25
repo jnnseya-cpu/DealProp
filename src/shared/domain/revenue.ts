@@ -1,5 +1,6 @@
 import { add, applyBps, fromMajor, pct, ZERO, type Bps, type Money } from "@shared/money";
 import type { DealAppraisal } from "@shared/domain/types";
+import { PLANS, type PlanAudience } from "@shared/domain/pricing";
 
 /**
  * Monetisation model.
@@ -106,44 +107,28 @@ export interface Tier {
   readonly features: readonly string[];
 }
 
-export const BUYER_TIERS: readonly Tier[] = [
-  {
-    name: "Explorer",
-    monthly: ZERO,
-    summary: "See that opportunities exist.",
-    features: ["Limited opportunity browsing", "One Buy Box", "Deal Score headline only"],
-  },
-  {
-    name: "Investor",
-    monthly: fromMajor(49),
-    summary: "Deal alerts and full search.",
-    features: ["Full opportunity search", "Three Buy Boxes", "Deal alerts", "Full Deal Score breakdown"],
-  },
-  {
-    name: "DealMaker",
-    monthly: fromMajor(149),
-    summary: "Analysis and structuring.",
-    features: ["Strategy Router", "Red Team stress testing", "Capital Stack builder", "GoldMine access", "Monthly AI credits"],
-  },
-  {
-    name: "Professional",
-    monthly: fromMajor(399),
-    summary: "Funding matching and Deal Rooms.",
-    features: ["Funding Box matching", "Unlimited Buy Boxes", "Deal Rooms", "Investment memoranda", "Priority support"],
-  },
-  {
-    name: "Business",
-    monthly: fromMajor(999),
-    summary: "Teams, automation and API.",
-    features: ["Team accounts", "Portfolio sourcing", "API access", "Custom underwriting rules"],
-  },
-];
+/**
+ * The published tiers, derived from the chargeable catalogue.
+ *
+ * Derived rather than restated, because these are rendered on the landing page
+ * and the same numbers are what a customer is charged. Two lists eventually
+ * disagree, and the one the customer saw is never the one that loses the
+ * argument — a price advertised at £49 and charged at £59 is a refund and a
+ * complaint; advertised at £59 and charged at £49 is a permanent discount
+ * nobody authorised. `pricing.ts` owns the figure; this presents it.
+ */
+function tiersFor(audience: PlanAudience): readonly Tier[] {
+  return PLANS.filter((p) => p.audience === audience).map((p) => ({
+    name: p.name,
+    monthly: p.price,
+    summary: p.summary,
+    features: p.features,
+  }));
+}
 
-export const FUNDER_TIERS: readonly Tier[] = [
-  { name: "Private lender", monthly: fromMajor(299), summary: "Matched deal flow.", features: ["Two Funding Boxes", "Matched deals", "Deal Room access"] },
-  { name: "Professional", monthly: fromMajor(999), summary: "Underwriting workflow.", features: ["Unlimited Funding Boxes", "AI underwriting summaries", "Portfolio view"] },
-  { name: "Institutional", monthly: fromMajor(2_500), summary: "Origination pipeline.", features: ["API access", "Custom mandate logic", "Dedicated origination"] },
-];
+export const BUYER_TIERS: readonly Tier[] = tiersFor("buyer");
+
+export const FUNDER_TIERS: readonly Tier[] = tiersFor("funder");
 
 export interface RevenueAssumptions {
   readonly successFeeBps: Bps;

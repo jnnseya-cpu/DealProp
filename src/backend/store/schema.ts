@@ -4,6 +4,9 @@ import type { ListingSignal } from "@shared/domain/goldmine";
 import type { Milestone } from "@shared/domain/completion";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
+import type { CreditLot, LedgerEntry } from "@shared/domain/ledger";
+import type { Subscription } from "@shared/domain/entitlements";
+import type { Money } from "@shared/money";
 
 /**
  * What the store holds and what it can be asked to do.
@@ -59,6 +62,73 @@ export interface Database {
   accounts: Account[];
   auditEvents: AuditEvent[];
   blogViews: BlogViewCount[];
+  subscriptions: Subscription[];
+  creditLots: CreditLot[];
+  ledgerEntries: LedgerEntry[];
+  /** Provider event ids already acted on. The webhook replay defence. */
+  billingEvents: ProcessedEvent[];
+}
+
+export interface ProcessedEvent {
+  readonly eventId: string;
+  readonly at: string;
+  readonly type: string;
+}
+
+/**
+ * A top-up to apply, decided by the caller and written atomically here.
+ *
+ * The two lots are separate because a bonus is never refundable in cash, and a
+ * refund calculation that cannot tell the two apart will eventually pay one out.
+ */
+export interface TopUpInput {
+  readonly accountId: string;
+  /** Unique. A repeated key writes nothing and returns what happened the first time. */
+  readonly idempotencyKey: string;
+  readonly at: string;
+  readonly purchased: {
+    readonly lotId: string;
+    readonly amount: Money;
+    readonly cashGross: Money;
+    readonly cashTax: Money;
+    readonly expiresAt: string;
+  };
+  readonly granted?: {
+    readonly lotId: string;
+    readonly amount: Money;
+    readonly expiresAt: string;
+  };
+  readonly paymentReference: string;
+  readonly entryIdPrefix: string;
+  readonly reason: string;
+}
+
+export interface TopUpResult {
+  readonly applied: boolean;
+  /** True where an identical key had already been applied. */
+  readonly duplicate: boolean;
+  readonly balance: Money;
+  readonly reason: string;
+}
+
+export interface SpendInput {
+  readonly accountId: string;
+  readonly idempotencyKey: string;
+  readonly at: string;
+  readonly amount: Money;
+  readonly entryIdPrefix: string;
+  /** What is being paid for, for the ledger line. */
+  readonly reference: string;
+  readonly reason: string;
+}
+
+export interface SpendResult {
+  readonly ok: boolean;
+  readonly duplicate: boolean;
+  /** What could not be covered. Zero on success. */
+  readonly shortfall: Money;
+  readonly balance: Money;
+  readonly reason: string;
 }
 
 /**
@@ -145,6 +215,54 @@ export interface Store {
    */
   recordBlogView(slug: string, at: string): Promise<BlogViewCount>;
   listBlogViews(): Promise<readonly BlogViewCount[]>;
+
+  /* ------------------------------------------------------------- billing */
+
+  getSubscription(accountId: string): Promise<Subscription | undefined>;
+  listSubscriptions(): Promise<readonly Subscription[]>;
+  saveSubscription(subscription: Subscription): Promise<Subscription>;
+
+  /**
+   * Take ownership of a provider event, once.
+   *
+   * Returns false if this id has already been handled. Providers redeliver by
+   * design — a delivery that times out is sent again — so without this the
+   * second delivery grants the balance a second time. The check and the claim
+   * are one operation, or two concurrent deliveries both find it unclaimed.
+   */
+  claimBillingEvent(eventId: string, type: string, at: string): Promise<boolean>;
+
+  listCreditLots(accountId: string): Promise<readonly CreditLot[]>;
+  listLedgerEntries(accountId: string): Promise<readonly LedgerEntry[]>;
+
+  /** Idempotent on `idempotencyKey`. */
+  applyTopUp(input: TopUpInput): Promise<TopUpResult>;
+
+  /**
+   * Spend prepaid balance, all or nothing.
+   *
+   * The read of the balance and the write of the allocation are one atomic
+   * operation. Anything less lets two requests both see enough balance and both
+   * succeed, which is how a metered service gets used twice for one payment.
+   */
+  spendCredits(input: SpendInput): Promise<SpendResult>;
+
+  /**
+   * Void every lot from one payment, spent or not.
+   *
+   * A chargeback takes the money back whether or not the balance was used, so
+   * the lots go whether or not they have anything left in them. What was
+   * already consumed becomes a debt, which `standing()` surfaces.
+   */
+  voidLotsForPayment(
+    paymentReference: string,
+    reason: string,
+    at: string,
+    entryIdPrefix: string,
+  ): Promise<number>;
+
+  /** Write off lapsed balance, recording an entry for each. */
+  expireLapsedCredits(now: string, entryIdPrefix: string): Promise<number>;
 
   /** Append only. There is deliberately no update or delete. */
   appendAudit(event: AuditEvent): Promise<AuditEvent>;

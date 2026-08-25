@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { fromMajor, pct } from "@shared/money";
+import { availableBalance, standing } from "@shared/domain/ledger";
 import type { BuyBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { DealRecord, Store } from "@backend/store/schema";
@@ -209,7 +210,7 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       // Subscribers are consent records. Wiping them on reseed would destroy
       // the evidence of why an address was mailed.
       await store.saveSubscriber(subscriber({ status: "confirmed" }));
-      await store.replaceAll({ deals: [dealRecord()], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [] });
+      await store.replaceAll({ deals: [dealRecord()], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [] });
       expect(await store.listSubscribers()).toHaveLength(1);
       expect(await store.listDeals()).toHaveLength(1);
     });
@@ -220,6 +221,212 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       expect(await store.isEmpty()).toBe(true);
       await store.saveDeal(dealRecord());
       expect(await store.isEmpty()).toBe(false);
+    });
+
+
+    describe("billing: money that must move exactly once", () => {
+      const at = "2026-08-01T00:00:00.000Z";
+      const later = "2026-08-01T00:05:00.000Z";
+
+      const topUp = (overrides: Record<string, unknown> = {}) => ({
+        accountId: "acc-1",
+        idempotencyKey: "pay_abc",
+        at,
+        purchased: {
+          lotId: "lot-1",
+          amount: fromMajor(100),
+          cashGross: fromMajor(100),
+          cashTax: fromMajor(16.67),
+          expiresAt: "2027-08-01T00:00:00.000Z",
+        },
+        paymentReference: "pay_abc",
+        entryIdPrefix: "e1",
+        reason: "Top-up",
+        ...overrides,
+      });
+
+      it("applies a top-up once, however many times the provider delivers it", async () => {
+        // Providers redeliver on timeout by design. Applying the second
+        // delivery hands over the balance a second time for one payment.
+        const first = await store.applyTopUp(topUp());
+        const second = await store.applyTopUp(topUp());
+
+        expect(first).toMatchObject({ applied: true, duplicate: false, balance: fromMajor(100) });
+        expect(second).toMatchObject({ applied: false, duplicate: true, balance: fromMajor(100) });
+        expect(await store.listCreditLots("acc-1")).toHaveLength(1);
+      });
+
+      it("keeps a bonus in its own lot, with no cash behind it", async () => {
+        await store.applyTopUp(
+          topUp({
+            granted: { lotId: "lot-2", amount: fromMajor(10), expiresAt: "2026-11-01T00:00:00.000Z" },
+          }),
+        );
+
+        const lots = await store.listCreditLots("acc-1");
+        const granted = lots.find((l) => l.kind === "granted");
+        expect(lots).toHaveLength(2);
+        expect(granted?.cashGross).toBe(0);
+        expect(await store.listLedgerEntries("acc-1")).toHaveLength(2);
+      });
+
+      it("refuses a spend it cannot cover, and changes nothing", async () => {
+        await store.applyTopUp(topUp({ purchased: { ...topUp().purchased, amount: fromMajor(5), cashGross: fromMajor(5), cashTax: 0 } }));
+
+        const result = await store.spendCredits({
+          accountId: "acc-1",
+          idempotencyKey: "op-1",
+          at: later,
+          amount: fromMajor(9),
+          entryIdPrefix: "s1",
+          reference: "ai-deal-analysis",
+          reason: "Analysis",
+        });
+
+        expect(result.ok).toBe(false);
+        expect(result.shortfall).toBe(fromMajor(4));
+        expect(result.balance).toBe(fromMajor(5));
+        expect(await store.listLedgerEntries("acc-1")).toHaveLength(1);
+      });
+
+      it("charges once for a retried operation", async () => {
+        await store.applyTopUp(topUp());
+        const spend = {
+          accountId: "acc-1",
+          idempotencyKey: "op-1",
+          at: later,
+          amount: fromMajor(10),
+          entryIdPrefix: "s1",
+          reference: "ai-deal-analysis",
+          reason: "Analysis",
+        };
+
+        await store.spendCredits(spend);
+        const retry = await store.spendCredits(spend);
+
+        expect(retry.duplicate).toBe(true);
+        expect(retry.balance).toBe(fromMajor(90));
+      });
+
+      it("cannot be made to overspend by simultaneous requests", async () => {
+        // The reason the read and the write are one operation. Twenty-five
+        // requests against ten pounds of balance: exactly ten may succeed.
+        await store.applyTopUp(
+          topUp({ purchased: { ...topUp().purchased, amount: fromMajor(10), cashGross: fromMajor(10), cashTax: 0 } }),
+        );
+
+        const attempts = await Promise.all(
+          Array.from({ length: 25 }, (_, i) =>
+            store.spendCredits({
+              accountId: "acc-1",
+              idempotencyKey: `op-${i}`,
+              at: later,
+              amount: fromMajor(1),
+              entryIdPrefix: `s${i}`,
+              reference: "ai-deal-analysis",
+              reason: "Analysis",
+            }),
+          ),
+        );
+
+        expect(attempts.filter((a) => a.ok).length).toBe(10);
+        const lots = await store.listCreditLots("acc-1");
+        expect(lots[0]?.remaining).toBe(0);
+        expect(availableBalance(lots, new Date(later))).toBe(0);
+      });
+
+      it("never lets a balance go below zero", async () => {
+        await store.applyTopUp(
+          topUp({ purchased: { ...topUp().purchased, amount: fromMajor(3), cashGross: fromMajor(3), cashTax: 0 } }),
+        );
+        await Promise.all(
+          Array.from({ length: 10 }, (_, i) =>
+            store.spendCredits({
+              accountId: "acc-1",
+              idempotencyKey: `op-${i}`,
+              at: later,
+              amount: fromMajor(1),
+              entryIdPrefix: `s${i}`,
+              reference: "op",
+              reason: "op",
+            }),
+          ),
+        );
+
+        for (const lot of await store.listCreditLots("acc-1")) {
+          expect(lot.remaining).toBeGreaterThanOrEqual(0);
+        }
+      });
+
+      it("voids the whole lot on a chargeback, spent or not", async () => {
+        // The money came back out in full, so the reversal is in full. What was
+        // already consumed is a loss, and it has to be visible as one.
+        await store.applyTopUp(topUp());
+        await store.spendCredits({
+          accountId: "acc-1",
+          idempotencyKey: "op-1",
+          at: later,
+          amount: fromMajor(70),
+          entryIdPrefix: "s1",
+          reference: "op",
+          reason: "op",
+        });
+
+        const voided = await store.voidLotsForPayment("pay_abc", "chargeback", later, "cb1");
+        expect(voided).toBe(1);
+
+        const lots = await store.listCreditLots("acc-1");
+        const entries = await store.listLedgerEntries("acc-1");
+        expect(lots[0]?.voidedAt).toBeDefined();
+        expect(availableBalance(lots, new Date(later))).toBe(0);
+
+        const position = standing(lots, entries, new Date(later));
+        expect(position.owed).toBe(fromMajor(70));
+        expect(position.maySpend).toBe(false);
+      });
+
+      it("writes off lapsed balance with an entry rather than silently", async () => {
+        await store.applyTopUp(
+          topUp({ purchased: { ...topUp().purchased, expiresAt: "2026-08-02T00:00:00.000Z" } }),
+        );
+
+        const expired = await store.expireLapsedCredits("2026-09-01T00:00:00.000Z", "x1");
+        expect(expired).toBe(1);
+
+        const entries = await store.listLedgerEntries("acc-1");
+        expect(entries.some((e) => e.kind === "expire" && e.amount === -fromMajor(100))).toBe(true);
+        expect(availableBalance(await store.listCreditLots("acc-1"), new Date("2026-09-01"))).toBe(0);
+      });
+
+      it("hands a provider event to exactly one caller", async () => {
+        const claims = await Promise.all(
+          Array.from({ length: 5 }, () => store.claimBillingEvent("evt_1", "payment.succeeded", at)),
+        );
+        expect(claims.filter(Boolean)).toHaveLength(1);
+      });
+
+      it("keeps one account's balance out of another's", async () => {
+        await store.applyTopUp(topUp());
+        await store.applyTopUp(
+          topUp({ accountId: "acc-2", idempotencyKey: "pay_def", paymentReference: "pay_def", entryIdPrefix: "e2", purchased: { ...topUp().purchased, lotId: "lot-9" } }),
+        );
+
+        expect(await store.listCreditLots("acc-1")).toHaveLength(1);
+        expect(await store.listLedgerEntries("acc-2")).toHaveLength(1);
+      });
+
+      it("stores and returns a subscription unchanged", async () => {
+        const subscription = {
+          id: "sub-1",
+          accountId: "acc-1",
+          planId: "buyer-professional" as const,
+          status: "active" as const,
+          currentPeriodStart: at,
+          currentPeriodEnd: "2026-09-01T00:00:00.000Z",
+        };
+        await store.saveSubscription(subscription);
+        expect(await store.getSubscription("acc-1")).toEqual(subscription);
+      });
     });
 
     describe("blog view counts", () => {
@@ -296,7 +503,7 @@ contract(
     // Queue through the write chain first. Deleting the file outright would
     // race a write still in flight from the previous test, which would then
     // land after the delete and recreate it.
-    await fileStore.replaceAll({ deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [] });
+    await fileStore.replaceAll({ deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [] });
     rmSync(process.env.LODE_DATA_FILE ?? "", { force: true });
   },
 );

@@ -5,6 +5,10 @@ import { fileStore } from "@backend/store/fileStore";
 import type {
   AuditEvent,
   BlogViewCount,
+  SpendInput,
+  SpendResult,
+  TopUpInput,
+  TopUpResult,
   Database,
   DealRecord,
   Store,
@@ -17,6 +21,10 @@ export type {
   BlogViewCount,
   Database,
   DealRecord,
+  SpendInput,
+  SpendResult,
+  TopUpInput,
+  TopUpResult,
 } from "@backend/store/schema";
 
 /**
@@ -169,6 +177,53 @@ export async function saveAccount(account: Account): Promise<Account> {
 }
 
 /** Append only. There is deliberately no update or delete. */
+/* ------------------------------------------------------------------ billing */
+
+export async function getSubscription(accountId: string) {
+  return (await store()).getSubscription(accountId);
+}
+
+export async function listSubscriptions() {
+  return (await store()).listSubscriptions();
+}
+
+export async function saveSubscription(subscription: Parameters<Store["saveSubscription"]>[0]) {
+  return (await store()).saveSubscription(subscription);
+}
+
+export async function claimBillingEvent(eventId: string, type: string, at: string) {
+  return (await store()).claimBillingEvent(eventId, type, at);
+}
+
+export async function listCreditLots(accountId: string) {
+  return (await store()).listCreditLots(accountId);
+}
+
+export async function listLedgerEntries(accountId: string) {
+  return (await store()).listLedgerEntries(accountId);
+}
+
+export async function applyTopUp(input: TopUpInput): Promise<TopUpResult> {
+  return (await store()).applyTopUp(input);
+}
+
+export async function spendCredits(input: SpendInput): Promise<SpendResult> {
+  return (await store()).spendCredits(input);
+}
+
+export async function voidLotsForPayment(
+  paymentReference: string,
+  reason: string,
+  at: string,
+  entryIdPrefix: string,
+) {
+  return (await store()).voidLotsForPayment(paymentReference, reason, at, entryIdPrefix);
+}
+
+export async function expireLapsedCredits(now: string, entryIdPrefix: string) {
+  return (await store()).expireLapsedCredits(now, entryIdPrefix);
+}
+
 export async function recordBlogView(slug: string, at: string): Promise<BlogViewCount> {
   return (await store()).recordBlogView(slug, at);
 }

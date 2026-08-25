@@ -3,9 +3,22 @@ import path from "node:path";
 import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
+import { add, money, sub, ZERO, type Money } from "@shared/money";
+import {
+  dueForExpiry,
+  planSpend,
+  availableBalance,
+  type CreditLot,
+  type LedgerEntry,
+} from "@shared/domain/ledger";
+import type { Subscription } from "@shared/domain/entitlements";
 import type {
   AuditEvent,
   BlogViewCount,
+  SpendInput,
+  SpendResult,
+  TopUpInput,
+  TopUpResult,
   Database,
   DealRecord,
   Store,
@@ -53,6 +66,10 @@ function emptyDatabase(): Database {
     accounts: [],
     auditEvents: [],
     blogViews: [],
+    subscriptions: [],
+    creditLots: [],
+    ledgerEntries: [],
+    billingEvents: [],
   };
 }
 
@@ -73,6 +90,10 @@ async function readDatabase(): Promise<Database> {
       // rather than migrated: an unread post and a post nobody has counted yet
       // are the same number.
       blogViews: parsed.blogViews ?? [],
+      subscriptions: parsed.subscriptions ?? [],
+      creditLots: parsed.creditLots ?? [],
+      ledgerEntries: parsed.ledgerEntries ?? [],
+      billingEvents: parsed.billingEvents ?? [],
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -195,6 +216,15 @@ async function replaceAll(db: Database): Promise<void> {
     // convenience that must not destroy it.
     if (db.accounts.length > 0) current.accounts = db.accounts;
     if (db.auditEvents.length > 0) current.auditEvents = db.auditEvents;
+    if (db.blogViews.length > 0) current.blogViews = db.blogViews;
+    // Billing records are never replaced by a reseed. The ledger is the record
+    // of money that actually moved, and a development convenience must not be
+    // able to rewrite it — the Postgres engine cannot either, because its
+    // replaceAll does not touch these tables at all.
+    if (db.subscriptions.length > 0) current.subscriptions = db.subscriptions;
+    if (db.creditLots.length > 0) current.creditLots = db.creditLots;
+    if (db.ledgerEntries.length > 0) current.ledgerEntries = db.ledgerEntries;
+    if (db.billingEvents.length > 0) current.billingEvents = db.billingEvents;
   });
 }
 
@@ -295,6 +325,240 @@ async function saveAccount(account: Account): Promise<Account> {
   });
 }
 
+
+/* --------------------------------------------------------------- billing */
+
+async function getSubscription(accountId: string): Promise<Subscription | undefined> {
+  const db = await readDatabase();
+  return db.subscriptions.find((s) => s.accountId === accountId);
+}
+
+async function listSubscriptions(): Promise<readonly Subscription[]> {
+  return (await readDatabase()).subscriptions;
+}
+
+async function saveSubscription(subscription: Subscription): Promise<Subscription> {
+  return mutate((db) => {
+    const index = db.subscriptions.findIndex((s) => s.accountId === subscription.accountId);
+    if (index >= 0) db.subscriptions[index] = subscription;
+    else db.subscriptions.push(subscription);
+    return subscription;
+  });
+}
+
+async function claimBillingEvent(eventId: string, type: string, at: string): Promise<boolean> {
+  // Check and claim inside the write lock. Checking first and claiming after
+  // would let two concurrent deliveries of the same event both find it unclaimed.
+  return mutate((db) => {
+    if (db.billingEvents.some((e) => e.eventId === eventId)) return false;
+    db.billingEvents.push({ eventId, type, at });
+    return true;
+  });
+}
+
+async function listCreditLots(accountId: string): Promise<readonly CreditLot[]> {
+  const db = await readDatabase();
+  return db.creditLots.filter((lot) => lot.accountId === accountId);
+}
+
+async function listLedgerEntries(accountId: string): Promise<readonly LedgerEntry[]> {
+  const db = await readDatabase();
+  return db.ledgerEntries
+    .filter((entry) => entry.accountId === accountId)
+    .sort((a, b) => a.at.localeCompare(b.at));
+}
+
+function balanceOf(db: Database, accountId: string, now: Date): Money {
+  return availableBalance(
+    db.creditLots.filter((lot) => lot.accountId === accountId),
+    now,
+  );
+}
+
+async function applyTopUp(input: TopUpInput): Promise<TopUpResult> {
+  return mutate((db) => {
+    const seen = db.ledgerEntries.some((e) => e.idempotencyKey === input.idempotencyKey);
+    if (seen) {
+      return {
+        applied: false,
+        duplicate: true,
+        balance: balanceOf(db, input.accountId, new Date(input.at)),
+        reason: "This top-up has already been applied.",
+      };
+    }
+
+    db.creditLots.push({
+      id: input.purchased.lotId,
+      accountId: input.accountId,
+      kind: "purchased",
+      original: input.purchased.amount,
+      remaining: input.purchased.amount,
+      cashGross: input.purchased.cashGross,
+      cashTax: input.purchased.cashTax,
+      createdAt: input.at,
+      expiresAt: input.purchased.expiresAt,
+      paymentReference: input.paymentReference,
+    });
+    db.ledgerEntries.push({
+      id: `${input.entryIdPrefix}-purchased`,
+      at: input.at,
+      accountId: input.accountId,
+      kind: "topup",
+      amount: input.purchased.amount,
+      lotId: input.purchased.lotId,
+      reference: input.paymentReference,
+      idempotencyKey: input.idempotencyKey,
+      reason: input.reason,
+    });
+
+    if (input.granted !== undefined) {
+      db.creditLots.push({
+        id: input.granted.lotId,
+        accountId: input.accountId,
+        kind: "granted",
+        original: input.granted.amount,
+        remaining: input.granted.amount,
+        cashGross: ZERO,
+        cashTax: ZERO,
+        createdAt: input.at,
+        expiresAt: input.granted.expiresAt,
+        paymentReference: input.paymentReference,
+      });
+      db.ledgerEntries.push({
+        id: `${input.entryIdPrefix}-granted`,
+        at: input.at,
+        accountId: input.accountId,
+        kind: "topup",
+        amount: input.granted.amount,
+        lotId: input.granted.lotId,
+        reference: input.paymentReference,
+        // A distinct key: the grant is its own movement, and sharing the key
+        // would make the unique constraint reject it as a duplicate.
+        idempotencyKey: `${input.idempotencyKey}:granted`,
+        reason: `${input.reason} (bonus, not refundable in cash)`,
+      });
+    }
+
+    return {
+      applied: true,
+      duplicate: false,
+      balance: balanceOf(db, input.accountId, new Date(input.at)),
+      reason: "Applied.",
+    };
+  });
+}
+
+async function spendCredits(input: SpendInput): Promise<SpendResult> {
+  return mutate((db) => {
+    const now = new Date(input.at);
+    const existing = db.ledgerEntries.find((e) => e.idempotencyKey === input.idempotencyKey);
+    if (existing !== undefined) {
+      // The same operation retried. Charging again would bill twice for one
+      // piece of work.
+      return {
+        ok: true,
+        duplicate: true,
+        shortfall: ZERO,
+        balance: balanceOf(db, input.accountId, now),
+        reason: "Already charged for this operation.",
+      };
+    }
+
+    const lots = db.creditLots.filter((lot) => lot.accountId === input.accountId);
+    const plan = planSpend(lots, input.amount, now);
+    if (!plan.ok) {
+      return {
+        ok: false,
+        duplicate: false,
+        shortfall: plan.shortfall,
+        balance: balanceOf(db, input.accountId, now),
+        reason: plan.reason,
+      };
+    }
+
+    plan.allocations.forEach((allocation, index) => {
+      const lotIndex = db.creditLots.findIndex((lot) => lot.id === allocation.lotId);
+      const lot = db.creditLots[lotIndex];
+      if (lot === undefined) return;
+      db.creditLots[lotIndex] = { ...lot, remaining: sub(lot.remaining, allocation.amount) };
+      db.ledgerEntries.push({
+        id: `${input.entryIdPrefix}-${index}`,
+        at: input.at,
+        accountId: input.accountId,
+        kind: "spend",
+        amount: money(-allocation.amount),
+        lotId: allocation.lotId,
+        reference: input.reference,
+        // Only the first entry carries the caller's key; the rest are derived,
+        // so a retry still collides on the first and stops there.
+        idempotencyKey: index === 0 ? input.idempotencyKey : `${input.idempotencyKey}:${index}`,
+        reason: input.reason,
+      });
+    });
+
+    return {
+      ok: true,
+      duplicate: false,
+      shortfall: ZERO,
+      balance: balanceOf(db, input.accountId, now),
+      reason: plan.reason,
+    };
+  });
+}
+
+async function voidLotsForPayment(
+  paymentReference: string,
+  reason: string,
+  at: string,
+  entryIdPrefix: string,
+): Promise<number> {
+  return mutate((db) => {
+    let voided = 0;
+    db.creditLots.forEach((lot, index) => {
+      if (lot.paymentReference !== paymentReference || lot.voidedAt !== undefined) return;
+      db.creditLots[index] = { ...lot, voidedAt: at, voidedReason: reason };
+      db.ledgerEntries.push({
+        id: `${entryIdPrefix}-${voided}`,
+        at,
+        accountId: lot.accountId,
+        kind: reason === "chargeback" ? "chargeback" : "refund",
+        // The whole lot is reversed, not merely what is left: the money came
+        // back out in full, so the ledger has to show that in full.
+        amount: money(-lot.original),
+        lotId: lot.id,
+        reference: paymentReference,
+        idempotencyKey: `${reason}:${paymentReference}:${lot.id}`,
+        reason: `Payment ${paymentReference} reversed (${reason}).`,
+      });
+      voided += 1;
+    });
+    return voided;
+  });
+}
+
+async function expireLapsedCredits(now: string, entryIdPrefix: string): Promise<number> {
+  return mutate((db) => {
+    const due = dueForExpiry(db.creditLots, new Date(now));
+    due.forEach((expiry, index) => {
+      const lotIndex = db.creditLots.findIndex((lot) => lot.id === expiry.lotId);
+      const lot = db.creditLots[lotIndex];
+      if (lot === undefined) return;
+      db.creditLots[lotIndex] = { ...lot, remaining: ZERO };
+      db.ledgerEntries.push({
+        id: `${entryIdPrefix}-${index}`,
+        at: now,
+        accountId: lot.accountId,
+        kind: "expire",
+        amount: money(-expiry.amount),
+        lotId: lot.id,
+        idempotencyKey: `expire:${lot.id}`,
+        reason: `Balance lapsed on ${expiry.expiredAt.slice(0, 10)}.`,
+      });
+    });
+    return due.length;
+  });
+}
+
 /**
  * Increment inside the write lock.
  *
@@ -366,6 +630,16 @@ export const fileStore: Store = {
   saveAccount,
   recordBlogView,
   listBlogViews,
+  getSubscription,
+  listSubscriptions,
+  saveSubscription,
+  claimBillingEvent,
+  listCreditLots,
+  listLedgerEntries,
+  applyTopUp,
+  spendCredits,
+  voidLotsForPayment,
+  expireLapsedCredits,
   appendAudit,
   listAudit,
   isEmpty,

@@ -13,9 +13,12 @@ so it belongs in the deploy pipeline as a gate rather than as a report.
 
 Read this first. Nothing below makes these appear.
 
-- **Payments.** Nothing charges anybody. `revenue.ts` models subscriptions and
-  success fees and stops there. Going live means going live without revenue
+- **A payment provider.** Nothing charges a card. Everything behind one exists —
+  catalogue, append-only ledger, entitlements, the verified webhook, the
+  enforcement points — but going live today means going live without revenue
   collection.
+- **Reconciliation against the provider.** Nothing compares this platform's
+  ledger to the provider's record, so a divergence would go unnoticed.
 - **Live data imports.** The Land Registry and EPC adapters are fixture-tested
   and have never made a real request — outbound access is blocked in the build
   environment. Call them once from a machine with network before relying on
@@ -68,6 +71,16 @@ A half-configured transport is how a deployment mails real people from the wrong
 address. `NEWSLETTER_SENDER_NAME` and `NEWSLETTER_SENDER_ADDRESS` are legally
 required in marketing email; the preflight blocks without them once email is on.
 
+**Billing.** `BILLING_WEBHOOK_SECRET` is the provider's signing secret, used
+unmodified. Without it every payment confirmation is refused, so nothing can be
+sold — the safe direction, since this endpoint is what grants subscriptions and
+prepaid balance. It must not equal `OPERATOR_SECRET`; the preflight blocks if it
+does, because compromising either would then compromise both.
+
+Nothing charges a card yet. The catalogue, ledger, entitlements and webhook are
+built and tested; what remains is mapping a provider's payload into the event
+shape `/api/billing/webhook` already handles.
+
 **Analytics.** `NEXT_PUBLIC_META_PIXEL_ID` and `NEXT_PUBLIC_GA_MEASUREMENT_ID`
 are optional, public identifiers rather than secrets, and either may be left
 unset — the script is then never rendered. Use the GA4 **measurement** ID
@@ -89,8 +102,8 @@ canonicalises itself to localhost.
 ```bash
 npm ci
 npm run typecheck
-npm test              # 379
-npm run test:pg       # 380, both storage engines against a real database
+npm test              # 458
+npm run test:pg       # 459, both storage engines against a real database
 npm run build
 npm run preflight     # must exit 0
 ```
@@ -117,15 +130,18 @@ In this order.
 3. **Create an administrator account** at `/operator/accounts`, sign out, sign
    in as that account. From here on the audit trail has a name against every
    action. The shared password is the bootstrap, not the way to work.
-4. **Open `/operator/blog`** and confirm the post list renders with an SEO score
+4. **Open `/operator/billing`** and confirm it renders. It computes every
+   balance from the ledger, so an error here means the billing tables did not
+   create themselves.
+5. **Open `/operator/blog`** and confirm the post list renders with an SEO score
    against each one. Opens start at zero and do not backfill — the counter
    begins when the first reader arrives.
-5. **Check `/operator/audit`** shows the sign-ins. If it is empty, the store is
+6. **Check `/operator/audit`** shows the sign-ins. If it is empty, the store is
    not persisting.
-6. **Confirm `/deals` is unreachable signed out**, and that the
+7. **Confirm `/deals` is unreachable signed out**, and that the
    `x-middleware-subrequest` header does not get past it.
-7. **Fetch `/robots.txt`** and confirm the operator paths are disallowed.
-8. **Submit a test enquiry at `/sell`** and confirm the resulting URL is a long
+8. **Fetch `/robots.txt`** and confirm the operator paths are disallowed.
+9. **Submit a test enquiry at `/sell`** and confirm the resulting URL is a long
    random token, not a guessable identifier.
 
 ---

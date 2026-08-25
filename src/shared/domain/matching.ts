@@ -23,6 +23,15 @@ import type { DealScoreResult } from "@shared/domain/dealScore";
 
 export interface BuyBox {
   readonly id: string;
+  /**
+   * The account that owns this mandate, where one does.
+   *
+   * Absent on mandates an operator created on somebody's behalf, which is every
+   * mandate today. It exists because a plan limit that cannot say whose
+   * mandates these are is not a limit: "three Buy Boxes" has to count three of
+   * *somebody's*, and without an owner the count is either global or nothing.
+   */
+  readonly ownerAccountId?: string;
   readonly investorName: string;
   readonly jurisdictions: readonly JurisdictionCode[];
   readonly localities: readonly string[];
@@ -67,6 +76,8 @@ export type FunderKind =
 
 export interface FundingBox {
   readonly id: string;
+  /** As on `BuyBox`: whose mandate this is, for the plan limit to count. */
+  readonly ownerAccountId?: string;
   readonly funderName: string;
   readonly kind: FunderKind;
   readonly jurisdictions: readonly JurisdictionCode[];

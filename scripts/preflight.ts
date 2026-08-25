@@ -20,6 +20,7 @@ import { UK_INVESTOR_CATEGORISATION } from "../src/shared/domain/jurisdictions/u
 import { DATA_SOURCES } from "../src/shared/domain/sources";
 import { isDealReady } from "../src/shared/domain/jurisdictions";
 import { IOS_DEVICES, PWA_ICONS, splashPath } from "../src/shared/pwa";
+import { CREDIT_PACKS, PLANS, FREE_PLAN_ID, plan } from "../src/shared/domain/pricing";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
@@ -394,6 +395,75 @@ function checkAnalytics(): void {
   );
 }
 
+/* --------------------------------------------------------------- billing */
+
+function checkBilling(): void {
+  const secret = env.BILLING_WEBHOOK_SECRET;
+  if (secret === undefined || secret === "") {
+    warn(
+      "Billing",
+      "BILLING_WEBHOOK_SECRET is not set, so every payment confirmation is refused. Nothing can be sold and no top-up can be applied.",
+      "Set it to the signing secret from the payment provider. Until then the endpoint fails closed, which is the safe state but not a working one.",
+    );
+  } else {
+    const weak = secretIsWeak(secret);
+    if (weak !== undefined) {
+      // This secret is the only thing standing between the internet and an
+      // endpoint that grants subscriptions and prepaid balance.
+      block(
+        "Billing",
+        `BILLING_WEBHOOK_SECRET is weak: ${weak}. Anyone who guesses it can award themselves a subscription and any amount of prepaid balance, repeatedly.`,
+        "Use the value the provider generated, unmodified.",
+      );
+    } else {
+      pass("Billing", "Webhook signing secret configured.");
+    }
+  }
+
+  if (secret !== undefined && secret === env.OPERATOR_SECRET) {
+    block(
+      "Billing",
+      "BILLING_WEBHOOK_SECRET and OPERATOR_SECRET are the same value. Compromising either compromises both, and rotating one silently breaks the other.",
+      "Generate them separately.",
+    );
+  }
+
+  // A catalogue error is charged to every customer until somebody notices.
+  const free = plan(FREE_PLAN_ID);
+  if (free === undefined) {
+    block("Billing", `The free plan ${FREE_PLAN_ID} is missing from the catalogue.`, "Restore it: every entitlement decision falls back to it.");
+  } else if (free.price !== 0) {
+    block("Billing", "The plan used as the free fallback has a price.", "Every unpaid account would be treated as owing this.");
+  } else if (free.limits.memorandaPerPeriod > 0 || free.limits.periodCredits > 0) {
+    block(
+      "Billing",
+      "The free plan grants memoranda or credits, so an account that has never paid can take value out.",
+      "Set both to zero on the free plan.",
+    );
+  }
+
+  for (const p of PLANS) {
+    if (!Number.isSafeInteger(p.price) || p.price < 0) {
+      block("Billing", `Plan ${p.id} has an invalid price.`, "Prices are a whole number of pence.");
+    }
+  }
+  for (const pack of CREDIT_PACKS) {
+    if (pack.bonus > pack.price) {
+      block(
+        "Billing",
+        `Credit pack ${pack.id} gives away more than it charges.`,
+        "A bonus larger than the price is a loss on every sale.",
+      );
+    }
+  }
+
+  warn(
+    "Billing",
+    "Sales to consumers outside the UK are refused, because charging them correctly needs a One Stop Shop or local registration that does not exist yet.",
+    "Either register, or accept that the addressable market is UK consumers and overseas businesses. Do not remove the refusal — charging the wrong rate means remitting to the wrong state and still owing the right one.",
+  );
+}
+
 /* ------------------------------------------------------------------- run */
 
 async function main(): Promise<void> {
@@ -405,6 +475,7 @@ async function main(): Promise<void> {
   checkRegulatory();
   checkAssets();
   checkAnalytics();
+  checkBilling();
 
   const blockers = checks.filter((c) => c.level === "block");
   const warnings = checks.filter((c) => c.level === "warn");

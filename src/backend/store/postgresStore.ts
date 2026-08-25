@@ -2,9 +2,22 @@ import { Pool, type PoolClient } from "pg";
 import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
+import { money, sub, ZERO, type Money } from "@shared/money";
+import {
+  availableBalance,
+  dueForExpiry,
+  planSpend,
+  type CreditLot,
+  type LedgerEntry,
+} from "@shared/domain/ledger";
+import type { Subscription } from "@shared/domain/entitlements";
 import type {
   AuditEvent,
   BlogViewCount,
+  SpendInput,
+  SpendResult,
+  TopUpInput,
+  TopUpResult,
   Database,
   DealRecord,
   Store,
@@ -81,6 +94,53 @@ const SCHEMA = `
     views bigint NOT NULL DEFAULT 0,
     last_viewed_at timestamptz NOT NULL DEFAULT now()
   );
+  CREATE TABLE IF NOT EXISTS subscriptions (
+    account_id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+  );
+  -- Every provider event acted on, once. The primary key IS the replay
+  -- defence: a redelivered event fails to insert and is skipped.
+  CREATE TABLE IF NOT EXISTS billing_events (
+    event_id text PRIMARY KEY,
+    type text NOT NULL,
+    at timestamptz NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS credit_lots (
+    id text PRIMARY KEY,
+    account_id text NOT NULL,
+    kind text NOT NULL,
+    original bigint NOT NULL,
+    remaining bigint NOT NULL,
+    cash_gross bigint NOT NULL DEFAULT 0,
+    cash_tax bigint NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL,
+    expires_at timestamptz NOT NULL,
+    payment_reference text,
+    voided_at timestamptz,
+    voided_reason text,
+    -- Balance can be spent to zero and no further. A negative remaining would
+    -- mean the service was given away, so the database refuses it outright
+    -- rather than relying on every caller to check first.
+    CONSTRAINT credit_lots_remaining_in_range CHECK (remaining >= 0 AND remaining <= original)
+  );
+  CREATE INDEX IF NOT EXISTS credit_lots_account ON credit_lots (account_id);
+  CREATE INDEX IF NOT EXISTS credit_lots_payment ON credit_lots (payment_reference);
+  -- Append-only, like the audit trail: no UPDATE or DELETE statement against
+  -- this table exists anywhere in the codebase. The unique key is what makes
+  -- every money movement happen at most once.
+  CREATE TABLE IF NOT EXISTS ledger_entries (
+    id text PRIMARY KEY,
+    idempotency_key text NOT NULL UNIQUE,
+    account_id text NOT NULL,
+    kind text NOT NULL,
+    amount bigint NOT NULL,
+    lot_id text,
+    reference text,
+    at timestamptz NOT NULL,
+    reason text NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS ledger_entries_account ON ledger_entries (account_id, at);
   CREATE INDEX IF NOT EXISTS subscribers_confirm_token
     ON subscribers ((data->>'confirmToken'));
   CREATE INDEX IF NOT EXISTS subscribers_unsubscribe_token
@@ -187,6 +247,120 @@ async function transaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T
   } finally {
     client.release();
   }
+}
+
+
+/* --------------------------------------------------- billing row mapping */
+
+interface LotRow {
+  id: string;
+  account_id: string;
+  kind: string;
+  original: string;
+  remaining: string;
+  cash_gross: string;
+  cash_tax: string;
+  created_at: Date;
+  expires_at: Date;
+  payment_reference: string | null;
+  voided_at: Date | null;
+  voided_reason: string | null;
+}
+
+interface EntryRow {
+  id: string;
+  idempotency_key: string;
+  account_id: string;
+  kind: string;
+  amount: string;
+  lot_id: string | null;
+  reference: string | null;
+  at: Date;
+  reason: string;
+}
+
+/**
+ * bigint arrives from pg as a string, deliberately: it can exceed what a
+ * JavaScript number holds exactly. Money here never will — the largest figure
+ * in the catalogue is a few hundred thousand pence — so converting is safe, and
+ * `money()` re-checks that it is a safe integer rather than assuming.
+ */
+function toLot(row: LotRow): CreditLot {
+  return {
+    id: row.id,
+    accountId: row.account_id,
+    kind: row.kind === "granted" ? "granted" : "purchased",
+    original: money(Number(row.original)),
+    remaining: money(Number(row.remaining)),
+    cashGross: money(Number(row.cash_gross)),
+    cashTax: money(Number(row.cash_tax)),
+    createdAt: row.created_at.toISOString(),
+    expiresAt: row.expires_at.toISOString(),
+    ...(row.payment_reference !== null ? { paymentReference: row.payment_reference } : {}),
+    ...(row.voided_at !== null ? { voidedAt: row.voided_at.toISOString() } : {}),
+    ...(row.voided_reason !== null ? { voidedReason: row.voided_reason } : {}),
+  };
+}
+
+function toEntry(row: EntryRow): LedgerEntry {
+  return {
+    id: row.id,
+    at: row.at.toISOString(),
+    accountId: row.account_id,
+    kind: row.kind as LedgerEntry["kind"],
+    amount: money(Number(row.amount)),
+    ...(row.lot_id !== null ? { lotId: row.lot_id } : {}),
+    ...(row.reference !== null ? { reference: row.reference } : {}),
+    idempotencyKey: row.idempotency_key,
+    reason: row.reason,
+  };
+}
+
+async function insertLot(client: PoolClient, lot: CreditLot): Promise<void> {
+  await client.query(
+    `INSERT INTO credit_lots
+       (id, account_id, kind, original, remaining, cash_gross, cash_tax, created_at, expires_at, payment_reference)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [
+      lot.id,
+      lot.accountId,
+      lot.kind,
+      lot.original,
+      lot.remaining,
+      lot.cashGross,
+      lot.cashTax,
+      lot.createdAt,
+      lot.expiresAt,
+      lot.paymentReference ?? null,
+    ],
+  );
+}
+
+async function insertEntry(client: PoolClient, entry: LedgerEntry): Promise<void> {
+  await client.query(
+    `INSERT INTO ledger_entries
+       (id, idempotency_key, account_id, kind, amount, lot_id, reference, at, reason)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [
+      entry.id,
+      entry.idempotencyKey,
+      entry.accountId,
+      entry.kind,
+      entry.amount,
+      entry.lotId ?? null,
+      entry.reference ?? null,
+      entry.at,
+      entry.reason,
+    ],
+  );
+}
+
+async function balanceIn(client: PoolClient, accountId: string, at: string): Promise<Money> {
+  const { rows } = await client.query<LotRow>(
+    "SELECT * FROM credit_lots WHERE account_id = $1",
+    [accountId],
+  );
+  return availableBalance(rows.map(toLot), new Date(at));
 }
 
 export const postgresStore: Store = {
@@ -340,6 +514,269 @@ export const postgresStore: Store = {
       views: Number(r.views),
       lastViewedAt: r.last_viewed_at.toISOString(),
     }));
+  },
+
+
+  /* ------------------------------------------------------------- billing */
+
+  async getSubscription(accountId: string): Promise<Subscription | undefined> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: Subscription }>(
+      "SELECT data FROM subscriptions WHERE account_id = $1",
+      [accountId],
+    );
+    return rows[0]?.data;
+  },
+
+  async listSubscriptions(): Promise<readonly Subscription[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: Subscription }>("SELECT data FROM subscriptions");
+    return rows.map((r) => r.data);
+  },
+
+  async saveSubscription(subscription: Subscription): Promise<Subscription> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO subscriptions (account_id, data) VALUES ($1, $2)
+       ON CONFLICT (account_id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
+      [subscription.accountId, JSON.stringify(subscription)],
+    );
+    return subscription;
+  },
+
+  async claimBillingEvent(eventId: string, type: string, at: string): Promise<boolean> {
+    await ensureSchema();
+    // The primary key does the work. Two concurrent deliveries both attempt the
+    // insert and exactly one reports a row; there is no window between checking
+    // and claiming because there is no check.
+    const { rowCount } = await getPool().query(
+      `INSERT INTO billing_events (event_id, type, at) VALUES ($1, $2, $3)
+       ON CONFLICT (event_id) DO NOTHING`,
+      [eventId, type, at],
+    );
+    return (rowCount ?? 0) > 0;
+  },
+
+  async listCreditLots(accountId: string): Promise<readonly CreditLot[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<LotRow>(
+      "SELECT * FROM credit_lots WHERE account_id = $1 ORDER BY expires_at, created_at",
+      [accountId],
+    );
+    return rows.map(toLot);
+  },
+
+  async listLedgerEntries(accountId: string): Promise<readonly LedgerEntry[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<EntryRow>(
+      "SELECT * FROM ledger_entries WHERE account_id = $1 ORDER BY at, id",
+      [accountId],
+    );
+    return rows.map(toEntry);
+  },
+
+  async applyTopUp(input: TopUpInput): Promise<TopUpResult> {
+    return transaction(async (client) => {
+      const seen = await client.query(
+        "SELECT 1 FROM ledger_entries WHERE idempotency_key = $1",
+        [input.idempotencyKey],
+      );
+      if ((seen.rowCount ?? 0) > 0) {
+        return {
+          applied: false,
+          duplicate: true,
+          balance: await balanceIn(client, input.accountId, input.at),
+          reason: "This top-up has already been applied.",
+        };
+      }
+
+      await insertLot(client, {
+        id: input.purchased.lotId,
+        accountId: input.accountId,
+        kind: "purchased",
+        original: input.purchased.amount,
+        remaining: input.purchased.amount,
+        cashGross: input.purchased.cashGross,
+        cashTax: input.purchased.cashTax,
+        createdAt: input.at,
+        expiresAt: input.purchased.expiresAt,
+        paymentReference: input.paymentReference,
+      });
+      await insertEntry(client, {
+        id: `${input.entryIdPrefix}-purchased`,
+        at: input.at,
+        accountId: input.accountId,
+        kind: "topup",
+        amount: input.purchased.amount,
+        lotId: input.purchased.lotId,
+        reference: input.paymentReference,
+        idempotencyKey: input.idempotencyKey,
+        reason: input.reason,
+      });
+
+      if (input.granted !== undefined) {
+        await insertLot(client, {
+          id: input.granted.lotId,
+          accountId: input.accountId,
+          kind: "granted",
+          original: input.granted.amount,
+          remaining: input.granted.amount,
+          cashGross: ZERO,
+          cashTax: ZERO,
+          createdAt: input.at,
+          expiresAt: input.granted.expiresAt,
+          paymentReference: input.paymentReference,
+        });
+        await insertEntry(client, {
+          id: `${input.entryIdPrefix}-granted`,
+          at: input.at,
+          accountId: input.accountId,
+          kind: "topup",
+          amount: input.granted.amount,
+          lotId: input.granted.lotId,
+          reference: input.paymentReference,
+          idempotencyKey: `${input.idempotencyKey}:granted`,
+          reason: `${input.reason} (bonus, not refundable in cash)`,
+        });
+      }
+
+      return {
+        applied: true,
+        duplicate: false,
+        balance: await balanceIn(client, input.accountId, input.at),
+        reason: "Applied.",
+      };
+    });
+  },
+
+  async spendCredits(input: SpendInput): Promise<SpendResult> {
+    return transaction(async (client) => {
+      const seen = await client.query(
+        "SELECT 1 FROM ledger_entries WHERE idempotency_key = $1",
+        [input.idempotencyKey],
+      );
+      if ((seen.rowCount ?? 0) > 0) {
+        return {
+          ok: true,
+          duplicate: true,
+          shortfall: ZERO,
+          balance: await balanceIn(client, input.accountId, input.at),
+          reason: "Already charged for this operation.",
+        };
+      }
+
+      // FOR UPDATE locks this account's lots for the rest of the transaction,
+      // so a second concurrent spend waits here rather than reading the same
+      // balance and succeeding alongside the first.
+      const { rows } = await client.query<LotRow>(
+        "SELECT * FROM credit_lots WHERE account_id = $1 ORDER BY expires_at, created_at FOR UPDATE",
+        [input.accountId],
+      );
+      const lots = rows.map(toLot);
+      const now = new Date(input.at);
+      const plan = planSpend(lots, input.amount, now);
+
+      if (!plan.ok) {
+        return {
+          ok: false,
+          duplicate: false,
+          shortfall: plan.shortfall,
+          balance: availableBalance(lots, now),
+          reason: plan.reason,
+        };
+      }
+
+      let index = 0;
+      for (const allocation of plan.allocations) {
+        await client.query(
+          "UPDATE credit_lots SET remaining = remaining - $2 WHERE id = $1",
+          [allocation.lotId, allocation.amount],
+        );
+        await insertEntry(client, {
+          id: `${input.entryIdPrefix}-${index}`,
+          at: input.at,
+          accountId: input.accountId,
+          kind: "spend",
+          amount: money(-allocation.amount),
+          lotId: allocation.lotId,
+          reference: input.reference,
+          idempotencyKey: index === 0 ? input.idempotencyKey : `${input.idempotencyKey}:${index}`,
+          reason: input.reason,
+        });
+        index += 1;
+      }
+
+      return {
+        ok: true,
+        duplicate: false,
+        shortfall: ZERO,
+        balance: await balanceIn(client, input.accountId, input.at),
+        reason: plan.reason,
+      };
+    });
+  },
+
+  async voidLotsForPayment(
+    paymentReference: string,
+    reason: string,
+    at: string,
+    entryIdPrefix: string,
+  ): Promise<number> {
+    return transaction(async (client) => {
+      const { rows } = await client.query<LotRow>(
+        "SELECT * FROM credit_lots WHERE payment_reference = $1 AND voided_at IS NULL FOR UPDATE",
+        [paymentReference],
+      );
+      let index = 0;
+      for (const row of rows) {
+        const lot = toLot(row);
+        await client.query(
+          "UPDATE credit_lots SET voided_at = $2, voided_reason = $3 WHERE id = $1",
+          [lot.id, at, reason],
+        );
+        await insertEntry(client, {
+          id: `${entryIdPrefix}-${index}`,
+          at,
+          accountId: lot.accountId,
+          kind: reason === "chargeback" ? "chargeback" : "refund",
+          amount: money(-lot.original),
+          lotId: lot.id,
+          reference: paymentReference,
+          idempotencyKey: `${reason}:${paymentReference}:${lot.id}`,
+          reason: `Payment ${paymentReference} reversed (${reason}).`,
+        });
+        index += 1;
+      }
+      return rows.length;
+    });
+  },
+
+  async expireLapsedCredits(now: string, entryIdPrefix: string): Promise<number> {
+    return transaction(async (client) => {
+      const { rows } = await client.query<LotRow>(
+        "SELECT * FROM credit_lots WHERE voided_at IS NULL AND remaining > 0 AND expires_at <= $1 FOR UPDATE",
+        [now],
+      );
+      const due = dueForExpiry(rows.map(toLot), new Date(now));
+      let index = 0;
+      for (const expiry of due) {
+        const lot = rows.map(toLot).find((l) => l.id === expiry.lotId);
+        if (lot === undefined) continue;
+        await client.query("UPDATE credit_lots SET remaining = 0 WHERE id = $1", [lot.id]);
+        await insertEntry(client, {
+          id: `${entryIdPrefix}-${index}`,
+          at: now,
+          accountId: lot.accountId,
+          kind: "expire",
+          amount: money(-expiry.amount),
+          lotId: lot.id,
+          idempotencyKey: `expire:${lot.id}`,
+          reason: `Balance lapsed on ${expiry.expiredAt.slice(0, 10)}.`,
+        });
+        index += 1;
+      }
+      return due.length;
+    });
   },
 
   async appendAudit(event: AuditEvent): Promise<AuditEvent> {

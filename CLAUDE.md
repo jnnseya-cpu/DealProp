@@ -38,10 +38,11 @@ seller-facing options cannot disagree.
 
 ### Built and working — do not rebuild
 
-`src/shared/domain/` (24 files): `types`, `newsletter`, `economics`, `motivation`, `protection`,
+`src/shared/domain/` (28 files): `types`, `newsletter`, `economics`, `motivation`, `protection`,
 `redteam`, `dealScore`, `capitalStack`, `strategies`, `goldmine`, `matching`,
 `completion`, `revenue`, `director`, `intake`, `sellerRoutes`, `workingDeal`,
-`partners`, `sources`, `registrySignal`, `accounts`, `blog`, `analytics`, `seo`.
+`partners`, `sources`, `registrySignal`, `accounts`, `blog`, `analytics`, `seo`,
+`pricing`, `entitlements`, `ledger`, `charging`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -62,6 +63,12 @@ Go-live: `docs/GO-LIVE.md` is the runbook; `npm run preflight` is the gate and
 exits non-zero on blockers. `/api/health` is the platform health check.
 Go-to-market: `docs/GO-TO-MARKET.md` is the source; `npm run docs:pdf`
 renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
+Money: `pricing.ts` owns every price, plan limit and tax decision — nothing else
+may state one, and `revenue.ts` derives its published tiers from it.
+`ledger.ts` holds prepaid balance as lots; `entitlements.ts` derives what a plan
+grants; `charging.ts` decides whether a charge may happen. `/api/billing/webhook`
+is the only inbound money path and fails closed without `BILLING_WEBHOOK_SECRET`.
+`/operator/billing` shows every account's position, computed from the ledger.
 Analytics: Meta Pixel and Google Tag load from `src/app/components/Analytics.tsx`
 only, gated on a configured ID, granted consent, an allowlisted route and a known
 event. `src/shared/domain/analytics.ts` decides where and what; `src/shared/consent.ts`
@@ -69,7 +76,7 @@ decides whether; `src/shared/eventQueue.ts` holds events until the vendor script
 exist. Blog opens are counted independently at `POST /api/blog/view` and shown
 with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
-379 tests in `tests/` (380 with Postgres). All pass. Build succeeds. All routes return 200.
+458 tests in `tests/` (459 with Postgres). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -130,7 +137,30 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 22. **The SEO score is an audit, not a prediction.** It checks only what this
     codebase controls. Never add a check that claims to know a ranking, a
     backlink or a search volume.
-23. **Engines are deterministic.** LLMs belong at the edges proposing
+23. **No purchase request carries an amount.** A request names a plan or a pack;
+    the price comes from `pricing.ts` on the server. Never add an amount,
+    quantity or price field to anything a client sends — a validated amount is
+    only as good as the validation, and the failure is silent and total.
+24. **Prepaid balance is money, and moves at most once.** Every movement carries
+    an idempotency key the store holds unique; spending is an atomic all-or-
+    nothing allocation across lots. Never decrement a balance column. A bonus is
+    a separate non-refundable lot, so it can never be cashed out.
+25. **A chargeback voids the whole lot, spent or not**, and the shortfall shows
+    as a debt that blocks spending. Never clamp a reversed position to zero.
+26. **Entitlement is derived, never stored.** No `isPro` flag anywhere. Compute
+    from the plan, the status and the dates on every request, against a date
+    passed in.
+27. **The billing webhook is verified over raw bytes, claimed once, allowlisted
+    by type, and amount-checked against the catalogue.** All four, always. Never
+    parse before verifying — a signature over re-serialised JSON verifies
+    nothing.
+28. **Under-collecting VAT is our loss, so tax fails closed.** Consumer sales
+    outside the UK are refused rather than charged a guessed rate. Never
+    "default to UK VAT" for a foreign consumer.
+29. **Server actions check their own permission.** They are POST endpoints of
+    their own; the page guard does not cover them and the middleware matcher is
+    one layer.
+30. **Engines are deterministic.** LLMs belong at the edges proposing
     structured values — never deciding a score or clearing a flag.
 
 ### Outstanding
@@ -206,7 +236,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 379 tests
+npx vitest run       # 458 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

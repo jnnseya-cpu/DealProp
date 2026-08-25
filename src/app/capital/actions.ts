@@ -15,7 +15,15 @@ import {
 } from "@shared/formFields";
 import type { FunderKind, FundingBox } from "@shared/domain/matching";
 import type { JurisdictionCode, PropertyType } from "@shared/domain/types";
-import { deleteFundingBox, getFundingBox, saveFundingBox } from "@backend/store/repository";
+import {
+  deleteFundingBox,
+  getFundingBox,
+  listFundingBoxes,
+  saveFundingBox,
+} from "@backend/store/repository";
+import { requirePermission, viewerAccount } from "@/app/operator/guard";
+import { entitlementsForAccount } from "@backend/billing/entitlement";
+import { withinLimit } from "@shared/domain/entitlements";
 
 /**
  * Funding Box mandates.
@@ -47,10 +55,18 @@ const FUNDER_KINDS = new Set<string>([
   "development-lender",
 ]);
 
+/**
+ * Every action here checks its own permission, for the reasons set out on the
+ * Buy Box actions: a server action is its own POST endpoint, and a mandate is
+ * both a paid entitlement and a statement of capital availability shown to
+ * sellers.
+ */
 export async function saveFundingBoxAction(
   _previous: BoxFormResult | undefined,
   formData: FormData,
 ): Promise<BoxFormResult> {
+  const viewer = await requirePermission("manage-mandates", "/capital");
+
   try {
     const minTicket = requiredMoney(formData.get("minTicket"), "Minimum ticket");
     const maxTicket = requiredMoney(formData.get("maxTicket"), "Maximum ticket");
@@ -79,9 +95,29 @@ export async function saveFundingBoxAction(
 
     const id = idFrom(formData.get("id"));
     const existing = id !== undefined ? await getFundingBox(id) : undefined;
+    const owner = viewerAccount(viewer);
+
+    if (existing === undefined && owner !== undefined) {
+      const entitlements = await entitlementsForAccount(owner);
+      const mine = (await listFundingBoxes()).filter((b) => b.ownerAccountId === owner.id);
+      const decision = withinLimit(mine.length, entitlements.maxFundingBoxes, "Funding Boxes");
+      if (!decision.allowed) {
+        return { ok: false, message: decision.reason };
+      }
+    }
+
+    if (existing !== undefined && owner !== undefined && existing.ownerAccountId !== owner.id) {
+      return { ok: false, message: "That mandate belongs to another account." };
+    }
 
     const box: FundingBox = {
       id: existing?.id ?? `fund-${newToken()}`,
+      // From the session, never from the form.
+      ...(existing?.ownerAccountId !== undefined
+        ? { ownerAccountId: existing.ownerAccountId }
+        : owner !== undefined
+          ? { ownerAccountId: owner.id }
+          : {}),
       funderName: requiredText(formData.get("funderName"), "Funder name"),
       kind: requireOneOf<FunderKind>(formData.get("kind"), FUNDER_KINDS, "funder kind"),
       jurisdictions: requireManyOf<JurisdictionCode>(
@@ -129,13 +165,22 @@ export async function saveFundingBoxAction(
 }
 
 export async function setFundingBoxActive(id: string, active: boolean): Promise<void> {
+  const viewer = await requirePermission("manage-mandates", "/capital");
   const box = await getFundingBox(id);
   if (box === undefined) return;
+  const owner = viewerAccount(viewer);
+  if (owner !== undefined && box.ownerAccountId !== owner.id) return;
   await saveFundingBox({ ...box, active });
   revalidatePath("/capital");
 }
 
 export async function removeFundingBox(id: string): Promise<void> {
+  const viewer = await requirePermission("manage-mandates", "/capital");
+  const owner = viewerAccount(viewer);
+  if (owner !== undefined) {
+    const box = await getFundingBox(id);
+    if (box === undefined || box.ownerAccountId !== owner.id) return;
+  }
   await deleteFundingBox(id);
   revalidatePath("/capital");
 }

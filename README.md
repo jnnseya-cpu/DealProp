@@ -30,7 +30,7 @@ uninformative: no version, no hostnames, no error text.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 379 tests
+npm test          # 458 tests
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 ```
@@ -61,6 +61,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Accounts | `/operator/accounts` | Create, disable, see certification status |
 | Audit trail | `/operator/audit` | Append-only: who saw what, and when |
 | Blog performance | `/operator/blog` | Opens per post and the SEO audit, worst first |
+| Billing | `/operator/billing` | Every account's plan, balance and ledger position |
 | Certification | `/account/certify` | Investor self-certification under the FPO |
 | Offline | `/offline` | Service-worker fallback; deliberately shows no figures |
 
@@ -87,6 +88,10 @@ listed honestly in [Not built yet](#not-built-yet).
 | Trade partners | `src/shared/domain/partners.ts` | Who does the works, why, and the disclosure |
 | Analytics gate | `src/shared/domain/analytics.ts` | Which routes and events a pixel may ever see |
 | SEO audit | `src/shared/domain/seo.ts` | Scores every post against what this codebase controls |
+| Catalogue | `src/shared/domain/pricing.ts` | Every price, plan limit and tax decision, in one place |
+| Entitlements | `src/shared/domain/entitlements.ts` | What a plan grants, and exactly when it stops |
+| Ledger | `src/shared/domain/ledger.ts` | Prepaid balance: lots, spend, refund, chargeback, expiry |
+| Charge gate | `src/shared/domain/charging.ts` | Whether a charge may happen, and for how much |
 | Email transport | `src/backend/email.ts` | Provider-agnostic, fails closed when unconfigured |
 | Store | `src/backend/store/` | One interface, two engines: Postgres or a JSON file |
 
@@ -267,8 +272,16 @@ Deliberately out of scope for this slice, in rough priority order:
 - **Portal listing data.** Still refused, permanently and by code — see
   [Where the data comes from](#where-the-data-comes-from). The signals GoldMine
   wanted from listings now come from open sources instead.
-- **Payments.** None. Subscriptions and success fees are modelled by
-  `revenue.ts` and nothing charges anybody.
+- **A payment provider.** Everything behind one is built and tested — catalogue,
+  ledger, entitlements, the verified webhook, the enforcement points — but
+  nothing takes a card. What remains is mapping one provider's payload into the
+  event shape `/api/billing/webhook` already handles, and a checkout page. See
+  [The money side](#the-money-side).
+- **Reconciliation against the provider.** The ledger is the record of what this
+  platform believes; comparing it to what the provider believes is a job that
+  does not exist yet, and a divergence would currently go unnoticed.
+- **Dunning email.** A failed payment reduces entitlement correctly and tells
+  nobody.
 - **Server-side conversions.** Meta's Conversions API and GA4 Measurement
   Protocol are not wired up. Browser-side events only, so an ad blocker means no
   event.
@@ -390,7 +403,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 379 tests, Postgres suite skipped
+npm test          # 458 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -544,6 +557,121 @@ It is **not** a ranking prediction, and nothing in it can see a backlink, a
 competitor or a search volume. It checks what is inside this codebase, which is
 the part that can actually be changed. `/operator/blog` shows it beside the open
 count, worst post first.
+
+---
+
+## The money side
+
+Nothing charges anybody yet — there is no payment provider wired in, and that is
+[still true](#not-built-yet). What exists is everything that sits *behind* one,
+which is where a platform actually loses money. The provider is the easy part.
+
+### Nothing takes a price from the caller
+
+A purchase request has no amount field. Not a validated one — none:
+
+```ts
+type PurchaseRequest =
+  | { kind: "plan"; planId: PlanId }
+  | { kind: "topup"; packId: string }
+```
+
+The price comes from `pricing.ts` on the server. There is nothing to set to zero
+and nothing for a tampered form to override, which is structural rather than
+checked, and a check is only ever as good as the person who remembered to write
+it.
+
+### The webhook is the highest-value target on the platform
+
+It is unauthenticated by necessity — the provider has no account here — and what
+it says is treated as proof that money arrived. Five things stand between it and
+somebody awarding themselves a subscription and unlimited balance:
+
+1. **The signature is verified over the raw bytes**, before the body is parsed.
+2. **The event id is claimed once**, atomically, in the store.
+3. **The event type is on an allowlist**; anything else is recorded and ignored.
+4. **The amount is recomputed from the catalogue and compared.** Underpayment
+   and overpayment both fulfil nothing — an overpayment usually means the
+   confirmation belongs to a different charge.
+5. **Subscription changes apply only if newer** than what is recorded. A late
+   `renewed` landing after a `canceled` would otherwise switch access back on.
+
+Verified against a running server: unsigned, forged, replayed and
+signed-then-altered deliveries are all refused with nothing written; a genuine
+payment credits once; a redelivery of it changes nothing; and a *different event
+id describing the same payment* also changes nothing, because the idempotency
+key is the payment rather than the delivery.
+
+Without `BILLING_WEBHOOK_SECRET` every confirmation is refused. Nothing can be
+sold, which is the safe direction.
+
+### Prepaid balance cannot be double-spent or cashed out
+
+Balance is denominated in pence rather than in a unit called a credit, which
+removes the buy-low-spend-high arbitrage entirely.
+
+- **Spending is an allocation against specific lots**, all or nothing, with the
+  read and the write in one atomic operation. Twenty-five simultaneous £1 spends
+  against a £10 balance succeed exactly ten times — tested against both storage
+  engines, and Postgres additionally refuses a negative remaining at the column.
+- **A bonus is a separate lot with no cash behind it**, so it can never come back
+  out as cash. Refunds are proportional to money actually received and rounded
+  down.
+- **Spending order is soonest-expiry first, granted before purchased.** Spending
+  the paid balance first would let somebody consume the free part and withdraw
+  the paid part.
+- **A chargeback voids the whole lot, spent or not.** What was already consumed
+  becomes a visible debt and spending stops, rather than being clamped to zero
+  and quietly absorbed.
+- **Lots expire** — twelve months on money paid, three on balance given away —
+  and expiry is written to the ledger, never silently.
+
+The ledger is append-only, like the audit trail, and every movement carries an
+idempotency key the store holds unique.
+
+### Access stops when paying stops
+
+Entitlement is **derived, never stored**. There is no `isPro` column for a stale
+write to leave true; the plan, the status and the dates are the facts and the
+answer is computed from them every time. Which closes, specifically:
+
+| Leak | What happens instead |
+|---|---|
+| Cancelled, access left on | Runs to the end of the period already paid for, then stops from the date alone — nothing has to run |
+| Period lapsed, no renewal event | Falls to the free plan rather than trusting a stale `active` |
+| Payment failed, access continues | Seven-day grace: keeps what exists, grants nothing new — no memoranda, no credits |
+| Trial takes the whole library | Trial unlocks features but caps memoranda at one and grants no balance |
+| Downgrade keeps ten mandates on a three-mandate plan | `withinPlan()` covers the oldest and stops counting the rest; nothing is deleted |
+| Chargeback, then carry on using it | Account suspended, and no ordinary renewal event lifts that |
+
+Mandate limits are enforced in the server actions, which now check their own
+permission and ownership. A server action is its own POST endpoint — the page's
+guard does not cover it.
+
+### The two tax rules that cost real money
+
+VAT under-collected is paid out of margin, so both directions fail safe.
+Consumer-facing prices are stated tax-**inclusive** (what a consumer sees is what
+they pay); business prices exclusive. Sales to consumers outside the UK are
+**refused** rather than charged a guessed rate — that needs a One Stop Shop or
+local registration, and charging UK VAT to a French consumer means remitting to
+the wrong state while still owing the right one.
+
+The other is the Consumer Contracts Regulations cancellation right. Without the
+customer's express agreement to immediate supply *and* their acknowledgement that
+this ends the right, a consumer can use the service for thirteen days and still
+be owed the whole fee back. `coolingOff()` returns `full` in that case and
+`pro-rata` where the agreement was taken — it is the difference between those two
+on every cancellation in the first fortnight.
+
+### Charging something we are not allowed to charge
+
+Several revenue streams need a permission this platform does not yet hold.
+`authorisePurchase()` refuses them at the point of sale, not just in the model:
+an unauthorised credit-broking fee is unenforceable, so it is money delivered
+against, taken, and then given back with a penalty on top. Only subscriptions and
+prepaid usage have no permission dependency, which is why they are the only two
+things sellable today.
 
 ---
 
