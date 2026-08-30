@@ -102,8 +102,8 @@ canonicalises itself to localhost.
 ```bash
 npm ci
 npm run typecheck
-npm test              # 600
-npm run test:pg       # 601, both storage engines against a real database
+npm test              # 623
+npm run test:pg       # 624, both storage engines against a real database
 npm run build
 npm run preflight     # must exit 0
 ```

@@ -210,7 +210,7 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       // Subscribers are consent records. Wiping them on reseed would destroy
       // the evidence of why an address was mailed.
       await store.saveSubscriber(subscriber({ status: "confirmed" }));
-      await store.replaceAll({ deals: [dealRecord()], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [] });
+      await store.replaceAll({ deals: [dealRecord()], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [] });
       expect(await store.listSubscribers()).toHaveLength(1);
       expect(await store.listDeals()).toHaveLength(1);
     });
@@ -602,7 +602,7 @@ contract(
     // Queue through the write chain first. Deleting the file outright would
     // race a write still in flight from the previous test, which would then
     // land after the delete and recreate it.
-    await fileStore.replaceAll({ deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [] });
+    await fileStore.replaceAll({ deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [] });
     rmSync(process.env.LODE_DATA_FILE ?? "", { force: true });
   },
 );

@@ -30,7 +30,7 @@ uninformative: no version, no hostnames, no error text.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 600 tests
+npm test          # 623 tests
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 ```
@@ -50,7 +50,10 @@ listed honestly in [Not built yet](#not-built-yet).
 | Pipeline | `/deals` | Every opportunity scored after tax, blocked deals included |
 | Deal Room | `/deals/[id]` | Verdict, full model, Red Team, capital stack, matched mandates |
 | Memorandum | `/deals/[id]/memorandum` | Print-ready pack from the same briefing, with the promotion notice |
-| Funding | `/deals/[id]/funding` | Readiness score, true cost of borrowing, net advance, funder ratios |
+| Funding | `/deals/[id]/funding` | Readiness, true cost, net advance, ratios, offers, evidence |
+| Discovery | `/operator/discovery` | Run discovery, review candidates, approve or suppress |
+| Outreach | `/operator/outreach` | Draft, approve, send; suppression list |
+| Opt out | `/outreach/opt-out` | One click, no account, no confirmation step |
 | Blog | `/blog` | Posts written by the agent from real engine output |
 | Post | `/blog/[slug]` | Auto-linked glossary terms, related posts, JSON-LD |
 | Topic hub | `/blog/topic/[topic]` | Six hubs, each linking its posts and definitions |
@@ -420,7 +423,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 600 tests, Postgres suite skipped
+npm test          # 623 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -811,10 +814,14 @@ and the fee unrecoverable, on top of any penalty.
 The specification asks for an agent that discovers and writes to funders. The
 half that governs contact is built; the half that scrapes is not, deliberately.
 
-Nothing sends. `outreachEligibility()` decides whether a send would be lawful
-and returns one of `SEND_ALLOWED`, `DRAFT_ONLY`, `CONSENT_REQUIRED`,
-`COMPLIANCE_APPROVAL_REQUIRED`, `PROMOTION_APPROVAL_REQUIRED` or
-`DO_NOT_CONTACT`. Opt-outs and warning-list matches end the question before
+Sending works, through the same transport the newsletter uses. Composing,
+approving and sending are three separate actions because they are three separate
+decisions, and collapsing them is how a system emails somebody nobody meant to
+email. `outreachEligibility()` returns one of `SEND_ALLOWED`, `DRAFT_ONLY`,
+`CONSENT_REQUIRED`, `COMPLIANCE_APPROVAL_REQUIRED`,
+`PROMOTION_APPROVAL_REQUIRED` or `DO_NOT_CONTACT`, and **everything is re-checked
+at the moment of sending** — a recipient can opt out in the minutes between
+approval and delivery, and the check that matters is the later one. Opt-outs and warning-list matches end the question before
 anything else is weighed. An address a model inferred is never sent to. An
 unknown recipient type is treated as an individual, not as a company — getting
 that the other way round is how a lawful B2B campaign becomes an unlawful one.

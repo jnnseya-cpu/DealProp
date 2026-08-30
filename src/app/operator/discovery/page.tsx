@@ -5,6 +5,7 @@ import { requirePermission } from "@/app/operator/guard";
 import { listDiscoveryCandidates } from "@backend/store/repository";
 import { getSource } from "@shared/domain/sources";
 import { CandidateActions } from "./CandidateActions";
+import { RunForm } from "./RunForm";
 import type { VerificationStatus } from "@shared/domain/outreach";
 
 export const dynamic = "force-dynamic";
@@ -70,6 +71,8 @@ export default async function DiscoveryPage() {
           page — approval records that this organisation may be written to, and the outreach gate
           still decides whether a particular message to them would be lawful.
         </p>
+
+        <RunForm />
 
         <section className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
           <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">

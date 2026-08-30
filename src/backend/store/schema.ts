@@ -4,7 +4,7 @@ import type { ListingSignal } from "@shared/domain/goldmine";
 import type { Milestone } from "@shared/domain/completion";
 import type { FundingEvidence } from "@shared/domain/fundingReadiness";
 import type { BorrowerFacts } from "@shared/domain/regulatoryRoute";
-import type { Candidate } from "@shared/domain/outreach";
+import type { Candidate, MessageType, OutreachDecision } from "@shared/domain/outreach";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { CreditLot, LedgerEntry } from "@shared/domain/ledger";
@@ -46,6 +46,8 @@ export interface DealRecord {
    * Absent means unclassified, which routes to review rather than to permitted.
    */
   readonly borrowerFacts?: BorrowerFacts;
+  /** Indicative or binding offers received, for the comparison in §10. */
+  readonly offers?: readonly RecordedOffer[];
   readonly borrowerCompletedDeals: number;
   readonly status: "new" | "qualified" | "in-market" | "funded" | "completed" | "withdrawn";
 }
@@ -71,6 +73,31 @@ export interface BlogViewCount {
   readonly lastViewedAt: string;
 }
 
+/**
+ * One lender's terms, as received.
+ *
+ * Stored as the terms themselves rather than as a computed total, so the
+ * comparison is recomputed from the engine every time. A stored total is a
+ * figure that stops agreeing with the deal the moment the price or the term
+ * changes.
+ */
+export interface RecordedOffer {
+  readonly id: string;
+  readonly lender: string;
+  /** Basis points, as quoted. */
+  readonly annualRateBps: number;
+  readonly arrangementFeeBps: number;
+  readonly brokerFeeBps: number;
+  readonly exitFeeBps: number;
+  readonly ltvBps: number;
+  /** Valuation and legal costs the borrower bears, in pence. */
+  readonly lenderCosts: number;
+  readonly interestRolledUp: boolean;
+  readonly termMonths: number;
+  readonly confidence: "indicative" | "credit-backed" | "valuation-backed" | "binding";
+  readonly receivedAt: string;
+}
+
 export interface Database {
   deals: DealRecord[];
   buyBoxes: BuyBox[];
@@ -86,6 +113,47 @@ export interface Database {
   billingEvents: ProcessedEvent[];
   /** Funders found by discovery, quarantined until a person approves them. */
   discoveryCandidates: StoredCandidate[];
+  outreachMessages: OutreachMessage[];
+  /**
+   * Addresses that must never be written to again, by address rather than by
+   * candidate.
+   *
+   * The same mailbox can appear against several organisations, and somebody who
+   * asked to be left alone asked once. Checked immediately before every send,
+   * not when the message was drafted — a person can opt out in the minutes
+   * between.
+   */
+  suppressions: Suppression[];
+}
+
+export interface Suppression {
+  readonly email: string;
+  readonly reason: string;
+  readonly at: string;
+}
+
+export type MessageStatus = "draft" | "approved" | "sent" | "failed" | "refused";
+
+export interface OutreachMessage {
+  readonly id: string;
+  readonly candidateId: string;
+  readonly dealId?: string;
+  readonly messageType: MessageType;
+  readonly to: string;
+  readonly subject: string;
+  readonly body: string;
+  /** The eligibility decision at the time it was drafted. */
+  readonly decision: OutreachDecision;
+  readonly decisionReason: string;
+  readonly status: MessageStatus;
+  readonly createdAt: string;
+  readonly approvedAt?: string;
+  readonly approvedBy?: string;
+  readonly sentAt?: string;
+  readonly failureReason?: string;
+  /** Inbound reply text, where one has been received. */
+  readonly replyReceivedAt?: string;
+  readonly replyClassification?: string;
 }
 
 /**
@@ -351,6 +419,11 @@ export interface Store {
   reverseLotsForPayment(input: ReversalInput): Promise<ReversalResult>;
 
   listDiscoveryCandidates(): Promise<readonly StoredCandidate[]>;
+  listOutreachMessages(): Promise<readonly OutreachMessage[]>;
+  saveOutreachMessage(message: OutreachMessage): Promise<OutreachMessage>;
+  listSuppressions(): Promise<readonly Suppression[]>;
+  /** Idempotent. Returns false where the address was already suppressed. */
+  addSuppression(entry: Suppression): Promise<boolean>;
   /** Upsert by candidate id. Approval and suppression are never overwritten. */
   saveDiscoveryCandidate(entry: StoredCandidate): Promise<StoredCandidate>;
 

@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { listDiscoveryCandidates, saveDiscoveryCandidate } from "@backend/store/repository";
+import { runDiscovery } from "@backend/discovery/run";
+import type { VerificationInput } from "@backend/discovery/connectors";
 import { audit } from "@backend/audit";
 
 /**
@@ -88,4 +90,70 @@ export async function suppressCandidateAction(
 
   revalidatePath("/operator/discovery");
   return { ok: true, message: `${entry.candidate.organisationName} will not be contacted.` };
+}
+
+/**
+ * Run discovery against organisations an operator has named.
+ *
+ * One per line: `Name, domain, company number, FRN` — the last two optional.
+ * A list rather than a search query, because no source is licensed for
+ * harvesting the web for firms, and a crawler that wanders from link to link
+ * collecting organisations would be reading things nobody offered.
+ */
+export async function runDiscoveryAction(
+  _previous: CandidateResult | undefined,
+  formData: FormData,
+): Promise<CandidateResult> {
+  const viewer = await requirePermission("manage-mandates", "/operator/discovery");
+  const author = viewerAccount(viewer);
+
+  const raw = String(formData.get("targets") ?? "").trim();
+  if (raw === "") {
+    return { ok: false, message: "Name at least one organisation, one per line." };
+  }
+
+  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length > 25) {
+    // A run is bounded so a paste of a thousand rows cannot become a crawl.
+    return { ok: false, message: "At most 25 organisations per run." };
+  }
+
+  const targets: VerificationInput[] = [];
+  const rejected: string[] = [];
+
+  for (const line of lines) {
+    const [name, domain, companyNumber, firmReference] = line.split(",").map((p) => p.trim());
+    if (name === undefined || name === "" || domain === undefined || domain === "") {
+      rejected.push(`${line} — needs at least a name and a domain.`);
+      continue;
+    }
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) {
+      rejected.push(`${domain} is not a domain.`);
+      continue;
+    }
+    targets.push({
+      organisationName: name,
+      domain: domain.toLowerCase().replace(/^www\./, ""),
+      ...(companyNumber !== undefined && companyNumber !== "" ? { companyNumber } : {}),
+      ...(firmReference !== undefined && firmReference !== "" ? { firmReference } : {}),
+    });
+  }
+
+  if (targets.length === 0) {
+    return { ok: false, message: `Nothing usable. ${rejected.join(" ")}` };
+  }
+
+  const result = await runDiscovery(targets);
+
+  await audit("mandate-saved", {
+    ...(author !== undefined ? { account: author } : {}),
+    subject: "discovery-run",
+    detail: `Examined ${result.examined} organisation(s) in ${result.requestsMade} request(s): ${result.verified} verified, ${result.quarantined} quarantined, ${result.refused} refused.`,
+  });
+
+  revalidatePath("/operator/discovery");
+  return {
+    ok: true,
+    message: `${result.examined} examined in ${result.requestsMade} request(s): ${result.verified} verified, ${result.quarantined} need more evidence, ${result.refused} refused.${rejected.length > 0 ? ` Skipped: ${rejected.join(" ")}` : ""}`,
+  };
 }

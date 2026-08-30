@@ -81,7 +81,11 @@ the 0-100 pack score; `regulatoryRoute.ts` whether an introduction may be made;
 `/deals/[id]/funding`. Discovery lives in `src/backend/discovery/`: `robots.ts`
 parses and obeys robots.txt, `fetcher.ts` is the ONLY outbound path and gates
 every request, `extract.ts` has no inference path, `connectors.ts` reads the
-three licensed sources. Candidates are quarantined at `/operator/discovery`.
+three licensed sources. Candidates are quarantined at `/operator/discovery`; outreach is drafted,
+approved and sent at `/operator/outreach` through the newsletter's transport,
+re-checked against the suppression list at the moment of sending. Replies arrive
+at `POST /api/outreach/reply`; `/outreach/opt-out` is one click and needs no
+account.
 Analytics: Meta Pixel and Google Tag load from `src/app/components/Analytics.tsx`
 only, gated on a configured ID, granted consent, an allowlisted route and a known
 event. `src/shared/domain/analytics.ts` decides where and what; `src/shared/consent.ts`
@@ -89,7 +93,7 @@ decides whether; `src/shared/eventQueue.ts` holds events until the vendor script
 exist. Blog opens are counted independently at `POST /api/blog/view` and shown
 with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
-600 tests in `tests/` (601 with Postgres). All pass. Build succeeds. All routes return 200.
+623 tests in `tests/` (624 with Postgres). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -208,7 +212,11 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     individual's mailbox is recorded as rejected, with the reason, not taken.
 41. **Only a VERIFIED candidate may be approved, by a named person.**
     Suppression survives a rerun; approval never overrides it.
-42. **Engines are deterministic.** LLMs belong at the edges proposing
+42. **Every specification must be reachable from the running app.** A gate with
+    no call site stops nothing and a score computed from data nobody can enter
+    always says the same thing. Before claiming a spec clause is satisfied,
+    follow it from a page or an endpoint to the code.
+43. **Engines are deterministic.** LLMs belong at the edges proposing
     structured values — never deciding a score or clearing a flag.
 
 ### Outstanding
@@ -284,7 +292,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 600 tests
+npx vitest run       # 623 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

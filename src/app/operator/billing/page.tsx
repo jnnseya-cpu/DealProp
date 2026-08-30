@@ -4,7 +4,7 @@ import { SignOutButton } from "@/app/operator/SignOutButton";
 import { requirePermission } from "@/app/operator/guard";
 import { AdjustmentForm } from "./AdjustmentForm";
 import { listAccounts, listCreditLots, listLedgerEntries, listSubscriptions } from "@backend/store/repository";
-import { entitlementsFor } from "@shared/domain/entitlements";
+import { coolingOff, entitlementsFor } from "@shared/domain/entitlements";
 import { quoteRefund, standing } from "@shared/domain/ledger";
 import { plan } from "@shared/domain/pricing";
 import { gbpPrecise } from "@shared/format";
@@ -46,6 +46,14 @@ export default async function BillingPage() {
         account,
         subscription,
         entitlements: entitlementsFor(subscription, now),
+        // What would have to be refunded in full if this consumer cancelled
+        // today. Without a recorded agreement to immediate supply, thirteen
+        // days of use still owes the whole fee back — so it is exposure worth
+        // seeing rather than discovering.
+        coolingOff:
+          subscription === undefined
+            ? undefined
+            : coolingOff(subscription, account.role === "investor" ? "consumer" : "business", now),
         position: standing(lots, entries, now),
         // What would have to be returned if every customer asked today. Not the
         // same as the balance: a bonus has no cash behind it and an expired lot
@@ -63,6 +71,7 @@ export default async function BillingPage() {
   const held = add(...rows.map((r) => r.position.available));
   const refundable = add(...rows.map((r) => r.refundable));
   const disputeCosts = add(...rows.map((r) => r.position.fees));
+  const fullRefundExposure = rows.filter((r) => r.coolingOff?.refundDue === "full").length;
   const paying = rows.filter((r) => r.entitlements.planId !== "buyer-explorer");
 
   return (
@@ -108,6 +117,17 @@ export default async function BillingPage() {
           />
         </dl>
 
+        {fullRefundExposure > 0 && (
+          <div className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-500/5 px-6 py-5">
+            <p className="text-sm leading-relaxed text-amber-200">
+              {fullRefundExposure} consumer subscription{fullRefundExposure === 1 ? " is" : "s are"} inside
+              the 14-day cancellation period with no record that the customer agreed to supply
+              beginning immediately. Each is refundable in full however much has been used. Take that
+              agreement at sign-up and it becomes pro rata instead.
+            </p>
+          </div>
+        )}
+
         {owing.length > 0 && (
           <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/5 px-6 py-5">
             <p className="text-sm leading-relaxed text-red-200">
@@ -131,7 +151,7 @@ export default async function BillingPage() {
           </p>
         ) : (
           <ul className="mt-10 space-y-5">
-            {rows.map(({ account, subscription, entitlements, position, lots, entries }) => (
+            {rows.map(({ account, subscription, entitlements, position, lots, entries, coolingOff }) => (
               <li key={account.id} className="rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
                   <p className="font-display text-lg text-ink-100">{account.name}</p>
@@ -149,6 +169,11 @@ export default async function BillingPage() {
                 <p className="mt-3 text-sm leading-relaxed text-ink-300">{entitlements.reason}</p>
                 {!position.maySpend && (
                   <p className="mt-2 text-sm leading-relaxed text-red-300">{position.reason}</p>
+                )}
+                {coolingOff !== undefined && coolingOff.refundDue !== "none" && (
+                  <p className="mt-2 text-sm leading-relaxed text-amber-300">
+                    Cancellation right: {coolingOff.refundDue === "full" ? "full refund due" : "pro rata"} — {coolingOff.reason}
+                  </p>
                 )}
 
                 <p className="mt-4 font-mono text-[11px] text-ink-600">

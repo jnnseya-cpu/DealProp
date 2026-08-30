@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { bps, fromMajor, pct } from "@shared/money";
 import { appraise } from "@shared/domain/economics";
 import type { DealInputs, FinanceTerms, PropertyFacts, SellerProfile } from "@shared/domain/types";
-import { borrowingCost, compareOffers, equityGap, looksMispriced, netAdvance } from "@shared/domain/borrowing";
+import { borrowingCost, compareOffers, looksMispriced, netAdvance } from "@shared/domain/borrowing";
 import { cashRequired, exitHeadroom, fundingMetrics, refinanceDscr } from "@shared/domain/fundingMetrics";
 import { fundingReadiness, WEIGHTS } from "@shared/domain/fundingReadiness";
+import { compareRecordedOffers, type OfferTerms } from "@shared/domain/offers";
 import {
   checkPromotionLanguage,
   classifyRoute,
@@ -119,7 +120,9 @@ describe("what the borrowing really costs", () => {
     const advance = netAdvance(appraisal);
     expect(advance.deducted).toBeGreaterThan(0);
     expect(advance.reason).toContain("deducted at drawdown");
-    expect(equityGap(appraisal.costs.total, advance)).toBeGreaterThan(0);
+    // cashRequired() is the one place this is derived; there is no second
+    // function computing the same thing from the same inputs.
+    expect(cashRequired(appraisal)).toBeGreaterThan(0);
   });
 
   it("compares two offers on total cost rather than headline rate", () => {
@@ -426,5 +429,78 @@ describe("language that must not reach an investor", () => {
   it("says why, not merely that it failed", () => {
     const finding = checkPromotionLanguage("a guaranteed return").findings[0];
     expect(finding?.why).toContain("guaranteed");
+  });
+});
+
+/* ---------------------------------------------------------------- offers */
+
+function offer(overrides: Partial<OfferTerms> = {}): OfferTerms {
+  return {
+    id: "o1",
+    lender: "Lender A",
+    annualRateBps: 1_200,
+    arrangementFeeBps: 200,
+    brokerFeeBps: 0,
+    exitFeeBps: 100,
+    ltvBps: 7_000,
+    lenderCosts: 150_000,
+    interestRolledUp: true,
+    termMonths: 9,
+    confidence: "indicative",
+    ...overrides,
+  };
+}
+
+describe("comparing the offers received", () => {
+  it("asks for three when none are recorded", () => {
+    const report = compareRecordedOffers(deal(), []);
+    expect(report.offers).toEqual([]);
+    expect(report.summary).toContain("three");
+  });
+
+  it("says a single quote is a price, not a market", () => {
+    expect(compareRecordedOffers(deal(), [offer()]).summary).toContain("not a market");
+  });
+
+  it("ranks by total cost, not by rate", () => {
+    // The cheap rate carrying heavy fees is the dearer loan.
+    const report = compareRecordedOffers(deal(), [
+      offer({ id: "cheap-rate", lender: "Heavy fees", annualRateBps: 900, arrangementFeeBps: 800 }),
+      offer({ id: "dear-rate", lender: "No fees", annualRateBps: 1_300, arrangementFeeBps: 0, exitFeeBps: 0 }),
+    ]);
+    expect(report.cheapest?.terms.lender).toBe("No fees");
+    expect(report.offers[0]?.terms.lender).toBe("No fees");
+  });
+
+  it("counts a broker fee that a rate comparison would miss", () => {
+    const report = compareRecordedOffers(deal(), [
+      offer({ id: "a", lender: "With broker", brokerFeeBps: 200 }),
+      offer({ id: "b", lender: "Without" }),
+    ]);
+    expect(report.cheapest?.terms.lender).toBe("Without");
+  });
+
+  it("warns where the cheapest loan is not the one that completes", () => {
+    // Retained interest on a large facility can leave less on the day than a
+    // dearer loan that services monthly.
+    const report = compareRecordedOffers(deal(), [
+      offer({ id: "a", lender: "Cheapest", ltvBps: 6_000, interestRolledUp: true }),
+      offer({ id: "b", lender: "Biggest advance", ltvBps: 7_500, interestRolledUp: false, annualRateBps: 1_500 }),
+    ]);
+    if (report.cheapest?.terms.id !== report.largestAdvance?.terms.id) {
+      expect(report.summary).toContain("does not complete");
+    }
+    expect(report.largestAdvance?.netAdvance).toBeGreaterThanOrEqual(report.cheapest?.netAdvance ?? 0);
+  });
+
+  it("reports the sponsor cash each offer leaves to find", () => {
+    const report = compareRecordedOffers(deal(), [offer()]);
+    expect(report.offers[0]?.sponsorCash).toBeGreaterThan(0);
+    expect(report.offers[0]?.netAdvance).toBeLessThan(report.offers[0]?.cost.facility ?? 0);
+  });
+
+  it("keeps each offer's confidence, because indicative is not binding", () => {
+    const report = compareRecordedOffers(deal(), [offer({ confidence: "binding" })]);
+    expect(report.offers[0]?.confidence).toBe("binding");
   });
 });

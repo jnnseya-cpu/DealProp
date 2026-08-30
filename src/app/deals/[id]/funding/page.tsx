@@ -12,6 +12,10 @@ import { fundingMetrics } from "@shared/domain/fundingMetrics";
 import { fundingReadiness } from "@shared/domain/fundingReadiness";
 import { classifyRoute } from "@shared/domain/regulatoryRoute";
 import { gbp, percent } from "@shared/format";
+import { EvidenceForm } from "./EvidenceForm";
+import { BorrowerFactsForm } from "./BorrowerFactsForm";
+import { OfferForm } from "./OfferForm";
+import { compareRecordedOffers } from "@shared/domain/offers";
 import { bps, ZERO } from "@shared/money";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +50,7 @@ export default async function FundingPage({ params }: { params: Promise<{ id: st
   const working = toWorkingDeal(record.inputs);
   const appraisal = appraise(working.inputs);
   const borrowing = borrowingReport(appraisal);
+  const comparison = compareRecordedOffers(working.inputs, record.offers ?? []);
   const metrics = fundingMetrics(appraisal, record.evidence?.committedCash);
   const route =
     record.borrowerFacts !== undefined
@@ -109,12 +114,18 @@ export default async function FundingPage({ params }: { params: Promise<{ id: st
         ) : (
           <Section title="Regulatory route">
             <p className="text-sm leading-relaxed text-amber-300">
-              Not classified. Record the borrower&rsquo;s legal form, business purpose and whether the
-              security includes a dwelling they occupy. Until then no introduction may be made — an
-              unclassified transaction routes to review, never to permitted.
+              Not classified. Until it is, no introduction may be made — an unclassified transaction
+              routes to review, never to permitted.
             </p>
           </Section>
         )}
+
+        <Section title="Borrower facts">
+          <BorrowerFactsForm
+            dealId={record.id}
+            current={record.borrowerFacts as unknown as Record<string, unknown> | undefined}
+          />
+        </Section>
 
         <Section title="What the borrowing costs">
           <dl className="space-y-3">
@@ -175,6 +186,47 @@ export default async function FundingPage({ params }: { params: Promise<{ id: st
           <p className="mt-5 font-mono text-[11px] text-ink-600">
             Formula version {metrics.formulaVersion}
           </p>
+        </Section>
+
+        <Section title="Offers received">
+          <p className="text-sm leading-relaxed text-ink-300">{comparison.summary}</p>
+          {comparison.offers.length > 0 && (
+            <ul className="mt-4 space-y-3">
+              {comparison.offers.map((offer) => (
+                <li key={offer.terms.id} className="rounded-xl border hairline px-4 py-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-6">
+                    <p className="text-sm text-ink-100">
+                      {offer.terms.lender}
+                      <span className="ml-2 font-mono text-[10px] uppercase tracking-wider text-ink-500">
+                        {offer.confidence}
+                      </span>
+                    </p>
+                    <p className="font-mono text-xs text-ink-300">
+                      total {gbp(offer.cost.total)}
+                      <span className="text-ink-600"> · </span>
+                      advance {gbp(offer.netAdvance)}
+                      <span className="text-ink-600"> · </span>
+                      sponsor {gbp(offer.sponsorCash)}
+                    </p>
+                  </div>
+                  <p className="mt-1 font-mono text-[11px] text-ink-600">
+                    {(offer.terms.annualRateBps / 100).toFixed(2)}% a year over {offer.terms.termMonths} months
+                    {offer.terms.brokerFeeBps > 0 ? `, ${(offer.terms.brokerFeeBps / 100).toFixed(2)}% broker fee` : ""}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-6 border-t hairline pt-6">
+            <OfferForm dealId={record.id} />
+          </div>
+        </Section>
+
+        <Section title="Record what can be proved">
+          <EvidenceForm
+            dealId={record.id}
+            current={(record.evidence ?? {}) as unknown as Record<string, unknown>}
+          />
         </Section>
 
         <Section title="What the pack still needs">

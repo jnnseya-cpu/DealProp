@@ -27,6 +27,14 @@ a claim that the whole thing is built.
 | §9A discovery connectors | `src/backend/discovery/` | robots.txt parsed and obeyed, per-host rate limiting, licence-gated fetcher, official APIs for Companies House and the FCA Register, verbatim extraction from a funder's own site |
 | §9A verification statuses assigned from evidence | `buildCandidate()` | `VERIFIED` only where the company is confirmed trading and a business address is published; name mismatch against the register becomes `CONFLICTING` |
 | §9A quarantine until approval | `/operator/discovery` | Candidates are unapprovable unless `VERIFIED`; approval is by a named person and audited; suppression survives a rerun |
+| §9A discovery runs | `/operator/discovery` | A named list of organisations, at most 25 a run, verified against the official records |
+| §9A three-stage outreach, stage one | `/operator/outreach` | Draft, approve, send — three actions because they are three decisions. Re-checked against the suppression list at the moment of sending |
+| §9A suppression, applied before every send | `suppressions` table | Keyed by address, not by organisation. A "remove me" reply adds one with nobody present |
+| §9A inbound reply handling | `POST /api/outreach/reply` | Classified, suppressed and recorded against the message it answers |
+| §9A opt-out | `/outreach/opt-out` | One click, no account, no confirmation step |
+| §10 offers recorded and compared | `/deals/[id]/funding` | Terms stored, totals recomputed from the engine every time |
+| §7 evidence and borrower facts recorded | `/deals/[id]/funding` | The readiness score and the regulatory route read what is entered here |
+| Checkout authorisation | `POST /api/billing/checkout` | Prices from the catalogue; the request body has no amount field; fails closed with no provider |
 | Immutable audit of material actions | `audit_events`, ledger | Append-only, enforced by database rule |
 
 Surfaced at **`/deals/[id]/funding`**.
@@ -53,16 +61,21 @@ Implemented as real tests where they apply to what is built:
 
 Listed rather than left to be discovered.
 
-- **§9A autonomous search.** The connectors are built, but nothing crawls. A run
-  takes organisations an operator names — from a trade directory, a referral, a
+- **§9A autonomous search.** The connectors run, but nothing crawls. A run takes
+  organisations an operator names — from a trade directory, a referral, a
   spreadsheet — and verifies each. No source is licensed for harvesting the web
   for firms, so the input is a list rather than a search query. LinkedIn
   scraping and pattern-guessed addresses are refused permanently, not deferred.
-- **§9A sending.** Nothing sends. The eligibility engine decides whether a send
-  would be lawful; there is no mailbox connector, no campaign scheduler, no
-  bounce or complaint processing.
+- **§9A campaign automation.** Sending works, one message at a time, each
+  approved by a named person. There is no scheduler, no business-hours pacing,
+  no bounce or complaint webhook, and no per-domain frequency cap beyond
+  "already contacted about this deal".
+- **§9A stages two and three.** Only the anonymous mandate enquiry is built.
+  Transmitting a teaser and granting watermarked data-room access are not.
 - **Live verification.** Outbound access is blocked in this build environment,
-  so no connector has made a real call. Parsers are fixture-tested against the
+  so no connector has made a real call. A run here correctly produces a
+  quarantined candidate rather than an error: robots.txt cannot be read, and
+  unreadable means no. Parsers are fixture-tested against the
   published field definitions and the gates are tested against an injected
   transport. Make one live call per source before relying on any of it.
 - **§3 state machine.** Deals carry a `status` field, not the twelve-state

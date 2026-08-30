@@ -12,7 +12,9 @@ import type {
   ReversalResult,
   SpendInput,
   SpendResult,
+  OutreachMessage,
   StoredCandidate,
+  Suppression,
   TopUpInput,
   TopUpResult,
   Database,
@@ -32,7 +34,9 @@ export type {
   ReversalResult,
   SpendInput,
   SpendResult,
+  OutreachMessage,
   StoredCandidate,
+  Suppression,
   TopUpInput,
   TopUpResult,
   Database,
@@ -233,6 +237,22 @@ export async function listDiscoveryCandidates() {
 
 export async function saveDiscoveryCandidate(entry: StoredCandidate) {
   return (await store()).saveDiscoveryCandidate(entry);
+}
+
+export async function listOutreachMessages() {
+  return (await store()).listOutreachMessages();
+}
+
+export async function saveOutreachMessage(message: OutreachMessage) {
+  return (await store()).saveOutreachMessage(message);
+}
+
+export async function listSuppressions() {
+  return (await store()).listSuppressions();
+}
+
+export async function addSuppression(entry: Suppression) {
+  return (await store()).addSuppression(entry);
 }
 
 export async function recordAllowanceUse(input: AllowanceInput): Promise<AllowanceResult> {

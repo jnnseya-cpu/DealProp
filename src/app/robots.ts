@@ -16,7 +16,18 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/deals", "/invest", "/capital", "/operator", "/account", "/sell/", "/api/"],
+        disallow: [
+          "/deals",
+          "/invest",
+          "/capital",
+          "/operator",
+          "/account",
+          "/sell/",
+          "/api/",
+          // Carries a recipient's own address in the query string. Nothing to
+          // index, and no reason for it to appear in a search result.
+          "/outreach/",
+        ],
       },
     ],
     sitemap: `${siteUrl()}/sitemap.xml`,

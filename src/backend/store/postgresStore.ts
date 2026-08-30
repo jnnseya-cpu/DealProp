@@ -23,7 +23,9 @@ import type {
   ReversalResult,
   SpendInput,
   SpendResult,
+  OutreachMessage,
   StoredCandidate,
+  Suppression,
   TopUpInput,
   TopUpResult,
   Database,
@@ -150,6 +152,18 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS ledger_entries_account ON ledger_entries (account_id, at);
   -- Discovered funders, quarantined until a person approves them.
+  CREATE TABLE IF NOT EXISTS outreach_messages (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    created_at timestamptz NOT NULL
+  );
+  -- Keyed by address, because one mailbox can appear against several
+  -- organisations and somebody who asked to be left alone asked once.
+  CREATE TABLE IF NOT EXISTS suppressions (
+    email text PRIMARY KEY,
+    reason text NOT NULL,
+    at timestamptz NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS discovery_candidates (
     id text PRIMARY KEY,
     data jsonb NOT NULL,
@@ -846,6 +860,42 @@ export const postgresStore: Store = {
       );
       return merged;
     });
+  },
+
+  async listOutreachMessages(): Promise<readonly OutreachMessage[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: OutreachMessage }>(
+      "SELECT data FROM outreach_messages ORDER BY created_at DESC",
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async saveOutreachMessage(message: OutreachMessage): Promise<OutreachMessage> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO outreach_messages (id, data, created_at) VALUES ($1, $2, $3)
+       ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
+      [message.id, JSON.stringify(message), message.createdAt],
+    );
+    return message;
+  },
+
+  async listSuppressions(): Promise<readonly Suppression[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ email: string; reason: string; at: Date }>(
+      "SELECT email, reason, at FROM suppressions",
+    );
+    return rows.map((r) => ({ email: r.email, reason: r.reason, at: r.at.toISOString() }));
+  },
+
+  async addSuppression(entry: Suppression): Promise<boolean> {
+    await ensureSchema();
+    const { rowCount } = await getPool().query(
+      `INSERT INTO suppressions (email, reason, at) VALUES ($1, $2, $3)
+       ON CONFLICT (email) DO NOTHING`,
+      [entry.email.trim().toLowerCase(), entry.reason, entry.at],
+    );
+    return (rowCount ?? 0) > 0;
   },
 
   async recordAllowanceUse(input: AllowanceInput): Promise<AllowanceResult> {

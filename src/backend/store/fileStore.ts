@@ -24,7 +24,9 @@ import type {
   ReversalResult,
   SpendInput,
   SpendResult,
+  OutreachMessage,
   StoredCandidate,
+  Suppression,
   TopUpInput,
   TopUpResult,
   Database,
@@ -79,6 +81,8 @@ function emptyDatabase(): Database {
     ledgerEntries: [],
     billingEvents: [],
     discoveryCandidates: [],
+    outreachMessages: [],
+    suppressions: [],
   };
 }
 
@@ -104,6 +108,8 @@ async function readDatabase(): Promise<Database> {
       ledgerEntries: parsed.ledgerEntries ?? [],
       billingEvents: parsed.billingEvents ?? [],
       discoveryCandidates: parsed.discoveryCandidates ?? [],
+      outreachMessages: parsed.outreachMessages ?? [],
+      suppressions: parsed.suppressions ?? [],
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -605,6 +611,33 @@ async function saveDiscoveryCandidate(entry: StoredCandidate): Promise<StoredCan
   });
 }
 
+async function listOutreachMessages(): Promise<readonly OutreachMessage[]> {
+  const db = await readDatabase();
+  return [...db.outreachMessages].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+async function saveOutreachMessage(message: OutreachMessage): Promise<OutreachMessage> {
+  return mutate((db) => {
+    const index = db.outreachMessages.findIndex((m) => m.id === message.id);
+    if (index >= 0) db.outreachMessages[index] = message;
+    else db.outreachMessages.push(message);
+    return message;
+  });
+}
+
+async function listSuppressions(): Promise<readonly Suppression[]> {
+  return (await readDatabase()).suppressions;
+}
+
+async function addSuppression(entry: Suppression): Promise<boolean> {
+  return mutate((db) => {
+    const address = entry.email.trim().toLowerCase();
+    if (db.suppressions.some((s) => s.email === address)) return false;
+    db.suppressions.push({ ...entry, email: address });
+    return true;
+  });
+}
+
 async function recordAllowanceUse(input: AllowanceInput): Promise<AllowanceResult> {
   return mutate((db) => {
     const mine = db.ledgerEntries.filter((e) => e.accountId === input.accountId);
@@ -776,6 +809,10 @@ export const fileStore: Store = {
   reverseLotsForPayment,
   listDiscoveryCandidates,
   saveDiscoveryCandidate,
+  listOutreachMessages,
+  saveOutreachMessage,
+  listSuppressions,
+  addSuppression,
   recordAllowanceUse,
   recordNote,
   expireLapsedCredits,

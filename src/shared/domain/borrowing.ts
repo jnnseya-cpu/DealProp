@@ -1,4 +1,4 @@
-import { add, bps, isZero, money, sub, ZERO, type Money } from "@shared/money";
+import { add, bps, isZero, money, ZERO, type Money } from "@shared/money";
 import type { DealAppraisal } from "@shared/domain/types";
 
 /**
@@ -219,15 +219,4 @@ export function borrowingReport(appraisal: DealAppraisal): BorrowingReport {
     advance: netAdvance(appraisal),
     ...(warning !== undefined ? { warning } : {}),
   };
-}
-
-/**
- * Cash the borrower must find, given what the facility will actually pay out.
- *
- * The appraisal's own equity figure assumes the debt contributes its face
- * value. Where interest is retained it does not, and this is the difference
- * that has to be on the completion statement.
- */
-export function equityGap(required: Money, advance: NetAdvance): Money {
-  return money(Math.max(0, sub(required, advance.received)));
 }
