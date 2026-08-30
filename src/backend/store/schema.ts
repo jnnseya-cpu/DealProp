@@ -2,6 +2,8 @@ import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { DealInputs, PropertyFacts, SellerProfile } from "@shared/domain/types";
 import type { ListingSignal } from "@shared/domain/goldmine";
 import type { Milestone } from "@shared/domain/completion";
+import type { FundingEvidence } from "@shared/domain/fundingReadiness";
+import type { BorrowerFacts } from "@shared/domain/regulatoryRoute";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { CreditLot, LedgerEntry } from "@shared/domain/ledger";
@@ -29,6 +31,20 @@ export interface DealRecord {
   readonly inputs: DealInputs;
   readonly listing?: ListingSignal;
   readonly milestones?: readonly Milestone[];
+  /**
+   * What can actually be proved about this deal, as opposed to modelled.
+   *
+   * Optional and absent by default. The readiness score reads it, and absence
+   * scores zero rather than full marks — a title with nothing recorded about it
+   * is not a clean title.
+   */
+  readonly evidence?: FundingEvidence;
+  /**
+   * The facts the regulatory route is classified from.
+   *
+   * Absent means unclassified, which routes to review rather than to permitted.
+   */
+  readonly borrowerFacts?: BorrowerFacts;
   readonly borrowerCompletedDeals: number;
   readonly status: "new" | "qualified" | "in-market" | "funded" | "completed" | "withdrawn";
 }

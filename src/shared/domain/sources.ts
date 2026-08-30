@@ -141,6 +141,55 @@ export const DATA_SOURCES: readonly DataSource[] = [
       "The portals' terms prohibit scraping and automated collection. Use requires a commercial data agreement with the portal, or a licensed reseller such as PropertyData, Sprift or LandInsight. Until one exists this source must not be read.",
   },
   {
+    key: "fca-register",
+    name: "FCA Financial Services Register",
+    publisher: "Financial Conduct Authority",
+    provides:
+      "Whether a firm is authorised, what for, and its registered contact details — which is how a cloned firm is detected, by comparing what a website claims against what the register says.",
+    licence: {
+      name: "FCA Register terms of use",
+      url: "https://register.fca.org.uk/",
+      // Verification only. Republishing the register as a directory is a
+      // different thing from checking one firm against it, and only the second
+      // is what this platform does.
+      permits: ["internal-analysis"],
+      attribution: "Contains FCA Register data",
+      requiresRegistration: true,
+    },
+  },
+  {
+    key: "funder-own-website",
+    name: "A funder's own published mandate",
+    publisher: "The funder",
+    provides:
+      "Published lending criteria and the enquiry address the organisation itself put up for the purpose of being contacted.",
+    licence: {
+      name: "Published by the organisation for enquiries",
+      url: "/legal/outreach",
+      permits: ["internal-analysis"],
+      // Deliberately not redistributable: a published enquiry address may be
+      // used to make an enquiry, not to build a directory to sell.
+      requiresRegistration: false,
+    },
+  },
+  {
+    key: "linkedin-profiles",
+    name: "LinkedIn profiles and company pages",
+    publisher: "LinkedIn",
+    provides: "Named decision-makers, roles and organisation pages.",
+    unlicensedReason:
+      "Automated collection is prohibited by LinkedIn's terms, and profile data is personal data with no lawful basis recorded for this use. Individual manual research by a person is a different activity from an automated feed; this key covers the feed, and it must not be read.",
+  },
+  {
+    key: "inferred-contacts",
+    name: "Pattern-guessed email addresses",
+    publisher: "Nobody",
+    provides:
+      "Nothing. Guessing firstname.lastname@domain produces an address that may belong to a real person who never published it.",
+    unlicensedReason:
+      "There is no source to license, because the data does not come from anywhere. Deriving a personal email address by pattern is not collection but invention, and writing to it is unsolicited contact with somebody who was never asked. Never read, never sent to.",
+  },
+  {
     key: "auction-unsold",
     name: "Auction unsold-lot lists",
     publisher: "Auction houses",

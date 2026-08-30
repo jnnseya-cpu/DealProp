@@ -160,6 +160,16 @@ export interface FinanceTerms {
   readonly annualRateBps: Bps;
   /** Arrangement fee as a proportion of the facility, basis points. */
   readonly arrangementFeeBps: Bps;
+  /**
+   * Broker fee as a proportion of the facility, basis points.
+   *
+   * Optional because it is not always charged, and zero where the broker is
+   * paid by the lender instead. It is here because the cost of borrowing that
+   * matters is the total, and a comparison run on the headline monthly rate
+   * alone will pick the wrong lender: a cheaper rate with a two per cent broker
+   * fee is dearer than a higher rate with none over a nine-month term.
+   */
+  readonly brokerFeeBps?: Bps;
   /** Exit fee as a proportion of the facility, basis points. */
   readonly exitFeeBps: Bps;
   /** True where interest is retained/rolled rather than serviced monthly. */
@@ -208,6 +218,7 @@ export interface CostStack {
   readonly buyerLegal: Money;
   readonly survey: Money;
   readonly financeArrangement: Money;
+  readonly financeBroker: Money;
   readonly financeInterest: Money;
   readonly financeExit: Money;
   readonly lenderCosts: Money;

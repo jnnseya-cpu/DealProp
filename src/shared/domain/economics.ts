@@ -76,6 +76,7 @@ export function buildCostStack(inputs: DealInputs): CostStack {
 
   const facility = seniorFacility(inputs);
   const financeArrangement = applyBps(facility.total, finance.arrangementFeeBps);
+  const financeBroker = applyBps(facility.total, finance.brokerFeeBps ?? bps(0));
   const interest = financeInterest(
     facility.drawnForInterest,
     finance.annualRateBps,
@@ -102,6 +103,7 @@ export function buildCostStack(inputs: DealInputs): CostStack {
     d.buyerLegal,
     d.survey,
     financeArrangement,
+    financeBroker,
     interest,
     financeExit,
     finance.lenderCosts,
@@ -118,6 +120,7 @@ export function buildCostStack(inputs: DealInputs): CostStack {
     buyerLegal: d.buyerLegal,
     survey: d.survey,
     financeArrangement,
+    financeBroker,
     financeInterest: interest,
     financeExit,
     lenderCosts: finance.lenderCosts,

@@ -30,7 +30,7 @@ uninformative: no version, no hostnames, no error text.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 488 tests
+npm test          # 556 tests
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 ```
@@ -50,6 +50,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Pipeline | `/deals` | Every opportunity scored after tax, blocked deals included |
 | Deal Room | `/deals/[id]` | Verdict, full model, Red Team, capital stack, matched mandates |
 | Memorandum | `/deals/[id]/memorandum` | Print-ready pack from the same briefing, with the promotion notice |
+| Funding | `/deals/[id]/funding` | Readiness score, true cost of borrowing, net advance, funder ratios |
 | Blog | `/blog` | Posts written by the agent from real engine output |
 | Post | `/blog/[slug]` | Auto-linked glossary terms, related posts, JSON-LD |
 | Topic hub | `/blog/topic/[topic]` | Six hubs, each linking its posts and definitions |
@@ -88,6 +89,11 @@ listed honestly in [Not built yet](#not-built-yet).
 | Trade partners | `src/shared/domain/partners.ts` | Who does the works, why, and the disclosure |
 | Analytics gate | `src/shared/domain/analytics.ts` | Which routes and events a pixel may ever see |
 | SEO audit | `src/shared/domain/seo.ts` | Scores every post against what this codebase controls |
+| Borrowing | `src/shared/domain/borrowing.ts` | Total cost of a facility, and what actually arrives on the day |
+| Funding metrics | `src/shared/domain/fundingMetrics.ts` | LTV, LTGDV, LTC, funding gap, exit headroom, refinance cover |
+| Finance readiness | `src/shared/domain/fundingReadiness.ts` | Is this pack ready for a funder, and what is missing |
+| Regulatory routing | `src/shared/domain/regulatoryRoute.ts` | Which perimeter an introduction falls under, and whether it may proceed |
+| Outreach | `src/shared/domain/outreach.ts` | Whether contacting a funder would be lawful, before anything is drafted |
 | Catalogue | `src/shared/domain/pricing.ts` | Every price, plan limit and tax decision, in one place |
 | Entitlements | `src/shared/domain/entitlements.ts` | What a plan grants, and exactly when it stops |
 | Ledger | `src/shared/domain/ledger.ts` | Prepaid balance: lots, spend, refund, chargeback, expiry |
@@ -414,7 +420,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 488 tests, Postgres suite skipped
+npm test          # 556 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -738,6 +744,91 @@ an unauthorised credit-broking fee is unenforceable, so it is money delivered
 against, taken, and then given back with a penalty on top. Only subscriptions and
 prepaid usage have no permission dependency, which is why they are the only two
 things sellable today.
+
+---
+
+## Funding an acquisition
+
+`docs/PAF-OS.md` maps the Priority Acquisition Funding specification against
+what exists, section by section, including what does not.
+
+### The number that fails deals
+
+A facility is not a cash sum. Where interest is retained the lender deducts the
+whole term's interest at drawdown, and fees usually go the same way. On a seeded
+deal the platform reports it plainly:
+
+> The facility is £154,400 but £13,303 is deducted at drawdown, so £141,097
+> reaches the completion account.
+
+A sponsor who planned the completion statement around £154,400 is short with the
+clock running. `netAdvance()` computes it, and `cashRequired()` derives the
+sponsor's cash from the net advance rather than the face value of the debt —
+which is the difference between a funding plan that works and one that fails on
+the day.
+
+### Comparing lenders on the total, not the rate
+
+The comparable figure is interest **plus** arrangement fee **plus** broker fee
+**plus** valuation and legal costs **plus** exit fee, over the actual term. A
+cheaper rate carrying a two per cent broker fee is dearer than a higher rate
+carrying none over nine months, and `compareOffers()` says so in those terms.
+The broker fee was missing from the cost stack until this was built, so every
+comparison before it understated one lender against another.
+
+### The ratios a funder decides on
+
+LTV against the price and against the valuation are reported separately, because
+the difference is exactly where a deal gets talked into looking fundable. Also
+LTGDV, LTC, the funding gap against cash **committed with evidence**, exit
+headroom, and refinance debt service cover — which is rendered as a multiple,
+never a percentage, because a cover of 0.53× shown as "52.6%" reads as
+comfortable when it means unfundable.
+
+### Finance readiness
+
+0–100 across eight weighted components: legal and title 15, valuation 15,
+capital stack 15, exit 15, planning 10, borrower and identity 10, costs and
+programme 10, evidence quality 10.
+
+Scored against evidence **recorded**, never against the absence of a problem. A
+title with nothing recorded scores zero, not full marks — the most expensive way
+to discover a pack is incomplete is for a lender to discover it first, having
+already charged for a valuation. It is triage, not approval, and the page says
+so above the number.
+
+### Whether an introduction may be made at all
+
+`classifyRoute()` returns one of six routes and every uncertainty routes to
+review rather than to permitted. The test that overrides everything else: a loan
+secured on a dwelling the borrower or a relative occupies is a regulated
+mortgage contract whatever purpose anybody has declared. An unauthorised
+introduction is not merely a compliance problem — the agreement is unenforceable
+and the fee unrecoverable, on top of any penalty.
+
+### Contacting funders
+
+The specification asks for an agent that discovers and writes to funders. The
+half that governs contact is built; the half that scrapes is not, deliberately.
+
+Nothing sends. `outreachEligibility()` decides whether a send would be lawful
+and returns one of `SEND_ALLOWED`, `DRAFT_ONLY`, `CONSENT_REQUIRED`,
+`COMPLIANCE_APPROVAL_REQUIRED`, `PROMOTION_APPROVAL_REQUIRED` or
+`DO_NOT_CONTACT`. Opt-outs and warning-list matches end the question before
+anything else is weighed. An address a model inferred is never sent to. An
+unknown recipient type is treated as an individual, not as a company — getting
+that the other way round is how a lawful B2B campaign becomes an unlawful one.
+
+A stage-one enquiry is anonymous and checked for it: no postcode, no street, no
+mention of the seller's circumstances, no projected return, sender identified,
+opt-out present. "Remove me" is matched by rule before any classification runs,
+so no model's confidence can decide otherwise.
+
+Discovery sources go through the same licence gate as every other source.
+LinkedIn scraping and pattern-guessed email addresses are refused permanently
+with the reason recorded — a guessed address is not collected from anywhere, it
+is invented, and writing to it is unsolicited contact with somebody who was
+never asked.
 
 ---
 
