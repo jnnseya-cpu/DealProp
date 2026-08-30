@@ -24,6 +24,9 @@ a claim that the whole thing is built.
 | §9A reply classification and immediate suppression | `classifyReply()` | Removal matched by rule first, so no model confidence can override it |
 | §9A candidate deduplication retaining provenance | `reconcile()` | Conflicting identity becomes `CONFLICTING` rather than one value winning |
 | §9A discovery sources and their licences | `src/shared/domain/sources.ts` | FCA Register, Companies House, funders' own published mandates licensed; LinkedIn and guessed addresses refused with the reason recorded |
+| §9A discovery connectors | `src/backend/discovery/` | robots.txt parsed and obeyed, per-host rate limiting, licence-gated fetcher, official APIs for Companies House and the FCA Register, verbatim extraction from a funder's own site |
+| §9A verification statuses assigned from evidence | `buildCandidate()` | `VERIFIED` only where the company is confirmed trading and a business address is published; name mismatch against the register becomes `CONFLICTING` |
+| §9A quarantine until approval | `/operator/discovery` | Candidates are unapprovable unless `VERIFIED`; approval is by a named person and audited; suppression survives a rerun |
 | Immutable audit of material actions | `audit_events`, ledger | Append-only, enforced by database rule |
 
 Surfaced at **`/deals/[id]/funding`**.
@@ -44,19 +47,24 @@ Implemented as real tests where they apply to what is built:
 | §9A.6 "Remove me" is actioned at low confidence | `tests/outreach.test.ts` |
 | §9A.9 No restricted promotion without recorded approval | `tests/outreach.test.ts` |
 | §9A.10 One organisation from several sources, provenance kept | `tests/outreach.test.ts` |
+| §9A.8 Every discovered field traceable to a source and observation date | `tests/discovery.test.ts` |
 
 ## Not built
 
 Listed rather than left to be discovered.
 
-- **§9A discovery connectors.** No source is read automatically. The registry
-  says which sources are licensed for what; writing a connector for one that is
-  not is prohibited by `assertSourceUsable()`, and outbound access is blocked in
-  this environment anyway. LinkedIn scraping and pattern-guessed email addresses
-  are refused permanently, with the reason recorded, not deferred.
+- **§9A autonomous search.** The connectors are built, but nothing crawls. A run
+  takes organisations an operator names — from a trade directory, a referral, a
+  spreadsheet — and verifies each. No source is licensed for harvesting the web
+  for firms, so the input is a list rather than a search query. LinkedIn
+  scraping and pattern-guessed addresses are refused permanently, not deferred.
 - **§9A sending.** Nothing sends. The eligibility engine decides whether a send
   would be lawful; there is no mailbox connector, no campaign scheduler, no
-  bounce or complaint processing and no suppression store.
+  bounce or complaint processing.
+- **Live verification.** Outbound access is blocked in this build environment,
+  so no connector has made a real call. Parsers are fixture-tested against the
+  published field definitions and the gates are tested against an injected
+  transport. Make one live call per source before relying on any of it.
 - **§3 state machine.** Deals carry a `status` field, not the twelve-state
   command-driven lifecycle with permission-checked, audited transitions.
 - **§5 document engine.** No vault, no OCR, no extraction, no checksums, no
@@ -78,10 +86,18 @@ Listed rather than left to be discovered.
 ## Two judgements worth stating
 
 **Discovery is a licensing question before it is an engineering one.** The
-specification says to respect robots directives, source terms and licensing, and
-never to infer private email addresses. Building the connectors first and
-legalising them afterwards would invert that, so the licence registry gates them
-and a source with nothing recorded yields nothing.
+connectors exist, and every one of them is gated: a recorded licence, an
+allowlisted host, HTTPS with no credentials in the URL, robots.txt obeyed,
+per-host rate limiting, and a 401, 403 or 429 treated as an answer rather than
+an obstacle. A source with no recorded licence fetches nothing at all — checked
+before a request is made, so a prohibited source generates no traffic.
+
+Extraction has no inference path. The only constructor of a discovered fact
+takes the exact substring found in the document, so `firstname.lastname@domain`
+cannot be produced: guessing is not collection, and a guessed address has no
+source, no observation date and no lawful basis to record. A named individual's
+published mailbox is found and deliberately not taken, with the reason shown to
+the reviewer.
 
 **The compliance logic is a technical control framework, not a legal
 determination.** `ROUTING_RULES.requiresCounselApproval` is `true` and starts

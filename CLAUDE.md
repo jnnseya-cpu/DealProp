@@ -78,7 +78,10 @@ against what exists. `borrowing.ts` gives the true cost of a facility and the ne
 advance; `fundingMetrics.ts` the ratios a funder decides on; `fundingReadiness.ts`
 the 0-100 pack score; `regulatoryRoute.ts` whether an introduction may be made;
 `outreach.ts` whether contacting somebody would be lawful. Surfaced at
-`/deals/[id]/funding`.
+`/deals/[id]/funding`. Discovery lives in `src/backend/discovery/`: `robots.ts`
+parses and obeys robots.txt, `fetcher.ts` is the ONLY outbound path and gates
+every request, `extract.ts` has no inference path, `connectors.ts` reads the
+three licensed sources. Candidates are quarantined at `/operator/discovery`.
 Analytics: Meta Pixel and Google Tag load from `src/app/components/Analytics.tsx`
 only, gated on a configured ID, granted consent, an allowlisted route and a known
 event. `src/shared/domain/analytics.ts` decides where and what; `src/shared/consent.ts`
@@ -86,7 +89,7 @@ decides whether; `src/shared/eventQueue.ts` holds events until the vendor script
 exist. Blog opens are counted independently at `POST /api/blog/view` and shown
 with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
-556 tests in `tests/` (557 with Postgres). All pass. Build succeeds. All routes return 200.
+600 tests in `tests/` (601 with Postgres). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -197,7 +200,15 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     type is treated as an individual. Opt-outs end the question.
 38. **Discovery is a licensing question first.** No connector for a source with
     no recorded licence. Guessed email addresses are invention, not collection.
-39. **Engines are deterministic.** LLMs belong at the edges proposing
+39. **Every discovery request goes through `Fetcher`.** Licence, host allowlist,
+    HTTPS without credentials, robots.txt, rate limit, and a 401/403/429 treated
+    as an answer. Never add a second outbound path.
+40. **A contact detail is extracted or it does not exist.** There is no code
+    path that builds one from parts, and there must never be one. A named
+    individual's mailbox is recorded as rejected, with the reason, not taken.
+41. **Only a VERIFIED candidate may be approved, by a named person.**
+    Suppression survives a rerun; approval never overrides it.
+42. **Engines are deterministic.** LLMs belong at the edges proposing
     structured values — never deciding a score or clearing a flag.
 
 ### Outstanding
@@ -273,7 +284,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 556 tests
+npx vitest run       # 600 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

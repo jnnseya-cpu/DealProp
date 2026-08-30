@@ -23,6 +23,7 @@ import type {
   ReversalResult,
   SpendInput,
   SpendResult,
+  StoredCandidate,
   TopUpInput,
   TopUpResult,
   Database,
@@ -148,6 +149,13 @@ const SCHEMA = `
     reason text NOT NULL
   );
   CREATE INDEX IF NOT EXISTS ledger_entries_account ON ledger_entries (account_id, at);
+  -- Discovered funders, quarantined until a person approves them.
+  CREATE TABLE IF NOT EXISTS discovery_candidates (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    discovered_at timestamptz NOT NULL,
+    approved_at timestamptz
+  );
   -- Append-only enforced by the database, not by convention.
   --
   -- Every statement in this codebase against this table is an INSERT, but that
@@ -799,6 +807,44 @@ export const postgresStore: Store = {
       }
 
       return { lotsReversed, balanceRemoved, debt };
+    });
+  },
+
+  async listDiscoveryCandidates(): Promise<readonly StoredCandidate[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: StoredCandidate }>(
+      "SELECT data FROM discovery_candidates ORDER BY discovered_at DESC",
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async saveDiscoveryCandidate(entry: StoredCandidate): Promise<StoredCandidate> {
+    return transaction(async (client) => {
+      const { rows } = await client.query<{ data: StoredCandidate }>(
+        "SELECT data FROM discovery_candidates WHERE id = $1 FOR UPDATE",
+        [entry.candidate.id],
+      );
+      const existing = rows[0]?.data;
+      // Suppression and approval survive a rerun. Neither is something a fresh
+      // crawl gets to withdraw.
+      const merged: StoredCandidate = {
+        ...entry,
+        candidate: {
+          ...entry.candidate,
+          optedOut: entry.candidate.optedOut || (existing?.candidate.optedOut ?? false),
+          doNotContact: entry.candidate.doNotContact || (existing?.candidate.doNotContact ?? false),
+        },
+        ...(existing?.approvedAt !== undefined
+          ? { approvedAt: existing.approvedAt, approvedBy: existing.approvedBy }
+          : {}),
+      };
+      await client.query(
+        `INSERT INTO discovery_candidates (id, data, discovered_at, approved_at)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, approved_at = EXCLUDED.approved_at`,
+        [merged.candidate.id, JSON.stringify(merged), merged.discoveredAt, merged.approvedAt ?? null],
+      );
+      return merged;
     });
   },
 

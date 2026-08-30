@@ -30,7 +30,7 @@ uninformative: no version, no hostnames, no error text.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 556 tests
+npm test          # 600 tests
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 ```
@@ -420,7 +420,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 556 tests, Postgres suite skipped
+npm test          # 600 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -824,11 +824,37 @@ mention of the seller's circumstances, no projected return, sender identified,
 opt-out present. "Remove me" is matched by rule before any classification runs,
 so no model's confidence can decide otherwise.
 
-Discovery sources go through the same licence gate as every other source.
-LinkedIn scraping and pattern-guessed email addresses are refused permanently
-with the reason recorded — a guessed address is not collected from anywhere, it
-is invented, and writing to it is unsolicited contact with somebody who was
-never asked.
+### The discovery connectors
+
+Built, and gated six ways. Every outbound request passes: a recorded licence
+(checked before any traffic is generated), an allowlisted host bound to the
+source, HTTPS with no credentials in the URL, robots.txt fetched and obeyed,
+per-host rate limiting at the publisher's crawl-delay or our two-second floor
+whichever is slower, and a 401, 403 or 429 treated as an answer — no retry, no
+alternative route.
+
+Companies House and the FCA Register are read through their official APIs, not
+scraped. Both need a key issued against accepted terms, and that acceptance is
+the licence, so without the key nothing is read. A funder's own site is read
+under its own robots.txt and bound to the verified domain, so a link or a
+redirect cannot walk the fetch onto somebody else's site.
+
+**Extraction has no inference path.** The only constructor of a discovered fact
+takes the exact substring found in the document, so `firstname.lastname@domain`
+cannot be produced at all. A named individual's published mailbox is found and
+deliberately *not* taken — outreach goes to a business channel, not to a person
+who has never been told why we have their address — and the reason is shown to
+the reviewer rather than the address being silently dropped.
+
+Every candidate is quarantined at `/operator/discovery` until a named person
+approves it, and only a fully `VERIFIED` candidate can be approved. A name that
+disagrees with the register becomes `CONFLICTING` rather than one value winning,
+because that mismatch is the signature of a cloned firm. Suppression survives a
+rerun and is not something an approval overrides.
+
+Nothing crawls. No source is licensed for harvesting the web for firms, so a run
+takes organisations an operator names and verifies each. LinkedIn scraping and
+pattern-guessed addresses are refused permanently with the reason recorded.
 
 ---
 

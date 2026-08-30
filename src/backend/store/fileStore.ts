@@ -24,6 +24,7 @@ import type {
   ReversalResult,
   SpendInput,
   SpendResult,
+  StoredCandidate,
   TopUpInput,
   TopUpResult,
   Database,
@@ -77,6 +78,7 @@ function emptyDatabase(): Database {
     creditLots: [],
     ledgerEntries: [],
     billingEvents: [],
+    discoveryCandidates: [],
   };
 }
 
@@ -101,6 +103,7 @@ async function readDatabase(): Promise<Database> {
       creditLots: parsed.creditLots ?? [],
       ledgerEntries: parsed.ledgerEntries ?? [],
       billingEvents: parsed.billingEvents ?? [],
+      discoveryCandidates: parsed.discoveryCandidates ?? [],
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -571,6 +574,37 @@ async function reverseLotsForPayment(input: ReversalInput): Promise<ReversalResu
   });
 }
 
+async function listDiscoveryCandidates(): Promise<readonly StoredCandidate[]> {
+  const db = await readDatabase();
+  return [...db.discoveryCandidates].sort((a, b) => b.discoveredAt.localeCompare(a.discoveredAt));
+}
+
+async function saveDiscoveryCandidate(entry: StoredCandidate): Promise<StoredCandidate> {
+  return mutate((db) => {
+    const index = db.discoveryCandidates.findIndex((c) => c.candidate.id === entry.candidate.id);
+    if (index < 0) {
+      db.discoveryCandidates.push(entry);
+      return entry;
+    }
+    const existing = db.discoveryCandidates[index];
+    // A rerun must not un-suppress somebody or quietly withdraw an approval a
+    // person gave. Both are sticky in the direction that protects the recipient.
+    const merged: StoredCandidate = {
+      ...entry,
+      candidate: {
+        ...entry.candidate,
+        optedOut: entry.candidate.optedOut || (existing?.candidate.optedOut ?? false),
+        doNotContact: entry.candidate.doNotContact || (existing?.candidate.doNotContact ?? false),
+      },
+      ...(existing?.approvedAt !== undefined
+        ? { approvedAt: existing.approvedAt, approvedBy: existing.approvedBy }
+        : {}),
+    };
+    db.discoveryCandidates[index] = merged;
+    return merged;
+  });
+}
+
 async function recordAllowanceUse(input: AllowanceInput): Promise<AllowanceResult> {
   return mutate((db) => {
     const mine = db.ledgerEntries.filter((e) => e.accountId === input.accountId);
@@ -740,6 +774,8 @@ export const fileStore: Store = {
   applyTopUp,
   spendCredits,
   reverseLotsForPayment,
+  listDiscoveryCandidates,
+  saveDiscoveryCandidate,
   recordAllowanceUse,
   recordNote,
   expireLapsedCredits,

@@ -464,6 +464,43 @@ function checkBilling(): void {
   );
 }
 
+/* ------------------------------------------------------------- discovery */
+
+function checkDiscovery(): void {
+  const ch = env.COMPANIES_HOUSE_API_KEY;
+  const fcaEmail = env.FCA_REGISTER_EMAIL;
+  const fcaKey = env.FCA_REGISTER_KEY;
+
+  const configured = [ch, fcaEmail, fcaKey].filter((v) => v !== undefined && v !== "").length;
+
+  if (configured === 0) {
+    warn(
+      "Discovery",
+      "No discovery credentials are set, so no funder can be verified against Companies House or the FCA Register. Candidates will stay PARTIALLY_VERIFIED and none may be approved for outreach.",
+      "Set COMPANIES_HOUSE_API_KEY, and FCA_REGISTER_EMAIL with FCA_REGISTER_KEY. Both keys are issued against accepted terms, and that acceptance is the licence.",
+    );
+    return;
+  }
+
+  if ((fcaEmail === undefined || fcaEmail === "") !== (fcaKey === undefined || fcaKey === "")) {
+    block(
+      "Discovery",
+      "FCA Register access is half configured. One of FCA_REGISTER_EMAIL and FCA_REGISTER_KEY is missing, so every regulatory check will fail silently and firms will pass verification unchecked.",
+      "Set both, or neither.",
+    );
+  }
+
+  if (env.NEXT_PUBLIC_SITE_URL === undefined || env.NEXT_PUBLIC_SITE_URL === "") {
+    warn(
+      "Discovery",
+      "NEXT_PUBLIC_SITE_URL is not set, so the discovery agent identifies itself to publishers with a placeholder URL.",
+      "Set it. A publisher cannot exercise a preference against a client that will not say who it is or where to read about it.",
+    );
+  } else {
+    pass("Discovery", "Credentials configured and the agent identifies itself with a real URL.");
+  }
+}
+
 /* ------------------------------------------------------------------- run */
 
 async function main(): Promise<void> {
@@ -476,6 +513,7 @@ async function main(): Promise<void> {
   checkAssets();
   checkAnalytics();
   checkBilling();
+  checkDiscovery();
 
   const blockers = checks.filter((c) => c.level === "block");
   const warnings = checks.filter((c) => c.level === "warn");

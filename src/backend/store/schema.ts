@@ -4,6 +4,7 @@ import type { ListingSignal } from "@shared/domain/goldmine";
 import type { Milestone } from "@shared/domain/completion";
 import type { FundingEvidence } from "@shared/domain/fundingReadiness";
 import type { BorrowerFacts } from "@shared/domain/regulatoryRoute";
+import type { Candidate } from "@shared/domain/outreach";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { CreditLot, LedgerEntry } from "@shared/domain/ledger";
@@ -83,6 +84,25 @@ export interface Database {
   ledgerEntries: LedgerEntry[];
   /** Provider event ids already acted on. The webhook replay defence. */
   billingEvents: ProcessedEvent[];
+  /** Funders found by discovery, quarantined until a person approves them. */
+  discoveryCandidates: StoredCandidate[];
+}
+
+/**
+ * A discovered funder, and what was done about it.
+ *
+ * Quarantined on arrival. The specification allows auto-creating a funder
+ * record in a research state, and this is that state: it exists, it is
+ * reviewable, and nothing may be sent to it until somebody has looked.
+ */
+export interface StoredCandidate {
+  readonly candidate: Candidate;
+  /** What the run did and did not take, in the order it happened. */
+  readonly notes: readonly string[];
+  readonly discoveredAt: string;
+  /** Set when a person approved it for outreach. Absent means quarantined. */
+  readonly approvedAt?: string;
+  readonly approvedBy?: string;
 }
 
 export interface ReversalInput {
@@ -329,6 +349,10 @@ export interface Store {
    * unspent is service already delivered, and is written as a debt.
    */
   reverseLotsForPayment(input: ReversalInput): Promise<ReversalResult>;
+
+  listDiscoveryCandidates(): Promise<readonly StoredCandidate[]>;
+  /** Upsert by candidate id. Approval and suppression are never overwritten. */
+  saveDiscoveryCandidate(entry: StoredCandidate): Promise<StoredCandidate>;
 
   /** Count one use of a plan allowance, atomically, against its limit. */
   recordAllowanceUse(input: AllowanceInput): Promise<AllowanceResult>;

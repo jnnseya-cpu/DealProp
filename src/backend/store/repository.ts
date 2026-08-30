@@ -12,6 +12,7 @@ import type {
   ReversalResult,
   SpendInput,
   SpendResult,
+  StoredCandidate,
   TopUpInput,
   TopUpResult,
   Database,
@@ -31,6 +32,7 @@ export type {
   ReversalResult,
   SpendInput,
   SpendResult,
+  StoredCandidate,
   TopUpInput,
   TopUpResult,
   Database,
@@ -223,6 +225,14 @@ export async function spendCredits(input: SpendInput): Promise<SpendResult> {
 
 export async function reverseLotsForPayment(input: ReversalInput): Promise<ReversalResult> {
   return (await store()).reverseLotsForPayment(input);
+}
+
+export async function listDiscoveryCandidates() {
+  return (await store()).listDiscoveryCandidates();
+}
+
+export async function saveDiscoveryCandidate(entry: StoredCandidate) {
+  return (await store()).saveDiscoveryCandidate(entry);
 }
 
 export async function recordAllowanceUse(input: AllowanceInput): Promise<AllowanceResult> {

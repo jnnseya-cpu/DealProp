@@ -56,6 +56,7 @@ async function reset(): Promise<void> {
     creditLots: [],
     ledgerEntries: [],
     billingEvents: [],
+    discoveryCandidates: [],
   });
   rmSync(process.env.LODE_DATA_FILE ?? "", { force: true });
   await saveAccount(investor);
