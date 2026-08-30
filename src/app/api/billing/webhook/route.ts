@@ -21,8 +21,10 @@ import {
   applyTopUp,
   claimBillingEvent,
   getAccount,
+  getPendingCharge,
   getSubscription,
   saveAccount,
+  savePendingCharge,
   recordNote,
   reverseLotsForPayment,
   saveSubscription,
@@ -75,6 +77,8 @@ interface BillingEvent {
   readonly refundedMinorUnits?: number;
   readonly currency?: string;
   readonly packId?: string;
+  /** The pending charge this confirmation settles, where the provider echoes it. */
+  readonly chargeId?: string;
   readonly planId?: string;
   readonly customerCountry?: string;
   readonly customerKind?: CustomerKind;
@@ -165,6 +169,26 @@ export async function POST(request: Request): Promise<NextResponse> {
  * has to agree with what this platform would have charged for the first.
  */
 async function handlePayment(event: BillingEvent, at: string): Promise<NextResponse> {
+  // Where the provider echoes our reference, the confirmation is matched to the
+  // charge we raised rather than to an amount, which can repeat.
+  if (event.chargeId !== undefined) {
+    const pending = await getPendingCharge(event.chargeId);
+    if (pending === undefined) {
+      process.stderr.write(`billing webhook ${event.id}: no pending charge ${event.chargeId}\n`);
+      return ok("No charge on record for that reference. Nothing applied.");
+    }
+    if (pending.settledAt !== undefined) {
+      return ok("That charge is already settled.");
+    }
+    if (event.amountMinorUnits !== pending.amountMinorUnits) {
+      process.stderr.write(
+        `billing webhook ${event.id}: paid ${String(event.amountMinorUnits)} against a charge for ${pending.amountMinorUnits}\n`,
+      );
+      return ok("The confirmed amount does not match the charge raised. Nothing applied.");
+    }
+    await savePendingCharge({ ...pending, settledAt: at });
+  }
+
   const pack = event.packId === undefined ? undefined : creditPack(event.packId);
   if (pack === undefined) {
     process.stderr.write(`billing webhook ${event.id}: unknown pack ${String(event.packId)}\n`);

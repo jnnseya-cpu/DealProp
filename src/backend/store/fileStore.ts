@@ -24,7 +24,9 @@ import type {
   ReversalResult,
   SpendInput,
   SpendResult,
+  DataRoomGrant,
   OutreachMessage,
+  PendingCharge,
   StoredCandidate,
   Suppression,
   TopUpInput,
@@ -83,6 +85,8 @@ function emptyDatabase(): Database {
     discoveryCandidates: [],
     outreachMessages: [],
     suppressions: [],
+    dataRoomGrants: [],
+    pendingCharges: [],
   };
 }
 
@@ -110,6 +114,8 @@ async function readDatabase(): Promise<Database> {
       discoveryCandidates: parsed.discoveryCandidates ?? [],
       outreachMessages: parsed.outreachMessages ?? [],
       suppressions: parsed.suppressions ?? [],
+      dataRoomGrants: parsed.dataRoomGrants ?? [],
+      pendingCharges: parsed.pendingCharges ?? [],
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -638,6 +644,39 @@ async function addSuppression(entry: Suppression): Promise<boolean> {
   });
 }
 
+async function listDataRoomGrants(): Promise<readonly DataRoomGrant[]> {
+  const db = await readDatabase();
+  return [...db.dataRoomGrants].sort((a, b) => b.grantedAt.localeCompare(a.grantedAt));
+}
+
+async function getDataRoomGrant(token: string): Promise<DataRoomGrant | undefined> {
+  const db = await readDatabase();
+  return db.dataRoomGrants.find((g) => g.token === token);
+}
+
+async function saveDataRoomGrant(grant: DataRoomGrant): Promise<DataRoomGrant> {
+  return mutate((db) => {
+    const index = db.dataRoomGrants.findIndex((g) => g.token === grant.token);
+    if (index >= 0) db.dataRoomGrants[index] = grant;
+    else db.dataRoomGrants.push(grant);
+    return grant;
+  });
+}
+
+async function getPendingCharge(id: string): Promise<PendingCharge | undefined> {
+  const db = await readDatabase();
+  return db.pendingCharges.find((c) => c.id === id);
+}
+
+async function savePendingCharge(charge: PendingCharge): Promise<PendingCharge> {
+  return mutate((db) => {
+    const index = db.pendingCharges.findIndex((c) => c.id === charge.id);
+    if (index >= 0) db.pendingCharges[index] = charge;
+    else db.pendingCharges.push(charge);
+    return charge;
+  });
+}
+
 async function recordAllowanceUse(input: AllowanceInput): Promise<AllowanceResult> {
   return mutate((db) => {
     const mine = db.ledgerEntries.filter((e) => e.accountId === input.accountId);
@@ -813,6 +852,11 @@ export const fileStore: Store = {
   saveOutreachMessage,
   listSuppressions,
   addSuppression,
+  listDataRoomGrants,
+  getDataRoomGrant,
+  saveDataRoomGrant,
+  getPendingCharge,
+  savePendingCharge,
   recordAllowanceUse,
   recordNote,
   expireLapsedCredits,

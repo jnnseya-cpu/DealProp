@@ -10,7 +10,8 @@ import {
 } from "@backend/store/repository";
 import { resolveTransport } from "@backend/email";
 import { OUTREACH_MEASURES } from "@shared/domain/outreach";
-import { DraftForm, MessageActions, SuppressForm } from "./Forms";
+import { DraftForm, MessageActions, StageForms, SuppressForm } from "./Forms";
+import { listDataRoomGrants } from "@backend/store/repository";
 
 export const dynamic = "force-dynamic";
 
@@ -40,11 +41,12 @@ const STATUS_TONE: Record<string, string> = {
 export default async function OutreachPage() {
   await requirePermission("manage-mandates", "/operator/outreach");
 
-  const [messages, candidates, deals, suppressions] = await Promise.all([
+  const [messages, candidates, deals, suppressions, grants] = await Promise.all([
     listOutreachMessages(),
     listDiscoveryCandidates(),
     listDeals(),
     listSuppressions(),
+    listDataRoomGrants(),
   ]);
 
   const approved = candidates.filter((c) => c.approvedAt !== undefined);
@@ -101,6 +103,47 @@ export default async function OutreachPage() {
             deals={deals.map((d) => ({ id: d.id, reference: d.reference }))}
           />
         </section>
+
+        <section className="mt-6 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
+          <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+            After a positive reply
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-400">
+            Naming the property is a disclosure of the seller&rsquo;s business, so it needs the deal
+            owner&rsquo;s consent — recorded, scoped and dated. Consenting to a named teaser is not
+            consenting to the full pack.
+          </p>
+          <StageForms
+            candidates={candidates
+              .filter((c) => c.approvedAt !== undefined)
+              .map((c) => ({ id: c.candidate.id, name: c.candidate.organisationName }))}
+            deals={deals.map((d) => ({
+              id: d.id,
+              reference: d.reference,
+              ...(d.disclosureConsent !== undefined ? { consent: d.disclosureConsent.scope } : {}),
+            }))}
+          />
+        </section>
+
+        {grants.length > 0 && (
+          <section className="mt-6 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
+            <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+              Data-room access · {grants.length}
+            </h2>
+            <ul className="mt-4 space-y-2">
+              {grants.map((g) => (
+                <li key={g.token} className="text-sm leading-relaxed text-ink-300">
+                  {g.organisationName}
+                  <span className="text-ink-600"> · </span>
+                  <span className="font-mono text-xs text-ink-500">
+                    expires {g.expiresAt.slice(0, 10)} · opened {g.accessCount}×
+                    {g.revokedAt !== undefined ? " · withdrawn" : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section className="mt-6 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
           <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">

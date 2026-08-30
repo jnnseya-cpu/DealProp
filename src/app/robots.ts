@@ -27,6 +27,8 @@ export default function robots(): MetadataRoute.Robots {
           // Carries a recipient's own address in the query string. Nothing to
           // index, and no reason for it to appear in a search result.
           "/outreach/",
+          // Capability URLs granting one funder a time-limited view of one deal.
+          "/dataroom/",
         ],
       },
     ],

@@ -457,6 +457,36 @@ function checkBilling(): void {
     }
   }
 
+  const checkoutUrl = env.BILLING_CHECKOUT_URL ?? "";
+  const checkoutKey = env.BILLING_API_KEY ?? "";
+  if (checkoutUrl === "" && checkoutKey === "") {
+    warn(
+      "Billing",
+      "No payment provider is connected, so /api/billing/checkout authorises and then returns 503. Nothing can be sold.",
+      "Set BILLING_CHECKOUT_URL and BILLING_API_KEY. Until then the authorisation is real and the charge is not.",
+    );
+  } else if (checkoutUrl === "" || checkoutKey === "") {
+    block(
+      "Billing",
+      "The payment provider is half configured. One of BILLING_CHECKOUT_URL and BILLING_API_KEY is missing, so every checkout will fail after the customer has decided to buy.",
+      "Set both, or neither.",
+    );
+  } else if (!checkoutUrl.startsWith("https://")) {
+    block(
+      "Billing",
+      "BILLING_CHECKOUT_URL is not HTTPS. The API key travels on that request.",
+      "Use the provider's HTTPS endpoint.",
+    );
+  } else if (secret === undefined || secret === "") {
+    block(
+      "Billing",
+      "A payment provider is connected but BILLING_WEBHOOK_SECRET is not set, so a customer could be charged and the confirmation refused. They would pay and receive nothing.",
+      "Set the webhook secret before taking a single payment.",
+    );
+  } else {
+    pass("Billing", "Payment provider connected and confirmations can be verified.");
+  }
+
   warn(
     "Billing",
     "Sales to consumers outside the UK are refused, because charging them correctly needs a One Stop Shop or local registration that does not exist yet.",
@@ -465,6 +495,30 @@ function checkBilling(): void {
 }
 
 /* ------------------------------------------------------------- discovery */
+
+function checkOutreach(): void {
+  const email = [env.EMAIL_API_URL, env.EMAIL_API_KEY, env.EMAIL_FROM].filter(
+    (v) => v !== undefined && v !== "",
+  ).length;
+
+  if (email === 0) {
+    warn(
+      "Outreach",
+      "No email transport is configured, so approved outreach writes to the server log instead of being delivered. The same is true of the newsletter.",
+      "Set EMAIL_API_URL, EMAIL_API_KEY and EMAIL_FROM.",
+    );
+  }
+
+  if (env.CRON_SECRET === undefined || env.CRON_SECRET === "") {
+    warn(
+      "Outreach",
+      "CRON_SECRET is not set, so inbound replies and delivery events are refused. A recipient replying \"remove me\" would not be actioned until somebody read the inbox.",
+      "Set it, and point the mail provider's inbound and event webhooks at /api/outreach/reply and /api/outreach/events.",
+    );
+  } else {
+    pass("Outreach", "Reply and delivery-event endpoints are authenticated.");
+  }
+}
 
 function checkDiscovery(): void {
   const ch = env.COMPANIES_HOUSE_API_KEY;
@@ -514,6 +568,7 @@ async function main(): Promise<void> {
   checkAnalytics();
   checkBilling();
   checkDiscovery();
+  checkOutreach();
 
   const blockers = checks.filter((c) => c.level === "block");
   const warnings = checks.filter((c) => c.level === "warn");

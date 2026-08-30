@@ -12,6 +12,8 @@ import {
 import { toWorkingDeal } from "@shared/domain/workingDeal";
 import { appraise } from "@shared/domain/economics";
 import { draftEnquiry, sendApproved } from "@backend/outreach/service";
+import { grantDataRoom, sendTeaser } from "@backend/outreach/stages";
+import { saveDeal } from "@backend/store/repository";
 import { audit } from "@backend/audit";
 
 /**
@@ -154,5 +156,110 @@ export async function suppressAddressAction(
   return {
     ok: true,
     message: added ? `${email} will not be written to again.` : `${email} was already suppressed.`,
+  };
+}
+
+/**
+ * Record the deal owner's consent to identify the transaction.
+ *
+ * Stage one is anonymous so that this is a decision somebody makes, on the
+ * record, rather than a step that happens because a recipient sounded keen.
+ * Scoped: consenting to a named teaser is not consenting to the full pack.
+ */
+export async function recordDisclosureConsentAction(
+  _previous: OutreachResult | undefined,
+  formData: FormData,
+): Promise<OutreachResult> {
+  const viewer = await requirePermission("view-seller-data", "/operator/outreach");
+  const author = viewerAccount(viewer);
+  if (author === undefined) {
+    return { ok: false, message: "Consent has to be recorded against a named person." };
+  }
+
+  const dealId = String(formData.get("dealId") ?? "").trim();
+  const scope = String(formData.get("scope") ?? "");
+  const note = String(formData.get("note") ?? "").trim();
+  if (scope !== "identified-teaser" && scope !== "full-pack") {
+    return { ok: false, message: "Choose what the owner has agreed to." };
+  }
+
+  const record = await getDeal(dealId);
+  if (record === undefined) return { ok: false, message: "No such deal." };
+
+  await saveDeal({
+    ...record,
+    disclosureConsent: {
+      at: new Date().toISOString(),
+      by: author.email,
+      scope,
+      note: note === "" ? "No note given." : note,
+    },
+  });
+  await audit("viewed-seller-data", {
+    account: author,
+    subject: dealId,
+    detail: `Recorded disclosure consent: ${scope}. ${note}`,
+  });
+
+  revalidatePath("/operator/outreach");
+  return {
+    ok: true,
+    message:
+      scope === "full-pack"
+        ? "Recorded. The teaser and the data room are both available for this deal."
+        : "Recorded. The teaser is available; the full pack needs its own consent.",
+  };
+}
+
+/** Stage two: draft the identified teaser. It still needs its own approval. */
+export async function sendTeaserAction(
+  _previous: OutreachResult | undefined,
+  formData: FormData,
+): Promise<OutreachResult> {
+  const viewer = await requirePermission("manage-mandates", "/operator/outreach");
+  const author = viewerAccount(viewer);
+  if (author === undefined) return { ok: false, message: "This needs a named person." };
+
+  const result = await sendTeaser({
+    candidateId: String(formData.get("candidateId") ?? "").trim(),
+    dealId: String(formData.get("dealId") ?? "").trim(),
+    senderName: SENDER,
+    approvedBy: author.email,
+  });
+
+  revalidatePath("/operator/outreach");
+  return { ok: result.ok, message: result.reason };
+}
+
+/** Stage three: grant expiring, watermarked access to the pack. */
+export async function grantDataRoomAction(
+  _previous: OutreachResult | undefined,
+  formData: FormData,
+): Promise<OutreachResult> {
+  const viewer = await requirePermission("view-deal-material", "/operator/outreach");
+  const author = viewerAccount(viewer);
+  if (author === undefined) return { ok: false, message: "This needs a named person." };
+
+  const result = await grantDataRoom({
+    candidateId: String(formData.get("candidateId") ?? "").trim(),
+    dealId: String(formData.get("dealId") ?? "").trim(),
+    grantedBy: author.email,
+  });
+
+  if (result.ok && result.grant !== undefined) {
+    await audit("viewed-deal-material", {
+      account: author,
+      subject: result.grant.dealId,
+      detail: `Granted data-room access to ${result.grant.organisationName} until ${result.grant.expiresAt.slice(0, 10)}.`,
+    });
+  }
+
+  revalidatePath("/operator/outreach");
+  return {
+    ok: result.ok,
+    message:
+      result.ok && result.grant !== undefined
+        ? `${result.reason} Link: ${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/dataroom/${result.grant.token}`
+        : result.reason,
   };
 }

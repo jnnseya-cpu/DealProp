@@ -48,6 +48,15 @@ export interface DealRecord {
   readonly borrowerFacts?: BorrowerFacts;
   /** Indicative or binding offers received, for the comparison in §10. */
   readonly offers?: readonly RecordedOffer[];
+  /**
+   * The deal owner's consent to identify this transaction to a third party.
+   *
+   * Stage one is anonymous and needs nothing. Naming the property, the price or
+   * the seller to somebody outside the platform is a disclosure, and it is the
+   * owner's to give — not a step an agent clears by deciding the recipient
+   * seems interested enough.
+   */
+  readonly disclosureConsent?: DisclosureConsent;
   readonly borrowerCompletedDeals: number;
   readonly status: "new" | "qualified" | "in-market" | "funded" | "completed" | "withdrawn";
 }
@@ -98,6 +107,59 @@ export interface RecordedOffer {
   readonly receivedAt: string;
 }
 
+export interface DisclosureConsent {
+  readonly at: string;
+  readonly by: string;
+  /** identified-teaser names the property; full-pack opens the memorandum. */
+  readonly scope: "identified-teaser" | "full-pack";
+  readonly note: string;
+}
+
+/**
+ * Time-limited access to a deal's material, granted to one funder.
+ *
+ * A capability URL, like the seller's own result page: the token is the
+ * credential. It expires, it is revocable, every opening is counted, and the
+ * page it opens carries the recipient's name and the time it was produced —
+ * so a copy that circulates says who it was given to.
+ */
+export interface DataRoomGrant {
+  readonly token: string;
+  readonly dealId: string;
+  readonly candidateId: string;
+  readonly organisationName: string;
+  readonly grantedAt: string;
+  readonly grantedBy: string;
+  readonly expiresAt: string;
+  readonly revokedAt?: string;
+  readonly revokedBy?: string;
+  readonly accessCount: number;
+  readonly lastAccessedAt?: string;
+}
+
+/**
+ * A charge raised with the payment provider and not yet confirmed.
+ *
+ * Held so the amount asked for can be compared against the amount the webhook
+ * later reports. Without it, a confirmation is taken on trust for whatever
+ * figure it names.
+ */
+export interface PendingCharge {
+  readonly id: string;
+  readonly accountId: string;
+  readonly description: string;
+  readonly amountMinorUnits: number;
+  readonly currency: string;
+  /** What was bought, so fulfilment does not have to re-derive it. */
+  readonly planId?: string;
+  readonly packId?: string;
+  readonly createdAt: string;
+  readonly idempotencyKey: string;
+  /** Where the provider sent the customer to pay. */
+  readonly redirectUrl?: string;
+  readonly settledAt?: string;
+}
+
 export interface Database {
   deals: DealRecord[];
   buyBoxes: BuyBox[];
@@ -114,6 +176,8 @@ export interface Database {
   /** Funders found by discovery, quarantined until a person approves them. */
   discoveryCandidates: StoredCandidate[];
   outreachMessages: OutreachMessage[];
+  dataRoomGrants: DataRoomGrant[];
+  pendingCharges: PendingCharge[];
   /**
    * Addresses that must never be written to again, by address rather than by
    * candidate.
@@ -154,6 +218,8 @@ export interface OutreachMessage {
   /** Inbound reply text, where one has been received. */
   readonly replyReceivedAt?: string;
   readonly replyClassification?: string;
+  /** Set where the provider reported the message could not be delivered. */
+  readonly bouncedAt?: string;
 }
 
 /**
@@ -422,6 +488,13 @@ export interface Store {
   listOutreachMessages(): Promise<readonly OutreachMessage[]>;
   saveOutreachMessage(message: OutreachMessage): Promise<OutreachMessage>;
   listSuppressions(): Promise<readonly Suppression[]>;
+
+  listDataRoomGrants(): Promise<readonly DataRoomGrant[]>;
+  getDataRoomGrant(token: string): Promise<DataRoomGrant | undefined>;
+  saveDataRoomGrant(grant: DataRoomGrant): Promise<DataRoomGrant>;
+
+  getPendingCharge(id: string): Promise<PendingCharge | undefined>;
+  savePendingCharge(charge: PendingCharge): Promise<PendingCharge>;
   /** Idempotent. Returns false where the address was already suppressed. */
   addSuppression(entry: Suppression): Promise<boolean>;
   /** Upsert by candidate id. Approval and suppression are never overwritten. */

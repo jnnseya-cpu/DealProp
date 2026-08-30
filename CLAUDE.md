@@ -84,8 +84,12 @@ every request, `extract.ts` has no inference path, `connectors.ts` reads the
 three licensed sources. Candidates are quarantined at `/operator/discovery`; outreach is drafted,
 approved and sent at `/operator/outreach` through the newsletter's transport,
 re-checked against the suppression list at the moment of sending. Replies arrive
-at `POST /api/outreach/reply`; `/outreach/opt-out` is one click and needs no
-account.
+at `POST /api/outreach/reply`, delivery events at `POST /api/outreach/events`;
+`/outreach/opt-out` is one click and needs no account. `campaign.ts` holds the
+business-hours window and the frequency caps; `POST /api/cron/outreach` sends
+what was approved. Stages two and three are in `src/backend/outreach/stages.ts`
+and open at `/dataroom/[token]`. Customers buy at `/account/billing` through
+`POST /api/billing/checkout` and `src/backend/billing/provider.ts`.
 Analytics: Meta Pixel and Google Tag load from `src/app/components/Analytics.tsx`
 only, gated on a configured ID, granted consent, an allowlisted route and a known
 event. `src/shared/domain/analytics.ts` decides where and what; `src/shared/consent.ts`
@@ -93,7 +97,7 @@ decides whether; `src/shared/eventQueue.ts` holds events until the vendor script
 exist. Blog opens are counted independently at `POST /api/blog/view` and shown
 with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
-623 tests in `tests/` (624 with Postgres). All pass. Build succeeds. All routes return 200.
+663 tests in `tests/` (664 with Postgres). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -216,7 +220,13 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     no call site stops nothing and a score computed from data nobody can enter
     always says the same thing. Before claiming a spec clause is satisfied,
     follow it from a page or an endpoint to the code.
-43. **Engines are deterministic.** LLMs belong at the edges proposing
+43. **Each outreach stage discloses more, so each is gated separately.** Stage
+    two needs the deal owner's recorded consent and a positive reply; stage
+    three needs its own consent scope and a sent teaser. Approval never carries
+    forward.
+44. **A complaint suppresses immediately, with no threshold and no review.**
+    There is no version of "this is spam" that means write again.
+45. **Engines are deterministic.** LLMs belong at the edges proposing
     structured values — never deciding a score or clearing a flag.
 
 ### Outstanding
@@ -292,7 +302,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 623 tests
+npx vitest run       # 663 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

@@ -12,7 +12,9 @@ import type {
   ReversalResult,
   SpendInput,
   SpendResult,
+  DataRoomGrant,
   OutreachMessage,
+  PendingCharge,
   StoredCandidate,
   Suppression,
   TopUpInput,
@@ -34,7 +36,9 @@ export type {
   ReversalResult,
   SpendInput,
   SpendResult,
+  DataRoomGrant,
   OutreachMessage,
+  PendingCharge,
   StoredCandidate,
   Suppression,
   TopUpInput,
@@ -253,6 +257,26 @@ export async function listSuppressions() {
 
 export async function addSuppression(entry: Suppression) {
   return (await store()).addSuppression(entry);
+}
+
+export async function listDataRoomGrants() {
+  return (await store()).listDataRoomGrants();
+}
+
+export async function getDataRoomGrant(token: string) {
+  return (await store()).getDataRoomGrant(token);
+}
+
+export async function saveDataRoomGrant(grant: DataRoomGrant) {
+  return (await store()).saveDataRoomGrant(grant);
+}
+
+export async function getPendingCharge(id: string) {
+  return (await store()).getPendingCharge(id);
+}
+
+export async function savePendingCharge(charge: PendingCharge) {
+  return (await store()).savePendingCharge(charge);
 }
 
 export async function recordAllowanceUse(input: AllowanceInput): Promise<AllowanceResult> {

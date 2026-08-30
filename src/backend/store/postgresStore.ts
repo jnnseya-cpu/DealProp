@@ -23,7 +23,9 @@ import type {
   ReversalResult,
   SpendInput,
   SpendResult,
+  DataRoomGrant,
   OutreachMessage,
+  PendingCharge,
   StoredCandidate,
   Suppression,
   TopUpInput,
@@ -163,6 +165,19 @@ const SCHEMA = `
     email text PRIMARY KEY,
     reason text NOT NULL,
     at timestamptz NOT NULL
+  );
+  -- Capability tokens granting one funder time-limited access to one deal.
+  CREATE TABLE IF NOT EXISTS data_room_grants (
+    token text PRIMARY KEY,
+    deal_id text NOT NULL,
+    data jsonb NOT NULL,
+    expires_at timestamptz NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS pending_charges (
+    id text PRIMARY KEY,
+    account_id text NOT NULL,
+    data jsonb NOT NULL,
+    created_at timestamptz NOT NULL
   );
   CREATE TABLE IF NOT EXISTS discovery_candidates (
     id text PRIMARY KEY,
@@ -896,6 +911,52 @@ export const postgresStore: Store = {
       [entry.email.trim().toLowerCase(), entry.reason, entry.at],
     );
     return (rowCount ?? 0) > 0;
+  },
+
+  async listDataRoomGrants(): Promise<readonly DataRoomGrant[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: DataRoomGrant }>(
+      "SELECT data FROM data_room_grants ORDER BY expires_at DESC",
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async getDataRoomGrant(token: string): Promise<DataRoomGrant | undefined> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: DataRoomGrant }>(
+      "SELECT data FROM data_room_grants WHERE token = $1",
+      [token],
+    );
+    return rows[0]?.data;
+  },
+
+  async saveDataRoomGrant(grant: DataRoomGrant): Promise<DataRoomGrant> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO data_room_grants (token, deal_id, data, expires_at) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (token) DO UPDATE SET data = EXCLUDED.data`,
+      [grant.token, grant.dealId, JSON.stringify(grant), grant.expiresAt],
+    );
+    return grant;
+  },
+
+  async getPendingCharge(id: string): Promise<PendingCharge | undefined> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: PendingCharge }>(
+      "SELECT data FROM pending_charges WHERE id = $1",
+      [id],
+    );
+    return rows[0]?.data;
+  },
+
+  async savePendingCharge(charge: PendingCharge): Promise<PendingCharge> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO pending_charges (id, account_id, data, created_at) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
+      [charge.id, charge.accountId, JSON.stringify(charge), charge.createdAt],
+    );
+    return charge;
   },
 
   async recordAllowanceUse(input: AllowanceInput): Promise<AllowanceResult> {

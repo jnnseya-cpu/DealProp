@@ -30,7 +30,7 @@ uninformative: no version, no hostnames, no error text.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 623 tests
+npm test          # 663 tests
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 ```
@@ -54,6 +54,8 @@ listed honestly in [Not built yet](#not-built-yet).
 | Discovery | `/operator/discovery` | Run discovery, review candidates, approve or suppress |
 | Outreach | `/operator/outreach` | Draft, approve, send; suppression list |
 | Opt out | `/outreach/opt-out` | One click, no account, no confirmation step |
+| Data room | `/dataroom/[token]` | One funder's expiring, watermarked view of one deal |
+| Your billing | `/account/billing` | Plan, balance, top up, change plan |
 | Blog | `/blog` | Posts written by the agent from real engine output |
 | Post | `/blog/[slug]` | Auto-linked glossary terms, related posts, JSON-LD |
 | Topic hub | `/blog/topic/[topic]` | Six hubs, each linking its posts and definitions |
@@ -423,7 +425,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 623 tests, Postgres suite skipped
+npm test          # 663 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -862,6 +864,44 @@ rerun and is not something an approval overrides.
 Nothing crawls. No source is licensed for harvesting the web for firms, so a run
 takes organisations an operator names and verifies each. LinkedIn scraping and
 pattern-guessed addresses are refused permanently with the reason recorded.
+
+### The three stages, and why each is separate
+
+**Stage one** asks anonymously whether an organisation looks at this shape of
+transaction: a facility band, a region, a term. No address, no price, nothing
+about the seller.
+
+**Stage two** names the property. That is a disclosure of the seller's business
+to a third party, so it needs the deal owner's consent — recorded, scoped and
+dated — *and* a positive reply to stage one on record. A funder is not dropped
+into a named transaction because somebody is in a hurry, and stage one's
+approval does not carry: the teaser needs its own.
+
+**Stage three** opens the pack, through a capability URL that expires after
+fourteen days, is revocable, counts every opening, and carries the recipient's
+name and the time it was produced on the page. A copy that circulates says who
+it was given to. Consenting to a named teaser is not consenting to the full
+pack — that needs its own scope.
+
+### Pacing, caps and complaints
+
+`POST /api/cron/outreach` sends what a person approved, twice a weekday, and
+only inside business hours. Asked to run at 10:00 on a Sunday it answers:
+
+> Outside business hours — it is 10:00 on day 7. Queued rather than sent.
+> nextOpenAt: 2026-08-31T09:00:00.000Z
+
+Caps are three messages to one address ever and five to one domain a fortnight,
+so an organisation is not written to department by department. Every message is
+re-checked against eligibility and the suppression list at the moment it goes,
+so nothing can outrun an opt-out.
+
+`POST /api/outreach/events` takes the provider's delivery events. A **complaint**
+— somebody pressing "this is spam" — suppresses immediately, with no threshold
+and no review, because there is no version of that signal that means write
+again. A hard bounce suppresses too: continuing to send to an address that does
+not exist damages the sending domain for everything that shares it, including
+the newsletter real subscribers asked for.
 
 ---
 

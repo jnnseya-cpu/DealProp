@@ -34,7 +34,12 @@ a claim that the whole thing is built.
 | §9A opt-out | `/outreach/opt-out` | One click, no account, no confirmation step |
 | §10 offers recorded and compared | `/deals/[id]/funding` | Terms stored, totals recomputed from the engine every time |
 | §7 evidence and borrower facts recorded | `/deals/[id]/funding` | The readiness score and the regulatory route read what is entered here |
-| Checkout authorisation | `POST /api/billing/checkout` | Prices from the catalogue; the request body has no amount field; fails closed with no provider |
+| Checkout | `POST /api/billing/checkout`, `/account/billing` | Prices from the catalogue; the request body has no amount field; raises a charge with the provider and returns where to pay |
+| §9A stage two | `/operator/outreach` | Identified teaser, gated on the deal owner's recorded consent and a positive stage-one reply |
+| §9A stage three | `/dataroom/[token]` | Capability URL, expires in 14 days, revocable, every opening counted, recipient's name on the page |
+| §9A campaign controls | `src/shared/domain/campaign.ts` | Business-hours window, per-address and per-domain caps, per-run cap |
+| §9A scheduled sending | `POST /api/cron/outreach` | Twice a weekday; re-checks eligibility and suppression per message |
+| §9A bounce and complaint processing | `POST /api/outreach/events` | A complaint suppresses immediately with no threshold and no review |
 | Immutable audit of material actions | `audit_events`, ledger | Append-only, enforced by database rule |
 
 Surfaced at **`/deals/[id]/funding`**.
@@ -66,12 +71,9 @@ Listed rather than left to be discovered.
   spreadsheet — and verifies each. No source is licensed for harvesting the web
   for firms, so the input is a list rather than a search query. LinkedIn
   scraping and pattern-guessed addresses are refused permanently, not deferred.
-- **§9A campaign automation.** Sending works, one message at a time, each
-  approved by a named person. There is no scheduler, no business-hours pacing,
-  no bounce or complaint webhook, and no per-domain frequency cap beyond
-  "already contacted about this deal".
-- **§9A stages two and three.** Only the anonymous mandate enquiry is built.
-  Transmitting a teaser and granting watermarked data-room access are not.
+- **§9A per-recipient timezones.** Pacing uses UK business hours. Sending at a
+  recipient's own local time needs their timezone, which discovery does not
+  collect and which would be invented rather than known.
 - **Live verification.** Outbound access is blocked in this build environment,
   so no connector has made a real call. A run here correctly produces a
   quarantined candidate rather than an error: robots.txt cannot be read, and
@@ -80,6 +82,10 @@ Listed rather than left to be discovered.
   transport. Make one live call per source before relying on any of it.
 - **§3 state machine.** Deals carry a `status` field, not the twelve-state
   command-driven lifecycle with permission-checked, audited transitions.
+- **A payment provider account.** The checkout raises a charge and follows the
+  redirect the provider returns; what is missing is credentials, which is
+  configuration rather than code. The preflight blocks on half a configuration
+  and on a provider connected without a webhook secret.
 - **§5 document engine.** No vault, no OCR, no extraction, no checksums, no
   version history, no expiry tracking beyond a count the operator records.
 - **§9 funder marketplace.** Buy Boxes and Funding Boxes exist and match

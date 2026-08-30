@@ -4,7 +4,10 @@ import { useActionState } from "react";
 import {
   approveMessageAction,
   draftEnquiryAction,
+  grantDataRoomAction,
+  recordDisclosureConsentAction,
   sendMessageAction,
+  sendTeaserAction,
   suppressAddressAction,
   type OutreachResult,
 } from "./actions";
@@ -160,6 +163,139 @@ export function SuppressForm() {
         className="rounded-xl border hairline px-4 py-2 text-sm text-ink-200 transition hover:border-ink-500 disabled:opacity-50"
       >
         {pending ? "Recording…" : "Never contact"}
+      </button>
+      <div className="w-full"><Status result={result} /></div>
+    </form>
+  );
+}
+
+/**
+ * The stages after the anonymous enquiry.
+ *
+ * Consent first, then the identified teaser, then the pack. Each is offered
+ * separately because each discloses more than the last, and a single button
+ * that did all three would mean nobody ever decided the middle one.
+ */
+export function StageForms({
+  candidates,
+  deals,
+}: {
+  candidates: readonly { id: string; name: string }[];
+  deals: readonly { id: string; reference: string; consent?: string }[];
+}) {
+  const [consent, consentSubmit, recording] = useActionState<OutreachResult | undefined, FormData>(
+    recordDisclosureConsentAction,
+    undefined,
+  );
+  const [teaser, teaserSubmit, teasing] = useActionState<OutreachResult | undefined, FormData>(
+    sendTeaserAction,
+    undefined,
+  );
+  const [grant, grantSubmit, granting] = useActionState<OutreachResult | undefined, FormData>(
+    grantDataRoomAction,
+    undefined,
+  );
+
+  if (deals.length === 0) return null;
+
+  return (
+    <div className="mt-4 space-y-6">
+      <form action={consentSubmit} className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="block text-sm text-ink-300" htmlFor="consent-deal">Deal</label>
+          <select id="consent-deal" name="dealId" className="mt-1 rounded-xl border hairline bg-ink-950 px-3 py-2 text-sm text-ink-100">
+            {deals.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.reference}{d.consent !== undefined ? ` — ${d.consent}` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm text-ink-300" htmlFor="consent-scope">Owner agreed to</label>
+          <select id="consent-scope" name="scope" className="mt-1 rounded-xl border hairline bg-ink-950 px-3 py-2 text-sm text-ink-100">
+            <option value="identified-teaser">Naming the property</option>
+            <option value="full-pack">The full pack</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm text-ink-300" htmlFor="consent-note">How it was given</label>
+          <input id="consent-note" name="note" type="text" className="mt-1 rounded-xl border hairline bg-ink-950 px-3 py-2 text-sm text-ink-100" />
+        </div>
+        <button type="submit" disabled={recording} className="rounded-xl border hairline px-4 py-2 text-sm text-ink-200 transition hover:border-ink-500 disabled:opacity-50">
+          {recording ? "Recording…" : "Record consent"}
+        </button>
+        <div className="w-full"><Status result={consent} /></div>
+      </form>
+
+      {candidates.length > 0 && (
+        <>
+          <StagePair
+            legend="Stage two — identified teaser"
+            action={teaserSubmit}
+            pending={teasing}
+            result={teaser}
+            candidates={candidates}
+            deals={deals}
+            submitLabel="Draft teaser"
+            idPrefix="teaser"
+          />
+          <StagePair
+            legend="Stage three — data room"
+            action={grantSubmit}
+            pending={granting}
+            result={grant}
+            candidates={candidates}
+            deals={deals}
+            submitLabel="Grant access"
+            idPrefix="grant"
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+function StagePair({
+  legend,
+  action,
+  pending,
+  result,
+  candidates,
+  deals,
+  submitLabel,
+  idPrefix,
+}: {
+  legend: string;
+  action: (formData: FormData) => void;
+  pending: boolean;
+  result: OutreachResult | undefined;
+  candidates: readonly { id: string; name: string }[];
+  deals: readonly { id: string; reference: string }[];
+  submitLabel: string;
+  idPrefix: string;
+}) {
+  return (
+    <form action={action} className="flex flex-wrap items-end gap-3">
+      <p className="w-full font-mono text-[10px] uppercase tracking-[0.2em] text-ink-500">{legend}</p>
+      <div>
+        <label className="block text-sm text-ink-300" htmlFor={`${idPrefix}-candidate`}>Funder</label>
+        <select id={`${idPrefix}-candidate`} name="candidateId" className="mt-1 rounded-xl border hairline bg-ink-950 px-3 py-2 text-sm text-ink-100">
+          {candidates.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm text-ink-300" htmlFor={`${idPrefix}-deal`}>Deal</label>
+        <select id={`${idPrefix}-deal`} name="dealId" className="mt-1 rounded-xl border hairline bg-ink-950 px-3 py-2 text-sm text-ink-100">
+          {deals.map((d) => (
+            <option key={d.id} value={d.id}>{d.reference}</option>
+          ))}
+        </select>
+      </div>
+      <button type="submit" disabled={pending} className="rounded-xl border hairline px-4 py-2 text-sm text-ink-200 transition hover:border-ink-500 disabled:opacity-50">
+        {pending ? "Working…" : submitLabel}
       </button>
       <div className="w-full"><Status result={result} /></div>
     </form>
