@@ -38,11 +38,12 @@ seller-facing options cannot disagree.
 
 ### Built and working — do not rebuild
 
-`src/shared/domain/` (33 files): `types`, `newsletter`, `economics`, `motivation`, `protection`,
+`src/shared/domain/` (37 files): `types`, `newsletter`, `economics`, `motivation`, `protection`,
 `redteam`, `dealScore`, `capitalStack`, `strategies`, `goldmine`, `matching`,
 `completion`, `revenue`, `director`, `intake`, `sellerRoutes`, `workingDeal`,
 `partners`, `sources`, `registrySignal`, `accounts`, `blog`, `analytics`, `seo`,
 `pricing`, `entitlements`, `ledger`, `charging`, `borrowing`, `fundingMetrics`,
+`negotiation`, `campaign`, `offers`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
@@ -90,6 +91,12 @@ business-hours window and the frequency caps; `POST /api/cron/outreach` sends
 what was approved. Stages two and three are in `src/backend/outreach/stages.ts`
 and open at `/dataroom/[token]`. Customers buy at `/account/billing` through
 `POST /api/billing/checkout` and `src/backend/billing/provider.ts`.
+Acquisition: `negotiation.ts` computes the price band — opening, target,
+walk-away, floor — and `respondTo()` never counters past the ceiling. Seller
+Protection runs first and a block means no position at all. Owners come from
+`src/backend/discovery/owners.ts`: one title at a time, licensed, refused without
+a deal id and a named requester; `channelFor()` sends an individual to post
+because PECR reg. 22 has no workaround. Surfaced at `/deals/[id]/negotiation`.
 Analytics: Meta Pixel and Google Tag load from `src/app/components/Analytics.tsx`
 only, gated on a configured ID, granted consent, an allowlisted route and a known
 event. `src/shared/domain/analytics.ts` decides where and what; `src/shared/consent.ts`
@@ -97,7 +104,7 @@ decides whether; `src/shared/eventQueue.ts` holds events until the vendor script
 exist. Blog opens are counted independently at `POST /api/blog/view` and shown
 with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
-663 tests in `tests/` (664 with Postgres). All pass. Build succeeds. All routes return 200.
+696 tests in `tests/` (697 with Postgres). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -226,7 +233,17 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     forward.
 44. **A complaint suppresses immediately, with no threshold and no review.**
     There is no version of "this is spam" that means write again.
-45. **Engines are deterministic.** LLMs belong at the edges proposing
+45. **The walk-away price is computed, never chosen.** `respondTo()` may accept,
+    counter halfway, hold or walk — and must never counter above
+    `maxViablePrice()`. An opening offer must leave room below the ceiling; one
+    that lands on it has nowhere to go.
+46. **An owner lookup carries a deal id, a purpose and a named requester.** There
+    is no function taking a postcode and returning owners, and there must never
+    be one. A register with no address for service yields no address.
+47. **An offer below market value always ships with what the seller gives up for
+    it**, including that an agent would likely get them more. Never present the
+    price alone.
+48. **Engines are deterministic.** LLMs belong at the edges proposing
     structured values — never deciding a score or clearing a flag.
 
 ### Outstanding
@@ -302,7 +319,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 663 tests
+npx vitest run       # 696 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

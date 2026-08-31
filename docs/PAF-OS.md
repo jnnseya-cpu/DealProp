@@ -33,6 +33,8 @@ a claim that the whole thing is built.
 | §9A inbound reply handling | `POST /api/outreach/reply` | Classified, suppressed and recorded against the message it answers |
 | §9A opt-out | `/outreach/opt-out` | One click, no account, no confirmation step |
 | §10 offers recorded and compared | `/deals/[id]/funding` | Terms stored, totals recomputed from the engine every time |
+| Acquisition price band and counter-offer handling | `/deals/[id]/negotiation` | Walk-away computed from the engine; Seller Protection can end it before it starts |
+| Owner identification | `src/backend/discovery/owners.ts` | One title at a time, licensed, attributed to a deal and a person |
 | §7 evidence and borrower facts recorded | `/deals/[id]/funding` | The readiness score and the regulatory route read what is entered here |
 | Checkout | `POST /api/billing/checkout`, `/account/billing` | Prices from the catalogue; the request body has no amount field; raises a charge with the provider and returns where to pay |
 | §9A stage two | `/operator/outreach` | Identified teaser, gated on the deal owner's recorded consent and a positive stage-one reply |

@@ -111,6 +111,26 @@ export const DATA_SOURCES: readonly DataSource[] = [
     },
   },
   {
+    key: "land-registry-title",
+    name: "HM Land Registry title register",
+    publisher: "HM Land Registry",
+    provides:
+      "Who owns one specific property, and their address for service. Bought per title, for a property genuinely being pursued.",
+    licence: {
+      name: "HM Land Registry title register, purchased per title",
+      url: "https://www.gov.uk/search-property-information-land-registry",
+      // Internal analysis only, and deliberately not redistributable. The
+      // proprietor's name and address are personal data about a named
+      // individual. Buying one register for a property being pursued is
+      // ordinary practice; buying thousands to build a marketing list is a
+      // different activity with no lawful basis, and the permission recorded
+      // here does not cover it.
+      permits: ["internal-analysis"],
+      attribution: "Contains HM Land Registry data © Crown copyright and database right",
+      requiresRegistration: true,
+    },
+  },
+  {
     key: "companies-house",
     name: "Companies House public data",
     publisher: "Companies House",

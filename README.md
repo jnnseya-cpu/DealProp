@@ -30,7 +30,7 @@ uninformative: no version, no hostnames, no error text.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 663 tests
+npm test          # 696 tests
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 ```
@@ -51,6 +51,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Deal Room | `/deals/[id]` | Verdict, full model, Red Team, capital stack, matched mandates |
 | Memorandum | `/deals/[id]/memorandum` | Print-ready pack from the same briefing, with the promotion notice |
 | Funding | `/deals/[id]/funding` | Readiness, true cost, net advance, ratios, offers, evidence |
+| Negotiation | `/deals/[id]/negotiation` | Opening, target, walk-away and floor, computed from the engine |
 | Discovery | `/operator/discovery` | Run discovery, review candidates, approve or suppress |
 | Outreach | `/operator/outreach` | Draft, approve, send; suppression list |
 | Opt out | `/outreach/opt-out` | One click, no account, no confirmation step |
@@ -94,6 +95,8 @@ listed honestly in [Not built yet](#not-built-yet).
 | Trade partners | `src/shared/domain/partners.ts` | Who does the works, why, and the disclosure |
 | Analytics gate | `src/shared/domain/analytics.ts` | Which routes and events a pixel may ever see |
 | SEO audit | `src/shared/domain/seo.ts` | Scores every post against what this codebase controls |
+| Negotiation | `src/shared/domain/negotiation.ts` | The price band, and the number that says stop |
+| Owner lookup | `src/backend/discovery/owners.ts` | Who owns one title, and how they may lawfully be approached |
 | Borrowing | `src/shared/domain/borrowing.ts` | Total cost of a facility, and what actually arrives on the day |
 | Funding metrics | `src/shared/domain/fundingMetrics.ts` | LTV, LTGDV, LTC, funding gap, exit headroom, refinance cover |
 | Finance readiness | `src/shared/domain/fundingReadiness.ts` | Is this pack ready for a funder, and what is missing |
@@ -425,7 +428,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 663 tests, Postgres suite skipped
+npm test          # 696 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -902,6 +905,91 @@ and no review, because there is no version of that signal that means write
 again. A hard bounce suppresses too: continuing to send to an address that does
 not exist damages the sending domain for everything that shares it, including
 the newsletter real subscribers asked for.
+
+---
+
+## Finding an owner, and agreeing a price
+
+Property sourcing means three things: find the property, find who owns it, agree
+a price. The first is GoldMine and the licensed data sources. These are the other
+two.
+
+### The number that says stop
+
+The hard part of a negotiation is not the words. It is knowing, before the
+conversation starts, the highest price at which the deal still works — and then
+not going past it. A negotiator without that number concedes under pressure,
+because every individual concession looks small.
+
+`negotiationBand()` computes four positions from the same engine that scores the
+deal:
+
+| | |
+|---|---|
+| **Opening** | 22% below market, or lower if the deal needs it, always leaving room below the ceiling |
+| **Target** | Where it is expected to settle |
+| **Walk-away** | `maxViablePrice()` at the required margin. A ceiling, never a target |
+| **Floor** | 65% of market. Below this an offer is not a position, it is looking for somebody who has not taken advice |
+
+`respondTo()` handles a counter deterministically: it **accepts** a workable
+number rather than grinding — a seller who has named a price that works is not
+somebody to squeeze — moves at most halfway towards them, and never past the
+ceiling however high they ask. Margin is not lost in one bad decision; it is lost
+in six small ones that each looked reasonable.
+
+Building it caught two things by running it:
+
+- The opening offer originally landed **on** the walk-away whenever the discount
+  the buyer wanted was smaller than the discount the deal needed. Opening at your
+  maximum leaves nowhere to go except backwards. There is now a fixed margin of
+  room, and a test that fails if it closes.
+- On a real seeded deal the engine reported a ceiling of £198,839 beside a best
+  alternative of £283,300 — and drew no conclusion. It now leads with *"they can
+  do better elsewhere"*: offering less than somebody can plainly get is not a
+  negotiation, it is hoping they do not know.
+
+### Seller Protection runs first, and can end it
+
+Where `protection.blocked` is true there is **no position at all** — not a
+cautious one. On the seeded pipeline one deal returns exactly that:
+
+> Seller Protection blocks this deal, so there is no price to negotiate. Clear
+> the flags or walk away; do not approach the seller with an offer in the
+> meantime.
+
+### What the seller is told, with the offer
+
+Every offer carries `contextFor()`: the discount in pounds and per cent, what
+they get for it, and the sentence most of this industry leaves out —
+
+> Selling through an agent would very likely get you more money and take longer.
+> You should take independent advice before accepting.
+
+An offer below market value is defensible only if the seller can see what they
+are being paid for. One presented without that is asking somebody to accept less
+without telling them they are.
+
+### Finding the owner
+
+`land-registry-title` is licensed for **internal analysis only** and bought one
+title at a time. `lookupOwner()` refuses without a deal id and a named requester,
+before reading anything — a register bought with no transaction behind it is
+collection rather than conveyancing, and only the record tells them apart. There
+is deliberately no function that takes a postcode and returns owners.
+
+Nothing is guessed. A register with no address for service yields a proprietor
+without one, rather than one inferred from the property address — the two are
+frequently different, and writing to the wrong one tells a stranger about
+somebody else's house.
+
+`channelFor()` then decides how they may be approached:
+
+- **A company** — email, sender identified, opt-out offered.
+- **A named individual** — **letter**. Unsolicited electronic marketing to an
+  individual needs consent under PECR reg. 22 and there is no workaround. The
+  letter needs MPS screening, a privacy notice saying where the address came
+  from, and a suppression check immediately before sending.
+- **No address on the register** — no approach at all.
 
 ---
 
