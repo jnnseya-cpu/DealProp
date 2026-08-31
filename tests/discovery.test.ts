@@ -417,6 +417,7 @@ describe("building a candidate", () => {
       domain: "lender.co.uk",
     });
     const decision = outreachEligibility(candidate, "mandate-enquiry", {
+      channel: "email",
       consentRecorded: false,
       softOptInApplies: false,
       complianceApproved: false,

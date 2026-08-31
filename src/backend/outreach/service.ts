@@ -5,8 +5,10 @@ import {
   classifyReply,
   outreachEligibility,
   type Candidate,
+  type MessageChannel,
   type MessageType,
 } from "@shared/domain/outreach";
+import { postalKey, resolveLetterTransport } from "@backend/outreach/letter";
 import { redactEmail, resolveTransport } from "@backend/email";
 import {
   addSuppression,
@@ -119,6 +121,7 @@ export async function draftEnquiry(input: {
   );
 
   const eligibility = outreachEligibility(candidate, "mandate-enquiry", {
+    channel: "email",
     consentRecorded: false,
     softOptInApplies: false,
     complianceApproved: false,
@@ -140,6 +143,7 @@ export async function draftEnquiry(input: {
     decisionReason: eligibility.reason,
     // A message that could never lawfully be sent is stored refused rather than
     // as a draft somebody might later approve without reading why.
+    channel: "email",
     status: eligibility.decision === "DO_NOT_CONTACT" ? "refused" : "draft",
     createdAt: now.toISOString(),
   };
@@ -172,14 +176,21 @@ export async function sendApproved(
 ): Promise<SendResult> {
   const message = (await listOutreachMessages()).find((m) => m.id === messageId);
   if (message === undefined) return { ok: false, reason: "No such message." };
-  if (message.status === "sent") return { ok: false, reason: "Already sent." };
+  if (message.status === "sent" || message.status === "posted" || message.status === "queued-for-post") {
+    return { ok: false, reason: `Already ${message.status.replace(/-/g, " ")}.` };
+  }
   if (message.status !== "approved") {
     return { ok: false, reason: "Only an approved message is sent, and approval is a person's decision." };
   }
 
-  const suppressed = (await listSuppressions()).some(
-    (s) => s.email === message.to.trim().toLowerCase(),
-  );
+  // Checked by whichever key this channel is addressed by, against one list —
+  // so an opt-out given by letter also stops the emails, and the other way
+  // round.
+  const key =
+    message.channel === "letter"
+      ? postalKey(message.postalAddress ?? "")
+      : message.to.trim().toLowerCase();
+  const suppressed = (await listSuppressions()).some((s) => s.email === key);
   if (suppressed) {
     await saveOutreachMessage({
       ...message,
@@ -193,17 +204,50 @@ export async function sendApproved(
   if (entry === undefined) return { ok: false, reason: "The candidate record has gone." };
 
   const recheck = outreachEligibility(entry.candidate, message.messageType as MessageType, {
+    channel: message.channel,
     consentRecorded: false,
     softOptInApplies: false,
     complianceApproved: true,
     promotionApproved: false,
     alreadyContactedForDeal: false,
-    dealDisclosureConsent: false,
+    dealDisclosureConsent: message.messageType === "borrower-introduction",
+    ...(message.screening ?? {}),
     now,
   });
   if (!recheck.maySend) {
     await saveOutreachMessage({ ...message, status: "refused", failureReason: recheck.reason });
     return { ok: false, reason: `Re-checked before sending and refused: ${recheck.reason}` };
+  }
+
+  if (message.channel === "letter") {
+    const post = resolveLetterTransport();
+    const result = await post.post({
+      to: message.to,
+      address: message.postalAddress ?? "",
+      subject: message.subject,
+      body: message.body,
+    });
+
+    if (result.outcome === "failed") {
+      await saveOutreachMessage({ ...message, status: "failed", failureReason: result.reason });
+      return { ok: false, reason: result.reason };
+    }
+
+    // "posted" only where a provider actually took it. A letter waiting to be
+    // printed is visibly waiting, not quietly assumed sent.
+    await saveOutreachMessage({
+      ...message,
+      status: result.outcome === "dispatched" ? "posted" : "queued-for-post",
+      ...(result.outcome === "dispatched"
+        ? { postedAt: now.toISOString(), postedBy: post.name }
+        : {}),
+    });
+    await audit("mandate-saved", {
+      email: sender.email,
+      subject: message.candidateId,
+      detail: `Letter ${result.outcome} for ${message.to} via ${post.name}.`,
+    });
+    return { ok: true, reason: result.reason };
   }
 
   const transport = resolveTransport();
@@ -241,12 +285,13 @@ export async function handleReply(
   from: string,
   body: string,
   now: Date = new Date(),
+  channel: MessageChannel = "email",
 ): Promise<{ readonly classification: string; readonly suppressed: boolean }> {
   const assessment = classifyReply(body);
-  const address = from.trim().toLowerCase();
+  const address = channel === "letter" ? postalKey(from) : from.trim().toLowerCase();
 
   if (assessment.suppress) {
-    await addSuppression({ email: address, reason: assessment.reason, at: now.toISOString() });
+    await addSuppression({ email: address, channel, reason: assessment.reason, at: now.toISOString() });
 
     for (const entry of await listDiscoveryCandidates()) {
       if (entry.candidate.publishedEmail?.value.toLowerCase() !== address) continue;
@@ -280,4 +325,118 @@ function escapeHtml(text: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+/**
+ * Draft a letter to a property owner.
+ *
+ * The one message that goes to somebody who never asked to hear from us, so it
+ * runs the whole gauntlet before it becomes a draft: Seller Protection through
+ * the negotiation band, the eligibility gate for the letter channel, and the
+ * suppression list. Any one of them refusing means no letter, and the reason is
+ * the one the reviewer sees.
+ */
+export async function draftOwnerLetter(input: {
+  readonly candidate: Candidate;
+  readonly dealId: string;
+  readonly compose: () => { subject: string; body: string } | { refusedBecause: string };
+  readonly screening: {
+    readonly mpsScreened: boolean;
+    readonly privacyNoticeIncluded: boolean;
+    readonly legitimateInterestsRecorded: boolean;
+  };
+  readonly now?: Date;
+}): Promise<DraftResult> {
+  const now = input.now ?? new Date();
+  const address = input.candidate.postalAddress?.value;
+  if (address === undefined) {
+    return { ok: false, reason: "No postal address on record for this owner." };
+  }
+
+  const suppressed = (await listSuppressions()).some((s) => s.email === postalKey(address));
+  if (suppressed) {
+    return { ok: false, reason: "This address is suppressed. Nothing is drafted to it." };
+  }
+
+  const composed = input.compose();
+  if ("refusedBecause" in composed) {
+    return { ok: false, reason: composed.refusedBecause };
+  }
+
+  const eligibility = outreachEligibility(input.candidate, "borrower-introduction", {
+    channel: "letter",
+    consentRecorded: false,
+    softOptInApplies: false,
+    complianceApproved: true,
+    promotionApproved: false,
+    alreadyContactedForDeal: false,
+    dealDisclosureConsent: true,
+    mpsScreened: input.screening.mpsScreened,
+    privacyNoticeIncluded: input.screening.privacyNoticeIncluded,
+    legitimateInterestsRecorded: input.screening.legitimateInterestsRecorded,
+    now,
+  });
+
+  const message: OutreachMessage = {
+    id: randomUUID(),
+    candidateId: input.candidate.id,
+    dealId: input.dealId,
+    messageType: "borrower-introduction",
+    channel: "letter",
+    to: input.candidate.organisationName,
+    postalAddress: address,
+    subject: composed.subject,
+    body: composed.body,
+    decision: eligibility.decision,
+    decisionReason: eligibility.reason,
+    screening: input.screening,
+    status: eligibility.decision === "DO_NOT_CONTACT" ? "refused" : "draft",
+    createdAt: now.toISOString(),
+  };
+
+  await saveOutreachMessage(message);
+  return {
+    // Drafted either way — the screening can be completed and the letter
+    // redrafted — but `ok` means clear to go, not merely stored.
+    ok: eligibility.maySend,
+    message,
+    reason:
+      eligibility.blockers.length > 0
+        ? `${eligibility.reason} ${eligibility.blockers.join(" ")}`
+        : eligibility.reason,
+  };
+}
+
+/**
+ * Mark a queued letter as actually posted.
+ *
+ * Separate from sending because with no print provider the two are separate
+ * events: the platform renders it, a person puts it in a postbox. A letter
+ * nobody posted stays visibly unposted rather than being assumed sent.
+ */
+export async function markPosted(
+  messageId: string,
+  postedBy: string,
+  now: Date = new Date(),
+): Promise<SendResult> {
+  const message = (await listOutreachMessages()).find((m) => m.id === messageId);
+  if (message === undefined) return { ok: false, reason: "No such message." };
+  if (message.channel !== "letter") return { ok: false, reason: "That is not a letter." };
+  if (message.status !== "queued-for-post") {
+    return { ok: false, reason: `That letter is ${message.status.replace(/-/g, " ")}, not waiting to be posted.` };
+  }
+
+  await saveOutreachMessage({
+    ...message,
+    status: "posted",
+    postedAt: now.toISOString(),
+    postedBy,
+  });
+  await audit("mandate-saved", {
+    email: postedBy,
+    subject: message.candidateId,
+    detail: `Marked a letter posted to ${message.to}.`,
+  });
+
+  return { ok: true, reason: `Recorded as posted by ${postedBy}.` };
 }

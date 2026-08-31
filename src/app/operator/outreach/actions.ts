@@ -11,7 +11,8 @@ import {
 } from "@backend/store/repository";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
 import { appraise } from "@shared/domain/economics";
-import { draftEnquiry, sendApproved } from "@backend/outreach/service";
+import { draftEnquiry, draftOwnerLetter, markPosted, sendApproved } from "@backend/outreach/service";
+import { composeOwnerLetter } from "@backend/outreach/stages";
 import { grantDataRoom, sendTeaser } from "@backend/outreach/stages";
 import { saveDeal } from "@backend/store/repository";
 import { audit } from "@backend/audit";
@@ -262,4 +263,77 @@ export async function grantDataRoomAction(
         ? `${result.reason} Link: ${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/dataroom/${result.grant.token}`
         : result.reason,
   };
+}
+
+/**
+ * Draft a letter to a property owner.
+ *
+ * The three screening boxes are not paperwork. Direct mail to a person relies
+ * on legitimate interests, which is a test to be applied and recorded rather
+ * than asserted, and the eligibility gate refuses the letter until each has
+ * actually been done.
+ */
+export async function draftOwnerLetterAction(
+  _previous: OutreachResult | undefined,
+  formData: FormData,
+): Promise<OutreachResult> {
+  const viewer = await requirePermission("view-seller-data", "/operator/outreach");
+  const author = viewerAccount(viewer);
+  if (author === undefined) {
+    return { ok: false, message: "Writing to a homeowner needs a named person behind it." };
+  }
+
+  const candidateId = String(formData.get("candidateId") ?? "").trim();
+  const dealId = String(formData.get("dealId") ?? "").trim();
+
+  const entry = (await listDiscoveryCandidates()).find((c) => c.candidate.id === candidateId);
+  if (entry === undefined) return { ok: false, message: "No such owner on record." };
+
+  const record = await getDeal(dealId);
+  if (record === undefined) return { ok: false, message: "No such deal." };
+
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const result = await draftOwnerLetter({
+    candidate: entry.candidate,
+    dealId,
+    screening: {
+      mpsScreened: formData.get("mpsScreened") !== null,
+      privacyNoticeIncluded: formData.get("privacyNoticeIncluded") !== null,
+      legitimateInterestsRecorded: formData.get("legitimateInterestsRecorded") !== null,
+    },
+    compose: () =>
+      composeOwnerLetter({
+        ownerName: entry.candidate.organisationName,
+        address: entry.candidate.postalAddress?.value ?? "",
+        record,
+        senderName: SENDER,
+        senderAddress: process.env.NEWSLETTER_SENDER_ADDRESS ?? "",
+        optOutUrl: `${site}/outreach/opt-out`,
+        optOutPhone: process.env.OUTREACH_OPT_OUT_PHONE ?? "the number on this letter",
+        reference: record.reference,
+      }),
+  });
+
+  await audit("viewed-seller-data", {
+    account: author,
+    subject: dealId,
+    detail: `Owner letter drafted for ${entry.candidate.organisationName}: ${result.reason}`,
+  });
+
+  revalidatePath("/operator/outreach");
+  return { ok: result.ok, message: result.reason };
+}
+
+/** Record that a queued letter actually went in the post. */
+export async function markPostedAction(
+  _previous: OutreachResult | undefined,
+  formData: FormData,
+): Promise<OutreachResult> {
+  const viewer = await requirePermission("manage-mandates", "/operator/outreach");
+  const author = viewerAccount(viewer);
+  if (author === undefined) return { ok: false, message: "This needs a named person." };
+
+  const result = await markPosted(String(formData.get("messageId") ?? "").trim(), author.email);
+  revalidatePath("/operator/outreach");
+  return { ok: result.ok, message: result.reason };
 }

@@ -96,7 +96,10 @@ walk-away, floor — and `respondTo()` never counters past the ceiling. Seller
 Protection runs first and a block means no position at all. Owners come from
 `src/backend/discovery/owners.ts`: one title at a time, licensed, refused without
 a deal id and a named requester; `channelFor()` sends an individual to post
-because PECR reg. 22 has no workaround. Surfaced at `/deals/[id]/negotiation`.
+because PECR reg. 22 has no workaround. The letter channel runs through the same
+outreach spine: `outreach.ts` eligibility is channel-aware, `outreach/letter.ts`
+posts through a provider or queues for printing, and suppression matches by
+`postalKey()` as well as by mailbox. Surfaced at `/deals/[id]/negotiation`.
 Analytics: Meta Pixel and Google Tag load from `src/app/components/Analytics.tsx`
 only, gated on a configured ID, granted consent, an allowlisted route and a known
 event. `src/shared/domain/analytics.ts` decides where and what; `src/shared/consent.ts`
@@ -104,7 +107,7 @@ decides whether; `src/shared/eventQueue.ts` holds events until the vendor script
 exist. Blog opens are counted independently at `POST /api/blog/view` and shown
 with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
-696 tests in `tests/` (697 with Postgres). All pass. Build succeeds. All routes return 200.
+721 tests in `tests/` (722 with Postgres). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -243,7 +246,14 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 47. **An offer below market value always ships with what the seller gives up for
     it**, including that an agent would likely get them more. Never present the
     price alone.
-48. **Engines are deterministic.** LLMs belong at the edges proposing
+48. **PECR governs electronic mail, so the gate is channel-aware.** Emailing a
+    named individual without consent is unlawful; writing to them is not. A
+    letter needs MPS screening, a privacy notice and a recorded
+    legitimate-interests assessment, stored on the message so the pre-send
+    re-check can see them.
+49. **A letter is queued for post, never "sent".** With no print provider it
+    waits for a person to print and post it and mark it so, by name.
+50. **Engines are deterministic.** LLMs belong at the edges proposing
     structured values — never deciding a score or clearing a flag.
 
 ### Outstanding
@@ -319,7 +329,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 696 tests
+npx vitest run       # 721 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

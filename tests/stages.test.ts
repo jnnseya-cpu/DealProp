@@ -89,7 +89,7 @@ async function reset(): Promise<void> {
 
 async function positiveReply(): Promise<void> {
   await saveOutreachMessage({
-    id: "msg-1", candidateId: "cand-1", dealId: "deal-1", messageType: "mandate-enquiry",
+    id: "msg-1", candidateId: "cand-1", dealId: "deal-1", messageType: "mandate-enquiry", channel: "email",
     to: "enquiries@lender.co.uk", subject: "s", body: "b", decision: "SEND_ALLOWED",
     decisionReason: "r", status: "sent", createdAt: NOW.toISOString(),
     sentAt: NOW.toISOString(), replyReceivedAt: NOW.toISOString(), replyClassification: "INTERESTED",
@@ -166,7 +166,7 @@ describe("stage three cannot be skipped into", () => {
   async function teaserSent(): Promise<void> {
     await saveOutreachMessage({
       id: "msg-2", candidateId: "cand-1", dealId: "deal-1",
-      messageType: "borrower-introduction", to: "enquiries@lender.co.uk",
+      messageType: "borrower-introduction", channel: "email", to: "enquiries@lender.co.uk",
       subject: "s", body: "b", decision: "SEND_ALLOWED", decisionReason: "r",
       status: "sent", createdAt: NOW.toISOString(), sentAt: NOW.toISOString(),
     });
@@ -217,7 +217,7 @@ describe("opening a grant", () => {
     await consent("full-pack");
     await saveOutreachMessage({
       id: "msg-2", candidateId: "cand-1", dealId: "deal-1",
-      messageType: "borrower-introduction", to: "enquiries@lender.co.uk",
+      messageType: "borrower-introduction", channel: "email", to: "enquiries@lender.co.uk",
       subject: "s", body: "b", decision: "SEND_ALLOWED", decisionReason: "r",
       status: "sent", createdAt: NOW.toISOString(), sentAt: NOW.toISOString(),
     });

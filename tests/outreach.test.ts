@@ -41,6 +41,7 @@ function candidate(overrides: Partial<Candidate> = {}): Candidate {
 
 function context(overrides: Partial<OutreachContext> = {}): OutreachContext {
   return {
+    channel: "email",
     consentRecorded: false,
     softOptInApplies: false,
     complianceApproved: false,
@@ -233,6 +234,13 @@ describe("reading replies", () => {
       "opt out",
       "Do not contact us again",
       "STOP EMAILING ME",
+      // Phrased for a letter. Somebody replying to post does not write
+      // "unsubscribe", and a pattern that only knows the email wording misses
+      // the postal opt-out entirely.
+      "Please stop writing to me",
+      "No more letters please",
+      "Take me off your list",
+      "Do not write again",
     ]) {
       const result = classifyReply(text);
       expect(result.classification, text).toBe("REMOVE_ME");

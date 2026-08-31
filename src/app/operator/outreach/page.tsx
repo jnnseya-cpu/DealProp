@@ -10,7 +10,8 @@ import {
 } from "@backend/store/repository";
 import { resolveTransport } from "@backend/email";
 import { OUTREACH_MEASURES } from "@shared/domain/outreach";
-import { DraftForm, MessageActions, StageForms, SuppressForm } from "./Forms";
+import { DraftForm, MessageActions, OwnerLetterForm, PostedButton, StageForms, SuppressForm } from "./Forms";
+import { resolveLetterTransport } from "@backend/outreach/letter";
 import { listDataRoomGrants } from "@backend/store/repository";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,8 @@ export const metadata = { title: "Outreach — Lode" };
  */
 const STATUS_TONE: Record<string, string> = {
   draft: "text-ink-300",
+  "queued-for-post": "text-amber-300",
+  posted: "text-emerald-300",
   approved: "text-amber-300",
   sent: "text-emerald-300",
   failed: "text-red-300",
@@ -51,6 +54,7 @@ export default async function OutreachPage() {
 
   const approved = candidates.filter((c) => c.approvedAt !== undefined);
   const transport = resolveTransport();
+  const post = resolveLetterTransport();
   const replied = messages.filter((m) => m.replyReceivedAt !== undefined);
   const interested = replied.filter((m) => m.replyClassification === "INTERESTED").length;
 
@@ -100,6 +104,30 @@ export default async function OutreachPage() {
           </p>
           <DraftForm
             candidates={approved.map((c) => ({ id: c.candidate.id, name: c.candidate.organisationName }))}
+            deals={deals.map((d) => ({ id: d.id, reference: d.reference }))}
+          />
+        </section>
+
+        <section className="mt-6 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
+          <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+            Write to a property owner
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-400">
+            By post. Unsolicited email to a named individual needs consent under PECR reg. 22 and
+            there is no workaround, so a letter is the lawful approach — and it is lawful only once
+            the three things below have actually been done.
+            {post.name === "manual"
+              ? " No print provider is configured, so a letter is rendered and waits for somebody to print and post it."
+              : " A print provider is connected, so an approved letter is dispatched."}
+          </p>
+          <OwnerLetterForm
+            owners={candidates
+              .filter((c) => c.candidate.postalAddress !== undefined)
+              .map((c) => ({
+                id: c.candidate.id,
+                name: c.candidate.organisationName,
+                address: c.candidate.postalAddress?.value ?? "",
+              }))}
             deals={deals.map((d) => ({ id: d.id, reference: d.reference }))}
           />
         </section>
@@ -177,6 +205,8 @@ export default async function OutreachPage() {
                       {message.status}
                     </span>
                     <span className="text-ink-600"> · </span>
+                    <span className="text-ink-400">{message.channel}</span>
+                    <span className="text-ink-600"> · </span>
                     <span className="text-ink-400">{message.to}</span>
                   </p>
                 </div>
@@ -204,6 +234,12 @@ export default async function OutreachPage() {
                 )}
 
                 <MessageActions messageId={message.id} status={message.status} />
+                {message.status === "queued-for-post" && <PostedButton messageId={message.id} />}
+                {message.postedAt !== undefined && (
+                  <p className="mt-2 font-mono text-[11px] text-ink-600">
+                    Posted {message.postedAt.slice(0, 10)} by {message.postedBy}
+                  </p>
+                )}
               </li>
             ))}
           </ul>

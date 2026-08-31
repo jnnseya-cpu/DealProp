@@ -5,6 +5,7 @@ import { appraise } from "@shared/domain/economics";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
 import { fundingMetrics } from "@shared/domain/fundingMetrics";
 import { checkPromotionLanguage } from "@shared/domain/regulatoryRoute";
+import { contextFor, negotiationBand } from "@shared/domain/negotiation";
 import { outreachEligibility, type Candidate } from "@shared/domain/outreach";
 import type { DataRoomGrant, DealRecord, OutreachMessage } from "@backend/store/schema";
 import {
@@ -141,6 +142,7 @@ export async function sendTeaser(input: {
   }
 
   const eligibility = outreachEligibility(entry.candidate, "borrower-introduction", {
+    channel: "email",
     consentRecorded: true,
     softOptInApplies: false,
     complianceApproved: true,
@@ -158,6 +160,7 @@ export async function sendTeaser(input: {
     candidateId: input.candidateId,
     dealId: input.dealId,
     messageType: "borrower-introduction",
+    channel: "email",
     to: address,
     subject: composed.subject,
     body: composed.body,
@@ -287,3 +290,77 @@ export async function openDataRoom(token: string, now: Date = new Date()): Promi
 
   return { valid: true, grant, reason: "Open." };
 }
+
+/* --------------------------------------------------------- owner approach */
+
+/**
+ * The letter to a homeowner.
+ *
+ * This is the one message in the system that goes to somebody who never asked
+ * to hear from us, about the most valuable thing they own. So it says four
+ * things most letters of this kind leave out, and each is there because leaving
+ * it out is what makes the industry's version of this letter objectionable:
+ *
+ *  - **Where we got the address.** From the register, bought for this property.
+ *    A person written to out of the blue is entitled to know how we found them.
+ *  - **What the offer actually is**, against what the property is worth, in
+ *    pounds and per cent — not "we buy any house".
+ *  - **That an agent would very likely get them more.** True, and the sentence
+ *    that turns an offer into an honest one.
+ *  - **How to stop this**, in one step, without needing to explain themselves.
+ */
+export function composeOwnerLetter(input: {
+  readonly ownerName: string;
+  readonly address: string;
+  readonly record: DealRecord;
+  readonly senderName: string;
+  readonly senderAddress: string;
+  readonly optOutUrl: string;
+  readonly optOutPhone: string;
+  readonly reference: string;
+}): { subject: string; body: string } | { refusedBecause: string } {
+  const inputs = toWorkingDeal(input.record.inputs).inputs;
+  const band = negotiationBand(inputs);
+
+  if (band.blocked) {
+    return {
+      refusedBecause: `No offer to make: ${band.summary}`,
+    };
+  }
+  if (band.outbidByAlternative) {
+    return {
+      refusedBecause:
+        "The seller can plainly do better elsewhere than this deal supports. Writing to them with a lower offer would be hoping they do not know that.",
+    };
+  }
+
+  const offer = band.opening?.price;
+  if (offer === undefined) return { refusedBecause: "No opening position was computed." };
+
+  const context = contextFor(offer, inputs.property.openMarketValue, COMPLETION_DAYS);
+
+  return {
+    subject: `An offer for ${input.record.inputs.property.locality} — reference ${input.reference}`,
+    body: [
+      `Dear ${input.ownerName},`,
+      "",
+      `We are ${input.senderName}. We buy property directly, and we would like to make you an offer.`,
+      "",
+      context.sentence,
+      "",
+      "We are not estate agents and we are not asking to market your property. If the offer suits you we would buy it ourselves; if it does not, that is a perfectly good answer and you will not hear from us again.",
+      "",
+      `Where we got your address: we bought the title register for this property from HM Land Registry, which lists the registered owner and an address for service. That is the only place it came from, and we have not shared it with anybody.`,
+      "",
+      `If you would rather we did not write again, call ${input.optOutPhone} or visit ${input.optOutUrl} and quote reference ${input.reference}. We will remove you the same day and we will not ask why.`,
+      "",
+      "You should take independent advice before accepting any offer, including this one.",
+      "",
+      `${input.senderName}`,
+      input.senderAddress,
+    ].join("\n"),
+  };
+}
+
+/** The completion window an offer is made on. A promise somebody must keep. */
+const COMPLETION_DAYS = 21;

@@ -4,7 +4,9 @@ import { useActionState } from "react";
 import {
   approveMessageAction,
   draftEnquiryAction,
+  draftOwnerLetterAction,
   grantDataRoomAction,
+  markPostedAction,
   recordDisclosureConsentAction,
   sendMessageAction,
   sendTeaserAction,
@@ -299,5 +301,103 @@ function StagePair({
       </button>
       <div className="w-full"><Status result={result} /></div>
     </form>
+  );
+}
+
+/**
+ * Write to a property owner, by post.
+ *
+ * The three checkboxes are what makes the letter lawful, and the gate refuses
+ * it until each has actually been done — so they are stated as the actions they
+ * are, not as a disclaimer to tick past.
+ */
+export function OwnerLetterForm({
+  owners,
+  deals,
+}: {
+  owners: readonly { id: string; name: string; address: string }[];
+  deals: readonly { id: string; reference: string }[];
+}) {
+  const [result, submit, pending] = useActionState<OutreachResult | undefined, FormData>(
+    draftOwnerLetterAction,
+    undefined,
+  );
+
+  if (owners.length === 0 || deals.length === 0) {
+    return (
+      <p className="mt-4 text-sm leading-relaxed text-ink-400">
+        No owners on record with a postal address. An owner comes from a title register bought for a
+        specific deal — nothing is inferred from the property address.
+      </p>
+    );
+  }
+
+  return (
+    <form action={submit} className="mt-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="block text-sm text-ink-300" htmlFor="owner-candidate">Owner</label>
+          <select id="owner-candidate" name="candidateId" className="mt-1 rounded-xl border hairline bg-ink-950 px-3 py-2 text-sm text-ink-100">
+            {owners.map((o) => (
+              <option key={o.id} value={o.id}>{o.name} — {o.address}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm text-ink-300" htmlFor="owner-deal">Deal</label>
+          <select id="owner-deal" name="dealId" className="mt-1 rounded-xl border hairline bg-ink-950 px-3 py-2 text-sm text-ink-100">
+            {deals.map((d) => (
+              <option key={d.id} value={d.id}>{d.reference}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {[
+          { name: "mpsScreened", label: "Screened against the Mailing Preference Service" },
+          { name: "privacyNoticeIncluded", label: "Privacy notice included, saying where the address came from" },
+          { name: "legitimateInterestsRecorded", label: "Legitimate-interests assessment recorded for this approach" },
+        ].map((check) => (
+          <label key={check.name} className="flex items-start gap-2 text-sm text-ink-300">
+            <input type="checkbox" name={check.name} className="mt-1" />
+            {check.label}
+          </label>
+        ))}
+      </div>
+
+      <button
+        type="submit"
+        disabled={pending}
+        className="mt-4 rounded-xl border hairline px-4 py-2 text-sm text-ink-200 transition hover:border-ink-500 disabled:opacity-50"
+      >
+        {pending ? "Drafting…" : "Draft owner letter"}
+      </button>
+      <Status result={result} />
+    </form>
+  );
+}
+
+/** Record that a queued letter actually went in the post. */
+export function PostedButton({ messageId }: { messageId: string }) {
+  const [result, submit, pending] = useActionState<OutreachResult | undefined, FormData>(
+    markPostedAction,
+    undefined,
+  );
+
+  return (
+    <div className="mt-4">
+      <form action={submit}>
+        <input type="hidden" name="messageId" value={messageId} />
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-xl border border-lode-400/50 px-4 py-2 text-sm text-lode-200 transition hover:border-lode-400 hover:bg-lode-400/10 disabled:opacity-50"
+        >
+          {pending ? "Recording…" : "Mark posted"}
+        </button>
+      </form>
+      <Status result={result} />
+    </div>
   );
 }

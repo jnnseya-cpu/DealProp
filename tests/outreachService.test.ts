@@ -20,9 +20,9 @@ process.env.LODE_DATA_FILE = path.join(SCRATCH, "lode.json");
 delete process.env.DATABASE_URL;
 process.env.NEXT_PUBLIC_SITE_URL = "https://lode.example";
 
-const { composeMandateEnquiry, draftEnquiry, handleReply, sendApproved } = await import(
-  "@backend/outreach/service"
-);
+const { composeMandateEnquiry, draftEnquiry, draftOwnerLetter, handleReply, markPosted, sendApproved } =
+  await import("@backend/outreach/service");
+const { postalKey } = await import("@backend/outreach/letter");
 const { fileStore } = await import("@backend/store/fileStore");
 const { listOutreachMessages, listSuppressions, saveDiscoveryCandidate, saveOutreachMessage } =
   await import("@backend/store/repository");
@@ -296,5 +296,114 @@ describe("replies", () => {
     });
     await handleReply("enquiries@lender.co.uk", "not for us, outside our mandate", NOW);
     expect((await listOutreachMessages())[0]?.replyClassification).toBe("OUT_OF_MANDATE");
+  });
+});
+
+describe("writing to a property owner", () => {
+  const owner: Candidate = {
+    id: "owner-1",
+    organisationName: "Jane Smith",
+    recipientType: "individual",
+    postalAddress: {
+      value: "12 Elsewhere Road, Birmingham B23 6TT",
+      provenance: { sourceKey: "land-registry-title", observedAt: "2026-08-25", inferred: false },
+    },
+    status: "VERIFIED",
+    verifiedAt: "2026-08-25T00:00:00.000Z",
+    warningFlags: [],
+    optedOut: false,
+    doNotContact: false,
+  };
+
+  const screened = {
+    mpsScreened: true,
+    privacyNoticeIncluded: true,
+    legitimateInterestsRecorded: true,
+  };
+
+  const letter = () => ({ subject: "An offer", body: "Dear Jane," });
+
+  it("drafts a letter once the screening is done", async () => {
+    const result = await draftOwnerLetter({
+      candidate: owner, dealId: "deal-1", compose: letter, screening: screened, now: NOW,
+    });
+    expect(result.ok).toBe(true);
+    expect(result.message?.channel).toBe("letter");
+    expect(result.message?.postalAddress).toContain("B23 6TT");
+  });
+
+  it("holds the letter where the screening has not been done", async () => {
+    const result = await draftOwnerLetter({
+      candidate: owner, dealId: "deal-1", compose: letter,
+      screening: { ...screened, mpsScreened: false }, now: NOW,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain("Mailing Preference Service");
+  });
+
+  it("refuses to draft where the composer says there is no offer to make", async () => {
+    // Seller Protection and the negotiation band both reach the letter through
+    // the composer, so a blocked deal produces no letter at all.
+    const result = await draftOwnerLetter({
+      candidate: owner, dealId: "deal-1",
+      compose: () => ({ refusedBecause: "Seller Protection blocks this deal." }),
+      screening: screened, now: NOW,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain("Seller Protection");
+  });
+
+  it("refuses an address already suppressed", async () => {
+    await handleReply("12 Elsewhere Road, Birmingham B23 6TT", "remove me", NOW, "letter");
+    const result = await draftOwnerLetter({
+      candidate: owner, dealId: "deal-1", compose: letter, screening: screened, now: NOW,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain("suppressed");
+  });
+
+  it("suppresses by postal key, so the same address written differently still matches", async () => {
+    await handleReply("12 elsewhere rd. birmingham b236tt", "please stop writing", NOW, "letter");
+    expect((await listSuppressions())[0]?.email).toBe(postalKey("12 Elsewhere Road, Birmingham, B23 6TT"));
+  });
+
+  it("queues rather than posting, with no print provider configured", async () => {
+    const drafted = await draftOwnerLetter({
+      candidate: owner, dealId: "deal-1", compose: letter, screening: screened, now: NOW,
+    });
+    const id = drafted.message?.id ?? "";
+    const message = (await listOutreachMessages()).find((m) => m.id === id);
+    await saveOutreachMessage({ ...message!, status: "approved", approvedBy: "ops@example.com" });
+    await saveDiscoveryCandidate({ candidate: owner, notes: [], discoveredAt: NOW.toISOString() });
+
+    const sent = await sendApproved(id, { email: "ops@example.com" }, NOW);
+    expect(sent.ok).toBe(true);
+    expect((await listOutreachMessages()).find((m) => m.id === id)?.status).toBe("queued-for-post");
+  });
+
+  it("records who actually put it in the post", async () => {
+    // A letter nobody posted stays visibly unposted rather than assumed sent.
+    const drafted = await draftOwnerLetter({
+      candidate: owner, dealId: "deal-1", compose: letter, screening: screened, now: NOW,
+    });
+    const id = drafted.message?.id ?? "";
+    const message = (await listOutreachMessages()).find((m) => m.id === id);
+    await saveOutreachMessage({ ...message!, status: "approved", approvedBy: "ops@example.com" });
+    await saveDiscoveryCandidate({ candidate: owner, notes: [], discoveredAt: NOW.toISOString() });
+    await sendApproved(id, { email: "ops@example.com" }, NOW);
+
+    const posted = await markPosted(id, "ops@example.com", NOW);
+    expect(posted.ok).toBe(true);
+    const after = (await listOutreachMessages()).find((m) => m.id === id);
+    expect(after?.status).toBe("posted");
+    expect(after?.postedBy).toBe("ops@example.com");
+  });
+
+  it("will not mark a letter posted twice", async () => {
+    const drafted = await draftOwnerLetter({
+      candidate: owner, dealId: "deal-1", compose: letter, screening: screened, now: NOW,
+    });
+    const id = drafted.message?.id ?? "";
+    expect((await markPosted(id, "ops@example.com", NOW)).ok).toBe(false);
   });
 });

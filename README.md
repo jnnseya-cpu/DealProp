@@ -30,7 +30,7 @@ uninformative: no version, no hostnames, no error text.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 696 tests
+npm test          # 721 tests
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 ```
@@ -428,7 +428,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 696 tests, Postgres suite skipped
+npm test          # 721 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -982,7 +982,36 @@ without one, rather than one inferred from the property address — the two are
 frequently different, and writing to the wrong one tells a stranger about
 somebody else's house.
 
-`channelFor()` then decides how they may be approached:
+### Writing to them
+
+The letter channel runs through the same spine as everything else — draft,
+eligibility gate, named approval, suppression, opt-out — with the rules that
+actually differ.
+
+The eligibility engine is now **channel-aware**, because PECR governs
+*electronic* mail. Emailing a named individual without consent is unlawful;
+writing to them is not. A gate that refused individuals regardless of channel
+got the law wrong in the safe direction, which sounds harmless until it means
+the only lawful route to a homeowner is the one the platform will not take.
+
+A letter to an individual is allowed only once three things have **actually been
+done** — MPS screening, a privacy notice, and a recorded legitimate-interests
+assessment. Legitimate interests is a test to be applied, not asserted, and the
+gate holds the letter until each is ticked. They are stored on the message,
+because the check runs again immediately before sending and a re-check that
+cannot see the screening can never pass it.
+
+With no print provider configured a letter is rendered and **queued for post** —
+not "sent". Somebody prints it, posts it, and marks it posted with their name.
+A letter nobody posted stays visibly unposted.
+
+Suppression works by postal key as well as by mailbox, against one list, so an
+opt-out given by letter also stops the emails. And `classifyReply()` now knows
+how somebody replying to *post* phrases it — "stop writing", "no more letters",
+"take me off" — because a pattern that only knew the email wording missed the
+postal opt-out entirely.
+
+`channelFor()` decides which channel applies:
 
 - **A company** — email, sender identified, opt-out offered.
 - **A named individual** — **letter**. Unsolicited electronic marketing to an

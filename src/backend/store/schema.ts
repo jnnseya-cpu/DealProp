@@ -4,7 +4,12 @@ import type { ListingSignal } from "@shared/domain/goldmine";
 import type { Milestone } from "@shared/domain/completion";
 import type { FundingEvidence } from "@shared/domain/fundingReadiness";
 import type { BorrowerFacts } from "@shared/domain/regulatoryRoute";
-import type { Candidate, MessageType, OutreachDecision } from "@shared/domain/outreach";
+import type {
+  Candidate,
+  MessageChannel,
+  MessageType,
+  OutreachDecision,
+} from "@shared/domain/outreach";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { CreditLot, LedgerEntry } from "@shared/domain/ledger";
@@ -190,20 +195,54 @@ export interface Database {
   suppressions: Suppression[];
 }
 
+/**
+ * Somebody who must not be written to again.
+ *
+ * Keyed by address rather than by candidate, because one person can appear
+ * against several properties and somebody who asked to be left alone asked
+ * once. `email` holds a mailbox or a normalised postal key depending on the
+ * channel — one list, checked before every send of either kind, so an opt-out
+ * by letter also stops the emails.
+ */
 export interface Suppression {
   readonly email: string;
+  readonly channel?: MessageChannel;
   readonly reason: string;
   readonly at: string;
 }
 
-export type MessageStatus = "draft" | "approved" | "sent" | "failed" | "refused";
+export type MessageStatus =
+  | "draft"
+  | "approved"
+  | "sent"
+  | "failed"
+  | "refused"
+  /** A letter rendered and waiting for somebody to print and post it. */
+  | "queued-for-post"
+  | "posted";
 
 export interface OutreachMessage {
   readonly id: string;
   readonly candidateId: string;
   readonly dealId?: string;
   readonly messageType: MessageType;
+  readonly channel: MessageChannel;
+  /** An email address, or the addressee's name where this is a letter. */
   readonly to: string;
+  /** The address block, on a letter. */
+  readonly postalAddress?: string;
+  /**
+   * What was done to make a letter to an individual lawful.
+   *
+   * Stored on the message rather than passed in at draft time, because the
+   * check that matters runs again immediately before sending — and a re-check
+   * that cannot see the screening can never pass it.
+   */
+  readonly screening?: {
+    readonly mpsScreened: boolean;
+    readonly privacyNoticeIncluded: boolean;
+    readonly legitimateInterestsRecorded: boolean;
+  };
   readonly subject: string;
   readonly body: string;
   /** The eligibility decision at the time it was drafted. */
@@ -220,6 +259,9 @@ export interface OutreachMessage {
   readonly replyClassification?: string;
   /** Set where the provider reported the message could not be delivered. */
   readonly bouncedAt?: string;
+  /** When a letter was actually put in the post, by whom. */
+  readonly postedAt?: string;
+  readonly postedBy?: string;
 }
 
 /**

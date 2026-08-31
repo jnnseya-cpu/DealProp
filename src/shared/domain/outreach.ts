@@ -73,6 +73,13 @@ export interface Candidate {
   /** A published, organisation-level address. Never a guessed personal one. */
   readonly publishedEmail?: DiscoveredFact<string>;
   readonly enquiryFormUrl?: DiscoveredFact<string>;
+  /**
+   * An address for service, read from a record.
+   *
+   * Present where the recipient is reachable by post — which for a named
+   * individual is the only lawful unsolicited channel.
+   */
+  readonly postalAddress?: DiscoveredFact<string>;
   readonly switchboard?: DiscoveredFact<string>;
   readonly mandateSummary?: DiscoveredFact<string>;
   readonly status: VerificationStatus;
@@ -151,7 +158,21 @@ export type OutreachDecision =
   | "PROMOTION_APPROVAL_REQUIRED"
   | "DO_NOT_CONTACT";
 
+/**
+ * How a message would reach the recipient.
+ *
+ * The distinction is not cosmetic. PECR governs *electronic* mail, so writing
+ * to a named individual by email without consent is unlawful and writing to
+ * them by post is not. A gate that refuses individuals regardless of channel
+ * gets the law wrong in the safe direction — which sounds harmless until it
+ * means the only lawful route to a homeowner is the one the platform will not
+ * take.
+ */
+export type MessageChannel = "email" | "letter";
+
 export interface OutreachContext {
+  /** How this would be sent. Decides which rules apply. */
+  readonly channel: MessageChannel;
   /** Consent recorded for electronic marketing, where one is needed. */
   readonly consentRecorded: boolean;
   /** An existing relationship supporting the soft opt-in, where relied on. */
@@ -164,6 +185,18 @@ export interface OutreachContext {
   readonly alreadyContactedForDeal: boolean;
   /** The deal owner has consented to identifying the property to this recipient. */
   readonly dealDisclosureConsent: boolean;
+  /**
+   * The three things a letter to a named individual needs before it goes.
+   *
+   * Direct mail to a person relies on legitimate interests rather than consent,
+   * and legitimate interests is a test that has to be applied and recorded, not
+   * asserted. The Mailing Preference Service is how somebody says in advance
+   * that they do not want unaddressed approaches, and the privacy notice is how
+   * they find out where their address came from.
+   */
+  readonly mpsScreened?: boolean;
+  readonly privacyNoticeIncluded?: boolean;
+  readonly legitimateInterestsRecorded?: boolean;
   readonly now: Date;
 }
 
@@ -217,18 +250,42 @@ export function outreachEligibility(
     );
   }
 
-  // The rule that stops an extraction agent inventing a recipient.
-  if (candidate.status === "UNVERIFIED" || candidate.publishedEmail === undefined) {
+  // The rule that stops an extraction agent inventing a recipient. A letter is
+  // addressed from the register rather than from a published mailbox, so the
+  // check is which detail the channel actually uses — not always the email.
+  if (candidate.status === "UNVERIFIED") {
     return refuse(
       "DO_NOT_CONTACT",
-      "No verified, published contact address. A guessed or model-generated address is never sent to — the recipient would be a stranger and the subject would be somebody's property.",
+      "Nothing about this recipient has been verified. A guessed or model-generated contact detail is never used — the recipient would be a stranger and the subject would be somebody's property.",
     );
   }
-  if (candidate.publishedEmail.provenance.inferred) {
-    return refuse(
-      "DO_NOT_CONTACT",
-      "The contact address was inferred rather than published. Inferred addresses are not used for outreach at all.",
-    );
+  if (context.channel === "email") {
+    if (candidate.publishedEmail === undefined) {
+      return refuse(
+        "DO_NOT_CONTACT",
+        "No verified, published email address. A guessed address is never sent to.",
+      );
+    }
+    if (candidate.publishedEmail.provenance.inferred) {
+      return refuse(
+        "DO_NOT_CONTACT",
+        "The contact address was inferred rather than published. Inferred addresses are not used for outreach at all.",
+      );
+    }
+  }
+  if (context.channel === "letter") {
+    if (candidate.postalAddress === undefined) {
+      return refuse(
+        "DO_NOT_CONTACT",
+        "No postal address on record. Nothing is inferred from the property address — the address for service is frequently different, and writing to the wrong one tells a stranger about somebody else's house.",
+      );
+    }
+    if (candidate.postalAddress.provenance.inferred) {
+      return refuse(
+        "DO_NOT_CONTACT",
+        "The postal address was inferred rather than read from a record. Inferred addresses are not written to.",
+      );
+    }
   }
 
   if (!verificationIsCurrent(candidate, context.now)) {
@@ -266,7 +323,7 @@ export function outreachEligibility(
     candidate.recipientType === "partnership" ||
     candidate.recipientType === "unknown";
 
-  if (individual && !context.consentRecorded && !context.softOptInApplies) {
+  if (individual && context.channel === "email" && !context.consentRecorded && !context.softOptInApplies) {
     return {
       decision: "CONSENT_REQUIRED",
       maySend: false,
@@ -274,8 +331,43 @@ export function outreachEligibility(
         candidate.recipientType === "unknown"
           ? "The recipient type is unknown, which is treated as an individual. Unsolicited electronic marketing to individuals, sole traders and ordinary partnerships needs consent or a valid soft opt-in."
           : "Unsolicited electronic marketing to an individual, sole trader or ordinary partnership needs consent or a valid soft opt-in.",
-      blockers: ["Record consent, establish the soft opt-in, or contact them by a channel that does not require it."],
+      blockers: [
+        "Record consent, establish the soft opt-in, or write to them by post — PECR governs electronic mail, and a letter is a different question.",
+      ],
     };
+  }
+
+  // A letter to a named individual. Lawful under legitimate interests, which is
+  // a test to be applied and recorded rather than asserted, and which the
+  // recipient can object to — so the three things that make it lawful are
+  // checked here rather than left to whoever is sending.
+  if (individual && context.channel === "letter") {
+    const missing: string[] = [];
+    if (context.mpsScreened !== true) {
+      missing.push(
+        "Screen the address against the Mailing Preference Service. It is how somebody says in advance that they do not want approaches like this.",
+      );
+    }
+    if (context.privacyNoticeIncluded !== true) {
+      missing.push(
+        "Include a privacy notice saying where the address came from and how to object. A person written to out of the blue is entitled to know how we found them.",
+      );
+    }
+    if (context.legitimateInterestsRecorded !== true) {
+      missing.push(
+        "Record the legitimate-interests assessment for this approach. Relying on it without doing it is relying on nothing.",
+      );
+    }
+
+    if (missing.length > 0) {
+      return {
+        decision: "COMPLIANCE_APPROVAL_REQUIRED",
+        maySend: false,
+        reason:
+          "A letter to a named individual is lawful under legitimate interests, but only once the things that make it lawful have actually been done.",
+        blockers: missing,
+      };
+    }
   }
 
   if (message === "credit-promotion" && !context.complianceApproved) {
@@ -312,7 +404,9 @@ export function outreachEligibility(
     decision: "SEND_ALLOWED",
     maySend: true,
     reason:
-      "A corporate recipient, verified, not opted out, with a published address and an identified sender. A neutral mandate enquiry may be sent.",
+      context.channel === "letter"
+        ? "Screened, with a privacy notice and a recorded legitimate-interests assessment. The letter may be posted."
+        : "A corporate recipient, verified, not opted out, with a published address and an identified sender. A neutral mandate enquiry may be sent.",
     blockers: [],
   };
 }
@@ -393,7 +487,15 @@ export interface ReplyAssessment {
 export function classifyReply(text: string): ReplyAssessment {
   const body = text.toLowerCase();
 
-  if (/\b(remove me|unsubscribe|opt out|opt-out|stop (emailing|contacting)|do not (contact|email))\b/.test(body)) {
+  // Phrased for whichever channel it arrived on. Somebody replying to a letter
+  // writes "stop writing" or "no more letters", not "unsubscribe", and a
+  // pattern that only knows the email wording misses the postal opt-out
+  // entirely.
+  if (
+    /\b(remove me|unsubscribe|opt out|opt-out|take me off|stop (emailing|contacting|writing|sending)|no more (letters|post|mail)|do not (contact|email|write))\b/.test(
+      body,
+    )
+  ) {
     return {
       classification: "REMOVE_ME",
       suppress: true,
