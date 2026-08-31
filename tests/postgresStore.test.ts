@@ -661,16 +661,99 @@ if (TEST_URL === undefined || TEST_URL === "") {
     await pool.end();
   });
 
+  /**
+   * The append-only guarantee, which only Postgres can make.
+   *
+   * The file store cannot enforce this and does not claim to, so this sits
+   * outside the shared contract. It is here because the mechanism changed —
+   * DO INSTEAD NOTHING rules made INSERT ... ON CONFLICT illegal on the same
+   * table, which broke recordNote() — and a guarantee whose mechanism changed
+   * with nothing checking it is a guarantee somebody is about to lose.
+   */
+  describe("postgres: the ledger and the audit trail cannot be rewritten", () => {
+    beforeEach(async () => {
+      await postgresStore.listDeals().catch(() => undefined);
+      await pool.query("TRUNCATE ledger_entries, audit_events RESTART IDENTITY CASCADE");
+    });
+
+    it("silently discards an UPDATE or a DELETE against the ledger", async () => {
+      await postgresStore.recordNote({
+        accountId: "acc-1",
+        idempotencyKey: "fee:pay_xyz",
+        at: "2026-08-01T00:00:00.000Z",
+        kind: "fee",
+        amount: fromMajor(15),
+        entryId: "led-1",
+        reason: "Dispute fee.",
+      });
+
+      await pool.query("UPDATE ledger_entries SET amount = 0 WHERE id = 'led-1'");
+      await pool.query("DELETE FROM ledger_entries WHERE id = 'led-1'");
+
+      const { rows } = await pool.query<{ amount: string }>(
+        "SELECT amount FROM ledger_entries WHERE id = 'led-1'",
+      );
+      expect(rows).toHaveLength(1);
+      expect(Number(rows[0]?.amount)).toBe(fromMajor(15));
+    });
+
+    it("silently discards an UPDATE or a DELETE against the audit trail", async () => {
+      await postgresStore.appendAudit({
+        id: "aud-1",
+        at: "2026-08-01T00:00:00.000Z",
+        action: "viewed-seller-data",
+        subject: "deal-1",
+        detail: "Original.",
+      });
+
+      await pool.query("UPDATE audit_events SET data = '{}'::jsonb WHERE id = 'aud-1'");
+      await pool.query("DELETE FROM audit_events WHERE id = 'aud-1'");
+
+      const events = await postgresStore.listAudit({ subject: "deal-1" });
+      expect(events).toHaveLength(1);
+      expect(events[0]?.detail).toBe("Original.");
+    });
+
+    it("still allows the idempotent insert the ledger depends on", async () => {
+      // The reason the mechanism had to change. ON CONFLICT is illegal on a
+      // table carrying a rule, so this threw against Postgres and worked
+      // against the file store — which is the worst possible combination.
+      const note = {
+        accountId: "acc-1",
+        idempotencyKey: "fee:pay_once",
+        at: "2026-08-01T00:00:00.000Z",
+        kind: "fee" as const,
+        amount: fromMajor(15),
+        entryId: "led-2",
+        reason: "Dispute fee.",
+      };
+      expect(await postgresStore.recordNote(note)).toBe(true);
+      expect(await postgresStore.recordNote({ ...note, entryId: "led-3" })).toBe(false);
+      expect(await postgresStore.listLedgerEntries("acc-1")).toHaveLength(1);
+    });
+  });
+
   contract(
     "postgres",
     async () => postgresStore,
     async () => {
       // Truncate rather than replaceAll: the reset has to be unconditional,
       // including the subscribers replaceAll is required to preserve.
+      //
+      // Every table, read from the catalogue rather than listed by hand. A
+      // hand-written list is a list that goes stale the next time a table is
+      // added, and a reset that misses a table does not fail — it leaves the
+      // previous test's rows in place and produces failures in whichever test
+      // happens to run next, which is the most expensive kind of green.
       await postgresStore.listDeals().catch(() => undefined); // ensures the schema exists
-      await pool.query(
-        "TRUNCATE deals, buy_boxes, funding_boxes, subscribers RESTART IDENTITY CASCADE",
+      const { rows } = await pool.query<{ name: string }>(
+        `SELECT quote_ident(tablename) AS name FROM pg_tables WHERE schemaname = current_schema()`,
       );
+      if (rows.length > 0) {
+        await pool.query(
+          `TRUNCATE ${rows.map((r) => r.name).join(", ")} RESTART IDENTITY CASCADE`,
+        );
+      }
     },
   );
 }

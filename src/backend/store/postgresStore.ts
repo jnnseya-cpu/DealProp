@@ -199,20 +199,34 @@ const SCHEMA = `
   );
   -- Append-only enforced by the database, not by convention.
   --
-  -- Every statement in this codebase against this table is an INSERT, but that
-  -- is a fact about today's code. These rules make it a fact about the table:
-  -- an UPDATE or DELETE from a later refactor, a migration script, or somebody
-  -- at a psql prompt is silently discarded rather than quietly rewriting what
+  -- Every statement in this codebase against these tables is an INSERT, but
+  -- that is a fact about today's code. This makes it a fact about the table: an
+  -- UPDATE or DELETE from a later refactor, a migration script, or somebody at
+  -- a psql prompt is silently discarded rather than quietly rewriting what
   -- money did. A ledger that can be edited answers no question worth asking,
   -- and the question is always asked after money has already gone missing.
-  CREATE OR REPLACE RULE ledger_entries_no_update AS
-    ON UPDATE TO ledger_entries DO INSTEAD NOTHING;
-  CREATE OR REPLACE RULE ledger_entries_no_delete AS
-    ON DELETE TO ledger_entries DO INSTEAD NOTHING;
-  CREATE OR REPLACE RULE audit_events_no_update AS
-    ON UPDATE TO audit_events DO INSTEAD NOTHING;
-  CREATE OR REPLACE RULE audit_events_no_delete AS
-    ON DELETE TO audit_events DO INSTEAD NOTHING;
+  --
+  -- A TRIGGER, and never again a RULE. This was a pair of DO INSTEAD NOTHING
+  -- rules, and Postgres refuses INSERT ... ON CONFLICT against any table
+  -- carrying an INSERT or UPDATE rule — so recordNote() threw on every call,
+  -- which is the path that records a chargeback debt, a provider fee or a
+  -- manual correction. The file store has no such restriction, so it passed;
+  -- the engine that runs in production did not. Do not "simplify" this back
+  -- to a rule.
+  CREATE OR REPLACE FUNCTION lode_append_only() RETURNS trigger
+    LANGUAGE plpgsql AS $lode$ BEGIN RETURN NULL; END; $lode$;
+  DROP RULE IF EXISTS ledger_entries_no_update ON ledger_entries;
+  DROP RULE IF EXISTS ledger_entries_no_delete ON ledger_entries;
+  DROP RULE IF EXISTS audit_events_no_update ON audit_events;
+  DROP RULE IF EXISTS audit_events_no_delete ON audit_events;
+  DROP TRIGGER IF EXISTS ledger_entries_append_only ON ledger_entries;
+  CREATE TRIGGER ledger_entries_append_only
+    BEFORE UPDATE OR DELETE ON ledger_entries
+    FOR EACH ROW EXECUTE FUNCTION lode_append_only();
+  DROP TRIGGER IF EXISTS audit_events_append_only ON audit_events;
+  CREATE TRIGGER audit_events_append_only
+    BEFORE UPDATE OR DELETE ON audit_events
+    FOR EACH ROW EXECUTE FUNCTION lode_append_only();
   CREATE INDEX IF NOT EXISTS subscribers_confirm_token
     ON subscribers ((data->>'confirmToken'));
   CREATE INDEX IF NOT EXISTS subscribers_unsubscribe_token
@@ -993,12 +1007,23 @@ export const postgresStore: Store = {
 
   async recordAllowanceUse(input: AllowanceInput): Promise<AllowanceResult> {
     return transaction(async (client) => {
-      // Lock the account's allowance rows for the period before counting them,
-      // so two simultaneous opens cannot both see the count below the limit.
+      // Serialise this account's period before counting it.
+      //
+      // `FOR UPDATE` locks rows that exist, and the rows that matter here are
+      // the ones that do not exist yet: with the period empty, ten concurrent
+      // requests all locked nothing, all read a count of zero, and all
+      // inserted. Against a limit of three, six were granted. An advisory lock
+      // is taken on the *key* rather than on rows, so the first transaction in
+      // holds it whether or not the period has any entries, and it is released
+      // when that transaction ends.
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", [
+        input.accountId,
+        input.periodStart,
+      ]);
+
       const { rows } = await client.query<{ idempotency_key: string }>(
         `SELECT idempotency_key FROM ledger_entries
-          WHERE account_id = $1 AND kind = 'allowance' AND at >= $2
-          FOR UPDATE`,
+          WHERE account_id = $1 AND kind = 'allowance' AND at >= $2`,
         [input.accountId, input.periodStart],
       );
 

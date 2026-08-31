@@ -1,0 +1,86 @@
+# The gate described in docs/GO-LIVE.md section 3, run on every push.
+#
+# The preflight step is the one that matters: it exits non-zero on anything
+# blocking, so a deployment that would go out misconfigured fails here instead
+# of at three in the morning. It is run against the repository's own defaults —
+# no secrets — so it is checking the code's fail-closed behaviour, not the
+# production environment. The production run belongs in the deploy pipeline,
+# with the real environment attached.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# A second push supersedes the first. Two builds of the same branch prove
+# nothing extra and hold up the queue.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    services:
+      # Both storage engines run against the same contract suite. Without this
+      # the Postgres half is skipped, and the engine that runs in production is
+      # then the one that is never tested.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: lode
+          POSTGRES_PASSWORD: lode
+          POSTGRES_DB: lode_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Types
+        run: npm run typecheck
+
+      - name: Tests, both storage engines
+        run: npm run test:pg
+        env:
+          TEST_DATABASE_URL: postgres://lode:lode@127.0.0.1:5432/lode_test
+
+      - name: Build
+        run: npm run build
+
+      # Run against a synthetic environment, deliberately. The three blockers a
+      # bare checkout produces are about configuration — no site URL, no
+      # operator secret, no database — and they will be true of every CI run
+      # for ever, which makes them useless as a signal. Satisfying them leaves
+      # the checks that are about the *code*: an unlicensed data source, a
+      # missing PWA asset, a jurisdiction that is not deal-ready, a secret
+      # reused across two purposes. Those are the ones a commit can break.
+      #
+      # A green run here is not "ready to deploy". The deployment pipeline must
+      # run the same command against the real environment, where the
+      # configuration blockers mean what they say.
+      - name: Preflight
+        run: npm run preflight
+        env:
+          NEXT_PUBLIC_SITE_URL: https://ci.example.com
+          OPERATOR_SECRET: ci-only-not-a-real-secret-value-32ch
+          CRON_SECRET: ci-only-not-a-real-cron-secret-32ch
+          DATABASE_URL: postgres://lode:lode@127.0.0.1:5432/lode_test

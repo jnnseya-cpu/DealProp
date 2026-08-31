@@ -134,6 +134,34 @@ describe("src/backend stays server-side", () => {
   });
 });
 
+describe("nothing server-side reaches the browser bundle", () => {
+  /**
+   * A client component that imports the backend puts the store, the pg driver
+   * and every `process.env` read it touches into the JavaScript the browser
+   * downloads. Next will not stop it: the import resolves, the build succeeds,
+   * and the failure is silent and total.
+   *
+   * The layer rules above are about direction. This one is about the bundle,
+   * which is a different question with a much worse answer when it is wrong.
+   */
+  it("keeps every client component clear of the backend", async () => {
+    let clientComponents = 0;
+    for (const file of await filesUnder(path.join(SRC, "app"))) {
+      const source = readFileSync(file, "utf8");
+      if (!/^\s*["']use client["']/m.test(source)) continue;
+      clientComponents += 1;
+      for (const specifier of importsOf(file)) {
+        expect(
+          specifier.startsWith("@backend/"),
+          `${relative(file)} is a client component and imports ${specifier}`,
+        ).toBe(false);
+      }
+    }
+    // A rule that matches nothing passes for the wrong reason.
+    expect(clientComponents).toBeGreaterThan(10);
+  });
+});
+
 describe("the frontend depends downward only", () => {
   it("never has a shared or backend module import it", async () => {
     const below = [

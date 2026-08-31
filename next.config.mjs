@@ -35,6 +35,29 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  /**
+   * Emit a self-contained server at `.next/standalone`.
+   *
+   * Next traces the modules the server actually reaches and copies them, so the
+   * runtime image carries no `node_modules` tree, no toolchain and none of the
+   * dev dependencies — the container that serves the app cannot run `tsx`,
+   * `playwright` or a test. Vercel does not need this and is unaffected by it;
+   * every other host does, and `docs/GO-LIVE.md` claims any host works, so this
+   * is what makes that true.
+   */
+  output: "standalone",
+  /**
+   * Never trace the file store into the build output.
+   *
+   * `next build` renders pages, rendering a page reads the store, and with no
+   * `DATABASE_URL` that creates `.data/lode.json` — which tracing then copied
+   * into `.next/standalone`, so the deployable artefact carried a full copy of
+   * whatever was in the developer's store, seller records included, into
+   * whatever registry the image was pushed to. Caught by building it and
+   * looking. The runtime never wants a build-time store either way: on a real
+   * deployment the answer is `DATABASE_URL`.
+   */
+  outputFileTracingExcludes: { "*": [".data/**"] },
   reactStrictMode: true,
   // Never leak the framework version to a scanner.
   poweredByHeader: false,

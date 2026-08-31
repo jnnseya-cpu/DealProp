@@ -1,0 +1,14 @@
+node_modules
+.next
+.data
+.git
+.github
+docs
+tests
+scripts
+*.md
+!README.md
+.env
+.env.local
+.env.*.local
+*.tsbuildinfo

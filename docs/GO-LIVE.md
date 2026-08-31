@@ -25,6 +25,12 @@ Read this first. Nothing below makes these appear.
   them.
 - **Verified partner details.** Neither trade partner's website could be read,
   so their records claim nothing beyond what was stated directly.
+- **A built container image.** The `Dockerfile` is written against a standalone
+  build that was produced and served — `/api/health` answered
+  `{"status":"ok","store":"postgres"}` from it, the middleware still redirected
+  `/deals`, and the security headers were present. The **image itself has never
+  been built**: there is no Docker daemon in the environment this was written
+  in. Build it once before relying on it.
 
 ---
 
@@ -97,23 +103,83 @@ canonicalises itself to localhost.
 
 ---
 
-## 3. Deploy
+## 3. What gets deployed, and where each layer ends up
+
+**One application and one database. There is no separate backend service.**
+
+`src/backend`, `src/shared` and `src/app` are a source-code split, not a
+deployment split. They compile into a single Next.js server, and the split is
+about what may import what — enforced by `tests/boundaries.test.ts`, not by a
+network boundary.
+
+| Source | Where it runs | Reaches the browser? |
+|---|---|---|
+| `src/shared` | Both sides | **Yes.** The only layer that does. Pure, no Node APIs, no `process.env`, so it computes the same figure in either place |
+| `src/backend` | Server process only | **Never.** Store, credentials, email, discovery, outreach, agents |
+| `src/app` | Server by default | Only files marked `"use client"` — 24 of them, none of which may import `@backend/` |
+| `src/middleware.ts` | The host's edge, ahead of every matched request | No |
+| `public/`, `sw.js` | Served as static assets | Yes |
+
+Concretely, at request time:
+
+- A page under `src/app` renders **on the server**. It calls `@backend/...` for
+  data and `@shared/domain/...` for every figure, and sends HTML.
+- A server action — the forms at `/deals/[id]/agents`, `/operator/outreach`,
+  `/deals/[id]/funding` — is a POST endpoint on the same server. Each one checks
+  its own permission, because the page guard does not cover it.
+- A route handler under `src/app/api` is the same server again. These are the
+  only endpoints anything outside can call directly: the webhook, the crons, the
+  reply and event hooks, the health check.
+- The browser gets `src/shared`, the client components, and nothing else.
+
+That last line is a security boundary, not a tidiness preference. A client
+component importing `@backend/` would put the store, the `pg` driver and every
+`process.env` read it touches into the JavaScript a visitor downloads — and the
+build would succeed. `tests/boundaries.test.ts` fails instead.
+
+**The database is the only separate thing.** Managed Postgres, reached over TLS
+from the app. `DATABASE_URL` decides the engine and nothing else does.
+
+### Deploy
 
 ```bash
 npm ci
 npm run typecheck
-npm test              # 771
-npm run test:pg       # 722, both storage engines against a real database
+npm test              # 772
+npm run test:pg       # 810, both storage engines against a real database
 npm run build
 npm run preflight     # must exit 0
 ```
 
-The repository has `vercel.json` with the Monday 08:00 newsletter cron and a
-nightly 03:00 billing cron. The billing one expires lapsed prepaid balance; skip
-it and the twelve-month expiry disclosed at the point of sale never happens, and
-the liability is carried for ever. Any host
-works — the app is a standard Next.js server — but the cron must be driven from
-somewhere, and `/api/cron/newsletter` fails closed without `CRON_SECRET`.
+or `npm run verify`, which is those in order. `.github/workflows/ci.yml` runs
+the same sequence on every push, with a Postgres service container — the
+engine that runs in production is otherwise the one that is never tested.
+
+**On Vercel.** `vercel.json` carries the three crons: the Monday 08:00
+newsletter, the nightly 03:00 billing expiry, and outreach twice a day on
+weekdays. Vercel sends `Authorization: Bearer $CRON_SECRET` automatically when
+an environment variable of that name exists, which is what these endpoints
+already check. The billing cron expires lapsed prepaid balance; skip it and the
+twelve-month expiry disclosed at the point of sale never happens, and the
+liability is carried for ever.
+
+**Anywhere else.** `next.config.mjs` sets `output: "standalone"`, so
+`npm run build` produces a self-contained server at `.next/standalone` that
+needs no `node_modules` tree and cannot run the toolchain. The `Dockerfile`
+builds it into a distroless-shaped Alpine image running as a non-root user:
+
+```bash
+docker build --build-arg NEXT_PUBLIC_SITE_URL=https://lode.example .
+```
+
+Only `NEXT_PUBLIC_*` values are build arguments, because those are inlined into
+the browser bundle and are therefore public by definition. **Every secret is
+read from the environment at request time.** Nothing is baked into a layer — a
+secret in an image is a secret in the registry.
+
+Off Vercel the crons have to come from somewhere else: three authenticated
+`POST`s on the same schedules, each with `Authorization: Bearer $CRON_SECRET`.
+`/api/cron/newsletter` fails closed without it.
 
 Point the platform's health check at **`/api/health`**. It returns 200 with the
 store reachable and 503 when it is not, so a broken instance is taken out of

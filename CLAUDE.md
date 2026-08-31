@@ -63,7 +63,13 @@ API: `/api/cron/newsletter` weekly send, secret-protected and idempotent.
 PWA: installable, `src/shared/pwa.ts` is the single source for devices/icons/colours.
 Assets regenerate with `npm run pwa:assets` — never hand-edit `public/`.
 Go-live: `docs/GO-LIVE.md` is the runbook; `npm run preflight` is the gate and
-exits non-zero on blockers. `/api/health` is the platform health check.
+exits non-zero on blockers, `npm run verify` runs the whole sequence, and
+`.github/workflows/ci.yml` runs it on every push with a Postgres service.
+`/api/health` is the platform health check. One deployed unit, not three:
+`shared` runs on both sides and is the only layer in the browser bundle,
+`backend` is server-only and a client component importing it fails
+`tests/boundaries.test.ts`. `output: "standalone"` plus the `Dockerfile` covers
+any host that is not Vercel; only `NEXT_PUBLIC_*` may be a build argument.
 Go-to-market: `docs/GO-TO-MARKET.md` is the source; `npm run docs:pdf`
 renders `docs/GO-TO-MARKET.pdf` — never edit the PDF by hand.
 Money: `pricing.ts` owns every price, plan limit and tax decision — nothing else
@@ -117,7 +123,7 @@ decides whether; `src/shared/eventQueue.ts` holds events until the vendor script
 exist. Blog opens are counted independently at `POST /api/blog/view` and shown
 with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
-771 tests in `tests/` (772 with Postgres). All pass. Build succeeds. All routes return 200.
+772 tests in `tests/` (810 with Postgres). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -276,6 +282,15 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 53. **Dormancy is a finding.** An agent with nothing to say says why. Quiet
     because the deal is clean and quiet because it was never reached look
     identical otherwise, and only the second is a problem.
+54. **Nothing server-side may reach the browser bundle.** A client component
+    importing `@backend/` ships the store, the driver and every secret it reads
+    to the visitor, and the build succeeds. The boundary test is the only thing
+    that fails.
+55. **The Postgres engine is the one that runs in production, so it is tested
+    against a real Postgres.** Two money bugs lived in it invisibly because the
+    suite was skipped without `TEST_DATABASE_URL`: `ON CONFLICT` is illegal on a
+    table carrying a rule, and `FOR UPDATE` cannot lock rows that do not exist
+    yet. The file store passed both, which is the worst possible combination.
 
 ### Outstanding
 
@@ -350,7 +365,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 771 tests
+npx vitest run       # 772 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

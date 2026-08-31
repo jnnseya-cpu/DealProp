@@ -30,7 +30,7 @@ uninformative: no version, no hostnames, no error text.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 771 tests
+npm test          # 772 tests
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 ```
@@ -110,6 +110,29 @@ listed honestly in [Not built yet](#not-built-yet).
 | Charge gate | `src/shared/domain/charging.ts` | Whether a charge may happen, and for how much |
 | Email transport | `src/backend/email.ts` | Provider-agnostic, fails closed when unconfigured |
 | Store | `src/backend/store/` | One interface, two engines: Postgres or a JSON file |
+
+---
+
+## Where each layer runs
+
+One application, one database. `src/backend`, `src/shared` and `src/app` are a
+source split, not a deployment split — they compile into a single Next.js
+server, and the split governs what may import what.
+
+| Source | Runs | In the browser bundle? |
+|---|---|---|
+| `src/shared` | Both sides | **Yes** — the only layer that is. Pure, no Node APIs, no `process.env` |
+| `src/backend` | Server only | **Never** — store, credentials, email, discovery, outreach, agents |
+| `src/app` | Server by default | Only `"use client"` files, none of which may import `@backend/` |
+| `src/middleware.ts` | The edge, ahead of every matched request | No |
+
+The last column is a security boundary rather than a tidiness preference. A
+client component importing `@backend/` would ship the store, the `pg` driver and
+every `process.env` read it touches to the visitor — and the build would
+succeed. `tests/boundaries.test.ts` fails instead.
+
+`docs/GO-LIVE.md` has the deployment itself: Vercel with the crons in
+`vercel.json`, or the `Dockerfile` and `output: "standalone"` anywhere else.
 
 ---
 
@@ -307,6 +330,12 @@ Deliberately out of scope for this slice, in rough priority order:
   payment method before a trial starts.
 - **Rate limiting.** Nothing throttles sign-in or the webhook. Card-testing and
   credential-stuffing are unaddressed.
+- **A built container image.** The `Dockerfile` is written against a standalone
+  build that was produced and served successfully, but no image has been built —
+  there was no Docker daemon available. Build it once before relying on it.
+- **Schema migrations.** The schema creates itself on first connection and is
+  additive only. The moment a column has to change shape rather than be added,
+  that stops being true and this becomes a real migration step.
 - **Seats.** `seats` is in the catalogue and enforced nowhere, because there is
   no team feature to enforce it against.
 - **Server-side conversions.** Meta's Conversions API and GA4 Measurement
@@ -435,7 +464,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 771 tests, Postgres suite skipped
+npm test          # 772 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
