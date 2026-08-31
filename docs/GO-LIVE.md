@@ -102,7 +102,7 @@ canonicalises itself to localhost.
 ```bash
 npm ci
 npm run typecheck
-npm test              # 721
+npm test              # 771
 npm run test:pg       # 722, both storage engines against a real database
 npm run build
 npm run preflight     # must exit 0

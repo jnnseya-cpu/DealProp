@@ -69,8 +69,11 @@ export async function recordEvidenceAction(
     ...(planningOf(text("planningStatus")) !== undefined
       ? { planningStatus: planningOf(text("planningStatus")) }
       : {}),
-    ...(committedCash(formData.get("committedCash")) !== undefined
-      ? { committedCash: committedCash(formData.get("committedCash")) }
+    ...(poundsToMoney(formData.get("committedCash")) !== undefined
+      ? { committedCash: poundsToMoney(formData.get("committedCash")) }
+      : {}),
+    ...(poundsToMoney(formData.get("valuationAmount")) !== undefined
+      ? { valuationAmount: poundsToMoney(formData.get("valuationAmount")) }
       : {}),
     expiredDocuments: Math.max(0, Math.floor(Number(formData.get("expiredDocuments") ?? 0)) || 0),
   };
@@ -91,7 +94,8 @@ function planningOf(value: string | undefined): FundingEvidence["planningStatus"
   return value as FundingEvidence["planningStatus"];
 }
 
-function committedCash(value: FormDataEntryValue | null) {
+/** Pounds from a form field, as integer pence. Undefined for blank or zero. */
+function poundsToMoney(value: FormDataEntryValue | null) {
   const pounds = Number(value);
   if (!Number.isFinite(pounds) || pounds <= 0) return undefined;
   return money(Math.round(pounds * 100));

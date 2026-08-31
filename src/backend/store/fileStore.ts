@@ -3,6 +3,7 @@ import path from "node:path";
 import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
+import type { AgentDecision } from "@shared/domain/agents";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   dueForExpiry,
@@ -86,6 +87,7 @@ function emptyDatabase(): Database {
     outreachMessages: [],
     suppressions: [],
     dataRoomGrants: [],
+    agentDecisions: [],
     pendingCharges: [],
   };
 }
@@ -115,6 +117,7 @@ async function readDatabase(): Promise<Database> {
       outreachMessages: parsed.outreachMessages ?? [],
       suppressions: parsed.suppressions ?? [],
       dataRoomGrants: parsed.dataRoomGrants ?? [],
+      agentDecisions: parsed.agentDecisions ?? [],
       pendingCharges: parsed.pendingCharges ?? [],
     };
   } catch (error) {
@@ -644,6 +647,25 @@ async function addSuppression(entry: Suppression): Promise<boolean> {
   });
 }
 
+async function listAgentDecisions(dealId: string): Promise<readonly AgentDecision[]> {
+  const db = await readDatabase();
+  return db.agentDecisions
+    .filter((d) => d.dealId === dealId)
+    .sort((a, b) => b.at.localeCompare(a.at));
+}
+
+async function saveAgentDecision(decision: AgentDecision): Promise<AgentDecision> {
+  return mutate((db) => {
+    // Keyed by id, and ids are minted per decision, so a change of mind appends
+    // rather than overwriting. The board reads the most recent; the trail keeps
+    // the rest.
+    const index = db.agentDecisions.findIndex((d) => d.id === decision.id);
+    if (index >= 0) db.agentDecisions[index] = decision;
+    else db.agentDecisions.push(decision);
+    return decision;
+  });
+}
+
 async function listDataRoomGrants(): Promise<readonly DataRoomGrant[]> {
   const db = await readDatabase();
   return [...db.dataRoomGrants].sort((a, b) => b.grantedAt.localeCompare(a.grantedAt));
@@ -852,6 +874,8 @@ export const fileStore: Store = {
   saveOutreachMessage,
   listSuppressions,
   addSuppression,
+  listAgentDecisions,
+  saveAgentDecision,
   listDataRoomGrants,
   getDataRoomGrant,
   saveDataRoomGrant,

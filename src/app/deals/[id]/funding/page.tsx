@@ -73,6 +73,7 @@ export default async function FundingPage({ params }: { params: Promise<{ id: st
             <Link href="/deals" className="transition hover:text-ink-100">Deals</Link>
             <Link href={`/deals/${record.id}`} className="transition hover:text-ink-100">Deal Room</Link>
             <Link href={`/deals/${record.id}/memorandum`} className="transition hover:text-ink-100">Memorandum</Link>
+            <Link href={`/deals/${record.id}/agents`} className="transition hover:text-ink-100">Agents</Link>
           </nav>
         }
       />

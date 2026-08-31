@@ -43,7 +43,7 @@ seller-facing options cannot disagree.
 `completion`, `revenue`, `director`, `intake`, `sellerRoutes`, `workingDeal`,
 `partners`, `sources`, `registrySignal`, `accounts`, `blog`, `analytics`, `seo`,
 `pricing`, `entitlements`, `ledger`, `charging`, `borrowing`, `fundingMetrics`,
-`negotiation`, `campaign`, `offers`,
+`negotiation`, `campaign`, `offers`, `agents`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
@@ -51,7 +51,8 @@ seller-facing options cannot disagree.
 GB-WLS are excluded from `isDealReady`).
 
 Pages: `/` landing, `/sell` intake, `/sell/[id]` seller options, `/deals`
-pipeline, `/deals/[id]` Deal Room, `/deals/[id]/memorandum` print pack,
+pipeline, `/deals/[id]` Deal Room, `/deals/[id]/agents` agent board,
+`/deals/[id]/memorandum` print pack,
 `/invest` Buy Boxes, `/capital` Funding Boxes, `/newsletter` (+ confirm,
 unsubscribe), `/operator` sign-in.
 Access control: `src/middleware.ts` gates `/deals`, `/invest`, `/capital`,
@@ -91,6 +92,15 @@ business-hours window and the frequency caps; `POST /api/cron/outreach` sends
 what was approved. Stages two and three are in `src/backend/outreach/stages.ts`
 and open at `/dataroom/[token]`. Customers buy at `/account/billing` through
 `POST /api/billing/checkout` and `src/backend/billing/provider.ts`.
+Agents: §12's nine agents are in `agents.ts` — a trigger, an observer over the
+existing engines, and a proposal a named person decides on. No model, no
+autonomy. `runAgents()` returns a proposal or a dormancy reason for each of the
+nine; `src/backend/agents/service.ts` assembles the context and applies a
+decision; `/deals/[id]/agents` is the board. The §12 prohibitions are structural
+— four effects and no fifth, `EFFECT_OWNERS` gives the one writing effect to one
+agent, and `authoriseDecision()` refuses the shared operator password. Accepting
+a Terms proposal is what wakes the Due-Diligence Agent.
+
 Acquisition: `negotiation.ts` computes the price band — opening, target,
 walk-away, floor — and `respondTo()` never counters past the ceiling. Seller
 Protection runs first and a block means no position at all. Owners come from
@@ -107,7 +117,7 @@ decides whether; `src/shared/eventQueue.ts` holds events until the vendor script
 exist. Blog opens are counted independently at `POST /api/blog/view` and shown
 with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
-721 tests in `tests/` (722 with Postgres). All pass. Build succeeds. All routes return 200.
+771 tests in `tests/` (772 with Postgres). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -255,6 +265,17 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     waits for a person to print and post it and mark it so, by name.
 50. **Engines are deterministic.** LLMs belong at the edges proposing
     structured values — never deciding a score or clearing a flag.
+51. **An agent proposes; a named person decides.** Accepting a proposal can
+    record a review, a selection or a sign-off, or adopt the standard conditions
+    plan at "not started" — there is no fifth effect and there must never be
+    one. The shared operator password is refused, because every one of these is
+    somebody stating a judgement and a shared credential has nobody behind it.
+52. **A request names a proposal, never an effect.** The agents re-run on the
+    server and the effect is read from the proposal found in that run. A client
+    that could name its own effect could adopt a plan by asking politely.
+53. **Dormancy is a finding.** An agent with nothing to say says why. Quiet
+    because the deal is clean and quiet because it was never reached look
+    identical otherwise, and only the second is a problem.
 
 ### Outstanding
 
@@ -329,7 +350,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 721 tests
+npx vitest run       # 771 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

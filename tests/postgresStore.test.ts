@@ -210,7 +210,7 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       // Subscribers are consent records. Wiping them on reseed would destroy
       // the evidence of why an address was mailed.
       await store.saveSubscriber(subscriber({ status: "confirmed" }));
-      await store.replaceAll({ deals: [dealRecord()], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], pendingCharges: [] });
+      await store.replaceAll({ deals: [dealRecord()], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], pendingCharges: [] });
       expect(await store.listSubscribers()).toHaveLength(1);
       expect(await store.listDeals()).toHaveLength(1);
     });
@@ -223,6 +223,44 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       expect(await store.isEmpty()).toBe(false);
     });
 
+
+    describe("agent decisions", () => {
+      const decision = {
+        id: "dec-1",
+        dealId: "deal-1",
+        agentId: "terms" as const,
+        proposalKey: "terms:cheapest:off-1",
+        decision: "accepted" as const,
+        byAccountId: "acc-1",
+        byName: "Jo Bloggs",
+        note: "Cheapest in total.",
+        at: "2026-08-30T09:00:00.000Z",
+        proposalHeadline: "Example Bridging is cheapest in total",
+        effect: "record-selection" as const,
+      };
+
+      it("round-trips a decision and scopes it to its deal", async () => {
+        await store.saveAgentDecision(decision);
+        await store.saveAgentDecision({ ...decision, id: "dec-2", dealId: "deal-2" });
+        const mine = await store.listAgentDecisions("deal-1");
+        expect(mine).toHaveLength(1);
+        expect(mine[0]).toEqual(decision);
+        expect(await store.listAgentDecisions("deal-3")).toHaveLength(0);
+      });
+
+      it("appends a change of mind rather than replacing it, newest first", async () => {
+        await store.saveAgentDecision(decision);
+        await store.saveAgentDecision({
+          ...decision,
+          id: "dec-2",
+          decision: "dismissed",
+          at: "2026-08-31T09:00:00.000Z",
+        });
+        const all = await store.listAgentDecisions("deal-1");
+        expect(all).toHaveLength(2);
+        expect(all[0]?.id).toBe("dec-2");
+      });
+    });
 
     describe("billing: money that must move exactly once", () => {
       const at = "2026-08-01T00:00:00.000Z";
@@ -602,7 +640,7 @@ contract(
     // Queue through the write chain first. Deleting the file outright would
     // race a write still in flight from the previous test, which would then
     // land after the delete and recreate it.
-    await fileStore.replaceAll({ deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], pendingCharges: [] });
+    await fileStore.replaceAll({ deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], pendingCharges: [] });
     rmSync(process.env.LODE_DATA_FILE ?? "", { force: true });
   },
 );

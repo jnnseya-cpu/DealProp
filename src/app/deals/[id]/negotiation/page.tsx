@@ -63,6 +63,7 @@ export default async function NegotiationPage({ params }: { params: Promise<{ id
           <nav className="flex items-center gap-6 text-sm text-ink-400">
             <Link href={`/deals/${record.id}`} className="transition hover:text-ink-100">Deal Room</Link>
             <Link href={`/deals/${record.id}/funding`} className="transition hover:text-ink-100">Funding</Link>
+            <Link href={`/deals/${record.id}/agents`} className="transition hover:text-ink-100">Agents</Link>
           </nav>
         }
       />

@@ -82,12 +82,27 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
             <span className={`tnum font-display text-2xl ${scoreTone(scored.breakdown.composite)}`}>
               {scored.breakdown.composite}
             </span>
-            <Link
-              href={`/deals/${record.id}/memorandum`}
-              className="rounded-lg border hairline px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-400 transition hover:border-lode-400/40 hover:text-lode-200"
-            >
-              Memorandum
-            </Link>
+            {/*
+              Every surface this deal has, from the room it belongs to. The
+              funding, negotiation and agent pages each existed with no way in
+              from here, which is the same as not existing.
+            */}
+            {(
+              [
+                ["agents", "Agents"],
+                ["funding", "Funding"],
+                ["negotiation", "Negotiation"],
+                ["memorandum", "Memorandum"],
+              ] as const
+            ).map(([slug, label]) => (
+              <Link
+                key={slug}
+                href={`/deals/${record.id}/${slug}`}
+                className="hidden rounded-lg border hairline px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-400 transition hover:border-lode-400/40 hover:text-lode-200 sm:inline-block"
+              >
+                {label}
+              </Link>
+            ))}
             <SignOutButton />
           </>
         }

@@ -1,6 +1,7 @@
 import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
+import type { AgentDecision } from "@shared/domain/agents";
 import { fileStore } from "@backend/store/fileStore";
 import type {
   AllowanceInput,
@@ -257,6 +258,14 @@ export async function listSuppressions() {
 
 export async function addSuppression(entry: Suppression) {
   return (await store()).addSuppression(entry);
+}
+
+export async function listAgentDecisions(dealId: string) {
+  return (await store()).listAgentDecisions(dealId);
+}
+
+export async function saveAgentDecision(decision: AgentDecision) {
+  return (await store()).saveAgentDecision(decision);
 }
 
 export async function listDataRoomGrants() {

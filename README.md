@@ -30,7 +30,7 @@ uninformative: no version, no hostnames, no error text.
 npm install
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 721 tests
+npm test          # 771 tests
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 ```
@@ -52,6 +52,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Memorandum | `/deals/[id]/memorandum` | Print-ready pack from the same briefing, with the promotion notice |
 | Funding | `/deals/[id]/funding` | Readiness, true cost, net advance, ratios, offers, evidence |
 | Negotiation | `/deals/[id]/negotiation` | Opening, target, walk-away and floor, computed from the engine |
+| Agents | `/deals/[id]/agents` | The nine agents, what each proposes, and who has to decide |
 | Discovery | `/operator/discovery` | Run discovery, review candidates, approve or suppress |
 | Outreach | `/operator/outreach` | Draft, approve, send; suppression list |
 | Opt out | `/outreach/opt-out` | One click, no account, no confirmation step |
@@ -96,6 +97,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Analytics gate | `src/shared/domain/analytics.ts` | Which routes and events a pixel may ever see |
 | SEO audit | `src/shared/domain/seo.ts` | Scores every post against what this codebase controls |
 | Negotiation | `src/shared/domain/negotiation.ts` | The price band, and the number that says stop |
+| Agents | `src/shared/domain/agents.ts` | Nine triggers, nine outputs, and the four things accepting one can do |
 | Owner lookup | `src/backend/discovery/owners.ts` | Who owns one title, and how they may lawfully be approached |
 | Borrowing | `src/shared/domain/borrowing.ts` | Total cost of a facility, and what actually arrives on the day |
 | Funding metrics | `src/shared/domain/fundingMetrics.ts` | LTV, LTGDV, LTC, funding gap, exit headroom, refinance cover |
@@ -314,7 +316,12 @@ Deliberately out of scope for this slice, in rough priority order:
   feature, not a gap: the financial engine must be reproducible and testable.
   LLMs belong at the edges — parsing a seller's narrative into a structured
   situation, drafting the memorandum, summarising a title register — not in the
-  arithmetic that decides whether someone loses their house deposit.
+  arithmetic that decides whether someone loses their house deposit. See
+  [The nine agents](#the-nine-agents) for what an agent is here instead.
+- **A nine-role model and tenant isolation.** Four roles, not the
+  specification's nine, and one tenant. The agent board says "Manager signs
+  off" because that is the judgement being asked for; the person doing it holds
+  an operator or administrator account.
 
 ---
 
@@ -428,7 +435,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 721 tests, Postgres suite skipped
+npm test          # 771 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -1019,6 +1026,77 @@ postal opt-out entirely.
   letter needs MPS screening, a privacy notice saying where the address came
   from, and a suppression check immediately before sending.
 - **No address on the register** — no approach at all.
+
+---
+
+## The nine agents
+
+Specification §12 asks for nine AI agents. What is built is nine *agents* in a
+narrower sense than the phrase usually carries, and the narrowing is the design
+rather than a shortfall.
+
+An agent here is three things: a **trigger** saying when it has something to
+say, an **observer** that runs engines which already exist, and a **proposal**
+that a named person has to decide on. There is no model in the loop, no
+autonomy, and no path from a proposal to an action. They are on the board at
+`/deals/[id]/agents`.
+
+| Agent | Fires when | Says |
+|---|---|---|
+| Intake | A deal is created or evidence is recorded | What in the record contradicts something else in it |
+| Structuring | The deal can be appraised | Where the stack does not close, and which route ranks above the one modelled |
+| Risk | Any change to the deal | Which stresses wipe out the profit, and by how much |
+| Matching | The route permits an introduction and protection is clear | Eligible funders, ranked, with the criteria each met |
+| Memorandum | The pack scores as fundable | That it is ready to sign off, or which phrase in it is an unlawful promotion |
+| Terms | An offer is recorded | Offers normalised to one basis and compared on total cost |
+| Due-Diligence | A person has selected terms | The conditions plan, and a chaser for whoever is holding one up |
+| Completion | Evidence is expiring or the path is blocked | The close forecast, and what stands in its way |
+| Exit Watch | The deal is funded or completed | Cover below covenant, an exit that will not repay, a hold outrunning the facility |
+
+### What no agent can do, and why that is structural
+
+§12 ends with a list: an agent may not impersonate a professional, bind a party,
+accept terms, certify investor status, waive conditions or move funds. Writing
+that down is easy and worth nothing. It is enforced in three places instead.
+
+**A closed set of effects.** Accepting a proposal can record a review, a
+selection or a sign-off, or adopt the standard conditions plan. The type holds
+no fourth kind of thing, so no agent can propose one that moves money, alters
+terms, marks a condition satisfied or writes a certification.
+
+**Effect ownership.** The one effect that writes anything belongs to one agent,
+checked when the proposal is constructed. Any other agent reaching for it throws
+— there is a test that walks all nine and asserts exactly that.
+
+**A named decider.** The shared operator password is refused. Every one of these
+controls is somebody stating a judgement, and a shared credential has nobody
+behind it to have stated it. Sign in as yourself, and say why: the reason is
+required, because everything here is read later by somebody who was not in the
+room.
+
+The one writing effect adopts the standard plan with every condition at *not
+started*. It cannot set a status, which is what stops it becoming the first way
+round the four-eyes control on clearing a condition.
+
+### The chain is real
+
+The agents are wired to each other through decisions, not through a scheduler.
+The Due-Diligence Agent is dormant — visibly, with the reason on the board —
+until a person accepts a Terms Agent proposal, because conditions are the
+conditions of a particular offer. The Completion Agent has nothing to forecast
+against until a conditions plan exists. The Matching Agent goes silent the
+moment Seller Protection blocks the deal or the regulatory route is
+unclassified, and says which.
+
+Dormancy is shown as prominently as a finding. An agent that is quiet because
+the deal is clean and an agent that is quiet because it has never been reached
+look identical from the outside, and only the second one is a problem.
+
+Every proposal carries where it came from, what it assumed, how confident it is
+in the sense of *how much of this is recorded rather than modelled*, and the
+version of the logic that produced it. No proposal states a number it computed
+itself; each one read it from the appraisal, the readiness report, the close
+report or the offer comparison.
 
 ---
 

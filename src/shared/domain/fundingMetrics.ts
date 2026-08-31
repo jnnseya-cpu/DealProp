@@ -23,6 +23,18 @@ import { netAdvance } from "@shared/domain/borrowing";
  */
 export const FORMULA_VERSION = "funding-metrics-1";
 
+/**
+ * The debt-service cover a term lender typically requires at refinance.
+ *
+ * 1.25x is the common floor across UK buy-to-let and commercial term lending;
+ * below it the rent does not cover the payment with enough margin for a void or
+ * a rate move, and the refinance that the whole exit depends on is not offered.
+ *
+ * Kept here beside `refinanceDscr()` so the ratio and the level it is judged
+ * against cannot drift apart, and dated because lenders move it.
+ */
+export const REFINANCE_DSCR_COVENANT = { level: bps(12_500), asOf: "2026-08-31" } as const;
+
 export interface Metric {
   readonly key: MetricKey;
   readonly label: string;

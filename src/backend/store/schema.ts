@@ -1,5 +1,5 @@
 import type { BuyBox, FundingBox } from "@shared/domain/matching";
-import type { DealInputs, PropertyFacts, SellerProfile } from "@shared/domain/types";
+import type { DealInputs, DealStatus, PropertyFacts, SellerProfile } from "@shared/domain/types";
 import type { ListingSignal } from "@shared/domain/goldmine";
 import type { Milestone } from "@shared/domain/completion";
 import type { FundingEvidence } from "@shared/domain/fundingReadiness";
@@ -12,6 +12,7 @@ import type {
 } from "@shared/domain/outreach";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
+import type { AgentDecision } from "@shared/domain/agents";
 import type { CreditLot, LedgerEntry } from "@shared/domain/ledger";
 import type { Subscription } from "@shared/domain/entitlements";
 import type { Money } from "@shared/money";
@@ -63,7 +64,7 @@ export interface DealRecord {
    */
   readonly disclosureConsent?: DisclosureConsent;
   readonly borrowerCompletedDeals: number;
-  readonly status: "new" | "qualified" | "in-market" | "funded" | "completed" | "withdrawn";
+  readonly status: DealStatus;
 }
 
 /**
@@ -183,6 +184,15 @@ export interface Database {
   outreachMessages: OutreachMessage[];
   dataRoomGrants: DataRoomGrant[];
   pendingCharges: PendingCharge[];
+  /**
+   * What a named person decided about each agent proposal.
+   *
+   * Kept rather than recomputed because a proposal is a function of the deal as
+   * it stands, and the deal moves. The decision has to survive the run that
+   * produced it, or "the underwriter reviewed this" would silently become "the
+   * underwriter reviewed something that no longer exists".
+   */
+  agentDecisions: AgentDecision[];
   /**
    * Addresses that must never be written to again, by address rather than by
    * candidate.
@@ -433,7 +443,10 @@ export type AuditAction =
   | "viewed-deal-material"
   | "mandate-saved"
   | "mandate-deleted"
-  | "access-denied";
+  | "access-denied"
+  | "agents-run"
+  | "agent-proposal-accepted"
+  | "agent-proposal-dismissed";
 
 export type SubscriberTokenField = "confirmToken" | "unsubscribeToken";
 
@@ -530,6 +543,11 @@ export interface Store {
   listOutreachMessages(): Promise<readonly OutreachMessage[]>;
   saveOutreachMessage(message: OutreachMessage): Promise<OutreachMessage>;
   listSuppressions(): Promise<readonly Suppression[]>;
+
+  /** Every decision on this deal, most recent first. */
+  listAgentDecisions(dealId: string): Promise<readonly AgentDecision[]>;
+  /** Append-only in effect: a change of mind is a new decision, not an edit. */
+  saveAgentDecision(decision: AgentDecision): Promise<AgentDecision>;
 
   listDataRoomGrants(): Promise<readonly DataRoomGrant[]>;
   getDataRoomGrant(token: string): Promise<DataRoomGrant | undefined>;

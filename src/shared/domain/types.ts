@@ -248,6 +248,22 @@ export interface ExitOutcome {
   readonly monthlyNetRent?: Money;
 }
 
+/**
+ * Where a deal has reached in the pipeline.
+ *
+ * Declared here rather than in the store, because the agent layer triggers on
+ * it and the store is not allowed to be the source of a domain fact. This is a
+ * stage, not the twelve-state command-driven lifecycle of the specification —
+ * the difference is recorded in `docs/PAF-OS.md` rather than blurred.
+ */
+export type DealStatus =
+  | "new"
+  | "qualified"
+  | "in-market"
+  | "funded"
+  | "completed"
+  | "withdrawn";
+
 export type Verdict = "proceed" | "negotiate" | "restructure" | "reject";
 
 export interface ScoreBreakdown {

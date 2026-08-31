@@ -68,6 +68,18 @@ export function EvidenceForm({
           defaultValue={asString(current["valuationDate"])}
         />
         <Field
+          label="Valuation figure (£)"
+          name="valuationAmount"
+          type="number"
+          step="0.01"
+          min="0"
+          defaultValue={
+            typeof current["valuationAmount"] === "number"
+              ? String((current["valuationAmount"] as number) / 100)
+              : ""
+          }
+        />
+        <Field
           label="Committed cash with proof (£)"
           name="committedCash"
           type="number"

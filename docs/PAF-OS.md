@@ -5,6 +5,14 @@ platform: twenty sections, a twelve-state lifecycle, roughly thirty entities, a
 document vault with OCR, nine AI agents, a lender portal, a data room and a
 capital discovery and outreach agent.
 
+One clarification about §12, because the word "agent" carries more than is meant
+here. The nine agents are built and reachable, and none of them is a model. An
+agent in this platform is a trigger, an observer over engines that already
+exist, and a proposal a named person must decide on. §12's own "human control"
+column is the specification of exactly that, and its closing prohibition — an
+agent may not bind, accept, certify, waive or move funds — is enforced by the
+shape of the code rather than stated as policy.
+
 This is what exists against it. The purpose of the table is that nobody has to
 read the code to find out — a specification with no honest gap analysis becomes
 a claim that the whole thing is built.
@@ -42,9 +50,13 @@ a claim that the whole thing is built.
 | §9A campaign controls | `src/shared/domain/campaign.ts` | Business-hours window, per-address and per-domain caps, per-run cap |
 | §9A scheduled sending | `POST /api/cron/outreach` | Twice a weekday; re-checks eligibility and suppression per message |
 | §9A bounce and complaint processing | `POST /api/outreach/events` | A complaint suppresses immediately with no threshold and no review |
+| §12 nine agents, each with its trigger, output and human control | `src/shared/domain/agents.ts` | Deterministic observers over the engines. Nine triggers, nine dormancy reasons, no model in the loop |
+| §12 prohibitions — no agent may bind, accept, certify, waive or move funds | `propose()`, `EFFECT_OWNERS`, `authoriseDecision()` | A closed set of four effects, one writing effect owned by one agent, and a decider who must be a named person |
+| §5 provenance on every AI output | `AgentProposal` | Input references, assumptions, confidence, logic version and a plain-English explanation on every proposal |
+| §12 agent board | `/deals/[id]/agents` | Proposals, the decision each needs, and what was decided by whom |
 | Immutable audit of material actions | `audit_events`, ledger | Append-only, enforced by database rule |
 
-Surfaced at **`/deals/[id]/funding`**.
+Surfaced at **`/deals/[id]/funding`** and **`/deals/[id]/agents`**.
 
 ## Acceptance tests from the specification
 
@@ -63,6 +75,9 @@ Implemented as real tests where they apply to what is built:
 | §9A.9 No restricted promotion without recorded approval | `tests/outreach.test.ts` |
 | §9A.10 One organisation from several sources, provenance kept | `tests/outreach.test.ts` |
 | §9A.8 Every discovered field traceable to a source and observation date | `tests/discovery.test.ts` |
+| §19.5 A valuation conflicting with intake creates a blocker with both sources | `tests/agents.test.ts` |
+| §19.9 An AI score cannot automatically decline or accept a borrower | `tests/agents.test.ts` |
+| §19.8 The conditions plan is adopted at "not started" and cannot mark anything satisfied | `tests/agentService.test.ts` |
 
 ## Not built
 
@@ -97,8 +112,10 @@ Listed rather than left to be discovered.
   closing readiness; there is no conditions tracker with four-eyes waivers, no
   watermarked data room and no sources-and-uses reconciliation against cleared
   funds.
-- **§12 AI agents.** The engines are deterministic by design. The only model
-  seam is the blog drafter, which never touches a number.
+- **A model behind any agent.** The nine agents of §12 exist and are wired, but
+  they are deterministic observers over the existing engines rather than models.
+  The only model seam on the platform is the blog drafter, which never touches a
+  number. This is a decision, not a stage — see §12 above.
 - **§2 role model.** Four roles, not nine. No tenant isolation — this is a
   single-tenant application.
 - **§15 API surface, §16 non-functional.** No public API, no MFA or SSO, no

@@ -59,7 +59,7 @@ async function reset(): Promise<void> {
     discoveryCandidates: [],
     outreachMessages: [],
     suppressions: [],
-    dataRoomGrants: [],
+    dataRoomGrants: [], agentDecisions: [],
     pendingCharges: [],
   });
   rmSync(process.env.LODE_DATA_FILE ?? "", { force: true });

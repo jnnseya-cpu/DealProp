@@ -2,6 +2,7 @@ import { Pool, type PoolClient } from "pg";
 import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
+import type { AgentDecision } from "@shared/domain/agents";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   availableBalance,
@@ -173,6 +174,17 @@ const SCHEMA = `
     data jsonb NOT NULL,
     expires_at timestamptz NOT NULL
   );
+  -- What a named person decided about an agent proposal. Appended, never
+  -- edited: a change of mind is a second row, and the board reads the latest.
+  CREATE TABLE IF NOT EXISTS agent_decisions (
+    id text PRIMARY KEY,
+    deal_id text NOT NULL,
+    agent_id text NOT NULL,
+    proposal_key text NOT NULL,
+    data jsonb NOT NULL,
+    at timestamptz NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS agent_decisions_deal ON agent_decisions (deal_id, at DESC);
   CREATE TABLE IF NOT EXISTS pending_charges (
     id text PRIMARY KEY,
     account_id text NOT NULL,
@@ -911,6 +923,26 @@ export const postgresStore: Store = {
       [entry.email.trim().toLowerCase(), entry.reason, entry.at],
     );
     return (rowCount ?? 0) > 0;
+  },
+
+  async listAgentDecisions(dealId: string): Promise<readonly AgentDecision[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: AgentDecision }>(
+      "SELECT data FROM agent_decisions WHERE deal_id = $1 ORDER BY at DESC",
+      [dealId],
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async saveAgentDecision(decision: AgentDecision): Promise<AgentDecision> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO agent_decisions (id, deal_id, agent_id, proposal_key, data, at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
+      [decision.id, decision.dealId, decision.agentId, decision.proposalKey, JSON.stringify(decision), decision.at],
+    );
+    return decision;
   },
 
   async listDataRoomGrants(): Promise<readonly DataRoomGrant[]> {

@@ -57,6 +57,15 @@ export interface FundingEvidence {
   readonly independentValuation?: boolean;
   readonly valuationDate?: string;
   readonly valuerFirm?: string;
+  /**
+   * What the valuer actually said the property is worth.
+   *
+   * Recorded as a figure and not only as a tick, because the tick says a
+   * valuation happened and the figure says whether it agrees with the deal.
+   * The readiness score deliberately does not read it — a valuation that
+   * disagrees is a blocker for a person, not a deduction from a number.
+   */
+  readonly valuationAmount?: Money;
   readonly comparablesRecorded?: boolean;
 
   readonly planningStatus?: "not-required" | "granted" | "applied" | "pre-application" | "none";
