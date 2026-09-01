@@ -12,15 +12,7 @@ import { referTradePartners } from "@shared/domain/partners";
 import { SignOutButton } from "@/app/operator/SignOutButton";
 import { add } from "@shared/money";
 import { gbp, gbpSigned, months, percent } from "@shared/format";
-import {
-  KeyValue,
-  Panel,
-  scoreBg,
-  scoreTone,
-  SiteHeader,
-  TradeReferrals,
-  VERDICT_TONE,
-} from "@/app/components/chrome";
+import { KeyValue, Panel, scoreBg, scoreTone, SiteHeader, Stat, TradeReferrals, VERDICT_TONE } from "@/app/components/chrome";
 
 export const dynamic = "force-dynamic";
 
@@ -76,10 +68,10 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
         back="/deals"
         trailing={
           <>
-            <span className={`rounded-full border px-3 py-1 text-xs ${verdict.chip}`}>
+            <span className={`rounded border px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] ${verdict.chip}`}>
               {verdict.label}
             </span>
-            <span className={`tnum font-display text-2xl ${scoreTone(scored.breakdown.composite)}`}>
+            <span className={`tnum mr-2 text-[19px] leading-none ${scoreTone(scored.breakdown.composite)}`}>
               {scored.breakdown.composite}
             </span>
             {/*
@@ -98,7 +90,7 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
               <Link
                 key={slug}
                 href={`/deals/${record.id}/${slug}`}
-                className="hidden rounded-lg border hairline px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-400 transition hover:border-lode-400/40 hover:text-lode-200 sm:inline-block"
+                className="hidden px-1 text-[13px] text-ink-400 transition-colors hover:text-ink-100 sm:inline-block"
               >
                 {label}
               </Link>
@@ -110,24 +102,22 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
         <span className="font-mono text-xs text-ink-500">{record.reference}</span>
       </SiteHeader>
 
-      <div className="mx-auto max-w-6xl px-6 py-12">
+      <div className="mx-auto max-w-6xl px-6 py-9">
         {/* --- Headline ---------------------------------------------------- */}
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
-          Deal Room
-        </span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100 sm:text-5xl">
+        <span className="eyebrow">Deal Room</span>
+        <h1 className="mt-2.5 font-display text-[27px] leading-[1.14] text-ink-100 sm:text-[34px] sm:leading-[1.12]">
           {record.property.bedrooms}-bed {record.property.propertyType} in{" "}
           {record.property.locality}
         </h1>
-        <p className="mt-3 text-sm text-ink-400">
+        <p className="mt-2 text-[13px] text-ink-400">
           {record.property.postcodeArea} · {record.property.tenure} ·{" "}
           {diagnostics.situationLabel} · {months(working.inputs.holdMonths)} hold
         </p>
 
         {working.modelled && working.note !== undefined && (
-          <div className="mt-6 rounded-xl border border-amber-500/25 bg-amber-500/5 px-5 py-4">
-            <p className="text-sm text-amber-200/90">{working.note}</p>
-          </div>
+          <p className="mt-5 border-l-2 border-amber-500/60 py-1 pl-4 text-[13px] leading-[1.6] text-amber-200/85">
+            {working.note}
+          </p>
         )}
 
         {/*
@@ -136,34 +126,48 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
           reader who skims the reasons list must not be able to miss that.
         */}
         {scored.protection.blocked && (
-          <div className="mt-8 rounded-2xl border border-red-500/40 bg-red-500/10 px-7 py-6">
-            <p className="font-display text-2xl text-red-200">
-              Blocked by the Seller Protection Engine
-            </p>
-            <p className="mt-3 text-sm leading-relaxed text-ink-200">
+          <div className="mt-7 overflow-hidden rounded-xl border border-red-900/70 bg-surface-1">
+            <div className="border-b border-red-900/70 bg-red-950/40 px-5 py-3">
+              <p className="font-display text-[19px] leading-tight text-red-200">
+                Blocked by the Seller Protection Engine
+              </p>
+            </div>
+            <div className="px-5 py-4">
+            <p className="text-[13px] leading-[1.65] text-ink-200">
               This deal cannot be shown to capital, matched to any mandate, or packaged until every
               item below is evidenced and a human reviewer has signed off.
             </p>
-            <ul className="mt-5 space-y-4">
+            <ul className="mt-4 space-y-3.5">
               {scored.protection.flags
                 .filter((f) => f.severity === "block")
                 .map((f) => (
-                  <li key={f.key}>
-                    <p className="text-sm text-ink-100">{f.label}</p>
-                    <p className="mt-1 text-xs leading-relaxed text-ink-400">{f.detail}</p>
-                    <p className="mt-1 text-xs leading-relaxed text-red-300/90">{f.remedy}</p>
+                  <li key={f.key} className="border-t hairline pt-3.5 first:border-0 first:pt-0">
+                    <p className="text-[14px] text-ink-100">{f.label}</p>
+                    <p className="mt-1 text-[13px] leading-[1.6] text-ink-400">{f.detail}</p>
+                    <p className="mt-1 text-[13px] leading-[1.6] text-red-300/90">{f.remedy}</p>
                   </li>
                 ))}
             </ul>
+            </div>
           </div>
         )}
 
-        <div className={`mt-6 rounded-2xl border px-7 py-6 ${verdict.chip}`}>
-          <p className="font-display text-2xl leading-snug text-ink-100">{briefing.headline}</p>
-          <ul className="mt-4 space-y-2">
+        {/*
+          The verdict, stated rather than boxed.
+          
+          This was a tinted panel bordered in the verdict colour, which put a
+          large coloured rectangle at the top of every deal and made the verdict
+          look like a banner advertisement for itself. A rule in the verdict
+          colour carries the same signal at a hundredth of the area, and leaves
+          the sentence — which is the part worth reading — as the thing the eye
+          lands on.
+        */}
+        <div className={`mt-7 border-l-2 pl-5 ${verdict.rule}`}>
+          <p className="font-display text-[22px] leading-[1.32] text-ink-100">{briefing.headline}</p>
+          <ul className="mt-3.5 space-y-1.5">
             {briefing.reasons.map((r) => (
-              <li key={r} className="flex gap-2.5 text-sm leading-relaxed text-ink-300">
-                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-ink-400" />
+              <li key={r} className="flex gap-2.5 text-[13px] leading-[1.65] text-ink-400">
+                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-ink-600" />
                 {r}
               </li>
             ))}
@@ -228,22 +232,22 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
           <div className="space-y-5">
             <Panel eyebrow="Returns">
               <div className="grid grid-cols-2 gap-4">
-                <Metric label="Margin on GDV" value={percent(a.marginOnGdvBps)} />
-                <Metric label="Return on cash" value={percent(a.roiOnCashBps, 0)} />
-                <Metric label="Annualised" value={percent(a.annualisedRoiBps, 0)} />
-                <Metric label="Equity required" value={gbp(a.funding.equityRequired)} />
-                <Metric label="Headline discount" value={percent(a.discountToOmvBps)} />
-                <Metric
+                <Stat label="Margin on GDV" value={percent(a.marginOnGdvBps)} />
+                <Stat label="Return on cash" value={percent(a.roiOnCashBps, 0)} />
+                <Stat label="Annualised" value={percent(a.annualisedRoiBps, 0)} />
+                <Stat label="Equity required" value={gbp(a.funding.equityRequired)} />
+                <Stat label="Headline discount" value={percent(a.discountToOmvBps)} />
+                <Stat
                   label="True discount"
                   value={percent(a.trueDiscountBps)}
-                  hint="after every cost"
+                  note="after every cost"
                   warn={a.trueDiscountBps < 0}
                 />
               </div>
             </Panel>
 
             <Panel eyebrow="Capital recycling">
-              <p className={`tnum font-display text-4xl ${scoreTone(recycle.score)}`}>
+              <p className={`tnum text-[30px] leading-none ${scoreTone(recycle.score)}`}>
                 {percent(recycle.recycledBps, 0)}
               </p>
               <p className="mt-2 text-xs leading-relaxed text-ink-400">{recycle.verdict}</p>
@@ -325,10 +329,10 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
 
             <Panel eyebrow="Seller" title="Motivation">
               <div className="grid grid-cols-2 gap-4">
-                <Metric label="Motivation" value={String(diagnostics.motivation)} />
-                <Metric label="Urgency" value={String(diagnostics.urgency)} />
-                <Metric label="Complexity" value={String(diagnostics.complexity)} />
-                <Metric label="Flexibility" value={String(diagnostics.priorityFlexibility)} />
+                <Stat label="Motivation" value={String(diagnostics.motivation)} />
+                <Stat label="Urgency" value={String(diagnostics.urgency)} />
+                <Stat label="Complexity" value={String(diagnostics.complexity)} />
+                <Stat label="Flexibility" value={String(diagnostics.priorityFlexibility)} />
               </div>
               <ul className="mt-4 space-y-1.5 border-t hairline pt-4">
                 {diagnostics.signals.map((s) => (
@@ -476,13 +480,13 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
               <div>
                 <div className="flex items-baseline gap-8">
                   <div>
-                    <p className={`tnum font-display text-4xl ${scoreTone(close.closeScore)}`}>
+                    <p className={`tnum text-[30px] leading-none ${scoreTone(close.closeScore)}`}>
                       {close.closeScore}%
                     </p>
                     <p className="text-[10px] uppercase tracking-[0.1em] text-ink-500">Close score</p>
                   </div>
                   <div>
-                    <p className={`tnum font-display text-4xl ${scoreTone(close.completionProbability)}`}>
+                    <p className={`tnum text-[30px] leading-none ${scoreTone(close.completionProbability)}`}>
                       {close.completionProbability}%
                     </p>
                     <p className="text-[10px] uppercase tracking-[0.1em] text-ink-500">
@@ -506,7 +510,7 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
               </div>
 
               <div>
-                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-500">
+                <p className="eyebrow">
                   Blockers, ranked by what they hold up
                 </p>
                 <div className="mt-3 space-y-3">
@@ -561,26 +565,6 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
         </footer>
       </div>
     </main>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  hint,
-  warn,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  warn?: boolean;
-}) {
-  return (
-    <div>
-      <p className="text-[10px] uppercase tracking-[0.1em] text-ink-500">{label}</p>
-      <p className={`tnum mt-1 text-2xl ${warn === true ? "text-red-300" : "text-ink-100"}`}>{value}</p>
-      {hint !== undefined && <p className="text-[10px] text-ink-500">{hint}</p>}
-    </div>
   );
 }
 

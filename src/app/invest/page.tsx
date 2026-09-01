@@ -62,11 +62,11 @@ export default async function InvestPage() {
         }
       />
 
-      <div className="mx-auto max-w-5xl px-6 py-14">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+      <div className="mx-auto max-w-5xl px-6 py-10">
+        <span className="eyebrow">
           Buy Box
         </span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100 sm:text-5xl">
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           {boxes.length === 0
             ? "No buying mandates yet"
             : `${activeCount} active ${activeCount === 1 ? "mandate" : "mandates"}`}
@@ -82,7 +82,7 @@ export default async function InvestPage() {
         </div>
 
         {boxes.length === 0 ? (
-          <p className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-8 text-sm text-ink-400">
+          <p className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-6 text-sm text-ink-400">
             Nothing here yet. Until at least one mandate exists, every seller who completes the
             intake is told that no buyer currently matches their property — which is true, and is
             why capital is recruited before sellers are marketed to.
@@ -108,14 +108,14 @@ function BuyBoxCard({
 }) {
   return (
     <section
-      className={`rounded-2xl border px-6 py-6 ${box.active ? "hairline bg-ink-900/40" : "border-ink-800 bg-ink-950/60"}`}
+      className={`rounded-2xl border px-5 py-4 ${box.active ? "hairline bg-surface-1" : "border-ink-800 bg-ink-950/60"}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h2 className="font-display text-xl text-ink-100">{box.investorName}</h2>
+            <h2 className="font-display text-[17px] leading-tight text-ink-100">{box.investorName}</h2>
             {!box.active && (
-              <span className="rounded-full border border-ink-700 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-ink-500">
+              <span className="rounded-md border border-ink-700 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-ink-500">
                 Inactive
               </span>
             )}
@@ -161,7 +161,7 @@ function BuyBoxCard({
                 <Link
                   key={record.id}
                   href={`/deals/${record.id}`}
-                  className="rounded-lg border hairline px-3 py-1.5 font-mono text-xs text-ink-300 transition hover:border-lode-400/40 hover:text-lode-200"
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border hairline bg-surface-2 px-3 text-[13px] text-ink-200 transition-colors hover:border-ink-600 hover:text-ink-100"
                 >
                   {record.reference} · {match.score}
                 </Link>

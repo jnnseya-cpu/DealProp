@@ -70,9 +70,9 @@ export default async function DataRoomPage({
 
   return (
     <main className="min-h-screen bg-ink-950">
-      <div className="mx-auto max-w-3xl px-6 py-14">
-        <div className="rounded-2xl border border-lode-400/30 bg-lode-400/5 px-6 py-4">
-          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-lode-300">
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <div className="rounded-lg border-l-2 border-lode-500/80 bg-surface-1 px-6 py-4">
+          <p className="eyebrow">
             Prepared for {grant.organisationName}
           </p>
           <p className="mt-1 font-mono text-[11px] text-ink-500">
@@ -81,7 +81,7 @@ export default async function DataRoomPage({
           </p>
         </div>
 
-        <p className="mt-6 rounded-2xl border hairline bg-ink-900/40 px-6 py-5 text-xs leading-relaxed text-ink-400">
+        <p className="mt-6 rounded-2xl border hairline bg-surface-1 px-5 py-4 text-xs leading-relaxed text-ink-400">
           This is a description of an opportunity to lend against property, prepared for a business
           recipient. It is not advice, not a valuation and not an offer. Figures are our own
           appraisal and are estimates: property values can fall, works can overrun and an exit may
@@ -90,7 +90,7 @@ export default async function DataRoomPage({
           as at {UK_INVESTOR_CATEGORISATION.asOf}.
         </p>
 
-        <h1 className="mt-10 font-display text-4xl leading-tight text-ink-100">
+        <h1 className="mt-10 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           {record.reference}
         </h1>
         <p className="mt-2 text-sm text-ink-400">
@@ -165,8 +165,8 @@ export default async function DataRoomPage({
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="mt-8 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
-      <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">{title}</h2>
+    <section className="mt-8 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+      <h2 className="eyebrow">{title}</h2>
       <dl className="mt-4 space-y-2">{children}</dl>
     </section>
   );

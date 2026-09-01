@@ -88,7 +88,7 @@ export function Prose({ blocks }: { blocks: readonly Block[] }) {
         switch (block.kind) {
           case "heading":
             return (
-              <h2 key={key} className="pt-4 font-display text-2xl text-ink-100">
+              <h2 key={key} className="pt-4 font-display text-[21px] leading-tight text-ink-100">
                 <Linked text={block.text} linked={linked} />
               </h2>
             );
@@ -115,15 +115,15 @@ export function Prose({ blocks }: { blocks: readonly Block[] }) {
             return (
               <blockquote
                 key={key}
-                className="border-l-2 border-lode-500/50 bg-ink-900/40 px-5 py-4 text-[15px] leading-relaxed text-ink-200"
+                className="border-l-2 border-lode-500/50 bg-surface-1 px-5 py-4 text-[15px] leading-relaxed text-ink-200"
               >
                 <Linked text={block.text} linked={linked} />
               </blockquote>
             );
           case "figures":
             return (
-              <figure key={key} className="rounded-2xl border hairline bg-ink-900/40 px-6 py-5">
-                <figcaption className="text-[11px] uppercase tracking-[0.12em] text-ink-400">
+              <figure key={key} className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
+                <figcaption className="eyebrow">
                   {block.caption}
                 </figcaption>
                 <dl className="mt-4 divide-y divide-ink-800/70">
@@ -139,7 +139,7 @@ export function Prose({ blocks }: { blocks: readonly Block[] }) {
           case "faq":
             return (
               <section key={key} className="pt-4">
-                <h2 className="font-display text-2xl text-ink-100">Common questions</h2>
+                <h2 className="font-display text-[21px] leading-tight text-ink-100">Common questions</h2>
                 <dl className="mt-4 space-y-4">
                   {block.items.map((item) => (
                     <div key={item.question}>

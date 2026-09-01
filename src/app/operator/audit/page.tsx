@@ -41,11 +41,11 @@ export default async function AuditPage() {
         }
       />
 
-      <div className="mx-auto max-w-4xl px-6 py-14">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+      <div className="mx-auto max-w-4xl px-6 py-10">
+        <span className="eyebrow">
           Audit trail
         </span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100">
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           {events.length === 0 ? "Nothing recorded yet" : `${events.length} recent events`}
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-300">
@@ -55,7 +55,7 @@ export default async function AuditPage() {
         </p>
 
         {events.length === 0 ? (
-          <p className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-8 text-sm text-ink-400">
+          <p className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-6 text-sm text-ink-400">
             No events recorded. Sign in with a named account and open a deal to see entries appear.
           </p>
         ) : (

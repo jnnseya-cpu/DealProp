@@ -57,11 +57,11 @@ export default async function DiscoveryPage() {
         }
       />
 
-      <div className="mx-auto max-w-4xl px-6 py-14">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+      <div className="mx-auto max-w-4xl px-6 py-10">
+        <span className="eyebrow">
           Funder discovery
         </span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100">
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           {candidates.length === 0
             ? "Nothing discovered yet"
             : `${candidates.length} candidate${candidates.length === 1 ? "" : "s"}, ${approved} approved`}
@@ -74,8 +74,8 @@ export default async function DiscoveryPage() {
 
         <RunForm />
 
-        <section className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
-          <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+        <section className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+          <h2 className="eyebrow">
             What may be read, and what may not
           </h2>
           <ul className="mt-4 space-y-3">
@@ -99,7 +99,7 @@ export default async function DiscoveryPage() {
         </section>
 
         {candidates.length === 0 ? (
-          <p className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-8 text-sm leading-relaxed text-ink-400">
+          <p className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-6 text-sm leading-relaxed text-ink-400">
             No discovery run has been made. A run takes organisations you name — from a trade
             directory, a referral or a spreadsheet — and confirms each against Companies House and
             the FCA Register, then reads the mandate they published themselves. It does not go
@@ -117,7 +117,7 @@ export default async function DiscoveryPage() {
 
             <ul className="mt-10 space-y-5">
               {candidates.map(({ candidate, notes, approvedAt, approvedBy }) => (
-                <li key={candidate.id} className="rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
+                <li key={candidate.id} className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
                     <p className="font-display text-lg text-ink-100">{candidate.organisationName}</p>
                     <p className="font-mono text-xs">

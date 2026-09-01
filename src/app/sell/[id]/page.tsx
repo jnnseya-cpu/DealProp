@@ -60,11 +60,11 @@ export default async function SellerOptionsPage({
         trailing={<span className="font-mono text-xs text-ink-500">{record.reference}</span>}
       />
 
-      <div className="mx-auto max-w-4xl px-6 py-14">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+      <div className="mx-auto max-w-4xl px-6 py-10">
+        <span className="eyebrow">
           Your options
         </span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100 sm:text-5xl">
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           {report.diagnostics.situationLabel}
           <span className="text-ink-500"> · </span>
           {property.locality}
@@ -167,9 +167,9 @@ function BuyerDemand({ buyers }: { buyers: { total: number; fast: number } }) {
   }
 
   return (
-    <div className="mt-8 rounded-2xl border border-lode-500/30 bg-lode-400/5 px-6 py-5">
+    <div className="mt-8 rounded-lg border-l-2 border-lode-500 bg-surface-1 px-5 py-4">
       <p className="text-lg text-ink-100">
-        <span className="font-display text-3xl text-lode-200">{buyers.total}</span>{" "}
+        <span className="tnum text-[26px] leading-none text-lode-200">{buyers.total}</span>{" "}
         verified {buyers.total === 1 ? "buyer is" : "buyers are"} currently looking for a property
         like yours.
       </p>
@@ -188,8 +188,8 @@ function BuyerDemand({ buyers }: { buyers: { total: number; fast: number } }) {
 }
 
 const CERTAINTY_COPY: Record<SellerRoute["certainty"], { label: string; tone: string }> = {
-  high: { label: "High certainty", tone: "text-emerald-300 border-emerald-500/30 bg-emerald-500/10" },
-  medium: { label: "Medium certainty", tone: "text-amber-300 border-amber-500/30 bg-amber-500/10" },
+  high: { label: "High certainty", tone: "text-emerald-300 border-emerald-600/45 bg-emerald-500/10" },
+  medium: { label: "Medium certainty", tone: "text-amber-300 border-amber-600/45 bg-amber-500/10" },
   conditional: { label: "Conditional", tone: "text-orange-300 border-orange-500/30 bg-orange-500/10" },
 };
 
@@ -210,29 +210,29 @@ function RouteCard({
 
   return (
     <section
-      className={`overflow-hidden rounded-2xl border ${rank === 0 ? "border-lode-500/40 bg-lode-400/5" : "hairline bg-ink-900/40"}`}
+      className={`overflow-hidden rounded-2xl border ${rank === 0 ? "border-lode-500/40 bg-lode-400/5" : "hairline bg-surface-1"}`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b hairline px-6 py-5">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b hairline px-5 py-4">
         <div>
           <div className="flex items-center gap-3">
             <span className="font-mono text-xs text-ink-500">OPTION {letter}</span>
             {rank === 0 && (
-              <span className="rounded-full border border-lode-500/40 bg-lode-400/10 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.1em] text-lode-200">
+              <span className="rounded border border-lode-500/45 bg-lode-500/10 px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-lode-200">
                 Best fit for what you told us
               </span>
             )}
           </div>
-          <h2 className="mt-2 font-display text-2xl text-ink-100">{route.label}</h2>
+          <h2 className="mt-2 font-display text-[21px] leading-tight text-ink-100">{route.label}</h2>
         </div>
-        <span className={`rounded-full border px-3 py-1 text-xs ${certainty.tone}`}>
+        <span className={`rounded border px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] ${certainty.tone}`}>
           {certainty.label}
         </span>
       </div>
 
-      <div className="grid gap-6 px-6 py-6 sm:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-6 px-5 py-4 sm:grid-cols-[1.1fr_0.9fr]">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.12em] text-ink-400">You receive</p>
-          <p className="tnum mt-1 font-display text-4xl text-ink-100">{gbp(route.totalToSeller)}</p>
+          <p className="eyebrow">You receive</p>
+          <p className="tnum mt-1 text-[30px] leading-none text-ink-100">{gbp(route.totalToSeller)}</p>
 
           {route.deferred > 0 && (
             <dl className="mt-4 space-y-1.5 text-sm">
@@ -256,7 +256,7 @@ function RouteCard({
         </div>
 
         <div>
-          <p className="text-[11px] uppercase tracking-[0.12em] text-ink-400">What you give up</p>
+          <p className="eyebrow">What you give up</p>
           <ul className="mt-2 space-y-2">
             {route.tradeOffs.map((t) => (
               <li key={t} className="flex gap-2.5 text-xs leading-relaxed text-ink-300">
@@ -275,7 +275,7 @@ function RouteCard({
           tax. We show you this because you are entitled to know it.
         </p>
         {route.fidelity === "indicative" && (
-          <span className="rounded-full border hairline px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] text-ink-400">
+          <span className="rounded-md border hairline px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] text-ink-400">
             Indicative figures
           </span>
         )}
@@ -283,7 +283,7 @@ function RouteCard({
 
       {route.requires.length > 0 && (
         <div className="border-t hairline px-6 py-4">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-ink-400">
+          <p className="eyebrow">
             Before this can go ahead
           </p>
           <ul className="mt-2 space-y-1.5">
@@ -324,7 +324,7 @@ function MinimumCheck({
 
   if (meeting.length === 0) {
     return (
-      <div className="mt-8 rounded-2xl border border-amber-500/25 bg-amber-500/5 px-6 py-5">
+      <div className="mt-8 rounded-lg border-l-2 border-amber-500/80 bg-surface-1 px-5 py-4">
         <p className="text-base text-ink-100">
           You told us you need at least {gbp(minimum)}. None of these routes reach that.
         </p>
@@ -341,7 +341,7 @@ function MinimumCheck({
   const alternative = meeting[0];
 
   return (
-    <div className="mt-8 rounded-2xl border border-lode-500/30 bg-lode-400/5 px-6 py-5">
+    <div className="mt-8 rounded-lg border-l-2 border-lode-500 bg-surface-1 px-5 py-4">
       <p className="text-base text-ink-100">
         You told us you need at least {gbp(minimum)}.{" "}
         {meeting.length === 1 ? "One route reaches that" : `${meeting.length} routes reach that`}.
@@ -362,8 +362,8 @@ function MinimumCheck({
 
 function Unavailable({ routes }: { routes: readonly SellerRoute[] }) {
   return (
-    <div className="mt-10 rounded-2xl border hairline bg-ink-900/30 px-6 py-5">
-      <p className="text-[11px] uppercase tracking-[0.12em] text-ink-400">
+    <div className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+      <p className="eyebrow">
         Routes we considered and ruled out
       </p>
       <ul className="mt-3 space-y-2.5">
@@ -385,8 +385,8 @@ function BlockedNotice({
   reasons: readonly { key: string; label: string; detail: string; remedy: string }[];
 }) {
   return (
-    <div className="mt-8 rounded-2xl border border-red-500/30 bg-red-500/5 px-7 py-7">
-      <h2 className="font-display text-2xl text-red-200">
+    <div className="mt-8 rounded-lg border-l-2 border-red-500/80 bg-surface-1 px-7 py-7">
+      <h2 className="font-display text-[21px] leading-tight text-red-200">
         We have paused this and a person will review it
       </h2>
       <p className="mt-4 text-sm leading-relaxed text-ink-200">
@@ -415,23 +415,23 @@ function BlockedNotice({
 
 function Confidence({ property }: { property: PropertyFacts }) {
   return (
-    <section className="mt-14 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
-      <p className="text-[11px] uppercase tracking-[0.12em] text-ink-400">
+    <section className="mt-14 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+      <p className="eyebrow">
         How confident we are in these figures
       </p>
       <div className="mt-4 flex flex-wrap items-baseline gap-8">
         <div>
-          <p className="tnum font-display text-3xl text-ink-100">
+          <p className="tnum text-[24px] leading-none text-ink-100">
             {percent(property.valuationConfidence, 0)}
           </p>
           <p className="mt-1 text-xs text-ink-400">confidence in the value</p>
         </div>
         <div>
-          <p className="tnum font-display text-3xl text-ink-100">{gbp(property.openMarketValue)}</p>
+          <p className="tnum text-[24px] leading-none text-ink-100">{gbp(property.openMarketValue)}</p>
           <p className="mt-1 text-xs text-ink-400">value we have used</p>
         </div>
         <div>
-          <p className="tnum font-display text-3xl text-ink-100">
+          <p className="tnum text-[24px] leading-none text-ink-100">
             {gbp(property.refurbishmentEstimate)}
           </p>
           <p className="mt-1 text-xs text-ink-400">works we have assumed</p>
@@ -448,8 +448,8 @@ function Confidence({ property }: { property: PropertyFacts }) {
 
 function Disclosures({ items }: { items: readonly string[] }) {
   return (
-    <section className="mt-6 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
-      <p className="text-[11px] uppercase tracking-[0.12em] text-ink-400">
+    <section className="mt-6 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+      <p className="eyebrow">
         Things you are entitled to know
       </p>
       <ul className="mt-3 space-y-2.5">
@@ -470,7 +470,7 @@ function Safeguards({
   flags: readonly { key: string; label: string; remedy: string }[];
 }) {
   return (
-    <section className="mt-6 rounded-2xl border border-amber-500/25 bg-amber-500/5 px-6 py-6">
+    <section className="mt-6 rounded-lg border-l-2 border-amber-500/80 bg-surface-1 px-5 py-4">
       <p className="text-[11px] uppercase tracking-[0.12em] text-amber-300/80">
         Safeguards we will put in place
       </p>
@@ -515,10 +515,10 @@ function Callout({
 }) {
   const tones = {
     amber: "border-amber-500/25 bg-amber-500/5",
-    neutral: "hairline bg-ink-900/40",
+    neutral: "hairline bg-surface-1",
   };
   return (
-    <div className={`mt-8 rounded-2xl border px-6 py-5 ${tones[tone]}`}>
+    <div className={`mt-8 rounded-2xl border px-5 py-4 ${tones[tone]}`}>
       <p className="text-base text-ink-100">{title}</p>
       <p className="mt-2 text-sm leading-relaxed text-ink-400">{children}</p>
     </div>

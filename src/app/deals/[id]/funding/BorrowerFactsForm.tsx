@@ -29,7 +29,7 @@ export function BorrowerFactsForm({
     <form action={submit}>
       <input type="hidden" name="dealId" value={dealId} />
 
-      <label className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm leading-relaxed text-ink-200">
+      <label className="flex items-start gap-2 rounded-lg border-l-2 border-amber-500/80 bg-surface-1 px-4 py-3 text-sm leading-relaxed text-ink-200">
         <input
           type="checkbox"
           name="securityIncludesOwnerOccupiedDwelling"
@@ -76,7 +76,7 @@ export function BorrowerFactsForm({
       <button
         type="submit"
         disabled={pending}
-        className="mt-6 rounded-xl border border-lode-400/50 px-5 py-2.5 text-sm text-lode-200 transition hover:border-lode-400 hover:bg-lode-400/10 disabled:opacity-50"
+        className="mt-6 inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
       >
         {pending ? "Saving…" : "Classify the route"}
       </button>

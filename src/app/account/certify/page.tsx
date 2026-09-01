@@ -48,11 +48,11 @@ export default async function CertifyPage() {
     <main className="min-h-screen">
       <SiteHeader width="max-w-2xl" />
 
-      <div className="mx-auto max-w-2xl px-6 py-14">
-        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-lode-400">
+      <div className="mx-auto max-w-2xl px-6 py-10">
+        <p className="eyebrow">
           Investor certification
         </p>
-        <h1 className="mt-2 font-display text-3xl text-ink-100">
+        <h1 className="mt-2 font-display text-[26px] leading-tight text-ink-100">
           Before we can send you a deal
         </h1>
         <p className="mt-4 text-sm leading-relaxed text-ink-300">
@@ -64,13 +64,13 @@ export default async function CertifyPage() {
         </p>
 
         <div
-          className={`mt-8 rounded-2xl border px-6 py-5 ${
+          className={`mt-8 rounded-2xl border px-5 py-4 ${
             status.current
               ? "border-emerald-500/30 bg-emerald-500/5"
               : "border-amber-500/25 bg-amber-500/5"
           }`}
         >
-          <p className="text-[11px] uppercase tracking-[0.12em] text-ink-400">Where you stand</p>
+          <p className="eyebrow">Where you stand</p>
           <p className="mt-2 text-sm leading-relaxed text-ink-200">{status.reason}</p>
         </div>
 
@@ -79,8 +79,8 @@ export default async function CertifyPage() {
         </div>
 
         {thirdParty.length > 0 && (
-          <section className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-5">
-            <p className="text-[11px] uppercase tracking-[0.12em] text-ink-400">
+          <section className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+            <p className="eyebrow">
               Not something we can issue
             </p>
             <ul className="mt-3 space-y-2 text-sm leading-relaxed text-ink-300">

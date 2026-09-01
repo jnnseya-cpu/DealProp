@@ -110,7 +110,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         }
       />
 
-      <article className="mx-auto max-w-3xl px-6 py-14">
+      <article className="mx-auto max-w-3xl px-6 py-10">
         {/* The last crumb is the page itself and is not a link — a breadcrumb
             that links to where you already are is noise to a reader and to a
             crawler. */}
@@ -127,7 +127,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           </Link>
         </nav>
 
-        <h1 className="mt-5 font-display text-4xl leading-tight text-ink-100">{post.title}</h1>
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">{post.title}</h1>
 
         <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-ink-500">
           <time dateTime={post.publishedAt}>{post.publishedAt.slice(0, 10)}</time>
@@ -146,8 +146,8 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         </div>
 
         {terms.length > 0 && (
-          <section className="mt-14 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
-            <h2 className="text-[11px] uppercase tracking-[0.12em] text-ink-400">
+          <section className="mt-14 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+            <h2 className="eyebrow">
               Terms used on this page
             </h2>
             <dl className="mt-4 space-y-3">
@@ -170,7 +170,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
 
         {related.length > 0 && (
           <section className="mt-6">
-            <h2 className="text-[11px] uppercase tracking-[0.12em] text-ink-400">Related reading</h2>
+            <h2 className="eyebrow">Related reading</h2>
             <ul className="mt-4 space-y-3">
               {related.map((other) => (
                 <li key={other.slug}>
@@ -187,8 +187,8 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           </section>
         )}
 
-        <section className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
-          <h2 className="text-[11px] uppercase tracking-[0.12em] text-ink-400">Where to next</h2>
+        <section className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+          <h2 className="eyebrow">Where to next</h2>
           <ul className="mt-4 flex flex-wrap gap-2">
             {links
               .filter((l) => !l.href.startsWith("/blog/"))
@@ -197,7 +197,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
                   <Link
                     href={link.href}
                     title={link.context}
-                    className="inline-block rounded-lg border hairline px-3.5 py-2 text-sm text-ink-300 transition hover:border-lode-400/40 hover:text-lode-200"
+                    className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border hairline bg-surface-2 px-3 text-[13px] text-ink-200 transition-colors hover:border-ink-600 hover:text-ink-100"
                   >
                     {link.label}
                   </Link>

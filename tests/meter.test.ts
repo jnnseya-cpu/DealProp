@@ -111,6 +111,26 @@ describe("what a plan includes runs out", () => {
     });
   });
 
+  it("decides the limit against the instant it is given, not the wall clock", async () => {
+    // The entitlement used to be read from `new Date()` while everything else
+    // in the same decision used `now`. It surfaced when the container clock
+    // crossed PERIOD_END and every allowance test began refusing — but the
+    // failure it describes is a customer being refused what they paid for
+    // because the period rolled over between two lines of one decision.
+    await onPlan("funder-private");
+    const insidePeriod = await meter(investor, "memorandum-export", "deal-a", NOW);
+    expect(insidePeriod.allowed).toBe(true);
+    expect(insidePeriod.entitlements.memorandaPerPeriod).toBe(10);
+
+    const afterPeriod = await meter(
+      investor,
+      "memorandum-export",
+      "deal-b",
+      new Date("2026-09-15T12:00:00.000Z"),
+    );
+    expect(afterPeriod.allowed).toBe(false);
+  });
+
   it("counts each memorandum against the plan until they are gone", async () => {
     // funder-private includes ten.
     await onPlan("funder-private");

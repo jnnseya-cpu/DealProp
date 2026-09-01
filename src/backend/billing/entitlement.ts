@@ -42,9 +42,20 @@ function staffEntitlements(): Entitlements {
 
 export async function entitlementsForAccount(
   account: Pick<Account, "id" | "role"> | undefined,
+  /**
+   * The instant to decide against.
+   *
+   * Required as a parameter rather than read from the clock, because a caller
+   * that has already fixed an instant must get an answer consistent with it.
+   * `meter()` threads `now` through the ledger, the idempotency key and the
+   * period it counts against, and then asked this for the *limit* — which read
+   * the wall clock instead. On a period boundary the two disagree, and the
+   * disagreement decides whether a customer gets what they have paid for.
+   */
+  now: Date = new Date(),
 ): Promise<Entitlements> {
   if (account === undefined) return staffEntitlements();
   if (account.role === "admin" || account.role === "operator") return staffEntitlements();
 
-  return entitlementsFor(await getSubscription(account.id));
+  return entitlementsFor(await getSubscription(account.id), now);
 }

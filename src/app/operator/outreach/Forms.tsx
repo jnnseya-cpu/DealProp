@@ -78,7 +78,7 @@ export function DraftForm({
       <button
         type="submit"
         disabled={pending}
-        className="rounded-xl border border-lode-400/50 px-5 py-2.5 text-sm text-lode-200 transition hover:border-lode-400 hover:bg-lode-400/10 disabled:opacity-50"
+        className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
       >
         {pending ? "Drafting…" : "Draft enquiry"}
       </button>
@@ -107,7 +107,7 @@ export function MessageActions({ messageId, status }: { messageId: string; statu
             <button
               type="submit"
               disabled={approving}
-              className="rounded-xl border hairline px-4 py-2 text-sm text-ink-200 transition hover:border-ink-500 disabled:opacity-50"
+              className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
             >
               {approving ? "Recording…" : "Approve"}
             </button>
@@ -119,7 +119,7 @@ export function MessageActions({ messageId, status }: { messageId: string; statu
             <button
               type="submit"
               disabled={sending}
-              className="rounded-xl border border-lode-400/50 px-4 py-2 text-sm text-lode-200 transition hover:border-lode-400 hover:bg-lode-400/10 disabled:opacity-50"
+              className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
             >
               {sending ? "Sending…" : "Send now"}
             </button>
@@ -162,7 +162,7 @@ export function SuppressForm() {
       <button
         type="submit"
         disabled={pending}
-        className="rounded-xl border hairline px-4 py-2 text-sm text-ink-200 transition hover:border-ink-500 disabled:opacity-50"
+        className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
       >
         {pending ? "Recording…" : "Never contact"}
       </button>
@@ -224,7 +224,7 @@ export function StageForms({
           <label className="block text-sm text-ink-300" htmlFor="consent-note">How it was given</label>
           <input id="consent-note" name="note" type="text" className="mt-1 rounded-xl border hairline bg-ink-950 px-3 py-2 text-sm text-ink-100" />
         </div>
-        <button type="submit" disabled={recording} className="rounded-xl border hairline px-4 py-2 text-sm text-ink-200 transition hover:border-ink-500 disabled:opacity-50">
+        <button type="submit" disabled={recording} className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3">
           {recording ? "Recording…" : "Record consent"}
         </button>
         <div className="w-full"><Status result={consent} /></div>
@@ -296,7 +296,7 @@ function StagePair({
           ))}
         </select>
       </div>
-      <button type="submit" disabled={pending} className="rounded-xl border hairline px-4 py-2 text-sm text-ink-200 transition hover:border-ink-500 disabled:opacity-50">
+      <button type="submit" disabled={pending} className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3">
         {pending ? "Working…" : submitLabel}
       </button>
       <div className="w-full"><Status result={result} /></div>
@@ -369,7 +369,7 @@ export function OwnerLetterForm({
       <button
         type="submit"
         disabled={pending}
-        className="mt-4 rounded-xl border hairline px-4 py-2 text-sm text-ink-200 transition hover:border-ink-500 disabled:opacity-50"
+        className="mt-4 inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
       >
         {pending ? "Drafting…" : "Draft owner letter"}
       </button>
@@ -392,7 +392,7 @@ export function PostedButton({ messageId }: { messageId: string }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-xl border border-lode-400/50 px-4 py-2 text-sm text-lode-200 transition hover:border-lode-400 hover:bg-lode-400/10 disabled:opacity-50"
+          className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
         >
           {pending ? "Recording…" : "Mark posted"}
         </button>

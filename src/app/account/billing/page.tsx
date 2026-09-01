@@ -53,11 +53,11 @@ export default async function AccountBillingPage() {
         }
       />
 
-      <div className="mx-auto max-w-3xl px-6 py-14">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <span className="eyebrow">
           Billing
         </span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100">
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           {current?.name ?? "Free"}
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-300">{entitlements.reason}</p>
@@ -75,13 +75,13 @@ export default async function AccountBillingPage() {
         </dl>
 
         {!position.maySpend && (
-          <p className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/5 px-6 py-5 text-sm leading-relaxed text-red-200">
+          <p className="mt-6 rounded-lg border-l-2 border-red-500/80 bg-surface-1 px-5 py-4 text-sm leading-relaxed text-red-200">
             {position.reason}
           </p>
         )}
 
-        <section className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
-          <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+        <section className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+          <h2 className="eyebrow">
             Top up
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-400">
@@ -102,8 +102,8 @@ export default async function AccountBillingPage() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
-          <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+        <section className="mt-6 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+          <h2 className="eyebrow">
             Plans
           </h2>
           <div className="mt-5 space-y-4">
@@ -145,9 +145,9 @@ export default async function AccountBillingPage() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border hairline bg-ink-900/40 px-5 py-4">
+    <div className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
       <dt className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-500">{label}</dt>
-      <dd className="mt-2 font-display text-2xl text-ink-100">{value}</dd>
+      <dd className="mt-2 font-display text-[21px] leading-tight text-ink-100">{value}</dd>
     </div>
   );
 }

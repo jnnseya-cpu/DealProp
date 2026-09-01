@@ -51,7 +51,7 @@ export function ConsentBanner({ onChange }: { onChange: (state: ConsentState) =>
     <div
       role="dialog"
       aria-label="Cookies"
-      className="fixed inset-x-0 bottom-0 z-50 border-t hairline bg-ink-950/95 px-6 py-5 backdrop-blur"
+      className="fixed inset-x-0 bottom-0 z-50 border-t hairline bg-ink-950/95 px-5 py-4 backdrop-blur"
     >
       <div className="mx-auto flex max-w-4xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-2xl text-sm leading-relaxed text-ink-300">{CONSENT_TEXT}</p>
@@ -59,14 +59,14 @@ export function ConsentBanner({ onChange }: { onChange: (state: ConsentState) =>
           <button
             type="button"
             onClick={() => choose("denied")}
-            className="rounded-xl border hairline px-5 py-2.5 text-sm text-ink-200 transition hover:border-ink-500"
+            className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
           >
             Decline
           </button>
           <button
             type="button"
             onClick={() => choose("granted")}
-            className="rounded-xl border border-lode-400/50 px-5 py-2.5 text-sm text-lode-200 transition hover:border-lode-400 hover:bg-lode-400/10"
+            className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
           >
             Accept
           </button>

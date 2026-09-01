@@ -18,8 +18,8 @@ export function RunForm() {
   );
 
   return (
-    <form action={submit} className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
-      <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+    <form action={submit} className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+      <h2 className="eyebrow">
         Run discovery
       </h2>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-400">
@@ -44,7 +44,7 @@ export function RunForm() {
       <button
         type="submit"
         disabled={running}
-        className="mt-4 rounded-xl border border-lode-400/50 px-5 py-2.5 text-sm text-lode-200 transition hover:border-lode-400 hover:bg-lode-400/10 disabled:opacity-50"
+        className="mt-4 inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
       >
         {running ? "Checking…" : "Run discovery"}
       </button>

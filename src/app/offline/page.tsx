@@ -15,10 +15,10 @@ export default function OfflinePage() {
     <main className="min-h-screen">
       <SiteHeader width="max-w-2xl" />
       <div className="mx-auto max-w-2xl px-6 py-24">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+        <span className="eyebrow">
           No connection
         </span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100">
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           You&apos;re offline.
         </h1>
         <p className="mt-5 text-base leading-relaxed text-ink-400">

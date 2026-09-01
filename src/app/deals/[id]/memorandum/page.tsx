@@ -376,10 +376,10 @@ function Row({ k, v, strong = false }: { k: string; v: string; strong?: boolean 
 function OutOfAllowance({ reason, dealId }: { reason: string; dealId: string }) {
   return (
     <main className="mx-auto max-w-2xl px-6 py-24">
-      <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+      <span className="eyebrow">
         Memorandum
       </span>
-      <h1 className="mt-4 font-display text-3xl leading-tight text-ink-100">
+      <h1 className="mt-2.5 font-display text-[28px] leading-[1.15] text-ink-100">
         Not available on your plan right now
       </h1>
       <p className="mt-4 text-sm leading-relaxed text-ink-300">{reason}</p>
@@ -389,7 +389,7 @@ function OutOfAllowance({ reason, dealId }: { reason: string; dealId: string }) 
       <div className="mt-8 flex gap-4">
         <Link
           href={`/deals/${dealId}`}
-          className="rounded-xl border hairline px-5 py-2.5 text-sm text-ink-200 transition hover:border-ink-500"
+          className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
         >
           Back to the Deal Room
         </Link>

@@ -22,8 +22,8 @@ export function CertifyForm({ categories }: { categories: readonly CategoryDefin
 
   if (state?.ok === true) {
     return (
-      <div role="status" className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-6 py-6">
-        <p className="font-display text-xl text-emerald-200">Recorded</p>
+      <div role="status" className="rounded-lg border-l-2 border-emerald-500/80 bg-surface-1 px-5 py-4">
+        <p className="font-display text-[17px] leading-tight text-emerald-200">Recorded</p>
         <p className="mt-2 text-sm leading-relaxed text-ink-300">{state.message}</p>
       </div>
     );
@@ -37,7 +37,7 @@ export function CertifyForm({ categories }: { categories: readonly CategoryDefin
           {categories.map((c) => (
             <label
               key={c.category}
-              className="flex cursor-pointer items-start gap-3 rounded-xl border hairline bg-ink-900/40 px-4 py-3 transition hover:border-lode-500/40"
+              className="flex cursor-pointer items-start gap-3 rounded-xl border hairline bg-surface-1 px-4 py-3 transition hover:border-lode-500/40"
             >
               <input
                 type="radio"
@@ -68,7 +68,7 @@ export function CertifyForm({ categories }: { categories: readonly CategoryDefin
             {current.criteria.map((criterion) => (
               <label
                 key={criterion.key}
-                className="flex cursor-pointer items-start gap-3 rounded-xl border hairline bg-ink-900/40 px-4 py-3 text-sm leading-relaxed text-ink-300 transition hover:border-lode-500/40"
+                className="flex cursor-pointer items-start gap-3 rounded-xl border hairline bg-surface-1 px-4 py-3 text-sm leading-relaxed text-ink-300 transition hover:border-lode-500/40"
               >
                 <input
                   type="checkbox"
@@ -91,7 +91,7 @@ export function CertifyForm({ categories }: { categories: readonly CategoryDefin
       <button
         type="submit"
         disabled={pending}
-        className="rounded-xl bg-lode-400 px-5 py-3 text-sm font-medium text-ink-950 transition hover:bg-lode-300 disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md bg-lode-400 px-4 text-sm font-medium text-ink-950 transition-colors hover:bg-lode-300 active:bg-lode-500"
       >
         {pending ? "Recording…" : "Sign this statement"}
       </button>

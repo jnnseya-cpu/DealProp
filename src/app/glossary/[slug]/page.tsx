@@ -96,7 +96,7 @@ export default async function TermPage({ params }: { params: Promise<{ slug: str
         }
       />
 
-      <div className="mx-auto max-w-2xl px-6 py-14">
+      <div className="mx-auto max-w-2xl px-6 py-10">
         <nav aria-label="Breadcrumb" className="text-xs text-ink-500">
           <Link href="/glossary" className="text-lode-300 transition hover:text-lode-200">
             Glossary
@@ -110,7 +110,7 @@ export default async function TermPage({ params }: { params: Promise<{ slug: str
           </Link>
         </nav>
 
-        <h1 className="mt-5 font-display text-4xl leading-tight text-ink-100">{term.term}</h1>
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">{term.term}</h1>
         <p className="mt-4 text-[15px] leading-relaxed text-ink-200">{term.short}</p>
 
         <div className="mt-8 space-y-4">
@@ -123,7 +123,7 @@ export default async function TermPage({ params }: { params: Promise<{ slug: str
 
         {mentions.length > 0 && (
           <section className="mt-12">
-            <h2 className="text-[11px] uppercase tracking-[0.12em] text-ink-400">
+            <h2 className="eyebrow">
               Where this comes up
             </h2>
             <ul className="mt-4 space-y-3">
@@ -143,8 +143,8 @@ export default async function TermPage({ params }: { params: Promise<{ slug: str
         )}
 
         {siblings.length > 0 && (
-          <section className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
-            <h2 className="text-[11px] uppercase tracking-[0.12em] text-ink-400">
+          <section className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+            <h2 className="eyebrow">
               Related definitions
             </h2>
             <ul className="mt-4 flex flex-wrap gap-2">
@@ -153,7 +153,7 @@ export default async function TermPage({ params }: { params: Promise<{ slug: str
                   <Link
                     href={`/glossary/${other.slug}`}
                     title={other.short}
-                    className="inline-block rounded-lg border hairline px-3.5 py-2 text-sm text-ink-300 transition hover:border-lode-400/40 hover:text-lode-200"
+                    className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border hairline bg-surface-2 px-3 text-[13px] text-ink-200 transition-colors hover:border-ink-600 hover:text-ink-100"
                   >
                     {other.term}
                   </Link>

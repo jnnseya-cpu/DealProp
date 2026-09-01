@@ -65,11 +65,11 @@ export default async function BlogPerformancePage() {
         }
       />
 
-      <div className="mx-auto max-w-4xl px-6 py-14">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+      <div className="mx-auto max-w-4xl px-6 py-10">
+        <span className="eyebrow">
           Blog performance
         </span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100">
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           {reports.length === 0
             ? "No posts published"
             : `${reports.length} post${reports.length === 1 ? "" : "s"}, worst first`}
@@ -82,7 +82,7 @@ export default async function BlogPerformancePage() {
         </p>
 
         {reports.length === 0 ? (
-          <p className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-8 text-sm text-ink-400">
+          <p className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-6 text-sm text-ink-400">
             The corpus is empty. Posts are generated from evergreen explainers and from deals worth
             writing up, so publishing one means recording a deal.
           </p>
@@ -99,7 +99,7 @@ export default async function BlogPerformancePage() {
             </dl>
 
             {totalOpens === 0 && (
-              <p className="mt-6 rounded-2xl border hairline bg-ink-900/40 px-6 py-5 text-sm text-ink-400">
+              <p className="mt-6 rounded-2xl border hairline bg-surface-1 px-5 py-4 text-sm text-ink-400">
                 No opens recorded yet. The counter starts when somebody visits a post — it does not
                 backfill, so this stays at zero for posts published before counting existed.
               </p>
@@ -111,12 +111,12 @@ export default async function BlogPerformancePage() {
                 return (
                   <li
                     key={report.slug}
-                    className="rounded-2xl border hairline bg-ink-900/40 px-6 py-6"
+                    className="rounded-2xl border hairline bg-surface-1 px-5 py-4"
                   >
                     <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
                       <Link
                         href={`/blog/${report.slug}`}
-                        className="font-display text-lg text-ink-100 transition hover:text-lode-200"
+                        className="font-display text-[17px] leading-tight text-ink-100 transition-colors hover:text-lode-200"
                       >
                         {report.title}
                       </Link>
@@ -172,7 +172,7 @@ export default async function BlogPerformancePage() {
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
-    <div className="rounded-2xl border hairline bg-ink-900/40 px-5 py-4">
+    <div className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
       <dt className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-500">{label}</dt>
       <dd className={`mt-2 font-display text-2xl ${tone ?? "text-ink-100"}`}>{value}</dd>
     </div>

@@ -15,8 +15,8 @@ export default function SellPage() {
       />
 
       <div className="mx-auto max-w-3xl px-6 pt-14">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">Sell</span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100 sm:text-5xl">
+        <span className="eyebrow">Sell</span>
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           Tell us the problem.
           <br />
           We&apos;ll show you the routes.

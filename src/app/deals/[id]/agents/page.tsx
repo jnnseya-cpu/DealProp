@@ -58,11 +58,11 @@ export default async function AgentsPage({ params }: { params: Promise<{ id: str
         }
       />
 
-      <div className="mx-auto max-w-4xl px-6 py-14">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+      <div className="mx-auto max-w-4xl px-6 py-10">
+        <span className="eyebrow">
           Agents · {record.reference}
         </span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100">
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           {undecided.length === 0
             ? "Nothing is waiting on a decision."
             : `${undecided.length} proposal${undecided.length === 1 ? "" : "s"} waiting on a person.`}
@@ -84,7 +84,7 @@ export default async function AgentsPage({ params }: { params: Promise<{ id: str
           </div>
         )}
 
-        <h2 className="mt-16 font-display text-2xl text-ink-100">The nine agents</h2>
+        <h2 className="mt-16 font-display text-[21px] leading-tight text-ink-100">The nine agents</h2>
         <div className="mt-6 space-y-3">
           {run.outcomes.map((outcome) => (
             <AgentRow
@@ -156,7 +156,7 @@ function ProposalCard({ dealId, proposal }: { dealId: string; proposal: AgentPro
   const tone = SEVERITY[proposal.severity];
 
   return (
-    <article className={`rounded-2xl border ${tone.border} bg-ink-900/40 px-6 py-5`}>
+    <article className={`rounded-2xl border ${tone.border} bg-surface-1 px-5 py-4`}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <span className={`font-mono text-[10px] uppercase tracking-[0.16em] ${tone.text}`}>
           {tone.label} · {proposal.agentId}
@@ -170,7 +170,7 @@ function ProposalCard({ dealId, proposal }: { dealId: string; proposal: AgentPro
       <p className="mt-2 text-sm leading-relaxed text-ink-300">{proposal.detail}</p>
 
       <details className="mt-4">
-        <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.16em] text-ink-500 transition hover:text-ink-300">
+        <summary className="cursor-pointer eyebrow transition hover:text-ink-300">
           Where this came from
         </summary>
         <ul className="mt-3 space-y-1">

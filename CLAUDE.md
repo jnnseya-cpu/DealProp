@@ -354,8 +354,27 @@ Never scatter `£49`, `5%`, `15%` across files. Jurisdiction rates live only in
 `jurisdictions/` with an `asOf` date and pinned tests.
 
 ### Preserve the design system
-Reuse `chrome.tsx`. Do not invent new colours, buttons, cards, headers or
-spacing. The platform must look like one product.
+Reuse `chrome.tsx`: `SiteHeader`, `Panel`, `Button`, `Badge`, `Stat`,
+`KeyValue`, `VERDICT_TONE`, `scoreTone`. Do not invent new colours, buttons,
+cards, headers or spacing. The platform must look like one product.
+
+Tokens live in `src/app/globals.css`; typefaces are self-hosted by
+`src/app/fonts.ts` through `next/font`. The scale is deliberate and tight:
+
+- **Surfaces are opaque and layered** — `bg-surface-1/2/3` with a visible
+  `hairline` edge. Never `bg-ink-900/40`: an alpha over black is a slightly
+  lighter black with no edge, and a page of them is a page of floating
+  rectangles with no hierarchy.
+- **Radii are small.** The Tailwind radius scale is overridden, so
+  `rounded-2xl` is 10px. Nothing is a pill except a dot or a progress bar.
+- **Body is 15px, most of the interface is 12–14px**, and a page headline is
+  32px. Headlines earn their size by being rare.
+- **Figures are sans with `tnum`**, never the display serif. A serif numeral is
+  beautiful in prose and wrong in a column of money.
+- **One eyebrow style, `.eyebrow`, and it is grey.** A gold uppercase label on
+  every panel is not emphasis, it is a background colour that spells words.
+- **A notice is a 2px left rule, not a tinted box.** A filled coloured rectangle
+  says the same thing at fifty times the area and buries the sentence.
 
 ### Handle all UI states
 Loading, success, empty, error, disabled, permission-denied. Responsive at

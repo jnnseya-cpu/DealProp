@@ -45,26 +45,40 @@ export function Mark({ size = 22 }: { size?: number }) {
   );
 }
 
-export const VERDICT_TONE: Record<Verdict, { label: string; chip: string; text: string }> = {
+/**
+ * `rule` is written out rather than derived from `text`.
+ *
+ * Tailwind reads the source for class names; a class built at runtime by
+ * string surgery on another class never reaches the stylesheet, so the border
+ * silently fell back to the default grey. Static strings, one per verdict.
+ */
+export const VERDICT_TONE: Record<
+  Verdict,
+  { label: string; chip: string; text: string; rule: string }
+> = {
   proceed: {
     label: "Proceed",
-    chip: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+    chip: "border-emerald-600/45 bg-emerald-500/10 text-emerald-300",
     text: "text-emerald-300",
+    rule: "border-emerald-500/80",
   },
   negotiate: {
     label: "Negotiate",
-    chip: "border-amber-500/40 bg-amber-500/10 text-amber-300",
+    chip: "border-amber-600/45 bg-amber-500/10 text-amber-300",
     text: "text-amber-300",
+    rule: "border-amber-500/80",
   },
   restructure: {
     label: "Restructure",
-    chip: "border-orange-500/40 bg-orange-500/10 text-orange-300",
+    chip: "border-orange-600/45 bg-orange-500/10 text-orange-300",
     text: "text-orange-300",
+    rule: "border-orange-500/80",
   },
   reject: {
     label: "Walk away",
-    chip: "border-red-500/40 bg-red-500/10 text-red-300",
+    chip: "border-red-600/45 bg-red-500/10 text-red-300",
     text: "text-red-300",
+    rule: "border-red-500/80",
   },
 };
 
@@ -92,55 +106,178 @@ export function SiteHeader({
     <header
       className={`border-b hairline ${sticky ? "sticky top-0 z-40 bg-ink-950/85 backdrop-blur-xl" : ""}`}
     >
-      <div className={`mx-auto flex ${width} items-center justify-between px-6 py-4`}>
-        <div className="flex items-center gap-4">
-          <Link href={back} className="flex items-center gap-3">
-            <Mark />
-            <span className="font-display text-lg text-ink-100">Lode</span>
+      <div className={`mx-auto flex ${width} items-center justify-between gap-6 px-6 py-3`}>
+        <div className="flex min-w-0 items-center gap-3.5">
+          <Link href={back} className="flex shrink-0 items-center gap-2.5">
+            <Mark size={19} />
+            <span className="font-display text-[17px] tracking-[-0.01em] text-ink-100">Lode</span>
           </Link>
           {children}
         </div>
-        {trailing !== undefined && <div className="flex items-center gap-3">{trailing}</div>}
+        {trailing !== undefined && <div className="flex items-center gap-2.5">{trailing}</div>}
       </div>
     </header>
   );
 }
 
+/**
+ * A panel.
+ *
+ * The eyebrow is grey rather than gold. Gold on every panel header meant four
+ * or five gold labels on a page, which is not emphasis — it is a background
+ * colour that happens to spell words. The accent is kept for the figures.
+ */
 export function Panel({
   title,
   eyebrow,
+  action,
   children,
   className = "",
+  flush = false,
 }: {
   title?: string;
   eyebrow?: string;
+  /** Rendered at the right of the header: a link, a count, a control. */
+  action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  /** Drop the body padding, for a panel whose child is a table. */
+  flush?: boolean;
 }) {
   return (
-    <section className={`rounded-2xl border hairline bg-ink-900/40 ${className}`}>
+    <section className={`overflow-hidden rounded-xl border hairline bg-surface-1 ${className}`}>
       {(title !== undefined || eyebrow !== undefined) && (
-        <div className="border-b hairline px-6 py-4">
-          {eyebrow !== undefined && (
-            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-lode-400">
-              {eyebrow}
-            </span>
-          )}
-          {title !== undefined && (
-            <h2 className="mt-1 font-display text-xl text-ink-100">{title}</h2>
-          )}
+        <div className="flex items-baseline justify-between gap-4 border-b hairline px-5 py-3.5">
+          <div>
+            {eyebrow !== undefined && <span className="eyebrow">{eyebrow}</span>}
+            {title !== undefined && (
+              <h2 className={`font-display text-[17px] leading-tight text-ink-100 ${eyebrow !== undefined ? "mt-1.5" : ""}`}>
+                {title}
+              </h2>
+            )}
+          </div>
+          {action !== undefined && <div className="shrink-0">{action}</div>}
         </div>
       )}
-      <div className="px-6 py-5">{children}</div>
+      <div className={flush ? "" : "px-5 py-4"}>{children}</div>
     </section>
+  );
+}
+
+/**
+ * A button, in three weights.
+ *
+ * Every page had been writing its own, which is how one ended up with a 24px
+ * radius and its neighbour with 8px. Renders as a `button` or, given `href`, as
+ * a link that looks identical — the two are visually the same control and were
+ * previously drifting apart.
+ */
+export function Button({
+  children,
+  variant = "secondary",
+  size = "md",
+  href,
+  className = "",
+  ...rest
+}: {
+  children: React.ReactNode;
+  variant?: "primary" | "secondary" | "ghost";
+  size?: "sm" | "md";
+  href?: string;
+  className?: string;
+} & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  const base =
+    "inline-flex items-center justify-center gap-2 rounded-md font-medium whitespace-nowrap transition-colors duration-100";
+  const sizing = size === "sm" ? "h-8 px-3 text-[13px]" : "h-9.5 px-4 text-sm";
+  const look = {
+    // The gold is a fill, not a glow. A shadow under a bright button on a dark
+    // ground reads as a sticker; a flat fill reads as a control.
+    primary: "bg-lode-400 text-ink-950 hover:bg-lode-300 active:bg-lode-500",
+    secondary:
+      "border hairline bg-surface-2 text-ink-100 hover:border-ink-600 hover:bg-surface-3",
+    ghost: "text-ink-300 hover:bg-surface-2 hover:text-ink-100",
+  }[variant];
+
+  const classes = `${base} ${sizing} ${look} ${className}`;
+  if (href !== undefined) {
+    return (
+      <Link href={href} className={classes}>
+        {children}
+      </Link>
+    );
+  }
+  return (
+    <button className={classes} {...rest}>
+      {children}
+    </button>
+  );
+}
+
+/** A small status chip. Squared, because a pill reads as marketing. */
+export function Badge({
+  children,
+  tone = "neutral",
+  className = "",
+}: {
+  children: React.ReactNode;
+  tone?: "neutral" | "accent" | "good" | "warn" | "bad";
+  className?: string;
+}) {
+  const look = {
+    neutral: "border-ink-700 bg-ink-850 text-ink-300",
+    accent: "border-lode-500/45 bg-lode-500/10 text-lode-200",
+    good: "border-emerald-600/45 bg-emerald-500/10 text-emerald-300",
+    warn: "border-amber-600/45 bg-amber-500/10 text-amber-300",
+    bad: "border-red-600/45 bg-red-500/10 text-red-300",
+  }[tone];
+  return (
+    <span
+      className={`inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase leading-[1.4] tracking-[0.08em] ${look} ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/**
+ * A figure with its label.
+ *
+ * Label above, small and quiet; the figure below in tabular numerals so a
+ * column of these lines up. The unit or qualifier goes under, not beside — a
+ * qualifier on the same baseline competes with the number for the first read.
+ */
+export function Stat({
+  label,
+  value,
+  note,
+  warn,
+  tone,
+  size = "md",
+}: {
+  label: string;
+  value: string;
+  note?: string;
+  /** Red, for a figure whose sign is the finding. */
+  warn?: boolean;
+  tone?: string;
+  size?: "sm" | "md" | "lg";
+}) {
+  const scale = { sm: "text-[17px]", md: "text-[21px]", lg: "text-[30px]" }[size];
+  const colour = warn === true ? "text-red-300" : (tone ?? "text-ink-100");
+  return (
+    <div>
+      <p className="text-[11px] font-medium uppercase tracking-[0.09em] text-ink-400">{label}</p>
+      <p className={`tnum mt-1 ${scale} leading-none ${colour}`}>{value}</p>
+      {note !== undefined && <p className="mt-1.5 text-[11px] leading-snug text-ink-500">{note}</p>}
+    </div>
   );
 }
 
 export function KeyValue({ k, v, tone }: { k: string; v: string; tone?: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-2">
-      <dt className="text-sm text-ink-400">{k}</dt>
-      <dd className={`tnum text-sm ${tone ?? "text-ink-100"}`}>{v}</dd>
+    <div className="flex items-baseline justify-between gap-6 border-b hairline py-2 last:border-0">
+      <dt className="text-[13px] text-ink-400">{k}</dt>
+      <dd className={`tnum text-[13px] ${tone ?? "text-ink-100"}`}>{v}</dd>
     </div>
   );
 }
@@ -166,8 +303,8 @@ export function TradeReferrals({
   if (report.referrals.length === 0) return null;
 
   return (
-    <section className="mt-6 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
-      <p className="text-[11px] uppercase tracking-[0.12em] text-ink-400">{heading}</p>
+    <section className="mt-6 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+      <p className="eyebrow">{heading}</p>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-300">{intro}</p>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">

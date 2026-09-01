@@ -35,16 +35,16 @@ export default async function AccountsPage() {
         }
       />
 
-      <div className="mx-auto max-w-4xl px-6 py-14">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+      <div className="mx-auto max-w-4xl px-6 py-10">
+        <span className="eyebrow">
           Accounts
         </span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100">
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           {accounts.length === 0 ? "No accounts yet" : `${accounts.length} accounts`}
         </h1>
 
         {viewer.kind === "shared-operator" && (
-          <p className="mt-6 rounded-2xl border border-amber-500/25 bg-amber-500/5 px-6 py-5 text-sm leading-relaxed text-ink-200">
+          <p className="mt-6 rounded-lg border-l-2 border-amber-500/80 bg-surface-1 px-5 py-4 text-sm leading-relaxed text-ink-200">
             You are signed in with the shared operator password, so nothing you do appears against a
             name in the audit trail. Create an account for yourself, sign in with it, and stop using
             the shared password.
@@ -62,18 +62,18 @@ export default async function AccountsPage() {
               return (
                 <div
                   key={a.id}
-                  className={`flex flex-wrap items-start justify-between gap-4 rounded-2xl border px-6 py-5 ${
-                    a.disabled ? "border-ink-800 bg-ink-950/60" : "hairline bg-ink-900/40"
+                  className={`flex flex-wrap items-start justify-between gap-4 rounded-2xl border px-5 py-4 ${
+                    a.disabled ? "border-ink-800 bg-ink-950/60" : "hairline bg-surface-1"
                   }`}
                 >
                   <div>
                     <div className="flex flex-wrap items-center gap-3">
                       <span className="font-display text-lg text-ink-100">{a.name}</span>
-                      <span className="rounded-full border border-lode-500/30 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-lode-300">
+                      <span className="rounded border border-lode-500/45 bg-lode-500/10 px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-lode-200">
                         {ROLE_LABELS[a.role]}
                       </span>
                       {a.disabled && (
-                        <span className="rounded-full border border-ink-700 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-ink-500">
+                        <span className="rounded-md border border-ink-700 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-ink-500">
                           Disabled
                         </span>
                       )}

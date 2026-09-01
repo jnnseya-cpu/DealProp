@@ -33,7 +33,7 @@ export function SignInForm({ next }: { next: string }) {
           name="email"
           type="email"
           autoComplete="username"
-          className="mt-2 w-full rounded-xl border hairline bg-ink-900/60 px-4 py-3 text-sm text-ink-100 focus:border-lode-500/60 focus:outline-none"
+          className="mt-2 w-full rounded-xl border hairline bg-surface-2 px-4 py-3 text-sm text-ink-100 focus:border-lode-500/60 focus:outline-none"
         />
       </div>
 
@@ -49,7 +49,7 @@ export function SignInForm({ next }: { next: string }) {
           autoComplete="current-password"
           aria-describedby={error !== undefined ? "operator-error" : undefined}
           aria-invalid={error !== undefined}
-          className="mt-2 w-full rounded-xl border hairline bg-ink-900/60 px-4 py-3 text-sm text-ink-100 focus:border-lode-500/60 focus:outline-none"
+          className="mt-2 w-full rounded-xl border hairline bg-surface-2 px-4 py-3 text-sm text-ink-100 focus:border-lode-500/60 focus:outline-none"
         />
       </div>
 
@@ -62,7 +62,7 @@ export function SignInForm({ next }: { next: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-xl bg-lode-400 px-5 py-3 text-sm font-medium text-ink-950 transition hover:bg-lode-300 disabled:cursor-not-allowed disabled:opacity-50"
+        className="w-full inline-flex h-9.5 items-center justify-center gap-2 rounded-md bg-lode-400 px-4 text-sm font-medium text-ink-950 transition-colors hover:bg-lode-300 active:bg-lode-500"
       >
         {pending ? "Checking…" : "Continue"}
       </button>

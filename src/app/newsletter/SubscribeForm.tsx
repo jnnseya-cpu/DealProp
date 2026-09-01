@@ -22,9 +22,9 @@ export function SubscribeForm() {
     return (
       <div
         role="status"
-        className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-6 py-6"
+        className="rounded-lg border-l-2 border-emerald-500/80 bg-surface-1 px-5 py-4"
       >
-        <p className="font-display text-xl text-emerald-200">Almost there</p>
+        <p className="font-display text-[17px] leading-tight text-emerald-200">Almost there</p>
         <p className="mt-2 text-sm leading-relaxed text-ink-300">{state.message}</p>
       </div>
     );
@@ -52,7 +52,7 @@ export function SubscribeForm() {
           placeholder="you@example.com"
           aria-describedby={state?.ok === false ? "subscribe-error" : undefined}
           aria-invalid={state?.ok === false}
-          className="mt-2 w-full rounded-xl border hairline bg-ink-900/60 px-4 py-3 text-sm text-ink-100 placeholder:text-ink-500 focus:border-lode-500/60 focus:outline-none"
+          className="mt-2 w-full rounded-xl border hairline bg-surface-2 px-4 py-3 text-sm text-ink-100 placeholder:text-ink-500 focus:border-lode-500/60 focus:outline-none"
         />
       </div>
 
@@ -70,7 +70,7 @@ export function SubscribeForm() {
           ].map((o, i) => (
             <label
               key={o.value}
-              className="cursor-pointer rounded-xl border hairline bg-ink-900/40 px-4 py-3 transition hover:border-ink-400 has-[:checked]:border-lode-500/60 has-[:checked]:bg-lode-400/10"
+              className="cursor-pointer rounded-xl border hairline bg-surface-1 px-4 py-3 transition hover:border-ink-400 has-[:checked]:border-lode-500/60 has-[:checked]:bg-lode-400/10"
             >
               <input
                 type="radio"
@@ -92,7 +92,7 @@ export function SubscribeForm() {
         <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" />
       </div>
 
-      <label className="flex cursor-pointer gap-3 rounded-xl border hairline bg-ink-900/40 px-5 py-4">
+      <label className="flex cursor-pointer gap-3 rounded-xl border hairline bg-surface-1 px-5 py-4">
         <input
           type="checkbox"
           name="consent"
@@ -111,7 +111,7 @@ export function SubscribeForm() {
       <button
         type="submit"
         disabled={pending}
-        className="rounded-full bg-lode-400 px-7 py-3 text-sm font-medium text-ink-950 transition hover:bg-lode-300 disabled:opacity-60"
+        className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md bg-lode-400 px-4 text-sm font-medium text-ink-950 transition-colors hover:bg-lode-300 active:bg-lode-500"
       >
         {pending ? "Sending confirmation…" : "Subscribe"}
       </button>

@@ -127,7 +127,7 @@ export function SellForm() {
               className={`cursor-pointer rounded-xl border px-4 py-3.5 transition ${
                 situation === s.value
                   ? "border-lode-500/60 bg-lode-400/10"
-                  : "hairline bg-ink-900/40 hover:border-ink-400"
+                  : "hairline bg-surface-1 hover:border-ink-400"
               }`}
             >
               <input
@@ -152,7 +152,7 @@ export function SellForm() {
             name="narrative"
             rows={4}
             placeholder="I've inherited my mother's house. It needs about £30,000 of work. I don't want to renovate it and I need the money within six weeks."
-            className="w-full rounded-xl border hairline bg-ink-900/60 px-4 py-3 text-sm text-ink-100 placeholder:text-ink-500 focus:border-lode-500/60 focus:outline-none"
+            className="w-full rounded-xl border hairline bg-surface-2 px-4 py-3 text-sm text-ink-100 placeholder:text-ink-500 focus:border-lode-500/60 focus:outline-none"
           />
         </Field>
       </Panel>
@@ -170,7 +170,7 @@ export function SellForm() {
               className={`cursor-pointer rounded-xl border px-4 py-3.5 transition ${
                 priorities.includes(p.value)
                   ? "border-lode-500/60 bg-lode-400/10"
-                  : "hairline bg-ink-900/40 hover:border-ink-400"
+                  : "hairline bg-surface-1 hover:border-ink-400"
               }`}
             >
               <input
@@ -197,7 +197,7 @@ export function SellForm() {
             name="targetDays"
             min={1}
             placeholder="42"
-            className="w-40 rounded-xl border hairline bg-ink-900/60 px-4 py-3 text-sm text-ink-100 placeholder:text-ink-500 focus:border-lode-500/60 focus:outline-none"
+            className="w-40 rounded-xl border hairline bg-surface-2 px-4 py-3 text-sm text-ink-100 placeholder:text-ink-500 focus:border-lode-500/60 focus:outline-none"
           />
         </Field>
       </Panel>
@@ -255,7 +255,7 @@ export function SellForm() {
             {CONDITIONS.map((c, i) => (
               <label
                 key={c.value}
-                className="cursor-pointer rounded-xl border hairline bg-ink-900/40 px-4 py-3 transition hover:border-ink-400 has-[:checked]:border-lode-500/60 has-[:checked]:bg-lode-400/10"
+                className="cursor-pointer rounded-xl border hairline bg-surface-1 px-4 py-3 transition hover:border-ink-400 has-[:checked]:border-lode-500/60 has-[:checked]:bg-lode-400/10"
               >
                 <input
                   type="radio"
@@ -277,7 +277,7 @@ export function SellForm() {
             {ISSUES.map((i) => (
               <label
                 key={i.value}
-                className="cursor-pointer rounded-full border hairline bg-ink-900/40 px-3.5 py-1.5 text-xs text-ink-300 transition hover:border-ink-400 has-[:checked]:border-lode-500/60 has-[:checked]:bg-lode-400/10 has-[:checked]:text-lode-200"
+                className="cursor-pointer rounded-md border hairline bg-surface-1 px-3.5 py-1.5 text-xs text-ink-300 transition hover:border-ink-400 has-[:checked]:border-lode-500/60 has-[:checked]:bg-lode-400/10 has-[:checked]:text-lode-200"
               >
                 <input type="checkbox" name="issues" value={i.value} className="sr-only" />
                 {i.label}
@@ -351,7 +351,7 @@ export function SellForm() {
           </Field>
         </div>
 
-        <div className="mt-10 rounded-xl border hairline bg-ink-900/50 px-5 py-4">
+        <div className="mt-10 rounded-xl border hairline bg-surface-2 px-5 py-4">
           <p className="text-xs leading-relaxed text-ink-400">
             What happens next: we show you the routes that are genuinely available, what each one
             pays you and when, and what you give up to get it. We will also show you what a buyer
@@ -407,7 +407,7 @@ function Panel({ active, children }: { active: boolean; children: React.ReactNod
 function Legend({ title, lede }: { title: string; lede: string }) {
   return (
     <div>
-      <h2 className="font-display text-3xl leading-tight text-ink-100 sm:text-4xl">{title}</h2>
+      <h2 className="font-display text-[27px] leading-[1.15] text-ink-100">{title}</h2>
       <p className="mt-4 text-base leading-relaxed text-ink-400">{lede}</p>
     </div>
   );
@@ -435,7 +435,7 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className="w-full rounded-xl border hairline bg-ink-900/60 px-4 py-3 text-sm text-ink-100 placeholder:text-ink-500 focus:border-lode-500/60 focus:outline-none"
+      className="w-full rounded-xl border hairline bg-surface-2 px-4 py-3 text-sm text-ink-100 placeholder:text-ink-500 focus:border-lode-500/60 focus:outline-none"
     />
   );
 }
@@ -444,14 +444,14 @@ function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className="w-full rounded-xl border hairline bg-ink-900/60 px-4 py-3 text-sm text-ink-100 focus:border-lode-500/60 focus:outline-none"
+      className="w-full rounded-xl border hairline bg-surface-2 px-4 py-3 text-sm text-ink-100 focus:border-lode-500/60 focus:outline-none"
     />
   );
 }
 
 function YesNo({ name, question, hint }: { name: string; question: string; hint?: string }) {
   return (
-    <div className="rounded-xl border hairline bg-ink-900/40 px-5 py-4">
+    <div className="rounded-xl border hairline bg-surface-1 px-5 py-4">
       <p className="text-sm text-ink-100">{question}</p>
       {hint !== undefined && <p className="mt-1 text-xs text-ink-500">{hint}</p>}
       <div className="mt-3 flex gap-2">
@@ -462,7 +462,7 @@ function YesNo({ name, question, hint }: { name: string; question: string; hint?
         ].map((o) => (
           <label
             key={o.v}
-            className="cursor-pointer rounded-full border hairline px-4 py-1.5 text-xs text-ink-300 transition hover:border-ink-400 has-[:checked]:border-lode-500/60 has-[:checked]:bg-lode-400/10 has-[:checked]:text-lode-200"
+            className="cursor-pointer rounded-md border hairline px-4 py-1.5 text-xs text-ink-300 transition hover:border-ink-400 has-[:checked]:border-lode-500/60 has-[:checked]:bg-lode-400/10 has-[:checked]:text-lode-200"
           >
             <input
               type="radio"
@@ -523,7 +523,7 @@ function Nav({
         onClick={onNext}
         hidden={last}
         disabled={!canAdvance}
-        className="rounded-full bg-lode-400 px-7 py-3 text-sm font-medium text-ink-950 transition hover:bg-lode-300 disabled:opacity-30"
+        className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md bg-lode-400 px-4 text-sm font-medium text-ink-950 transition-colors hover:bg-lode-300 active:bg-lode-500"
       >
         Continue
       </button>
@@ -531,7 +531,7 @@ function Nav({
         type="submit"
         hidden={!last}
         disabled={submitting}
-        className="rounded-full bg-lode-400 px-7 py-3 text-sm font-medium text-ink-950 transition hover:bg-lode-300 disabled:opacity-60"
+        className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md bg-lode-400 px-4 text-sm font-medium text-ink-950 transition-colors hover:bg-lode-300 active:bg-lode-500"
       >
         {submitting ? "Working out your options…" : "Show me my options"}
       </button>

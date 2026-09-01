@@ -21,23 +21,23 @@ export default async function DeniedPage({
     <main className="min-h-screen">
       <SiteHeader width="max-w-xl" />
       <div className="mx-auto max-w-xl px-6 py-16">
-        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-lode-400">
+        <p className="eyebrow">
           Not available to you
         </p>
-        <h1 className="mt-2 font-display text-3xl text-ink-100">This is gated</h1>
+        <h1 className="mt-2 font-display text-[26px] leading-tight text-ink-100">This is gated</h1>
         <p className="mt-4 text-sm leading-relaxed text-ink-300">
           {reason ?? "Your account does not hold the permission this page requires."}
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
             href="/account/certify"
-            className="rounded-xl bg-lode-400 px-5 py-2.5 text-sm font-medium text-ink-950 transition hover:bg-lode-300"
+            className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md bg-lode-400 px-4 text-sm font-medium text-ink-950 transition-colors hover:bg-lode-300 active:bg-lode-500"
           >
             Give or renew my investor certification
           </Link>
           <Link
             href="/"
-            className="rounded-xl border hairline px-5 py-2.5 text-sm text-ink-200 transition hover:border-lode-400/40"
+            className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
           >
             Back to the start
           </Link>

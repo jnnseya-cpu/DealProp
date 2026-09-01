@@ -3,66 +3,215 @@
 /*
  * Lode design tokens.
  *
- * The palette is built around a warm metallic accent on a deep neutral ground:
- * a lode is a vein of ore, and the brand should read as extraction and assay
- * rather than as an estate agent's brochure. Gold is used sparingly and only
- * for things that are true — scores, verdicts, money — so it never becomes
- * decoration.
+ * A lode is a vein of ore, and the product should read as assay and
+ * underwriting rather than as an estate agent's brochure — so the ground is a
+ * cool near-black, the accent is a metallic gold used only where something is
+ * true (a score, a verdict, a figure), and nothing is decorated.
+ *
+ * Three deliberate choices, each of which was previously the opposite:
+ *
+ *  1. **Surfaces are opaque and layered, not alpha over black.** A panel at
+ *     `bg-ink-900/40` is a slightly lighter black with no edge, and a page made
+ *     of them is a page of floating rectangles with no hierarchy. Real depth
+ *     comes from a small number of solid steps with a visible 1px edge between
+ *     them, which is what `--color-surface-*` and `hairline` now provide.
+ *  2. **Radii are small.** The scale below overrides Tailwind's, so the
+ *     `rounded-2xl` written throughout resolves to 10px rather than 16px and
+ *     `rounded-lg` to 6px. Large radii read as a template; the geometry of a
+ *     tool is closer to square.
+ *  3. **The type scale is tight.** Most of this product is 12–14px, because it
+ *     is dense financial information. Headlines earn their size by being rare.
  */
 
 @theme {
-  --color-ink-950: #0a0a0b;
-  --color-ink-900: #101013;
-  --color-ink-850: #16161a;
-  --color-ink-800: #1c1c21;
-  --color-ink-700: #2a2a31;
-  --color-ink-600: #3d3d47;
-  --color-ink-400: #6f6f7d;
-  --color-ink-300: #9a9aa8;
-  --color-ink-200: #c4c4ce;
-  --color-ink-100: #e6e6ec;
+  /* --- ground and surfaces --------------------------------------------- */
+  /* Very slightly blue, so it reads as ink rather than as an unset black. */
+  --color-ink-950: #0a0b0d;
+  --color-ink-900: #101216;
+  --color-ink-850: #15181d;
+  --color-ink-800: #1b1f26;
+  --color-ink-700: #262b34;
+  --color-ink-600: #39404c;
+  --color-ink-500: #545c6b;
+  --color-ink-400: #737b8a;
+  --color-ink-300: #9aa2b1;
+  --color-ink-200: #c5cad3;
+  --color-ink-100: #e8ebef;
 
-  --color-lode-50: #fdf8ed;
-  --color-lode-200: #f0dcae;
-  --color-lode-300: #e3c377;
-  --color-lode-400: #d4a94b;
-  --color-lode-500: #c08f2c;
-  --color-lode-600: #9c6f21;
+  /* Opaque panel steps. Use these, not an alpha over the page. */
+  --color-surface-1: #0f1115;
+  --color-surface-2: #14171c;
+  --color-surface-3: #1a1e25;
 
-  --font-display: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-  --font-sans: ui-sans-serif, -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  /* --- accent ----------------------------------------------------------- */
+  /* Metallic rather than yellow: lower chroma, so it reads as brass on ink. */
+  --color-lode-50: #fbf6ea;
+  --color-lode-200: #ecdcb0;
+  --color-lode-300: #dcc07d;
+  --color-lode-400: #c9a44e;
+  --color-lode-500: #ad8834;
+  --color-lode-600: #8a6a26;
+
+  /* --- type ------------------------------------------------------------- */
+  /* `*-loaded` is set by next/font in the root layout. The stacks after it
+     are what renders in the swap window and if the file ever fails. */
+  --font-display: var(--font-display-loaded), "Iowan Old Style", Georgia, serif;
+  --font-sans: var(--font-sans-loaded), ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-mono: var(--font-mono-loaded), ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* --- geometry ---------------------------------------------------------- */
+  /* Overrides Tailwind's defaults, so every existing `rounded-*` tightens. */
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-2xl: 10px;
+  --radius-3xl: 14px;
 }
 
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   scroll-behavior: smooth;
+  /* Stops a scrollbar appearing and disappearing between routes and shifting
+     the whole layout by 15px, which reads as the page flinching. */
+  scrollbar-gutter: stable;
 }
 
 body {
   background: var(--color-ink-950);
   color: var(--color-ink-100);
   font-family: var(--font-sans);
+  /* 15px, not 16px. The interface is dense and 16px forces every panel wider
+     than its content needs, which is where the airy template look comes from. */
+  font-size: 15px;
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+}
+
+/*
+ * Headlines set tighter than their default.
+ *
+ * A display serif at 48px with 1.5 line-height and default tracking looks like
+ * body copy that was enlarged. Real display setting closes the leading and
+ * pulls the letters together; the larger it is, the more of both.
+ */
+h1, h2, h3 {
+  letter-spacing: -0.02em;
+}
+
+.font-display {
+  font-feature-settings: "kern", "liga";
 }
 
 /* Numerals must align in columns wherever figures are compared. */
 .tnum {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
+  letter-spacing: -0.01em;
 }
 
-/* A fine hairline that reads as engraving rather than as a border. */
+/*
+ * A visible 1px edge.
+ *
+ * Previously a 55% mix that disappeared against most surfaces, which is why
+ * every panel needed a fill to be seen at all. At this weight a panel can be
+ * defined by its edge, which is how a dense interface stays legible without
+ * turning every region into a filled box.
+ */
 .hairline {
-  border-color: color-mix(in oklab, var(--color-ink-600) 55%, transparent);
+  border-color: #232830;
 }
 
+.hairline-strong {
+  border-color: #2f3641;
+}
+
+/*
+ * Section label: small, spaced, quiet.
+ *
+ * There is one of these, used sparingly. The previous design put a gold
+ * uppercase mono label on the top of every panel on every page, which turns a
+ * signal into wallpaper — by the fourth one it is decoration, and the reader
+ * stops seeing any of them.
+ */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-400);
+}
+
+/* --- controls ------------------------------------------------------------ */
+
+/*
+ * Focus that is actually visible, everywhere, without each page remembering.
+ *
+ * `:focus-visible` so a mouse click does not draw a ring but a Tab key does.
+ */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-lode-400);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/*
+ * Form controls, styled once.
+ *
+ * Every page was setting its own border, background and padding on inputs, and
+ * they had drifted apart. These are the defaults; a page may still override.
+ */
+input[type="text"], input[type="email"], input[type="password"], input[type="number"],
+input[type="date"], input[type="search"], input[type="tel"], input[type="url"],
+select, textarea {
+  background: var(--color-ink-950);
+  border: 1px solid #232830;
+  border-radius: 5px;
+  color: var(--color-ink-100);
+  font-size: 14px;
+  line-height: 1.4;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--color-ink-500);
+}
+
+input:hover:not(:disabled), select:hover:not(:disabled), textarea:hover:not(:disabled) {
+  border-color: #2f3641;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--color-lode-500);
+}
+
+input[type="checkbox"], input[type="radio"] {
+  accent-color: var(--color-lode-400);
+  width: 15px;
+  height: 15px;
+}
+
+button:disabled, input:disabled, select:disabled, textarea:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/*
+ * The grain.
+ *
+ * Kept, at a lower opacity than before. It exists to stop a large flat dark
+ * area banding on an 8-bit display, which it does; at the previous strength it
+ * was visible as texture, which is a different and worse thing.
+ */
 .grain::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.035;
+  opacity: 0.022;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
@@ -70,7 +219,37 @@ body {
   background: linear-gradient(
     90deg,
     transparent,
-    color-mix(in oklab, var(--color-lode-400) 55%, transparent),
+    color-mix(in oklab, var(--color-lode-400) 40%, transparent),
     transparent
   );
+}
+
+/*
+ * A row that responds to the pointer.
+ *
+ * For tables and lists, where the target is the whole row rather than a card.
+ */
+.row-hover {
+  transition: background-color 110ms ease;
+}
+.row-hover:hover {
+  background-color: var(--color-surface-2);
+}
+
+/* Right-aligned figures in a table keep their column even when they wrap. */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media print {
+  body {
+    background: #fff;
+    color: #111;
+  }
+  .no-print {
+    display: none !important;
+  }
 }

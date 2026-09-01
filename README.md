@@ -136,6 +136,41 @@ succeed. `tests/boundaries.test.ts` fails instead.
 
 ---
 
+## The look
+
+Three self-hosted typefaces, loaded by `next/font` at build time so there is no
+runtime request to Google, nothing third-party to disclose and nothing for the
+CSP to allow: **Instrument Sans** for the interface, **Newsreader** for prose
+and headlines, **IBM Plex Mono** for references and codes. The stack before
+them was `ui-serif` and `ui-sans-serif`, which resolve to whatever the visitor's
+operating system happens to ship — a financial document that renders in a
+different typeface on every machine is not a designed document, it is a default
+one, and it reads as such.
+
+The rest of the system is in `src/app/globals.css`, and four rules carry most of
+it:
+
+- **Surfaces are opaque and layered**, with a visible 1px edge, rather than an
+  alpha wash over black. Depth comes from a few solid steps and an edge; a page
+  of translucent rectangles has no hierarchy at all.
+- **Geometry is close to square** — the radius scale is overridden so
+  `rounded-2xl` is 10px. Nothing is a pill except a dot or a progress bar.
+- **Density is the default.** Body is 15px and most of the interface is 12–14px,
+  because most of this product is dense financial information. A headline earns
+  its size by being rare.
+- **Colour means something.** The accent is used for figures and verdicts, not
+  for decoration; a notice is a 2px rule down the left edge rather than a tinted
+  box; and every section label is the same quiet grey, because a gold label on
+  every panel is a background colour that spells words.
+
+Tabular data is a table. The pipeline was four cards a thousand pixels wide with
+the reference at one end and the score at the other — the two figures a reader
+compares, placed as far apart as the screen allows. It is now a table with
+right-aligned tabular numerals, and it collapses to reference, property and
+score on a phone.
+
+---
+
 ## The five decisions that matter
 
 ### 1. Money is integer pence, never floats

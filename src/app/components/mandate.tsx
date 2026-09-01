@@ -31,7 +31,7 @@ export function Field({
 }
 
 const INPUT =
-  "w-full rounded-xl border hairline bg-ink-900/60 px-4 py-2.5 text-sm text-ink-100 placeholder:text-ink-500 focus:border-lode-500/60 focus:outline-none";
+  "w-full rounded-xl border hairline bg-surface-2 px-4 py-2.5 text-sm text-ink-100 placeholder:text-ink-500 focus:border-lode-500/60 focus:outline-none";
 
 export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={INPUT} />;
@@ -77,7 +77,7 @@ export function CheckGroup({
       {options.map((o) => (
         <label
           key={o.value}
-          className="flex cursor-pointer items-center gap-2.5 rounded-xl border hairline bg-ink-900/40 px-3.5 py-2.5 text-sm text-ink-200 transition hover:border-lode-500/40"
+          className="flex cursor-pointer items-center gap-2.5 rounded-xl border hairline bg-surface-1 px-3.5 py-2.5 text-sm text-ink-200 transition hover:border-lode-500/40"
         >
           <input
             type="checkbox"
@@ -143,7 +143,7 @@ export function MandateForm({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full rounded-2xl border border-dashed border-ink-700 px-6 py-5 text-left transition hover:border-lode-400/50"
+        className="w-full rounded-2xl border border-dashed border-ink-700 px-5 py-4 text-left transition hover:border-lode-400/50"
       >
         <span className="font-display text-lg text-ink-100">{title}</span>
         <span className="mt-1 block text-sm text-ink-400">{summary}</span>
@@ -152,10 +152,10 @@ export function MandateForm({
   }
 
   return (
-    <form action={formAction} className="rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
+    <form action={formAction} className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-display text-xl text-ink-100">{title}</h2>
+          <h2 className="font-display text-[17px] leading-tight text-ink-100">{title}</h2>
           <p className="mt-1 text-sm text-ink-400">{summary}</p>
         </div>
         <button
@@ -181,7 +181,7 @@ export function MandateForm({
       <button
         type="submit"
         disabled={pending}
-        className="mt-6 rounded-xl bg-lode-400 px-5 py-2.5 text-sm font-medium text-ink-950 transition hover:bg-lode-300 disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-6 inline-flex h-9.5 items-center justify-center gap-2 rounded-md bg-lode-400 px-4 text-sm font-medium text-ink-950 transition-colors hover:bg-lode-300 active:bg-lode-500 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {pending ? "Saving…" : "Save mandate"}
       </button>
@@ -219,7 +219,7 @@ export function MandateControls({
           setBusy(true);
           void setActive(id, !active).finally(() => setBusy(false));
         }}
-        className="rounded-lg border hairline px-3 py-1.5 text-xs text-ink-300 transition hover:border-lode-400/40 hover:text-lode-200 disabled:opacity-50"
+        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border hairline bg-surface-2 px-3 text-[13px] text-ink-200 transition-colors hover:border-ink-600 hover:text-ink-100"
       >
         {active ? "Deactivate" : "Activate"}
       </button>

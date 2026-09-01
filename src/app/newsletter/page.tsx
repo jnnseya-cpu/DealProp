@@ -16,11 +16,11 @@ export default function NewsletterPage() {
         trailing={<span className="text-xs text-ink-500">One email a week</span>}
       />
 
-      <div className="mx-auto max-w-3xl px-6 py-14">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <span className="eyebrow">
           Weekly email
         </span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100 sm:text-5xl">
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           What the engine found this week.
         </h1>
         <p className="mt-5 max-w-xl text-base leading-relaxed text-ink-400">
@@ -28,12 +28,12 @@ export default function NewsletterPage() {
           engine rejected and why. No drip sequence, no partner offers, no selling your address.
         </p>
 
-        <div className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
+        <div className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-4">
           <SubscribeForm />
         </div>
 
         <section className="mt-14">
-          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-500">
+          <p className="eyebrow">
             What gets covered
           </p>
           <ul className="mt-4 space-y-4">
@@ -46,8 +46,8 @@ export default function NewsletterPage() {
           </ul>
         </section>
 
-        <section className="mt-12 rounded-2xl border hairline bg-ink-900/30 px-6 py-6">
-          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-500">
+        <section className="mt-12 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+          <p className="eyebrow">
             How we handle your address
           </p>
           <ul className="mt-3 space-y-2.5 text-sm leading-relaxed text-ink-300">

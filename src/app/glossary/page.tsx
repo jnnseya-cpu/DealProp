@@ -22,8 +22,8 @@ export default function GlossaryIndex() {
           </nav>
         }
       />
-      <div className="mx-auto max-w-3xl px-6 py-14">
-        <h1 className="font-display text-4xl leading-tight text-ink-100">Glossary</h1>
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <h1 className="font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">Glossary</h1>
         <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-ink-300">
           The load-bearing terms — the ones where misunderstanding the word means misunderstanding
           the figure. Every one of them is something the engine actually computes.
@@ -34,7 +34,7 @@ export default function GlossaryIndex() {
           if (terms.length === 0) return null;
           return (
             <section key={topic} className="mt-10">
-              <h2 className="text-[11px] uppercase tracking-[0.12em] text-lode-400">
+              <h2 className="eyebrow">
                 <Link href={`/blog/topic/${topic}`} className="transition hover:text-lode-200">
                   {TOPIC_DEFINITIONS[topic].label}
                 </Link>

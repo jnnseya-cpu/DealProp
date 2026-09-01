@@ -82,7 +82,7 @@ export async function meter(
   itemId: string,
   now: Date = new Date(),
 ): Promise<MeterDecision> {
-  const entitlements = await entitlementsForAccount(account);
+  const entitlements = await entitlementsForAccount(account, now);
 
   if (!isCustomer(account)) {
     return {

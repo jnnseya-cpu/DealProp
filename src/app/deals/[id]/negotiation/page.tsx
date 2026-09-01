@@ -68,14 +68,14 @@ export default async function NegotiationPage({ params }: { params: Promise<{ id
         }
       />
 
-      <div className="mx-auto max-w-3xl px-6 py-14">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <span className="eyebrow">
           Negotiation · {record.reference}
         </span>
 
         {band.blocked ? (
           <>
-            <h1 className="mt-4 font-display text-4xl leading-tight text-red-300">
+            <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-red-300 sm:text-[32px] sm:leading-[1.12]">
               No position
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-200">{band.summary}</p>
@@ -98,8 +98,8 @@ export default async function NegotiationPage({ params }: { params: Promise<{ id
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-300">{band.summary}</p>
 
-            <section className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
-              <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+            <section className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+              <h2 className="eyebrow">
                 The band
               </h2>
               <ul className="mt-4 space-y-4">
@@ -123,8 +123,8 @@ export default async function NegotiationPage({ params }: { params: Promise<{ id
               </ul>
             </section>
 
-            <section className="mt-6 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
-              <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+            <section className="mt-6 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+              <h2 className="eyebrow">
                 What the seller must be told
               </h2>
               <p className="mt-4 text-sm leading-relaxed text-ink-200">
@@ -139,8 +139,8 @@ export default async function NegotiationPage({ params }: { params: Promise<{ id
           </>
         )}
 
-        <section className="mt-6 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
-          <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+        <section className="mt-6 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+          <h2 className="eyebrow">
             What the seller could take instead
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-ink-400">{band.alternatives.summary}</p>
@@ -162,7 +162,7 @@ export default async function NegotiationPage({ params }: { params: Promise<{ id
         </section>
 
         {band.disclosures.length > 0 && (
-          <section className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-500/5 px-6 py-6">
+          <section className="mt-6 rounded-lg border-l-2 border-amber-500/80 bg-surface-1 px-5 py-4">
             <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-amber-300">
               Disclosures required before the seller can accept
             </h2>

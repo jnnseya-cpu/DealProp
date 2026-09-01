@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { appleStartupImages, PWA_COLOURS } from "@shared/pwa";
 import { Analytics } from "@/app/components/Analytics";
+import { mono, sans, serif } from "./fonts";
 import { ServiceWorker } from "./ServiceWorker";
 import "./globals.css";
 
@@ -48,7 +49,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-GB">
+    <html lang="en-GB" className={`${sans.variable} ${serif.variable} ${mono.variable}`}>
       <body className="min-h-screen bg-ink-950 text-ink-100 antialiased">
         {children}
         <ServiceWorker />

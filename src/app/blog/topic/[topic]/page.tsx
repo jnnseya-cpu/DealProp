@@ -76,14 +76,14 @@ export default async function TopicPage({ params }: { params: Promise<{ topic: s
         }
       />
 
-      <div className="mx-auto max-w-3xl px-6 py-14">
+      <div className="mx-auto max-w-3xl px-6 py-10">
         <nav aria-label="Breadcrumb" className="text-xs text-ink-500">
           <Link href="/blog" className="text-lode-300 transition hover:text-lode-200">Blog</Link>
           <span aria-hidden="true"> / </span>
           <span className="text-ink-400">{definition.label}</span>
         </nav>
 
-        <h1 className="mt-5 font-display text-4xl leading-tight text-ink-100">{definition.title}</h1>
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">{definition.title}</h1>
         <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-ink-300">
           {definition.description}
         </p>
@@ -93,7 +93,7 @@ export default async function TopicPage({ params }: { params: Promise<{ topic: s
             <Link
               key={other}
               href={`/blog/topic/${other}`}
-              className="rounded-full border hairline px-3.5 py-1.5 text-xs text-ink-300 transition hover:border-lode-400/40 hover:text-lode-200"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border hairline bg-surface-2 px-3 text-[13px] text-ink-200 transition-colors hover:border-ink-600 hover:text-ink-100"
             >
               {TOPIC_DEFINITIONS[other].label}
             </Link>
@@ -121,8 +121,8 @@ export default async function TopicPage({ params }: { params: Promise<{ topic: s
         )}
 
         {terms.length > 0 && (
-          <section className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
-            <h2 className="text-[11px] uppercase tracking-[0.12em] text-ink-400">
+          <section className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+            <h2 className="eyebrow">
               Definitions on this topic
             </h2>
             <ul className="mt-4 flex flex-wrap gap-2">
@@ -131,7 +131,7 @@ export default async function TopicPage({ params }: { params: Promise<{ topic: s
                   <Link
                     href={`/glossary/${term.slug}`}
                     title={term.short}
-                    className="inline-block rounded-lg border hairline px-3.5 py-2 text-sm text-ink-300 transition hover:border-lode-400/40 hover:text-lode-200"
+                    className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border hairline bg-surface-2 px-3 text-[13px] text-ink-200 transition-colors hover:border-ink-600 hover:text-ink-100"
                   >
                     {term.term}
                   </Link>

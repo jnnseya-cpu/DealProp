@@ -45,10 +45,10 @@ export default async function UnsubscribePage({
     <main className="min-h-screen">
       <TrackOnView event="newsletter_unsubscribed" />
       <SiteHeader width="max-w-2xl" />
-      <div className="mx-auto max-w-2xl px-6 py-20">
+      <div className="mx-auto max-w-2xl px-6 py-16">
         {done ? (
           <>
-            <h1 className="font-display text-4xl leading-tight text-ink-100">
+            <h1 className="font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
               You&apos;re unsubscribed.
             </h1>
             <p className="mt-5 text-base leading-relaxed text-ink-400">
@@ -58,13 +58,13 @@ export default async function UnsubscribePage({
             <div className="mt-10 flex flex-wrap gap-3">
               <Link
                 href={LINKS.home}
-                className="rounded-full border hairline px-6 py-3 text-sm text-ink-200 transition hover:border-ink-400 hover:text-ink-100"
+                className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
               >
                 Back to Lode
               </Link>
               <Link
                 href={LINKS.newsletter}
-                className="rounded-full border hairline px-6 py-3 text-sm text-ink-400 transition hover:text-ink-100"
+                className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
               >
                 Changed your mind?
               </Link>
@@ -72,7 +72,7 @@ export default async function UnsubscribePage({
           </>
         ) : (
           <>
-            <h1 className="font-display text-4xl leading-tight text-ink-100">
+            <h1 className="font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
               We couldn&apos;t find that subscription.
             </h1>
             <p className="mt-5 text-base leading-relaxed text-ink-400">

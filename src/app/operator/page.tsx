@@ -26,17 +26,17 @@ export default async function OperatorPage({
       <SiteHeader width="max-w-md" />
 
       <div className="mx-auto max-w-md px-6 py-16">
-        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-lode-400">
+        <p className="eyebrow">
           Restricted
         </p>
-        <h1 className="mt-2 font-display text-3xl text-ink-100">Operator access</h1>
+        <h1 className="mt-2 font-display text-[26px] leading-tight text-ink-100">Operator access</h1>
         <p className="mt-4 text-sm leading-relaxed text-ink-300">
           The pipeline and Deal Room carry what sellers told us in confidence, including reported
           financial distress and health or capacity concerns. That is special-category personal
           data, so these pages are not public.
         </p>
 
-        <div className="mt-8 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
+        <div className="mt-8 rounded-2xl border hairline bg-surface-1 px-5 py-4">
           {configured ? (
             <SignInForm next={target} />
           ) : (

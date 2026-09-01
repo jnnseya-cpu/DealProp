@@ -70,11 +70,11 @@ export default async function CapitalPage() {
         }
       />
 
-      <div className="mx-auto max-w-5xl px-6 py-14">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+      <div className="mx-auto max-w-5xl px-6 py-10">
+        <span className="eyebrow">
           Funding Box
         </span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100 sm:text-5xl">
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           {boxes.length === 0
             ? "No capital mandates yet"
             : `${activeCount} active ${activeCount === 1 ? "mandate" : "mandates"}`}
@@ -95,7 +95,7 @@ export default async function CapitalPage() {
         </div>
 
         {boxes.length === 0 ? (
-          <p className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-8 text-sm text-ink-400">
+          <p className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-6 text-sm text-ink-400">
             Nothing here yet. Recruiting capital before marketing to sellers is the sequence the
             product enforces: with no funding mandate, no deal can be shown a route to completion.
           </p>
@@ -122,17 +122,17 @@ function FundingBoxCard({
 
   return (
     <section
-      className={`rounded-2xl border px-6 py-6 ${box.active ? "hairline bg-ink-900/40" : "border-ink-800 bg-ink-950/60"}`}
+      className={`rounded-2xl border px-5 py-4 ${box.active ? "hairline bg-surface-1" : "border-ink-800 bg-ink-950/60"}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h2 className="font-display text-xl text-ink-100">{box.funderName}</h2>
-            <span className="rounded-full border border-lode-500/30 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-lode-300">
+            <h2 className="font-display text-[17px] leading-tight text-ink-100">{box.funderName}</h2>
+            <span className="rounded border border-lode-500/45 bg-lode-500/10 px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-lode-200">
               {kindLabel}
             </span>
             {!box.active && (
-              <span className="rounded-full border border-ink-700 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-ink-500">
+              <span className="rounded-md border border-ink-700 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-ink-500">
                 Inactive
               </span>
             )}
@@ -185,7 +185,7 @@ function FundingBoxCard({
                 <Link
                   key={record.id}
                   href={`/deals/${record.id}`}
-                  className="rounded-lg border hairline px-3 py-1.5 font-mono text-xs text-ink-300 transition hover:border-lode-400/40 hover:text-lode-200"
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border hairline bg-surface-2 px-3 text-[13px] text-ink-200 transition-colors hover:border-ink-600 hover:text-ink-100"
                 >
                   {record.reference} · {match.score}
                 </Link>

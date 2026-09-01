@@ -17,7 +17,7 @@ export function AccountControls({ id, disabled }: { id: string; disabled: boolea
         setBusy(true);
         void setAccountEnabled(id, disabled).finally(() => setBusy(false));
       }}
-      className="rounded-lg border hairline px-3 py-1.5 text-xs text-ink-300 transition hover:border-lode-400/40 hover:text-lode-200 disabled:opacity-50"
+      className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border hairline bg-surface-2 px-3 text-[13px] text-ink-200 transition-colors hover:border-ink-600 hover:text-ink-100"
     >
       {disabled ? "Re-enable" : "Disable"}
     </button>

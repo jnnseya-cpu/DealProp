@@ -142,7 +142,7 @@ export function EvidenceForm({
       <button
         type="submit"
         disabled={pending}
-        className="mt-6 rounded-xl border border-lode-400/50 px-5 py-2.5 text-sm text-lode-200 transition hover:border-lode-400 hover:bg-lode-400/10 disabled:opacity-50"
+        className="mt-6 inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
       >
         {pending ? "Saving…" : "Record evidence"}
       </button>

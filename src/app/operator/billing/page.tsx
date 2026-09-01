@@ -87,11 +87,11 @@ export default async function BillingPage() {
         }
       />
 
-      <div className="mx-auto max-w-4xl px-6 py-14">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+      <div className="mx-auto max-w-4xl px-6 py-10">
+        <span className="eyebrow">
           Billing
         </span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100">
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           {rows.length === 0 ? "No accounts yet" : `${paying.length} of ${rows.length} on a paid plan`}
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-300">
@@ -118,7 +118,7 @@ export default async function BillingPage() {
         </dl>
 
         {fullRefundExposure > 0 && (
-          <div className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-500/5 px-6 py-5">
+          <div className="mt-6 rounded-lg border-l-2 border-amber-500/80 bg-surface-1 px-5 py-4">
             <p className="text-sm leading-relaxed text-amber-200">
               {fullRefundExposure} consumer subscription{fullRefundExposure === 1 ? " is" : "s are"} inside
               the 14-day cancellation period with no record that the customer agreed to supply
@@ -129,7 +129,7 @@ export default async function BillingPage() {
         )}
 
         {owing.length > 0 && (
-          <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/5 px-6 py-5">
+          <div className="mt-6 rounded-lg border-l-2 border-red-500/80 bg-surface-1 px-5 py-4">
             <p className="text-sm leading-relaxed text-red-200">
               {owing.length} account{owing.length === 1 ? " has" : "s have"} had a payment reversed
               after the balance was used. Spending is suspended on{" "}
@@ -142,7 +142,7 @@ export default async function BillingPage() {
         <AdjustmentForm accounts={accounts.map((a) => ({ id: a.id, email: a.email }))} />
 
         {rows.length === 0 ? (
-          <p className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-8 text-sm text-ink-400">
+          <p className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-6 text-sm text-ink-400">
             No accounts exist yet, so there is nothing to bill. Create one at{" "}
             <Link href="/operator/accounts" className="text-lode-200 underline">
               /operator/accounts
@@ -152,7 +152,7 @@ export default async function BillingPage() {
         ) : (
           <ul className="mt-10 space-y-5">
             {rows.map(({ account, subscription, entitlements, position, lots, entries, coolingOff }) => (
-              <li key={account.id} className="rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
+              <li key={account.id} className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
                   <p className="font-display text-lg text-ink-100">{account.name}</p>
                   <p className="font-mono text-xs text-ink-400">
@@ -193,7 +193,7 @@ export default async function BillingPage() {
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
-    <div className="rounded-2xl border hairline bg-ink-900/40 px-5 py-4">
+    <div className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
       <dt className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-500">{label}</dt>
       <dd className={`mt-2 font-display text-2xl ${tone ?? "text-ink-100"}`}>{value}</dd>
     </div>

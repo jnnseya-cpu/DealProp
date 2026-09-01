@@ -3,7 +3,7 @@ import { listDeals } from "@backend/store/repository";
 import { scoreDeal } from "@shared/domain/dealScore";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
 import { gbp, gbpSigned, percent } from "@shared/format";
-import { scoreTone, SiteHeader, VERDICT_TONE } from "@/app/components/chrome";
+import { Badge, scoreTone, SiteHeader, VERDICT_TONE } from "@/app/components/chrome";
 import { requireOperator } from "@/app/operator/guard";
 import { SignOutButton } from "@/app/operator/SignOutButton";
 
@@ -38,87 +38,133 @@ export default async function DealsPage() {
     <main className="min-h-screen">
       <SiteHeader
         trailing={
-          <nav className="flex items-center gap-6 text-sm text-ink-400">
+          <nav className="flex items-center gap-5 text-[13px] text-ink-400">
             <Link href="/deals" className="text-ink-100">Deals</Link>
-            <Link href="/invest" className="transition hover:text-ink-100">Buy</Link>
-            <Link href="/capital" className="transition hover:text-ink-100">Capital</Link>
+            <Link href="/invest" className="transition-colors hover:text-ink-100">Buy</Link>
+            <Link href="/capital" className="transition-colors hover:text-ink-100">Capital</Link>
             <SignOutButton />
           </nav>
         }
       />
 
-      <div className="mx-auto max-w-6xl px-6 py-14">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">Pipeline</span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100 sm:text-5xl">
-          {rows.length} {rows.length === 1 ? "opportunity" : "opportunities"}
-        </h1>
-        <p className="mt-4 max-w-2xl text-base leading-relaxed text-ink-400">
-          Every deal is appraised after tax and shocked by the same nine stress scenarios before it
-          reaches capital. Scores are comparable across the pipeline because the tests are identical.
-        </p>
-
-        <div className="mt-12 space-y-3">
-          {rows.map(({ record, working, scored }) => {
-            const verdict = VERDICT_TONE[scored.verdict];
-            return (
-              <Link
-                key={record.id}
-                href={`/deals/${record.id}`}
-                className="group block rounded-2xl border hairline bg-ink-900/40 px-6 py-5 transition hover:border-ink-400 hover:bg-ink-900/70"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="font-mono text-xs text-ink-500">{record.reference}</span>
-                      <span className={`rounded-full border px-2.5 py-0.5 text-[10px] uppercase tracking-[0.1em] ${verdict.chip}`}>
-                        {verdict.label}
-                      </span>
-                      {scored.protection.blocked && (
-                        <span className="rounded-full border border-red-500/40 bg-red-500/10 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.1em] text-red-300">
-                          Blocked
-                        </span>
-                      )}
-                      {working.modelled && (
-                        <span className="rounded-full border hairline px-2.5 py-0.5 text-[10px] uppercase tracking-[0.1em] text-ink-400">
-                          No price agreed
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-2 font-display text-xl text-ink-100">
-                      {record.property.bedrooms}-bed {record.property.propertyType} ·{" "}
-                      {record.property.locality}
-                    </p>
-                    <p className="mt-1 text-xs text-ink-400">
-                      {record.property.postcodeArea} · {gbp(working.inputs.purchasePrice)} ·{" "}
-                      {percent(scored.appraisal.marginOnGdvBps)} margin ·{" "}
-                      {gbpSigned(scored.appraisal.profit)} after tax
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
-                      <p className={`tnum font-display text-3xl ${scoreTone(scored.breakdown.composite)}`}>
-                        {scored.breakdown.composite}
-                      </p>
-                      <p className="text-[10px] uppercase tracking-[0.1em] text-ink-500">Deal score</p>
-                    </div>
-                    <span className="text-ink-600 transition group-hover:text-lode-300" aria-hidden>
-                      →
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+      <div className="mx-auto max-w-6xl px-6 py-10">
+        <div className="flex flex-wrap items-end justify-between gap-6">
+          <div>
+            <p className="eyebrow">Pipeline</p>
+            <h1 className="mt-2.5 font-display text-[32px] leading-tight text-ink-100">
+              {rows.length} {rows.length === 1 ? "opportunity" : "opportunities"}
+            </h1>
+          </div>
+          <p className="max-w-md text-[13px] leading-[1.6] text-ink-400">
+            Appraised after tax and shocked by the same nine stress scenarios before reaching
+            capital. Scores are comparable across the pipeline because the tests are identical.
+          </p>
         </div>
 
+        {/*
+          A table, because this is tabular.
+          
+          These were four cards a thousand pixels wide with the reference at one
+          end and the score at the other, which put the two figures a reader
+          compares furthest apart and made four deals fill a screen. A column of
+          right-aligned tabular figures can be scanned; a stack of cards has to
+          be read one at a time.
+        */}
+        {rows.length > 0 && (
+          <div className="mt-8 overflow-x-auto rounded-xl border hairline bg-surface-1">
+            <table className="w-full border-collapse text-left md:min-w-[820px]">
+              <thead>
+                <tr className="border-b hairline bg-surface-2">
+                  <Th className="w-[112px]">Ref</Th>
+                  <Th>Property</Th>
+                  <Th className="num hidden md:table-cell">Price</Th>
+                  <Th className="num hidden lg:table-cell">Margin</Th>
+                  <Th className="num hidden md:table-cell">After tax</Th>
+                  <Th className="hidden w-[150px] sm:table-cell">Verdict</Th>
+                  <Th className="num w-[74px]">Score</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(({ record, working, scored }) => {
+                  const verdict = VERDICT_TONE[scored.verdict];
+                  const profit = scored.appraisal.profit;
+                  return (
+                    <tr key={record.id} className="row-hover border-b hairline last:border-0">
+                      <Td>
+                        <Link
+                          href={`/deals/${record.id}`}
+                          className="font-mono text-[12px] text-ink-400 transition-colors hover:text-lode-300"
+                        >
+                          {record.reference}
+                        </Link>
+                      </Td>
+                      <Td>
+                        <Link href={`/deals/${record.id}`} className="group block">
+                          <span className="text-[14px] text-ink-100 transition-colors group-hover:text-lode-200">
+                            {record.property.bedrooms}-bed {record.property.propertyType} ·{" "}
+                            {record.property.locality}
+                          </span>
+                          <span className="mt-0.5 flex flex-wrap items-center gap-2 text-[12px] text-ink-500">
+                            {record.property.postcodeArea}
+                            <span className="tnum sm:hidden">{gbp(working.inputs.purchasePrice)}</span>
+                            {working.modelled && <Badge>No price agreed</Badge>}
+                            {scored.protection.blocked && <Badge tone="bad">Blocked</Badge>}
+                          </span>
+                        </Link>
+                      </Td>
+                      <Td className="num tnum hidden text-[13px] text-ink-200 md:table-cell">
+                        {gbp(working.inputs.purchasePrice)}
+                      </Td>
+                      <Td className="num tnum hidden text-[13px] text-ink-200 lg:table-cell">
+                        {percent(scored.appraisal.marginOnGdvBps)}
+                      </Td>
+                      <Td
+                        className={`num tnum hidden text-[13px] md:table-cell ${profit < 0 ? "text-red-300" : "text-ink-200"}`}
+                      >
+                        {gbpSigned(profit)}
+                      </Td>
+                      <Td className="hidden sm:table-cell">
+                        <span className={`inline-flex rounded border px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] ${verdict.chip}`}>
+                          {verdict.label}
+                        </span>
+                      </Td>
+                      <Td className={`num tnum text-[19px] ${scoreTone(scored.breakdown.composite)}`}>
+                        {scored.breakdown.composite}
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {rows.length === 0 && (
-          <p className="mt-12 rounded-2xl border hairline bg-ink-900/40 px-6 py-8 text-sm text-ink-400">
-            No deals yet. Run <code className="text-ink-200">npm run seed</code>, or submit an
-            enquiry through <Link href="/sell" className="text-lode-300 underline">the seller form</Link>.
+          <p className="mt-8 rounded-xl border hairline bg-surface-1 px-5 py-7 text-[13px] text-ink-400">
+            No deals yet. Run <code className="font-mono text-ink-200">npm run seed</code>, or submit
+            an enquiry through{" "}
+            <Link href="/sell" className="text-lode-300 underline underline-offset-2">
+              the seller form
+            </Link>
+            .
           </p>
         )}
       </div>
     </main>
   );
+}
+
+function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <th
+      scope="col"
+      className={`px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.09em] text-ink-500 ${className}`}
+    >
+      {children}
+    </th>
+  );
+}
+
+function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <td className={`px-4 py-3 align-middle ${className}`}>{children}</td>;
 }

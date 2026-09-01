@@ -35,11 +35,11 @@ export default async function BlogIndex() {
         }
       />
 
-      <div className="mx-auto max-w-3xl px-6 py-14">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <span className="eyebrow">
           Writing
         </span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100 sm:text-5xl">
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           Deals with the working shown
         </h1>
         <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-ink-300">
@@ -53,14 +53,14 @@ export default async function BlogIndex() {
             <Link
               key={topic}
               href={`/blog/topic/${topic}`}
-              className="rounded-full border hairline px-3.5 py-1.5 text-xs text-ink-300 transition hover:border-lode-400/40 hover:text-lode-200"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border hairline bg-surface-2 px-3 text-[13px] text-ink-200 transition-colors hover:border-ink-600 hover:text-ink-100"
             >
               {TOPIC_DEFINITIONS[topic].label}
             </Link>
           ))}
           <Link
             href="/glossary"
-            className="rounded-full border border-lode-500/30 px-3.5 py-1.5 text-xs text-lode-300 transition hover:border-lode-400"
+            className="rounded-md border border-lode-500/30 px-3.5 py-1.5 text-xs text-lode-300 transition hover:border-lode-400"
           >
             Glossary
           </Link>

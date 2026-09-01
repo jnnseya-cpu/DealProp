@@ -41,10 +41,10 @@ export default async function ConfirmPage({
     <main className="min-h-screen">
       <TrackOnView event="newsletter_confirmed" />
       <SiteHeader width="max-w-2xl" />
-      <div className="mx-auto max-w-2xl px-6 py-20">
+      <div className="mx-auto max-w-2xl px-6 py-16">
         {confirmed ? (
           <>
-            <h1 className="font-display text-4xl leading-tight text-ink-100">
+            <h1 className="font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
               You&apos;re subscribed.
             </h1>
             <p className="mt-5 text-base leading-relaxed text-ink-400">
@@ -54,13 +54,13 @@ export default async function ConfirmPage({
             <div className="mt-10 flex flex-wrap gap-3">
               <Link
                 href={LINKS.deals}
-                className="rounded-full bg-lode-400 px-6 py-3 text-sm font-medium text-ink-950 transition hover:bg-lode-300"
+                className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md bg-lode-400 px-4 text-sm font-medium text-ink-950 transition-colors hover:bg-lode-300 active:bg-lode-500"
               >
                 Browse the pipeline
               </Link>
               <Link
                 href={LINKS.home}
-                className="rounded-full border hairline px-6 py-3 text-sm text-ink-200 transition hover:border-ink-400 hover:text-ink-100"
+                className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
               >
                 Back to Lode
               </Link>
@@ -68,7 +68,7 @@ export default async function ConfirmPage({
           </>
         ) : (
           <>
-            <h1 className="font-display text-4xl leading-tight text-ink-100">
+            <h1 className="font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
               That link didn&apos;t work.
             </h1>
             <p className="mt-5 text-base leading-relaxed text-ink-400">
@@ -77,7 +77,7 @@ export default async function ConfirmPage({
             </p>
             <Link
               href={LINKS.newsletter}
-              className="mt-10 inline-block rounded-full bg-lode-400 px-6 py-3 text-sm font-medium text-ink-950 transition hover:bg-lode-300"
+              className="mt-10 inline-block inline-flex h-9.5 items-center justify-center gap-2 rounded-md bg-lode-400 px-4 text-sm font-medium text-ink-950 transition-colors hover:bg-lode-300 active:bg-lode-500"
             >
               Try again
             </Link>

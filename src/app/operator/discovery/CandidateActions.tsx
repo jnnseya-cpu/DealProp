@@ -44,7 +44,7 @@ export function CandidateActions({
               type="submit"
               disabled={approving || !canApprove}
               title={canApprove ? undefined : "Only a fully verified candidate may be approved."}
-              className="rounded-xl border border-lode-400/50 px-4 py-2 text-sm text-lode-200 transition hover:border-lode-400 hover:bg-lode-400/10 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
             >
               {approving ? "Recording…" : "Approve for outreach"}
             </button>
@@ -67,7 +67,7 @@ export function CandidateActions({
             <button
               type="submit"
               disabled={suppressing}
-              className="rounded-xl border hairline px-4 py-2 text-sm text-ink-200 transition hover:border-ink-500 disabled:opacity-40"
+              className="inline-flex h-9.5 items-center justify-center gap-2 rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
             >
               {suppressing ? "Recording…" : "Never contact"}
             </button>

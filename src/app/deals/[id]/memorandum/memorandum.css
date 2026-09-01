@@ -7,18 +7,31 @@
  * are the substance of the file and reading them in one place is the point.
  */
 
+/*
+ * The ground is not the page.
+ *
+ * This was one flat white filling the viewport, which makes the document and
+ * the window the same object — there is no sheet, so nothing reads as a thing
+ * you could print or send. A warm grey ground with the sheet floating on it is
+ * how every document viewer has looked for thirty years, and it costs two
+ * declarations. Both disappear at print, below.
+ */
 .memo {
-  background: #ffffff;
+  background: #23252a;
   color: #16161a;
-  font-family: "Iowan Old Style", Palatino, Georgia, serif;
-  line-height: 1.55;
+  font-family: var(--font-display);
+  line-height: 1.6;
   min-height: 100vh;
-  padding: 2rem 1.5rem 6rem;
+  padding: 1.75rem 1.5rem 5rem;
 }
 
 .memo article {
   margin: 0 auto;
   max-width: 46rem;
+  background: #fdfdfc;
+  padding: 3.5rem 3.75rem 4rem;
+  border-radius: 3px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 32px -8px rgba(0, 0, 0, 0.45);
 }
 
 .memo-actions {
@@ -29,13 +42,13 @@
   gap: 1rem;
   align-items: baseline;
   justify-content: space-between;
-  font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.8rem;
-  color: #5c5c68;
+  color: #a7abb4;
 }
 
 .memo-actions a {
-  color: #9c6f21;
+  color: #dcc07d;
   text-decoration: none;
 }
 
@@ -46,7 +59,7 @@
 }
 
 .memo-kicker {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.65rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -86,7 +99,7 @@
 .memo table {
   width: 100%;
   border-collapse: collapse;
-  font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.85rem;
   margin-bottom: 0.7rem;
 }
@@ -147,7 +160,7 @@
 }
 
 .memo-ref {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   color: #6f6f7d;
 }
@@ -164,8 +177,15 @@
   /* The screen-only controls are noise on paper. */
   .memo-actions { display: none; }
 
-  .memo { padding: 0; }
-  .memo article { max-width: none; }
+  /* On paper the ground and the sheet are the same thing: the paper. */
+  .memo { padding: 0; background: #ffffff; }
+  .memo article {
+    max-width: none;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+  }
   .memo h2 { break-after: avoid; }
   .memo table, .memo tr { break-inside: avoid; }
 }

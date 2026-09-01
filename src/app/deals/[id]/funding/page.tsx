@@ -78,18 +78,18 @@ export default async function FundingPage({ params }: { params: Promise<{ id: st
         }
       />
 
-      <div className="mx-auto max-w-4xl px-6 py-14">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">
+      <div className="mx-auto max-w-4xl px-6 py-10">
+        <span className="eyebrow">
           Funding · {record.reference}
         </span>
-        <h1 className="mt-4 font-display text-4xl leading-tight text-ink-100">
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           Finance readiness <span className={bandTone}>{readiness.score}</span>
           <span className="text-ink-600">/100</span>
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-400">{readiness.caveat}</p>
 
         {readiness.blockers.length > 0 && (
-          <div className="mt-8 rounded-2xl border border-red-500/30 bg-red-500/5 px-6 py-5">
+          <div className="mt-8 rounded-lg border-l-2 border-red-500/80 bg-surface-1 px-5 py-4">
             <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-red-300">
               Stops this going to a funder
             </h2>
@@ -255,8 +255,8 @@ export default async function FundingPage({ params }: { params: Promise<{ id: st
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="mt-10 rounded-2xl border hairline bg-ink-900/40 px-6 py-6">
-      <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-lode-400">{title}</h2>
+    <section className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+      <h2 className="eyebrow">{title}</h2>
       <div className="mt-4">{children}</div>
     </section>
   );

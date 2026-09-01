@@ -25,13 +25,13 @@ export function DecisionForm({
   );
 
   return (
-    <form action={submit} className="mt-4 border-t hairline pt-4">
+    <form action={submit} className="mt-3.5 border-t hairline pt-3.5">
       <input type="hidden" name="dealId" value={dealId} />
       <input type="hidden" name="proposalKey" value={proposalKey} />
 
       <label
         htmlFor={`note-${proposalKey}`}
-        className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-500"
+        className="eyebrow"
       >
         Your reason
       </label>
@@ -41,7 +41,7 @@ export function DecisionForm({
         rows={2}
         required
         placeholder="What you checked, and what you concluded."
-        className="mt-2 w-full rounded-lg border hairline bg-ink-950/60 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-600 focus:border-lode-500 focus:outline-none"
+        className="mt-2 w-full px-3 py-2"
       />
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -50,7 +50,7 @@ export function DecisionForm({
           name="decision"
           value="accepted"
           disabled={pending}
-          className="rounded-lg bg-lode-500 px-4 py-2 text-sm font-medium text-ink-950 transition hover:bg-lode-400 disabled:opacity-50"
+          className="inline-flex h-9 items-center rounded-md bg-lode-400 px-4 text-sm font-medium text-ink-950 transition-colors hover:bg-lode-300"
         >
           {pending ? "Recording…" : acceptLabel}
         </button>
@@ -59,7 +59,7 @@ export function DecisionForm({
           name="decision"
           value="dismissed"
           disabled={pending}
-          className="rounded-lg border hairline px-4 py-2 text-sm text-ink-300 transition hover:text-ink-100 disabled:opacity-50"
+          className="inline-flex h-9 items-center rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-200 transition-colors hover:border-ink-600 hover:text-ink-100"
         >
           Dismiss
         </button>
@@ -67,7 +67,7 @@ export function DecisionForm({
 
       {result !== undefined && (
         <p
-          className={`mt-3 text-sm leading-relaxed ${result.ok ? "text-emerald-300" : "text-amber-300"}`}
+          className={`mt-3 text-[13px] leading-[1.6] ${result.ok ? "text-emerald-300" : "text-amber-300"}`}
           role="status"
         >
           {result.message}
