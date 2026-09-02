@@ -55,6 +55,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Funding | `/deals/[id]/funding` | Readiness, true cost, net advance, ratios, offers, evidence |
 | Negotiation | `/deals/[id]/negotiation` | Opening, target, walk-away and floor, computed from the engine |
 | Agents | `/deals/[id]/agents` | The nine agents, what each proposes, and who has to decide |
+| Fees | `/deals/[id]/fees` | What may be invoiced, what is blocking the rest, and raising it |
 | Discovery | `/operator/discovery` | Run discovery, review candidates, approve or suppress |
 | Outreach | `/operator/outreach` | Draft, approve, send; suppression list |
 | Opt out | `/outreach/opt-out` | One click, no account, no confirmation step |
@@ -101,6 +102,8 @@ listed honestly in [Not built yet](#not-built-yet).
 | Negotiation | `src/shared/domain/negotiation.ts` | The price band, and the number that says stop |
 | Appraisal request | `src/shared/domain/appraisalRequest.ts` | A stranger's figures into engine inputs, with every default declared |
 | Supply | `src/shared/domain/supply.ts` | How many deals, where and how often — counted, never claimed |
+| Permissions | `src/shared/domain/permissions.ts` | One catalogue, evidenced. A bare key grants nothing |
+| Fees | `src/shared/domain/fees.ts` | What may actually be invoiced now, and what is stopping the rest |
 | Company identity | `src/shared/domain/identity.ts` | The statutory disclosures, read from configuration and never invented |
 | Agents | `src/shared/domain/agents.ts` | Nine triggers, nine outputs, and the four things accepting one can do |
 | Owner lookup | `src/backend/discovery/owners.ts` | Who owns one title, and how they may lawfully be approached |

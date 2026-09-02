@@ -14,6 +14,7 @@ import type {
   SpendInput,
   SpendResult,
   DataRoomGrant,
+  DealFee,
   OutreachMessage,
   PendingCharge,
   StoredCandidate,
@@ -38,6 +39,7 @@ export type {
   SpendInput,
   SpendResult,
   DataRoomGrant,
+  DealFee,
   OutreachMessage,
   PendingCharge,
   StoredCandidate,
@@ -258,6 +260,18 @@ export async function listSuppressions() {
 
 export async function addSuppression(entry: Suppression) {
   return (await store()).addSuppression(entry);
+}
+
+export async function listDealFees(dealId: string) {
+  return (await store()).listDealFees(dealId);
+}
+
+export async function raiseDealFee(fee: DealFee) {
+  return (await store()).raiseDealFee(fee);
+}
+
+export async function voidDealFee(id: string, at: string, by: string, reason: string) {
+  return (await store()).voidDealFee(id, at, by, reason);
 }
 
 export async function listAgentDecisions(dealId: string) {

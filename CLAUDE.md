@@ -44,7 +44,7 @@ seller-facing options cannot disagree.
 `partners`, `sources`, `registrySignal`, `accounts`, `blog`, `analytics`, `seo`,
 `pricing`, `entitlements`, `ledger`, `charging`, `borrowing`, `fundingMetrics`,
 `negotiation`, `campaign`, `offers`, `agents`, `appraisalRequest`, `identity`,
-`supply`,
+`supply`, `permissions`, `fees`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
@@ -320,6 +320,15 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     there is history for one; and no return, yield or margin appears in a public
     supply statement, because that would be a financial promotion under FSMA
     s.21. A worked example is labelled as one — it said "Live" beside a fixture.
+60. **A permission is evidenced or it is not held.** `HELD_PERMISSIONS` takes
+    `key:evidence` pairs and drives the regulatory router, the revenue model,
+    the charge gate and the fee engine from one catalogue. A bare key grants
+    nothing and blocks the preflight — the revenue model was previously switched
+    off by an unreachable default rather than by a decision.
+61. **A fee needs four things, and money is one of them.** The permission, the
+    stage, the disclosure to the seller and a named person raising it.
+    `fees.ts` reports every missing one at once. The seller is never a payer:
+    there is no code path that bills them and a test asserts there cannot be.
 
 ### Outstanding
 

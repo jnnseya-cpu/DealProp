@@ -3,6 +3,7 @@ import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { AgentDecision } from "@shared/domain/agents";
+import type { DealFee } from "@backend/store/schema";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   availableBalance,
@@ -185,6 +186,20 @@ const SCHEMA = `
     at timestamptz NOT NULL
   );
   CREATE INDEX IF NOT EXISTS agent_decisions_deal ON agent_decisions (deal_id, at DESC);
+  -- Fees raised against a deal. The partial unique index is the control: one
+  -- live fee of each kind per deal, enforced by the database rather than by
+  -- whichever caller remembered to check.
+  CREATE TABLE IF NOT EXISTS deal_fees (
+    id text PRIMARY KEY,
+    deal_id text NOT NULL,
+    fee_key text NOT NULL,
+    data jsonb NOT NULL,
+    raised_at timestamptz NOT NULL,
+    voided_at timestamptz
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS deal_fees_one_live
+    ON deal_fees (deal_id, fee_key) WHERE voided_at IS NULL;
+  CREATE INDEX IF NOT EXISTS deal_fees_deal ON deal_fees (deal_id, raised_at DESC);
   CREATE TABLE IF NOT EXISTS pending_charges (
     id text PRIMARY KEY,
     account_id text NOT NULL,
@@ -935,6 +950,47 @@ export const postgresStore: Store = {
       `INSERT INTO suppressions (email, reason, at) VALUES ($1, $2, $3)
        ON CONFLICT (email) DO NOTHING`,
       [entry.email.trim().toLowerCase(), entry.reason, entry.at],
+    );
+    return (rowCount ?? 0) > 0;
+  },
+
+  async listDealFees(dealId: string): Promise<readonly DealFee[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: DealFee }>(
+      "SELECT data FROM deal_fees WHERE deal_id = $1 ORDER BY raised_at DESC",
+      [dealId],
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async raiseDealFee(fee: DealFee): Promise<boolean> {
+    await ensureSchema();
+    // ON CONFLICT DO NOTHING against the partial unique index: the check and
+    // the write are one statement, so two simultaneous callers cannot both
+    // find the deal unbilled and both invoice it.
+    const { rowCount } = await getPool().query(
+      `INSERT INTO deal_fees (id, deal_id, fee_key, data, raised_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT DO NOTHING`,
+      [fee.id, fee.dealId, fee.feeKey, JSON.stringify(fee), fee.raisedAt],
+    );
+    return (rowCount ?? 0) > 0;
+  },
+
+  async voidDealFee(id: string, at: string, by: string, reason: string): Promise<boolean> {
+    await ensureSchema();
+    // The timestamp is passed twice rather than reused as $2. Postgres deduces
+    // a parameter's type from how it is used, and using one placeholder as both
+    // a timestamptz and the text inside jsonb_build_object gives it two
+    // answers — "inconsistent types deduced for parameter $2". The file store
+    // has no such constraint and passed happily, which is the same trap the
+    // ledger's ON CONFLICT hit.
+    const { rowCount } = await getPool().query(
+      `UPDATE deal_fees
+          SET voided_at = $2::timestamptz,
+              data = data || jsonb_build_object('voidedAt', $5::text, 'voidedBy', $3::text, 'voidReason', $4::text)
+        WHERE id = $1 AND voided_at IS NULL`,
+      [id, at, by, reason, at],
     );
     return (rowCount ?? 0) > 0;
   },

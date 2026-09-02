@@ -1,6 +1,7 @@
 import { add, applyBps, fromMajor, pct, ZERO, type Bps, type Money } from "@shared/money";
 import type { DealAppraisal } from "@shared/domain/types";
 import { PLANS, type PlanAudience } from "@shared/domain/pricing";
+import { permissionDefinition, type PermissionKey } from "@shared/domain/permissions";
 
 /**
  * Monetisation model.
@@ -32,8 +33,15 @@ export interface StreamDefinition {
   readonly label: string;
   readonly payer: string;
   readonly recurring: boolean;
-  /** Permission that must be held before this stream may be charged. */
-  readonly requiresPermission?: string;
+  /**
+   * Permissions that must ALL be held before this stream may be charged.
+   *
+   * Keys into the one catalogue rather than a sentence, because a sentence
+   * cannot be compared against configuration without the two being written
+   * identically twice — which is how this stream ended up permanently
+   * excluded by a default nobody could reach.
+   */
+  readonly requiresPermissions?: readonly PermissionKey[];
   readonly note: string;
 }
 
@@ -50,7 +58,7 @@ export const STREAMS: readonly StreamDefinition[] = [
     label: "Deal success fee",
     payer: "Buyer",
     recurring: false,
-    requiresPermission: "Estate agency AML registration and redress scheme membership",
+    requiresPermissions: ["estate-agency-aml", "redress-scheme"],
     note: "Charged on completion. Introducing a seller to a buyer for a fee is estate agency work in the UK and must be supervised and disclosed to the seller.",
   },
   {
@@ -58,7 +66,7 @@ export const STREAMS: readonly StreamDefinition[] = [
     label: "Funding introduction",
     payer: "Lender or broker",
     recurring: false,
-    requiresPermission: "FCA authorisation or appointed representative status for credit broking",
+    requiresPermissions: ["credit-broking"],
     note: "Introducing borrowers to lenders for a fee is a regulated activity. Unauthorised introduction fees are both unlawful and unrecoverable.",
   },
   {
@@ -66,7 +74,7 @@ export const STREAMS: readonly StreamDefinition[] = [
     label: "Deal packaging",
     payer: "Buyer",
     recurring: false,
-    requiresPermission: "Estate agency AML registration",
+    requiresPermissions: ["estate-agency-aml"],
     note: "Preparing the deal pack. Charged whether or not the deal completes, so it must be described accurately at the point of sale.",
   },
   {
@@ -88,7 +96,7 @@ export const STREAMS: readonly StreamDefinition[] = [
     label: "Professional marketplace",
     payer: "Solicitors, surveyors, accountants",
     recurring: true,
-    requiresPermission: "Referral arrangements must comply with professional conduct rules",
+    requiresPermissions: ["professional-referrals"],
     note: "Subscription to the transaction workflow. Referral fees paid to or by regulated professionals carry disclosure obligations.",
   },
   {
@@ -138,7 +146,7 @@ export interface RevenueAssumptions {
   readonly subscriptionAllocation: Money;
   readonly professionalServices: Money;
   /** Permissions actually held. Streams requiring anything absent are excluded. */
-  readonly permissionsHeld: readonly string[];
+  readonly permissionsHeld: readonly PermissionKey[];
 }
 
 export const DEFAULT_ASSUMPTIONS: RevenueAssumptions = {
@@ -157,6 +165,8 @@ export interface RevenueLine {
   readonly amount: Money;
   readonly included: boolean;
   readonly excludedBecause?: string;
+  /** Which permissions are missing, so a page can say what to obtain. */
+  readonly missing?: readonly PermissionKey[];
 }
 
 export interface DealRevenue {
@@ -187,9 +197,9 @@ export function dealRevenue(
   ): void => {
     const def = STREAMS.find((s) => s.key === stream);
     if (def === undefined) return;
-    const permission = def.requiresPermission;
-    const allowed = permission === undefined || held.has(permission);
-    if (allowed) {
+    const required = def.requiresPermissions ?? [];
+    const missing = required.filter((key) => !held.has(key));
+    if (missing.length === 0) {
       lines.push({ stream, label: def.label, amount, included: true });
     } else {
       lines.push({
@@ -197,7 +207,8 @@ export function dealRevenue(
         label: def.label,
         amount: ZERO,
         included: false,
-        excludedBecause: `Requires: ${permission}`,
+        excludedBecause: `Requires ${missing.map((k) => permissionDefinition(k).label.toLowerCase()).join(" and ")}.`,
+        missing,
       });
       forgone = add(forgone, amount);
     }

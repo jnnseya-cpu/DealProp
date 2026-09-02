@@ -210,7 +210,7 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       // Subscribers are consent records. Wiping them on reseed would destroy
       // the evidence of why an address was mailed.
       await store.saveSubscriber(subscriber({ status: "confirmed" }));
-      await store.replaceAll({ deals: [dealRecord()], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], pendingCharges: [] });
+      await store.replaceAll({ deals: [dealRecord()], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], dealFees: [], pendingCharges: [] });
       expect(await store.listSubscribers()).toHaveLength(1);
       expect(await store.listDeals()).toHaveLength(1);
     });
@@ -223,6 +223,71 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       expect(await store.isEmpty()).toBe(false);
     });
 
+
+    describe("fees raised against a deal", () => {
+      const fee = {
+        id: "fee-1",
+        dealId: "deal-1",
+        feeKey: "deal-success-fee" as const,
+        payer: "buyer" as const,
+        amount: fromMajor(1_290),
+        basis: "A percentage of the purchase price, due on completion.",
+        raisedAt: "2026-08-30T09:00:00.000Z",
+        raisedByAccountId: "acc-1",
+        raisedByName: "Jo Bloggs",
+        permissionsAtRaise: ["estate-agency-aml", "redress-scheme"],
+        note: "Completed 14 August.",
+      };
+
+      it("raises a fee once, whatever the caller does", async () => {
+        // Two people pressing the button at the same time is exactly how a
+        // client gets invoiced twice, so the check and the write are one
+        // operation rather than a read followed by a decision.
+        expect(await store.raiseDealFee(fee)).toBe(true);
+        expect(await store.raiseDealFee({ ...fee, id: "fee-2" })).toBe(false);
+        expect(await store.listDealFees("deal-1")).toHaveLength(1);
+      });
+
+      it("cannot be raced into invoicing twice", async () => {
+        const attempts = await Promise.all(
+          Array.from({ length: 8 }, (_, i) => store.raiseDealFee({ ...fee, id: `race-${i}` })),
+        );
+        expect(attempts.filter(Boolean)).toHaveLength(1);
+        expect(await store.listDealFees("deal-1")).toHaveLength(1);
+      });
+
+      it("allows a different fee on the same deal", async () => {
+        expect(await store.raiseDealFee(fee)).toBe(true);
+        expect(
+          await store.raiseDealFee({ ...fee, id: "fee-3", feeKey: "deal-packaging" }),
+        ).toBe(true);
+        expect(await store.listDealFees("deal-1")).toHaveLength(2);
+      });
+
+      it("voids rather than deletes, and frees the slot", async () => {
+        // An invoice that was sent happened. The record stays and the amount
+        // stays, because the question asked later is what was charged.
+        await store.raiseDealFee(fee);
+        expect(await store.voidDealFee("fee-1", "2026-09-01T00:00:00.000Z", "Jo", "Wrong deal")).toBe(true);
+        expect(await store.voidDealFee("fee-1", "2026-09-01T00:00:00.000Z", "Jo", "again")).toBe(false);
+
+        const all = await store.listDealFees("deal-1");
+        expect(all).toHaveLength(1);
+        expect(all[0]?.voidedAt).toBe("2026-09-01T00:00:00.000Z");
+        expect(all[0]?.voidReason).toBe("Wrong deal");
+        expect(all[0]?.amount).toBe(fromMajor(1_290));
+
+        // Voided, so the deal may be invoiced again if that is right.
+        expect(await store.raiseDealFee({ ...fee, id: "fee-4" })).toBe(true);
+      });
+
+      it("scopes fees to their own deal", async () => {
+        await store.raiseDealFee(fee);
+        await store.raiseDealFee({ ...fee, id: "fee-5", dealId: "deal-2" });
+        expect(await store.listDealFees("deal-1")).toHaveLength(1);
+        expect(await store.listDealFees("deal-3")).toHaveLength(0);
+      });
+    });
 
     describe("agent decisions", () => {
       const decision = {
@@ -640,7 +705,7 @@ contract(
     // Queue through the write chain first. Deleting the file outright would
     // race a write still in flight from the previous test, which would then
     // land after the delete and recreate it.
-    await fileStore.replaceAll({ deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], pendingCharges: [] });
+    await fileStore.replaceAll({ deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], dealFees: [], pendingCharges: [] });
     rmSync(process.env.LODE_DATA_FILE ?? "", { force: true });
   },
 );

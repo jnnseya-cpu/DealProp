@@ -1,4 +1,11 @@
 import type { OperatorPermissions } from "@shared/domain/regulatoryRoute";
+import {
+  heldKeys,
+  holds,
+  readPermissions,
+  type PermissionKey,
+  type PermissionSet,
+} from "@shared/domain/permissions";
 
 /**
  * What this operator is actually permitted to do, as recorded.
@@ -8,31 +15,41 @@ import type { OperatorPermissions } from "@shared/domain/regulatoryRoute";
  * as held is not held, and the platform behaves accordingly rather than
  * assuming the paperwork exists somewhere.
  *
- * `HELD_PERMISSIONS` is a comma-separated list, shared with `revenue.ts` so
- * there is one place a permission is declared. Nothing here grants anything —
- * it reports what somebody has stated, and stating it wrongly is a decision
- * with consequences that this file cannot prevent.
+ * `HELD_PERMISSIONS` is the single source, shared by the regulatory router, the
+ * revenue model, the charge gate and the fee engine, so a permission is
+ * declared once. Nothing here grants anything — it reports what somebody has
+ * recorded, and recording it wrongly is a decision with consequences this file
+ * cannot prevent.
  */
 
-export const PERMISSION_KEYS = {
-  regulatedMortgageIntroductions: "regulated-mortgage-introductions",
-  creditBroking: "credit-broking",
-  promotionApprover: "financial-promotion-approver",
-} as const;
+/**
+ * Everything recorded, once, for every engine that asks.
+ *
+ * `HELD_PERMISSIONS` is `key:evidence` pairs — a bare key grants nothing, and
+ * `readPermissions` reports it as unevidenced so the preflight can say so
+ * rather than the platform quietly behaving as though the permission is absent.
+ */
+export function permissionSet(
+  raw: string | undefined = process.env.HELD_PERMISSIONS,
+): PermissionSet {
+  return readPermissions(raw);
+}
 
+/** The keys, for the engines that only need the answer. */
+export function permissionsHeld(
+  raw: string | undefined = process.env.HELD_PERMISSIONS,
+): readonly PermissionKey[] {
+  return heldKeys(readPermissions(raw));
+}
+
+/** The three the regulatory router asks about, in the shape it expects. */
 export function operatorPermissions(
   raw: string | undefined = process.env.HELD_PERMISSIONS,
 ): OperatorPermissions {
-  const held = new Set(
-    (raw ?? "")
-      .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean),
-  );
-
+  const set = readPermissions(raw);
   return {
-    regulatedMortgageIntroductions: held.has(PERMISSION_KEYS.regulatedMortgageIntroductions),
-    creditBroking: held.has(PERMISSION_KEYS.creditBroking),
-    promotionApprover: held.has(PERMISSION_KEYS.promotionApprover),
+    regulatedMortgageIntroductions: holds(set, "regulated-mortgage-introductions"),
+    creditBroking: holds(set, "credit-broking"),
+    promotionApprover: holds(set, "financial-promotion-approver"),
   };
 }

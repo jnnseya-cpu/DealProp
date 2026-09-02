@@ -49,7 +49,7 @@ async function reset(): Promise<void> {
   await fileStore.replaceAll({
     deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [],
     blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [],
-    discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [],
+    discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], dealFees: [],
     pendingCharges: [],
   });
   rmSync(process.env.LODE_DATA_FILE ?? "", { force: true });

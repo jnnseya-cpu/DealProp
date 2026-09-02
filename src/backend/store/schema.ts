@@ -13,6 +13,7 @@ import type {
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { AgentDecision } from "@shared/domain/agents";
+import type { FeeDisclosure, FeeKey, FeePayer } from "@shared/domain/fees";
 import type { CreditLot, LedgerEntry } from "@shared/domain/ledger";
 import type { Subscription } from "@shared/domain/entitlements";
 import type { Money } from "@shared/money";
@@ -54,6 +55,15 @@ export interface DealRecord {
   readonly borrowerFacts?: BorrowerFacts;
   /** Indicative or binding offers received, for the comparison in §10. */
   readonly offers?: readonly RecordedOffer[];
+  /**
+   * What the seller was told about our fees, and when.
+   *
+   * Held against the deal rather than against the invoice, because the Estate
+   * Agents Act 1979 s.18 requires the client to be told before they are bound
+   * — so a disclosure recorded at the moment of invoicing is by definition too
+   * late, and a fee they were never told about is unenforceable.
+   */
+  readonly feeDisclosure?: FeeDisclosure;
   /**
    * The deal owner's consent to identify this transaction to a third party.
    *
@@ -193,6 +203,8 @@ export interface Database {
    * underwriter reviewed something that no longer exists".
    */
   agentDecisions: AgentDecision[];
+  /** Fees raised against a deal. Money, so each moves at most once. */
+  dealFees: DealFee[];
   /**
    * Addresses that must never be written to again, by address rather than by
    * candidate.
@@ -289,6 +301,37 @@ export interface StoredCandidate {
   /** Set when a person approved it for outreach. Absent means quarantined. */
   readonly approvedAt?: string;
   readonly approvedBy?: string;
+}
+
+/**
+ * A fee raised against one deal.
+ *
+ * The amount is stored, unlike almost everything else here, because an invoice
+ * is a statement made on a date. Every other figure on this platform is
+ * recomputed so it cannot go stale; this one must not change after it has been
+ * sent, and the appraisal it was derived from will move.
+ */
+export interface DealFee {
+  readonly id: string;
+  readonly dealId: string;
+  readonly feeKey: FeeKey;
+  readonly payer: FeePayer;
+  /** Pence, as invoiced. Frozen at the moment it was raised. */
+  readonly amount: Money;
+  /** The basis stated to the payer, verbatim. */
+  readonly basis: string;
+  readonly raisedAt: string;
+  readonly raisedByAccountId: string;
+  readonly raisedByName: string;
+  /** The disclosure that made it collectable, copied in at the time. */
+  readonly disclosure?: FeeDisclosure;
+  /** Which permissions were recorded as held when it was raised. */
+  readonly permissionsAtRaise: readonly string[];
+  readonly note: string;
+  /** Set when the fee is withdrawn. Fees are never deleted. */
+  readonly voidedAt?: string;
+  readonly voidedBy?: string;
+  readonly voidReason?: string;
 }
 
 export interface ReversalInput {
@@ -446,7 +489,10 @@ export type AuditAction =
   | "access-denied"
   | "agents-run"
   | "agent-proposal-accepted"
-  | "agent-proposal-dismissed";
+  | "agent-proposal-dismissed"
+  | "fee-raised"
+  | "fee-voided"
+  | "fee-disclosure-recorded";
 
 export type SubscriberTokenField = "confirmToken" | "unsubscribeToken";
 
@@ -543,6 +589,19 @@ export interface Store {
   listOutreachMessages(): Promise<readonly OutreachMessage[]>;
   saveOutreachMessage(message: OutreachMessage): Promise<OutreachMessage>;
   listSuppressions(): Promise<readonly Suppression[]>;
+
+  /** Fees raised against a deal, most recent first. */
+  listDealFees(dealId: string): Promise<readonly DealFee[]>;
+  /**
+   * Raise a fee, once.
+   *
+   * Returns false where a live fee of this kind already exists on this deal —
+   * the check and the write are one operation, because two people pressing the
+   * button at the same time is exactly how a client gets invoiced twice.
+   */
+  raiseDealFee(fee: DealFee): Promise<boolean>;
+  /** Void a fee. Never a delete: an invoice that was sent happened. */
+  voidDealFee(id: string, at: string, by: string, reason: string): Promise<boolean>;
 
   /** Every decision on this deal, most recent first. */
   listAgentDecisions(dealId: string): Promise<readonly AgentDecision[]>;

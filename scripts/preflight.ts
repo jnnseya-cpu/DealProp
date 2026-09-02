@@ -22,6 +22,7 @@ import { isDealReady } from "../src/shared/domain/jurisdictions";
 import { IOS_DEVICES, PWA_ICONS, splashPath } from "../src/shared/pwa";
 import { CREDIT_PACKS, PLANS, FREE_PLAN_ID, plan } from "../src/shared/domain/pricing";
 import { companyIdentity, identityGaps } from "../src/shared/domain/identity";
+import { heldKeys, permissionDefinition, readPermissions } from "../src/shared/domain/permissions";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
@@ -283,13 +284,29 @@ function checkIdentity(): void {
 }
 
 function checkRegulatory(): void {
-  const held = (env.HELD_PERMISSIONS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const permissions = readPermissions(env.HELD_PERMISSIONS);
+  const held = heldKeys(permissions);
 
-  const gated = STREAMS.filter((s) => s.requiresPermission !== undefined);
-  const missing = gated.filter((s) => !held.includes(s.requiresPermission ?? ""));
+  for (const key of permissions.unevidenced) {
+    const definition = permissionDefinition(key);
+    block(
+      "Regulatory",
+      `${definition.label} is named in HELD_PERMISSIONS with no evidence behind it.`,
+      `Record it as "${key}:<${definition.evidenceLabel}>". A permission that gates chargeable income is a claim somebody must be able to check${definition.criminal ? ", and carrying on this activity without it is an offence" : ""}.`,
+    );
+  }
+  for (const entry of permissions.unrecognised) {
+    block(
+      "Regulatory",
+      `HELD_PERMISSIONS contains "${entry}", which is not a permission this platform knows about.`,
+      "Fix the spelling or remove it. A typo here reads as a permission not held, which silently switches off income.",
+    );
+  }
+
+  const gated = STREAMS.filter((s) => (s.requiresPermissions ?? []).length > 0);
+  const missing = gated.filter((s) =>
+    (s.requiresPermissions ?? []).some((key) => !held.includes(key)),
+  );
 
   if (missing.length === gated.length) {
     warn(

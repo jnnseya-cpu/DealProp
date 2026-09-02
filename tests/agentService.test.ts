@@ -117,7 +117,7 @@ async function reset(): Promise<void> {
     outreachMessages: [],
     suppressions: [],
     dataRoomGrants: [],
-    agentDecisions: [],
+    agentDecisions: [], dealFees: [],
     pendingCharges: [],
   });
   rmSync(process.env.LODE_DATA_FILE ?? "", { force: true });

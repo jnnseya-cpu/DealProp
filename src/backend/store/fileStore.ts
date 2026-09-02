@@ -4,6 +4,7 @@ import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { AgentDecision } from "@shared/domain/agents";
+import type { DealFee } from "@backend/store/schema";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   dueForExpiry,
@@ -88,6 +89,7 @@ function emptyDatabase(): Database {
     suppressions: [],
     dataRoomGrants: [],
     agentDecisions: [],
+    dealFees: [],
     pendingCharges: [],
   };
 }
@@ -118,6 +120,7 @@ async function readDatabase(): Promise<Database> {
       suppressions: parsed.suppressions ?? [],
       dataRoomGrants: parsed.dataRoomGrants ?? [],
       agentDecisions: parsed.agentDecisions ?? [],
+      dealFees: parsed.dealFees ?? [],
       pendingCharges: parsed.pendingCharges ?? [],
     };
   } catch (error) {
@@ -647,6 +650,37 @@ async function addSuppression(entry: Suppression): Promise<boolean> {
   });
 }
 
+async function listDealFees(dealId: string): Promise<readonly DealFee[]> {
+  const db = await readDatabase();
+  return db.dealFees
+    .filter((f) => f.dealId === dealId)
+    .sort((a, b) => b.raisedAt.localeCompare(a.raisedAt));
+}
+
+async function raiseDealFee(fee: DealFee): Promise<boolean> {
+  return mutate((db) => {
+    // Read and write in one operation. Two people pressing the button at the
+    // same time is exactly how a client gets invoiced twice.
+    const live = db.dealFees.some(
+      (f) => f.dealId === fee.dealId && f.feeKey === fee.feeKey && f.voidedAt === undefined,
+    );
+    if (live) return false;
+    db.dealFees.push(fee);
+    return true;
+  });
+}
+
+async function voidDealFee(id: string, at: string, by: string, reason: string): Promise<boolean> {
+  return mutate((db) => {
+    const index = db.dealFees.findIndex((f) => f.id === id && f.voidedAt === undefined);
+    const current = db.dealFees[index];
+    if (index < 0 || current === undefined) return false;
+    // Voided, never removed. An invoice that was sent happened.
+    db.dealFees[index] = { ...current, voidedAt: at, voidedBy: by, voidReason: reason };
+    return true;
+  });
+}
+
 async function listAgentDecisions(dealId: string): Promise<readonly AgentDecision[]> {
   const db = await readDatabase();
   return db.agentDecisions
@@ -874,6 +908,9 @@ export const fileStore: Store = {
   saveOutreachMessage,
   listSuppressions,
   addSuppression,
+  listDealFees,
+  raiseDealFee,
+  voidDealFee,
   listAgentDecisions,
   saveAgentDecision,
   listDataRoomGrants,

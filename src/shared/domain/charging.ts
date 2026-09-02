@@ -9,6 +9,7 @@ import {
   type PriceBreakdown,
 } from "@shared/domain/pricing";
 import { STREAMS, type RevenueStream } from "@shared/domain/revenue";
+import { permissionDefinition, type PermissionKey } from "@shared/domain/permissions";
 
 /**
  * The gate every charge passes through before any money is asked for.
@@ -41,7 +42,7 @@ export type PurchaseRequest =
 export interface ChargeContext {
   readonly customer: CustomerTaxProfile;
   /** Permissions actually recorded as held, from `revenue.ts`'s vocabulary. */
-  readonly permissionsHeld: readonly string[];
+  readonly permissionsHeld: readonly PermissionKey[];
   /** True where a reversal is outstanding against this account. */
   readonly owesUs: boolean;
 }
@@ -90,10 +91,13 @@ export function authorisePurchase(
   if (stream === undefined) {
     return REFUSED("Unknown revenue stream.");
   }
-  const permission = stream.requiresPermission;
-  if (permission !== undefined && !context.permissionsHeld.includes(permission)) {
+  const missing = (stream.requiresPermissions ?? []).filter(
+    (key) => !context.permissionsHeld.includes(key),
+  );
+  if (missing.length > 0) {
+    const needed = missing.map((k) => permissionDefinition(k).label.toLowerCase()).join(" and ");
     return REFUSED(
-      `${stream.label} cannot be charged yet: it requires ${permission}. Charging without it would make the fee unrecoverable as well as unlawful.`,
+      `${stream.label} cannot be charged yet: it requires ${needed}. Charging without it would make the fee unrecoverable as well as unlawful.`,
     );
   }
 

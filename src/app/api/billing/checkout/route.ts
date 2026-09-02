@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { permissionsHeld } from "@backend/permissions";
 import { cookies } from "next/headers";
 import { readSession, SESSION_COOKIE } from "@backend/auth/session";
 import { getAccount, listCreditLots, listLedgerEntries } from "@backend/store/repository";
@@ -71,7 +72,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       kind: body.customerKind === "business" ? ("business" as CustomerKind) : ("consumer" as CustomerKind),
       ...(typeof body.vatNumber === "string" ? { vatNumber: body.vatNumber } : {}),
     },
-    permissionsHeld: (process.env.HELD_PERMISSIONS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
+    permissionsHeld: permissionsHeld(),
     owesUs: !position.maySpend,
   });
 
