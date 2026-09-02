@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Badge, Panel, SiteHeader } from "@/app/components/chrome";
+import { Badge, Panel, SiteHeader, scoreTone } from "@/app/components/chrome";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { offersFor } from "@backend/billing/reveal";
 import { listDeals } from "@backend/store/repository";
@@ -60,6 +60,12 @@ export default async function OpportunitiesPage() {
           it cannot be opened for money, because paying to be introduced to somebody who never
           agreed to sell is not a transaction, it is a complaint waiting to happen.
         </p>
+        <p className="mt-3 max-w-[42rem] text-[13px] leading-[1.6] text-ink-500">
+          Ranked by what can be established, not by the largest discount. A property with an
+          enormous theoretical margin and an unchecked title sits below a smaller one that can
+          complete in three weeks, because a deal is worth its discount multiplied by the chance
+          it happens.
+        </p>
 
         {account === undefined && (
           <p className="mt-6 border-l-2 border-amber-500/80 py-1 pl-4 text-[13px] leading-[1.65] text-amber-300">
@@ -70,7 +76,7 @@ export default async function OpportunitiesPage() {
 
         {offers.length > 0 && (
           <div className="mt-9 space-y-3">
-            {offers.map(({ card, opened, record }) => (
+            {offers.map(({ card, opened, record, score }) => (
               <Link
                 key={record.id}
                 href={`/opportunities/${encodeURIComponent(record.id)}`}
@@ -88,6 +94,11 @@ export default async function OpportunitiesPage() {
                 </p>
                 <p className="mt-2.5 text-[13px] leading-[1.6] text-ink-400">{card.disclosure}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-2.5">
+                  <span className={`tnum text-[15px] ${scoreTone(score.score)}`}>{score.score}</span>
+                  <span className="text-[12px] text-ink-500">
+                    {score.confidence} confidence · {score.evidenceUsed.length} of{" "}
+                    {score.evidenceUsed.length + score.evidenceMissing.length} checks
+                  </span>
                   <Badge tone={card.category === "ai-discovered" ? "warn" : "good"}>
                     {titleCase(card.category.replace(/-/g, " "))}
                   </Badge>

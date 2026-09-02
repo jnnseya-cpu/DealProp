@@ -20,6 +20,11 @@ import {
 import { audit } from "@backend/audit";
 import type { Account } from "@shared/domain/accounts";
 import { buyerPassport, type Passport } from "@shared/domain/passport";
+import {
+  rankOpportunities,
+  scoreOpportunity,
+  type OpportunityScore,
+} from "@shared/domain/opportunityScore";
 import type { DealRecord, RevealRecord } from "@backend/store/schema";
 
 /**
@@ -50,6 +55,8 @@ export interface RevealOffer {
   readonly opened?: RevealRecord;
   /** The buyer's readiness against this opportunity's price. */
   readonly passport?: Passport;
+  /** How good it is, and how much of that is actually established. */
+  readonly score: OpportunityScore;
 }
 
 export async function quoteRevealForDeal(
@@ -76,7 +83,9 @@ export async function offersFor(
   now: Date = new Date(),
 ): Promise<readonly RevealOffer[]> {
   const opened = await listRevealsForAccount(account.id);
-  return records.map((record) => offerFor(record, opened, account, now));
+  // Ranked by the capped score, so an unevidenced 92 sits below an evidenced
+  // 70. That ordering is the whole point of scoring beyond discount.
+  return rankOpportunities(records.map((record) => offerFor(record, opened, account, now)));
 }
 
 function offerFor(
@@ -123,6 +132,12 @@ function offerFor(
     }),
     ...(mine !== undefined ? { opened: mine } : {}),
     ...(passport !== undefined ? { passport } : {}),
+    score: scoreOpportunity({
+      inputs,
+      item,
+      ...(record.evidence !== undefined ? { evidence: record.evidence } : {}),
+      now,
+    }),
   };
 }
 

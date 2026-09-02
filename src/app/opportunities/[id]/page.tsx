@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge, Panel, SiteHeader, Stat } from "@/app/components/chrome";
+import { Badge, Panel, SiteHeader, Stat, scoreTone } from "@/app/components/chrome";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { quoteRevealForDeal } from "@backend/billing/reveal";
 import { gbp, titleCase } from "@shared/format";
@@ -31,7 +31,7 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
   const offer = await quoteRevealForDeal(id, account);
   if (offer === undefined) notFound();
 
-  const { card, quote, opened, passport } = offer;
+  const { card, quote, opened, passport, score } = offer;
 
   return (
     <main className="min-h-screen pb-24">
@@ -66,9 +66,14 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
         </p>
 
         <div className="mt-8 grid grid-cols-2 gap-6 border-y hairline py-6 sm:grid-cols-4">
+          <Stat
+            label="Opportunity score"
+            value={String(score.score)}
+            size="sm"
+            tone={scoreTone(score.score)}
+          />
           <Stat label="Guide price" value={gbp(card.guidePrice)} size="sm" />
           <Stat label="Area" value={card.area} size="sm" tone="text-ink-300" />
-          <Stat label="Tenure" value={titleCase(card.tenure.replace(/-/g, " "))} size="sm" tone="text-ink-300" />
           <Stat
             label={opened === undefined ? "To open" : "You paid"}
             value={gbp(opened?.paid ?? card.revealPrice)}
@@ -130,6 +135,98 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
             )}
           </Panel>
         )}
+
+        {/* --- the score, and how much of it is actually known -------------- */}
+        <Panel
+          className="mt-8"
+          eyebrow="What is known"
+          title={`Score ${score.score}, ${score.confidence} confidence`}
+          action={
+            <Badge tone={score.confidence === "high" ? "good" : score.confidence === "medium" ? "neutral" : "warn"}>
+              {score.evidenceUsed.length} of {score.evidenceUsed.length + score.evidenceMissing.length} checks
+            </Badge>
+          }
+        >
+          <p className="text-[13px] leading-[1.65] text-ink-300">{score.confidenceReason}</p>
+          {score.score < score.uncappedScore && (
+            <p className="mt-3.5 border-l-2 border-amber-500/80 py-1 pl-4 text-[13px] leading-[1.65] text-amber-200">
+              The deal itself scores {score.uncappedScore}. It is published at {score.score} because
+              confidence is {score.confidence} — a deal is worth its discount multiplied by the
+              chance it happens, and a large margin nobody has verified is a number rather than a
+              transaction.
+            </p>
+          )}
+
+          <div className="mt-5 grid gap-6 border-t hairline pt-5 sm:grid-cols-2">
+            <div>
+              <p className="eyebrow">Evidence used</p>
+              {score.evidenceUsed.length === 0 ? (
+                <p className="mt-2 text-[13px] leading-[1.6] text-amber-300">
+                  Nothing has been established about this opportunity.
+                </p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {score.evidenceUsed.map((item) => (
+                    <li key={item.label} className="text-[13px] leading-[1.6] text-ink-200">
+                      {item.label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <p className="eyebrow">Evidence missing</p>
+              {score.evidenceMissing.length === 0 ? (
+                <p className="mt-2 text-[13px] leading-[1.6] text-ink-300">
+                  Nothing outstanding.
+                </p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {score.evidenceMissing.map((item) => (
+                    <li key={item.label} className="text-[13px] leading-[1.6]">
+                      <span className="text-amber-300">{item.label}</span>{" "}
+                      <span className="text-ink-500">{item.why}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-6 border-t hairline pt-5 sm:grid-cols-2">
+            <div>
+              <p className="eyebrow">Principal reasons</p>
+              <ul className="mt-2 space-y-2">
+                {score.reasons.map((reason) => (
+                  <li key={reason} className="text-[13px] leading-[1.6] text-ink-300">
+                    {reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="eyebrow">Principal risks</p>
+              {score.risks.length === 0 ? (
+                <p className="mt-2 text-[13px] leading-[1.6] text-ink-300">
+                  Nothing recorded stops this completing. That is not the same as nothing being
+                  wrong with it.
+                </p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {score.risks.map((risk) => (
+                    <li key={risk} className="text-[13px] leading-[1.6] text-ink-300">
+                      {risk}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <p className="mt-5 border-t hairline pt-4 font-mono text-[11px] text-ink-600">
+            Calculated {score.calculatedAt.slice(0, 16).replace("T", " ")} · {score.version}
+          </p>
+        </Panel>
 
         {passport !== undefined && opened === undefined && (
           <Panel
