@@ -43,14 +43,15 @@ seller-facing options cannot disagree.
 `completion`, `revenue`, `director`, `intake`, `sellerRoutes`, `workingDeal`,
 `partners`, `sources`, `registrySignal`, `accounts`, `blog`, `analytics`, `seo`,
 `pricing`, `entitlements`, `ledger`, `charging`, `borrowing`, `fundingMetrics`,
-`negotiation`, `campaign`, `offers`, `agents`,
+`negotiation`, `campaign`, `offers`, `agents`, `appraisalRequest`, `identity`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
 GB-WLS are excluded from `isDealReady`).
 
-Pages: `/` landing, `/sell` intake, `/sell/[id]` seller options, `/deals`
+Pages: `/` landing, `/appraise` free no-signup appraisal, `/partners` agents,
+professionals and capital, `/sell` intake, `/sell/[id]` seller options, `/deals`
 pipeline, `/deals/[id]` Deal Room, `/deals/[id]/agents` agent board,
 `/deals/[id]/memorandum` print pack,
 `/invest` Buy Boxes, `/capital` Funding Boxes, `/newsletter` (+ confirm,
@@ -291,6 +292,16 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     suite was skipped without `TEST_DATABASE_URL`: `ON CONFLICT` is illegal on a
     table carrying a rule, and `FOR UPDATE` cannot lock rows that do not exist
     yet. The file store passed both, which is the worst possible combination.
+56. **Company identity is configuration, never a literal.** `identity.ts` reads
+    it from the environment and the footer prints only what is recorded. A
+    placeholder company number is not a missing disclosure, it is a false one,
+    and `checkIdentity()` in the preflight blocks the release while the
+    statutory ones are unset.
+57. **The free appraisal is buyer-side arithmetic and returns no Deal Score.**
+    Scoring runs Seller Protection and the motivation diagnostics, which need
+    answers about a person nobody has spoken to. It is also never a trackable
+    route: the deal is in the query string and both vendors read `location.href`
+    themselves.
 
 ### Outstanding
 

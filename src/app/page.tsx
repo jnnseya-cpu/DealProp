@@ -6,7 +6,8 @@ import { buildCloseReport } from "@shared/domain/completion";
 import { countInterestedBuyers, matchFundingBox, rankMatches } from "@shared/domain/matching";
 import { SEED_BUY_BOXES, SEED_DEALS, SEED_FUNDING_BOXES } from "@backend/store/seed";
 import { add, sub, type Money } from "@shared/money";
-import type { DealAppraisal } from "@shared/domain/types";
+import { buildSellerRoutes, type SellerRoutesReport } from "@shared/domain/sellerRoutes";
+import { SiteFooter } from "@/app/components/SiteFooter";
 import { gbp, gbpSigned, percent } from "@shared/format";
 import { Button, Mark, scoreBg, scoreTone, VERDICT_TONE } from "@/app/components/chrome";
 import { BUYER_TIERS } from "@shared/domain/revenue";
@@ -33,6 +34,9 @@ export default function Home() {
   const close = buildCloseReport(record.milestones ?? []);
   const revenue = dealRevenue(scored.appraisal);
   const goldmine = record.listing !== undefined ? scoreGoldMine(record.listing, record.property) : undefined;
+  // The seller's own view of the same deal, so the hero can show what a seller
+  // receives rather than what a buyer makes.
+  const sellerRoutes = buildSellerRoutes(record.property, record.seller);
 
   const stress = (key: string): Money =>
     scored.redTeam.results.find((r) => r.stress.key === key)?.profit ?? scored.appraisal.profit;
@@ -40,14 +44,7 @@ export default function Home() {
   return (
     <main className="relative overflow-x-hidden">
       <Nav />
-      <Hero
-        score={scored.breakdown.composite}
-        verdict={briefing.verdict}
-        headline={briefing.headline}
-        buyers={buyers}
-        funders={funders.length}
-        appraisal={scored.appraisal}
-      />
+      <Hero buyers={buyers} funders={funders.length} routes={sellerRoutes} />
       <Doors />
       <LiveDeal
         briefing={briefing}
@@ -55,6 +52,7 @@ export default function Home() {
         funderCount={funders.length}
         topFunder={funders[0]?.target.funderName}
       />
+      <ProtectionSection protection={scored.protection} />
       <ScoreSection components={scored.breakdown.components} composite={scored.breakdown.composite} />
       <RedTeamSection
         base={scored.appraisal.profit}
@@ -68,10 +66,9 @@ export default function Home() {
       <StrategySection strategies={strategies} exits={exits} recycle={recycle} />
       {goldmine !== undefined && <GoldMineSection goldmine={goldmine} listing={record.listing!} />}
       <CloseSection close={close} />
-      <ProtectionSection protection={scored.protection} />
       <RevenueSection revenue={revenue} />
       <Pricing />
-      <Footer />
+      <SiteFooter />
     </main>
   );
 }
@@ -87,8 +84,9 @@ function Nav() {
           <span className="font-display text-[17px] tracking-[-0.01em] text-ink-100">Lode</span>
         </div>
         <div className="hidden items-center gap-7 text-[13px] text-ink-400 lg:flex">
-          <Link href="/deals" className="transition-colors hover:text-ink-100">Deals</Link>
-          <Link href="/sell" className="transition-colors hover:text-ink-100">Sell</Link>
+          <Link href="/appraise" className="transition-colors hover:text-ink-100">Free appraisal</Link>
+          <Link href="/sell" className="transition-colors hover:text-ink-100">Selling</Link>
+          <Link href="/partners" className="transition-colors hover:text-ink-100">Agents</Link>
           <a href="#engine" className="transition-colors hover:text-ink-100">Deal Engine</a>
           <a href="#stack" className="transition-colors hover:text-ink-100">Capital</a>
           <a href="#goldmine" className="transition-colors hover:text-ink-100">GoldMine</a>
@@ -102,7 +100,7 @@ function Nav() {
           >
             Sign in
           </Link>
-          <Button href="/sell" variant="primary" size="sm">Get deal options</Button>
+          <Button href="/appraise" variant="primary" size="sm">Appraise a deal</Button>
         </div>
       </div>
     </nav>
@@ -111,23 +109,17 @@ function Nav() {
 
 
 function Hero({
-  score,
-  verdict,
-  headline,
   buyers,
   funders,
-  appraisal,
+  routes,
 }: {
-  score: number;
-  verdict: string;
-  headline: string;
   buyers: { total: number; fast: number };
   funders: number;
-  appraisal: DealAppraisal;
+  routes: SellerRoutesReport;
 }) {
   return (
     <section className="grain relative border-b hairline">
-      <div className="relative mx-auto grid max-w-7xl items-start gap-14 px-6 py-16 lg:grid-cols-[1fr_460px] lg:py-24">
+      <div className="relative mx-auto grid max-w-7xl items-start gap-14 px-6 py-14 lg:grid-cols-[1fr_480px] lg:py-18">
         <div className="max-w-[40rem]">
           <p className="eyebrow">For motivated sellers</p>
 
@@ -149,9 +141,13 @@ function Hero({
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-2.5">
-            <Button href="/sell" variant="primary">Get my deal options</Button>
-            <Button href="/deals">Browse the pipeline</Button>
+            <Button href="/sell" variant="primary">See my options — free</Button>
+            <Button href="/appraise">Appraise a deal instead</Button>
           </div>
+          <p className="mt-3 text-[13px] text-ink-500">
+            Sellers are never charged and nobody phones you unless you ask. Buying rather than
+            selling? The appraisal needs no account.
+          </p>
 
           <dl className="mt-12 grid max-w-lg grid-cols-3 gap-8 border-t hairline pt-7">
             <HeroStat label="Verified buyers" value={String(buyers.total)} sub={`${buyers.fast} can complete in 28 days`} />
@@ -160,7 +156,7 @@ function Hero({
           </dl>
         </div>
 
-        <VerdictCard score={score} verdict={verdict} headline={headline} appraisal={appraisal} />
+        <SellerRoutesCard report={routes} />
       </div>
     </section>
   );
@@ -189,42 +185,30 @@ function HeroStat({ label, value, sub }: { label: string; value: string; sub: st
  * hundred-odd pixels. It is now the number, its band, and a rule — legible at
  * a glance and honest about being one figure.
  */
-function VerdictCard({
-  score,
-  verdict,
-  headline,
-  appraisal,
-}: {
-  score: number;
-  verdict: string;
-  headline: string;
-  appraisal: DealAppraisal;
-}) {
-  const v = VERDICT_TONE[verdict as keyof typeof VERDICT_TONE] ?? VERDICT_TONE.negotiate;
-
-  const lines: readonly (readonly [string, string])[] = [
-    ["Purchase price", gbp(appraisal.inputs.purchasePrice)],
-    ["Refurbishment", gbp(appraisal.costs.refurbishment)],
-    ["Transfer tax", gbp(appraisal.costs.transferTax)],
-    [
-      "Finance",
-      gbp(
-        add(
-          appraisal.costs.financeArrangement,
-          appraisal.costs.financeInterest,
-          appraisal.costs.financeExit,
-          appraisal.costs.lenderCosts,
-        ),
-      ),
-    ],
-    ["Gross development value", gbp(appraisal.exit.grossDevelopmentValue)],
-  ];
+/**
+ * The hero's product surface.
+ *
+ * It used to show the buyer's cost stack and the profit on the deal, which is
+ * the wrong thing to put in front of the audience the headline is addressing.
+ * A homeowner in probate, two screens into the page, was being shown what a
+ * stranger would make out of their mother's house before they had said a word.
+ * Transparency about the buyer's margin is right, and it is right *in the
+ * seller's own results*, where it sits beside what they gain for it. On a cold
+ * landing page with no context it is a deterrent.
+ *
+ * So this is the seller's view: what each route pays, how fast, and what it
+ * costs them. The buyer's arithmetic is a click away at /appraise, where the
+ * audience for it is the audience that asked.
+ */
+function SellerRoutesCard({ report }: { report: SellerRoutesReport }) {
+  const routes = report.routes.filter((r) => !r.unavailable).slice(0, 3);
+  const best = report.best;
 
   return (
     <div className="overflow-hidden rounded-xl border hairline bg-surface-1">
       <div className="flex items-center justify-between border-b hairline bg-surface-2 px-4 py-2.5">
         <span className="font-mono text-[11px] tracking-[0.04em] text-ink-300">
-          LODE-0001 · Erdington B23
+          Probate · Erdington B23 · empty 412 days
         </span>
         <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-500">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -232,87 +216,111 @@ function VerdictCard({
         </span>
       </div>
 
-      <div className="px-5 py-5">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.09em] text-ink-400">
-              Deal Score
-            </p>
-            <p className={`tnum mt-1 text-[46px] leading-none ${scoreTone(score)}`}>{score}</p>
-          </div>
-          <span className={`rounded border px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] ${v.chip}`}>
-            {v.label}
-          </span>
-        </div>
-
-        <div className="mt-4 h-1 overflow-hidden rounded-full bg-ink-800">
-          <div className={`h-full ${scoreBg(score)}`} style={{ width: `${score}%` }} />
-        </div>
-
-        <p className="mt-4 text-[13px] leading-[1.6] text-ink-300">{headline}</p>
+      <div className="px-5 py-4">
+        <p className="text-[13px] leading-[1.6] text-ink-300">
+          Four routes, ranked against what this seller said mattered — not against which one pays
+          us most. This is what each one puts in their hand.
+        </p>
       </div>
 
-      <dl className="border-t hairline px-5 py-3">
-        {lines.map(([k, value]) => (
-          <div key={k} className="flex items-baseline justify-between gap-6 border-b hairline py-1.5 last:border-0">
-            <dt className="text-[13px] text-ink-400">{k}</dt>
-            <dd className="tnum text-[13px] text-ink-200">{value}</dd>
-          </div>
+      <ul className="border-t hairline">
+        {routes.map((route) => (
+          <li key={route.key} className="border-b hairline px-5 py-3.5 last:border-0">
+            <div className="flex items-baseline justify-between gap-4">
+              <span className="text-[14px] text-ink-100">{route.label}</span>
+              <span className="tnum shrink-0 text-[15px] text-lode-300">
+                {gbp(route.totalToSeller)}
+              </span>
+            </div>
+            <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 text-[12px] text-ink-500">
+              <span>
+                {route.completionDaysMin}–{route.completionDaysMax} days
+                {best !== undefined && best.key === route.key && (
+                  <span className="ml-2 text-lode-400">best fit for what they told us</span>
+                )}
+              </span>
+              <span className="tnum">{route.certainty} certainty</span>
+            </div>
+          </li>
         ))}
-        <div className="flex items-baseline justify-between gap-6 border-t hairline-strong pt-2.5">
-          <dt className="text-[13px] font-medium text-ink-200">Profit after tax</dt>
-          <dd className="tnum text-[13px] font-medium text-lode-300">{gbp(appraisal.profit)}</dd>
-        </div>
-      </dl>
+      </ul>
 
       <div className="border-t hairline bg-surface-2 px-5 py-3.5">
-        <p className="text-[11px] font-medium uppercase tracking-[0.09em] text-ink-400">
-          Why this deal exists
-        </p>
-        <p className="mt-1.5 text-[13px] leading-[1.6] text-ink-300">
-          Probate. Empty 412 days, three agents, two relistings. The family live 200 miles away and
-          want it dealt with — not maximised.
+        <p className="text-[12px] leading-[1.6] text-ink-400">
+          Every route also shows what the seller gives up for it, including that an agent would
+          probably get them more. That is not a disclaimer we add — the engine refuses to produce a
+          below-market route without it.
         </p>
       </div>
     </div>
   );
 }
 
+/**
+ * Who this is for, and where each of them goes.
+ *
+ * Two things were wrong with this before. It was the fourth thing on the page,
+ * behind a hero and a product screen, so a reader who was not a seller had to
+ * work out from context whether to keep going. And **none of the five was a
+ * link** — each was a div with an arrow drawn after it, so the only audience
+ * segmentation on the site did nothing at all when clicked.
+ *
+ * Estate agents were missing entirely, which was the worse omission. An agent
+ * with a probate instruction that has been on the market four hundred days
+ * through three reductions has a client they cannot serve and a fee they will
+ * never earn — which is exactly the supply this platform needs. Reading a page
+ * whose headline is "don't list your property" and whose engine audits why
+ * their listings failed, they saw a competitor.
+ */
 function Doors() {
   const doors = [
     {
       tag: "Sell",
       title: "I have a property problem",
-      body: "Tell us the situation, not the asking price. The OS returns the routes that actually solve it — cash, deferred, JV or assisted sale.",
-      cta: "Get solutions",
+      body: "Tell us the situation, not the asking price. You get costed routes — cash, deferred, JV or assisted sale — and what each one costs you. Free, and nobody phones you unless you ask.",
+      cta: "See my options",
+      href: "/sell",
     },
     {
       tag: "Buy",
-      title: "I want property deals",
-      body: "Set a Buy Box once. Every qualified deal is matched, appraised after tax and stress-tested before it reaches you.",
-      cta: "Create Buy Box",
+      title: "I appraise deals",
+      body: "Start with the free appraisal: paste a deal and get the true discount after every cost, the price to walk away above, and the single stress that breaks it. No account.",
+      cta: "Appraise a deal",
+      href: "/appraise",
     },
     {
       tag: "Fund",
       title: "I have capital",
-      body: "Set a Funding Box. Receive deals inside your mandate with the underwriting already done and the downside already modelled.",
-      cta: "Create Funding Box",
+      body: "Set a Funding Box and receive only deals inside your mandate, with the underwriting done, the downside modelled and the regulatory route already classified.",
+      cta: "How funding works",
+      href: "/partners#capital",
+    },
+    {
+      tag: "Refer",
+      title: "I am an agent or a professional",
+      body: "You have instructions you cannot close. Refer them, keep a fee, keep the client — and get back the ones we cannot help either.",
+      cta: "Refer an instruction",
+      href: "/partners",
     },
   ];
 
   return (
     <section className="border-b hairline bg-surface-1">
-      <div className="mx-auto grid max-w-7xl gap-px overflow-hidden md:grid-cols-3">
+      <div className="mx-auto grid max-w-7xl gap-px overflow-hidden sm:grid-cols-2 lg:grid-cols-4">
         {doors.map((d) => (
-          <div key={d.tag} className="group relative border-r hairline px-8 py-12 transition hover:bg-surface-2 last:border-r-0">
+          <Link
+            key={d.tag}
+            href={d.href}
+            className="group border-b border-r hairline px-6 py-8 transition-colors last:border-r-0 hover:bg-surface-2"
+          >
             <span className="eyebrow">{d.tag}</span>
-            <h3 className="mt-4 font-display text-2xl leading-snug text-ink-100">{d.title}</h3>
-            <p className="mt-3 text-sm leading-relaxed text-ink-400">{d.body}</p>
-            <span className="mt-6 inline-flex items-center gap-1.5 text-sm text-lode-300 transition group-hover:gap-2.5">
+            <h3 className="mt-3 font-display text-[19px] leading-snug text-ink-100">{d.title}</h3>
+            <p className="mt-2.5 text-[13px] leading-[1.6] text-ink-400">{d.body}</p>
+            <span className="mt-4 inline-flex items-center gap-1.5 text-[13px] text-lode-300 transition-all group-hover:gap-2.5">
               {d.cta}
-              <span aria-hidden>→</span>
+              <span aria-hidden>&rarr;</span>
             </span>
-          </div>
+          </Link>
         ))}
       </div>
     </section>
@@ -920,41 +928,3 @@ function Pricing() {
   );
 }
 
-function Footer() {
-  return (
-    <footer className="bg-ink-950">
-      <div className="mx-auto max-w-7xl px-6 py-16">
-        <div className="rule-glow mb-16 h-px w-full" />
-        <div className="grid gap-12 lg:grid-cols-[1.4fr_1fr]">
-          <div>
-            <div className="flex items-center gap-3">
-              <Mark />
-              <span className="font-display text-[21px] leading-tight text-ink-100">Lode</span>
-            </div>
-            <p className="mt-5 max-w-md font-display text-2xl leading-snug text-ink-200">
-              Problems become deals. Deals find capital. Capital closes property.
-            </p>
-          </div>
-          <div className="rounded-xl border hairline bg-surface-1 px-5 py-4">
-            <p className="eyebrow">Regulatory position</p>
-            <p className="mt-3 text-xs leading-relaxed text-ink-400">
-              Figures shown are engine estimates for screening only and are not advice. Tax estimates
-              require confirmation by a qualified adviser. Introducing sellers to buyers, and
-              borrowers to lenders, are supervised activities in the UK — Lode does not charge those
-              fees until the corresponding permissions are held. Rate tables are dated snapshots and
-              must be re-verified each Budget.
-            </p>
-          </div>
-        </div>
-        <div className="mt-16 flex flex-wrap items-center justify-between gap-4 border-t hairline pt-8">
-          <p className="text-xs text-ink-500">
-            © {new Date().getFullYear()} Lode. Property Deal OS. Not an estate agent, not a portal.
-          </p>
-          <Link href="/newsletter" className="text-xs text-ink-400 transition hover:text-lode-300">
-            Get the weekly email →
-          </Link>
-        </div>
-      </div>
-    </footer>
-  );
-}

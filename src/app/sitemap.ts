@@ -20,6 +20,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     { url: canonical(base, "/"), lastModified: now, changeFrequency: "weekly", priority: 1 },
     { url: canonical(base, "/sell"), lastModified: now, changeFrequency: "monthly", priority: 0.9 },
+    {
+      url: canonical(base, "/appraise"),
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    {
+      url: canonical(base, "/partners"),
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
     { url: canonical(base, "/blog"), lastModified: now, changeFrequency: "weekly", priority: 0.8 },
     { url: canonical(base, "/glossary"), lastModified: now, changeFrequency: "monthly", priority: 0.6 },
     {

@@ -125,6 +125,21 @@ const NEVER_TRACK_PREFIXES: readonly string[] = [
   "/operator",
   "/account",
   "/api",
+  /*
+   * The free appraisal, and this one is not obvious.
+   *
+   * Its whole design is that the deal lives in the query string, so a result
+   * has a URL somebody can send to their business partner. Both vendors read
+   * `location.href` themselves for a page view — we do not hand it to them and
+   * we cannot stop them taking it — so allowlisting this route would ship a
+   * visitor's purchase price, their refurbishment budget and what they think
+   * the property is worth to an ad network, on a page that exists precisely
+   * because it asks for no account and stores nothing.
+   *
+   * The click through to it is measurable from the page it was clicked on,
+   * which carries no figures. That is the measurement worth having.
+   */
+  "/appraise",
 ];
 
 /** True where a pixel may fire on this path. */

@@ -45,6 +45,8 @@ listed honestly in [Not built yet](#not-built-yet).
 | Page | Route | What it does |
 |---|---|---|
 | Landing | `/` | Every figure computed at render time from the seeded deal |
+| Free appraisal | `/appraise` | True discount, walk-away price and Red Team. No account, nothing stored |
+| Agents and capital | `/partners` | Referral route, what a funder is shown, what we are not supervised for |
 | Seller intake | `/sell` | Situation first, price fourth; screening feeds Seller Protection |
 | Seller options | `/sell/[id]` | Routes with what the seller receives, when, and what they give up |
 | Pipeline | `/deals` | Every opportunity scored after tax, blocked deals included |
@@ -97,6 +99,8 @@ listed honestly in [Not built yet](#not-built-yet).
 | Analytics gate | `src/shared/domain/analytics.ts` | Which routes and events a pixel may ever see |
 | SEO audit | `src/shared/domain/seo.ts` | Scores every post against what this codebase controls |
 | Negotiation | `src/shared/domain/negotiation.ts` | The price band, and the number that says stop |
+| Appraisal request | `src/shared/domain/appraisalRequest.ts` | A stranger's figures into engine inputs, with every default declared |
+| Company identity | `src/shared/domain/identity.ts` | The statutory disclosures, read from configuration and never invented |
 | Agents | `src/shared/domain/agents.ts` | Nine triggers, nine outputs, and the four things accepting one can do |
 | Owner lookup | `src/backend/discovery/owners.ts` | Who owns one title, and how they may lawfully be approached |
 | Borrowing | `src/shared/domain/borrowing.ts` | Total cost of a facility, and what actually arrives on the day |

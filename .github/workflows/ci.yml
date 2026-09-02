@@ -84,3 +84,9 @@ jobs:
           OPERATOR_SECRET: ci-only-not-a-real-secret-value-32ch
           CRON_SECRET: ci-only-not-a-real-cron-secret-32ch
           DATABASE_URL: postgres://lode:lode@127.0.0.1:5432/lode_test
+          COMPANY_LEGAL_NAME: CI Example Ltd
+          COMPANY_NUMBER: "00000000"
+          COMPANY_PLACE_OF_REGISTRATION: England and Wales
+          COMPANY_REGISTERED_OFFICE: 1 Example Street, London, EX1 1EX
+          ICO_REGISTRATION: ZA000000
+          CONTACT_EMAIL: ci@example.com

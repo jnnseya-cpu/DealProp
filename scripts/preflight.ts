@@ -21,6 +21,7 @@ import { DATA_SOURCES } from "../src/shared/domain/sources";
 import { isDealReady } from "../src/shared/domain/jurisdictions";
 import { IOS_DEVICES, PWA_ICONS, splashPath } from "../src/shared/pwa";
 import { CREDIT_PACKS, PLANS, FREE_PLAN_ID, plan } from "../src/shared/domain/pricing";
+import { companyIdentity, identityGaps } from "../src/shared/domain/identity";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
@@ -251,6 +252,35 @@ function checkEmail(): void {
 }
 
 /* ------------------------------------------------------------- regulatory */
+
+/**
+ * Who this company is.
+ *
+ * Placed with the blocking checks rather than the advisory ones, because a
+ * website that does not identify its operator fails a statutory disclosure
+ * requirement, and because it is the first thing a stranger looks for before
+ * deciding whether to tell you about a bereavement or lend against a deal. The
+ * values are never defaulted: an invented company number would satisfy this
+ * check and be a false statement of identity.
+ */
+function checkIdentity(): void {
+  const identity = companyIdentity(process.env);
+  const gaps = identityGaps(identity);
+  const blocking = gaps.filter((g) => g.blocking);
+  const advisory = gaps.filter((g) => !g.blocking);
+
+  for (const gap of blocking) {
+    block("Company identity", `${gap.label} is not recorded. ${gap.consequence}`, `Set it in the environment. Nothing may be guessed here — a placeholder is a false statement of identity, not a missing one.`);
+  }
+
+  for (const gap of advisory) {
+    warn("Company identity", `${gap.label} is not recorded. ${gap.consequence}`, "Record it once it is granted.");
+  }
+
+  if (gaps.length === 0) {
+    pass("Company identity", "Every statutory disclosure and supervision is recorded and rendered in the footer.");
+  }
+}
 
 function checkRegulatory(): void {
   const held = (env.HELD_PERMISSIONS ?? "")
@@ -563,6 +593,7 @@ async function main(): Promise<void> {
   checkSiteUrl();
   await checkDatabase();
   checkEmail();
+  checkIdentity();
   checkRegulatory();
   checkAssets();
   checkAnalytics();
