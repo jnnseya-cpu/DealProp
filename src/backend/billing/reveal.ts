@@ -21,6 +21,10 @@ import { audit } from "@backend/audit";
 import type { Account } from "@shared/domain/accounts";
 import { buyerPassport, type Passport } from "@shared/domain/passport";
 import {
+  materialInformation,
+  type MaterialReport,
+} from "@shared/domain/materialInformation";
+import {
   rankOpportunities,
   scoreOpportunity,
   type OpportunityScore,
@@ -57,6 +61,8 @@ export interface RevealOffer {
   readonly passport?: Passport;
   /** How good it is, and how much of that is actually established. */
   readonly score: OpportunityScore;
+  /** What a buyer is entitled to be told before they spend money. */
+  readonly material: MaterialReport;
 }
 
 export async function quoteRevealForDeal(
@@ -108,6 +114,8 @@ function offerFor(
       ? undefined
       : buyerPassport(account.passportEvidence ?? {}, inputs.purchasePrice, now);
 
+  const material = materialInformation(property, record.material ?? {});
+
   const quote = quoteReveal({
     opportunity: classifyOpportunity(property, item),
     item,
@@ -121,6 +129,7 @@ function offerFor(
     // signal is derived from a live listing, so its presence with days on
     // market is the fact that it is on a portal now.
     openlyAdvertised: (record.listing?.daysOnMarket ?? 0) > 0,
+    material,
     alreadyOpened: mine !== undefined,
   });
 
@@ -136,6 +145,7 @@ function offerFor(
     }),
     ...(mine !== undefined ? { opened: mine } : {}),
     ...(passport !== undefined ? { passport } : {}),
+    material,
     score: scoreOpportunity({
       inputs,
       item,

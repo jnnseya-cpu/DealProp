@@ -59,6 +59,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Opportunities | `/opportunities` | The marketplace, ranked by what can be established rather than by discount |
 | Opportunity | `/opportunities/[id]` | Category, score, evidence used and missing, the reveal, the refund claim |
 | Passport | `/account/passport` | Identity, funds and conveyancer — the gate on reaching a seller |
+| Material information | `/deals/[id]/material` | Parts A, B and C; Part A unanswered stops the property being marketed |
 | Conduct | `/operator/conduct` | The twelve prohibitions and the control enforcing each one |
 | Discovery | `/operator/discovery` | Run discovery, review candidates, approve or suppress |
 | Outreach | `/operator/outreach` | Draft, approve, send; suppression list |

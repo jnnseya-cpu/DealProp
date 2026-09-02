@@ -21,6 +21,7 @@ import type {
   SellerAgreement,
 } from "@shared/domain/fees";
 import type { InventoryCategory, InventoryItem } from "@shared/domain/inventory";
+import type { MaterialRecord } from "@shared/domain/materialInformation";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { OpportunityClass } from "@shared/domain/pricing";
 import type { CreditLot, LedgerEntry } from "@shared/domain/ledger";
@@ -91,6 +92,16 @@ export interface DealRecord {
    * cannot over-claim by accident.
    */
   readonly inventory?: InventoryItem;
+  /**
+   * The material information answers, keyed by item.
+   *
+   * Absent means nothing has been asked, which fails Part A and stops the
+   * property being marketed. That is the correct default: a buyer cannot tell
+   * the difference between "no covenants" and "nobody looked", and publishing
+   * silence in place of the second is the misleading omission the Consumer
+   * Protection Regulations are about.
+   */
+  readonly material?: MaterialRecord;
   /**
    * An estate-agency instruction already running on the property.
    *
@@ -567,7 +578,8 @@ export type AuditAction =
   | "seller-instruction-recorded"
   | "opportunity-opened"
   | "opportunity-refunded"
-  | "passport-evidence-recorded";
+  | "passport-evidence-recorded"
+  | "material-information-recorded";
 
 export type SubscriberTokenField = "confirmToken" | "unsubscribeToken";
 

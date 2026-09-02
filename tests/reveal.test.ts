@@ -23,6 +23,7 @@ import {
 } from "@shared/domain/reveal";
 import { authorisePurchase } from "@shared/domain/charging";
 import { buyerPassport } from "@shared/domain/passport";
+import { materialInformation, type MaterialRecord } from "@shared/domain/materialInformation";
 import { revealPrice } from "@shared/domain/pricing";
 import type { PropertyFacts } from "@shared/domain/types";
 import { bps } from "@shared/money";
@@ -68,12 +69,20 @@ const PROCEEDABLE = buyerPassport(
   NOW,
 );
 
+/** Part A answered, which is what a property needs before it may be marketed. */
+const MARKETABLE: MaterialRecord = {
+  price: { state: "stated", value: "£172,000" },
+  tenure: { state: "stated", value: "Freehold" },
+  "council-tax": { state: "stated", value: "Band B" },
+};
+
 function context(overrides: Partial<RevealContext> = {}): RevealContext {
   return {
     opportunity: "owner-verified",
     item: { category: "owner-verified", confirmation: OWNER_SAID },
     permissionsHeld: EVERYTHING,
     passport: PROCEEDABLE,
+    material: materialInformation(property(), MARKETABLE),
     ...overrides,
   };
 }

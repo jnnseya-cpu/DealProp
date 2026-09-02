@@ -31,7 +31,7 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
   const offer = await quoteRevealForDeal(id, account);
   if (offer === undefined) notFound();
 
-  const { card, quote, opened, passport, score } = offer;
+  const { card, quote, opened, passport, score, material } = offer;
 
   return (
     <main className="min-h-screen pb-24">
@@ -135,6 +135,61 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
             )}
           </Panel>
         )}
+
+        {/* --- what a buyer is entitled to be told ------------------------- */}
+        <Panel
+          className="mt-8"
+          eyebrow="Material information"
+          title={
+            material.mayMarket
+              ? `${material.items.length - material.unanswered.length} of ${material.items.length} questions answered`
+              : "This property may not be marketed yet"
+          }
+          action={
+            <Badge tone={material.mayMarket ? (material.unanswered.length === 0 ? "good" : "neutral") : "warn"}>
+              {material.mayMarket ? "Marketable" : "Part A missing"}
+            </Badge>
+          }
+        >
+          <p className="text-[13px] leading-[1.65] text-ink-300">{material.summary}</p>
+
+          {(["A", "B", "C"] as const).map((part) => {
+            const rows = material.items.filter((s) => s.item.part === part);
+            if (rows.length === 0) return null;
+            return (
+              <div key={part} className="mt-4 border-t hairline pt-4">
+                <p className="eyebrow">
+                  Part {part} —{" "}
+                  {part === "A"
+                    ? "every property, no exceptions"
+                    : part === "B"
+                      ? "every property, once somebody has asked"
+                      : "where it exists"}
+                </p>
+                <ul className="mt-2.5 space-y-2.5">
+                  {rows.map((row) => (
+                    <li key={row.item.key} className="text-[13px] leading-[1.6]">
+                      <span className={row.answered ? "text-ink-100" : "text-amber-300"}>
+                        {row.item.label}
+                      </span>{" "}
+                      <span className="text-ink-400">{row.shown}</span>
+                      {!row.answered && (
+                        <span className="mt-0.5 block text-ink-600">{row.item.why}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+
+          <p className="mt-4 border-t hairline pt-4 text-[12px] leading-[1.6] text-ink-500">
+            Unanswered questions are published as unanswered rather than left out. A buyer cannot
+            tell the difference between &ldquo;no covenants&rdquo; and &ldquo;nobody
+            looked&rdquo;, and omitting the second is a misleading omission under the Consumer
+            Protection from Unfair Trading Regulations.
+          </p>
+        </Panel>
 
         {/* --- the score, and how much of it is actually known -------------- */}
         <Panel

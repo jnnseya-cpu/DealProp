@@ -16,6 +16,7 @@ import { FEE_DEFINITIONS } from "@shared/domain/fees";
 import { GRADES } from "@shared/domain/passport";
 import { categoryDefinition } from "@shared/domain/inventory";
 import { quoteReveal } from "@shared/domain/reveal";
+import { materialInformation } from "@shared/domain/materialInformation";
 import { matchFundingBox, type FundingBox } from "@shared/domain/matching";
 import { scoreDeal } from "@shared/domain/dealScore";
 import { SEED_FUNDING_BOXES } from "@backend/store/seed";
@@ -93,6 +94,12 @@ const READY = buyerPassport(
   fromMajor(172_000),
   NOW,
 );
+
+const MARKETABLE = materialInformation(property, {
+  price: { state: "stated", value: "£172,000" },
+  tenure: { state: "stated", value: "Freehold" },
+  "council-tax": { state: "stated", value: "Band B" },
+});
 
 const CONFIRMED = {
   category: "owner-verified" as const,
@@ -173,6 +180,7 @@ describe("never charge a toll on information anybody could look up", () => {
       item: CONFIRMED,
       permissionsHeld: EVERYTHING,
       passport: READY,
+      material: MARKETABLE,
       openlyAdvertised: true,
     });
     expect(advertised.chargeable).toBe(false);
@@ -188,6 +196,7 @@ describe("never charge a toll on information anybody could look up", () => {
         item: CONFIRMED,
         permissionsHeld: EVERYTHING,
         passport: READY,
+        material: MARKETABLE,
       }).chargeable,
     ).toBe(true);
   });

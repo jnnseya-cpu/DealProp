@@ -3,6 +3,7 @@ import { permissionDefinition, type PermissionKey } from "@shared/domain/permiss
 import { revealPrice, type OpportunityClass } from "@shared/domain/pricing";
 import type { PropertyFacts, PropertyType, Tenure } from "@shared/domain/types";
 import { mayApproachSeller, type Passport } from "@shared/domain/passport";
+import type { MaterialReport } from "@shared/domain/materialInformation";
 import {
   categoryDefect,
   categoryDefinition,
@@ -100,6 +101,15 @@ export interface RevealContext {
    */
   readonly openlyAdvertised?: boolean;
   /**
+   * Material information, in the National Trading Standards sense.
+   *
+   * Absent is treated as nothing recorded, which fails Part A. Omitting
+   * material information is a misleading omission under the CPRs and the
+   * enforcement is against whoever published the listing — so a listing that
+   * could not lawfully be marketed cannot be sold either.
+   */
+  readonly material?: MaterialReport;
+  /**
    * The buyer's passport.
    *
    * Absent means nobody has been graded, which is treated as grade D. A reveal
@@ -152,6 +162,17 @@ export function quoteReveal(context: RevealContext): RevealQuote {
       reason: approach.reason,
       remedy:
         "Complete the Buyer Readiness Passport: identity, screening and evidence of funds. Spending a motivated seller's time on a buyer with no money is how a marketplace destroys its own supply, and the seller blames whoever introduced them.",
+    });
+  }
+
+  if (context.material === undefined || !context.material.mayMarket) {
+    blockers.push({
+      reason:
+        context.material === undefined
+          ? "No material information is recorded for this property."
+          : context.material.summary,
+      remedy:
+        "Record the Part A answers — price, tenure, council tax, and the lease terms where there is a lease. A property may not be marketed without them, and charging to open one that may not be marketed is charging for something that cannot lawfully be offered.",
     });
   }
 

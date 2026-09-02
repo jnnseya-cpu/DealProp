@@ -46,7 +46,7 @@ seller-facing options cannot disagree.
 `negotiation`, `campaign`, `offers`, `agents`, `appraisalRequest`, `identity`,
 `supply`, `permissions`, `fees`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`, `inventory`, `reveal`,
-`passport`, `opportunityScore`, `prohibitions`.
+`passport`, `opportunityScore`, `prohibitions`, `materialInformation`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -353,11 +353,17 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     42, which is the ordering §18 exists to prevent. Every score publishes its
     confidence, evidence used, evidence missing, calculation date, principal
     reasons and principal risks.
-66. **The twelve prohibitions each name the control that enforces them.**
+66. **A question with no answer is published as unanswered, never left out.**
+    `materialInformation.ts` has three states, not two: stated, not-applicable,
+    and not-known-and-here-is-who-was-asked. A buyer cannot tell the difference
+    between "no covenants" and "nobody looked", and omitting the second is a
+    misleading omission under the CPRs. Part A unanswered stops the property
+    being marketed at all, and therefore stops the reveal.
+67. **The twelve prohibitions each name the control that enforces them.**
     `prohibitions.ts` is the register and a test walks its citations, failing if
     one names a function nobody wrote — the failure mode of every compliance
     register is a note that reads as a control and is not one.
-67. **A fee needs four things, and money is one of them.** The permission, the
+68. **A fee needs four things, and money is one of them.** The permission, the
     stage, the disclosure to the seller and a named person raising it.
     `fees.ts` reports every missing one at once. The seller pays exactly one
     fee — a percentage of the price achieved, on completion and at no other
