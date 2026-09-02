@@ -4,7 +4,8 @@ import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { AgentDecision } from "@shared/domain/agents";
-import type { DealFee } from "@backend/store/schema";
+import type { DealFee, RevealRecord } from "@backend/store/schema";
+import type { RefundTrigger } from "@shared/domain/reveal";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   dueForExpiry,
@@ -90,6 +91,7 @@ function emptyDatabase(): Database {
     dataRoomGrants: [],
     agentDecisions: [],
     dealFees: [],
+    reveals: [],
     pendingCharges: [],
   };
 }
@@ -121,6 +123,7 @@ async function readDatabase(): Promise<Database> {
       dataRoomGrants: parsed.dataRoomGrants ?? [],
       agentDecisions: parsed.agentDecisions ?? [],
       dealFees: parsed.dealFees ?? [],
+      reveals: parsed.reveals ?? [],
       pendingCharges: parsed.pendingCharges ?? [],
     };
   } catch (error) {
@@ -670,6 +673,45 @@ async function raiseDealFee(fee: DealFee): Promise<boolean> {
   });
 }
 
+async function listRevealsForAccount(accountId: string): Promise<readonly RevealRecord[]> {
+  const db = await readDatabase();
+  return db.reveals
+    .filter((r) => r.accountId === accountId)
+    .sort((a, b) => b.paidAt.localeCompare(a.paidAt));
+}
+
+async function listRevealsForDeal(dealId: string): Promise<readonly RevealRecord[]> {
+  const db = await readDatabase();
+  return db.reveals
+    .filter((r) => r.dealId === dealId)
+    .sort((a, b) => b.paidAt.localeCompare(a.paidAt));
+}
+
+async function recordReveal(record: RevealRecord): Promise<boolean> {
+  return mutate((db) => {
+    // The key is the check. A retried payment confirmation must not charge a
+    // buyer twice for the same introduction.
+    if (db.reveals.some((r) => r.idempotencyKey === record.idempotencyKey)) return false;
+    db.reveals.push(record);
+    return true;
+  });
+}
+
+async function refundReveal(
+  id: string,
+  at: string,
+  trigger: RefundTrigger,
+  reason: string,
+): Promise<boolean> {
+  return mutate((db) => {
+    const index = db.reveals.findIndex((r) => r.id === id && r.refundedAt === undefined);
+    const current = db.reveals[index];
+    if (index < 0 || current === undefined) return false;
+    db.reveals[index] = { ...current, refundedAt: at, refundTrigger: trigger, refundReason: reason };
+    return true;
+  });
+}
+
 async function voidDealFee(id: string, at: string, by: string, reason: string): Promise<boolean> {
   return mutate((db) => {
     const index = db.dealFees.findIndex((f) => f.id === id && f.voidedAt === undefined);
@@ -910,6 +952,10 @@ export const fileStore: Store = {
   addSuppression,
   listDealFees,
   raiseDealFee,
+  listRevealsForAccount,
+  listRevealsForDeal,
+  recordReveal,
+  refundReveal,
   voidDealFee,
   listAgentDecisions,
   saveAgentDecision,

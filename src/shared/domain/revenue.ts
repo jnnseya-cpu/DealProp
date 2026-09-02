@@ -29,6 +29,7 @@ import { permissionDefinition, type PermissionKey } from "@shared/domain/permiss
 
 export type RevenueStream =
   | "buyer-subscription"
+  | "opportunity-reveal"
   | "seller-success-fee"
   | "deal-success-fee"
   | "funding-introduction"
@@ -62,6 +63,14 @@ export const STREAMS: readonly StreamDefinition[] = [
     payer: "Investors and dealmakers",
     recurring: true,
     note: "Recurring access to opportunities, analysis and structuring. The cleanest revenue on the platform: no permission dependency, no transaction linkage.",
+  },
+  {
+    key: "opportunity-reveal",
+    label: "Opportunity reveal",
+    payer: "Buyer",
+    recurring: false,
+    requiresPermissions: ["estate-agency-aml", "redress-scheme"],
+    note: "Opening one verified opportunity: the pack, the introduction and the transaction intelligence. Charging a buyer to be introduced to a seller is estate agency work whichever way the money flows, and it may never be charged on stock nobody has confirmed is for sale.",
   },
   {
     key: "seller-success-fee",

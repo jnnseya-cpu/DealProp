@@ -3,7 +3,8 @@ import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { AgentDecision } from "@shared/domain/agents";
-import type { DealFee } from "@backend/store/schema";
+import type { DealFee, RevealRecord } from "@backend/store/schema";
+import type { RefundTrigger } from "@shared/domain/reveal";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   availableBalance,
@@ -200,6 +201,21 @@ const SCHEMA = `
   CREATE UNIQUE INDEX IF NOT EXISTS deal_fees_one_live
     ON deal_fees (deal_id, fee_key) WHERE voided_at IS NULL;
   CREATE INDEX IF NOT EXISTS deal_fees_deal ON deal_fees (deal_id, raised_at DESC);
+  -- One buyer opening one opportunity. The unique idempotency key is the
+  -- control: a retried payment confirmation cannot charge a buyer twice for
+  -- the same introduction, and the check is the write rather than a read
+  -- before it.
+  CREATE TABLE IF NOT EXISTS reveals (
+    id text PRIMARY KEY,
+    deal_id text NOT NULL,
+    account_id text NOT NULL,
+    idempotency_key text NOT NULL UNIQUE,
+    data jsonb NOT NULL,
+    paid_at timestamptz NOT NULL,
+    refunded_at timestamptz
+  );
+  CREATE INDEX IF NOT EXISTS reveals_account ON reveals (account_id, paid_at DESC);
+  CREATE INDEX IF NOT EXISTS reveals_deal ON reveals (deal_id, paid_at DESC);
   CREATE TABLE IF NOT EXISTS pending_charges (
     id text PRIMARY KEY,
     account_id text NOT NULL,
@@ -991,6 +1007,64 @@ export const postgresStore: Store = {
               data = data || jsonb_build_object('voidedAt', $5::text, 'voidedBy', $3::text, 'voidReason', $4::text)
         WHERE id = $1 AND voided_at IS NULL`,
       [id, at, by, reason, at],
+    );
+    return (rowCount ?? 0) > 0;
+  },
+
+  async listRevealsForAccount(accountId: string): Promise<readonly RevealRecord[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: RevealRecord }>(
+      "SELECT data FROM reveals WHERE account_id = $1 ORDER BY paid_at DESC",
+      [accountId],
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async listRevealsForDeal(dealId: string): Promise<readonly RevealRecord[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: RevealRecord }>(
+      "SELECT data FROM reveals WHERE deal_id = $1 ORDER BY paid_at DESC",
+      [dealId],
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async recordReveal(record: RevealRecord): Promise<boolean> {
+    await ensureSchema();
+    // ON CONFLICT against the unique idempotency key: the check and the write
+    // are one statement, so a retried confirmation cannot slip between them.
+    const { rowCount } = await getPool().query(
+      `INSERT INTO reveals (id, deal_id, account_id, idempotency_key, data, paid_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT DO NOTHING`,
+      [
+        record.id,
+        record.dealId,
+        record.accountId,
+        record.idempotencyKey,
+        JSON.stringify(record),
+        record.paidAt,
+      ],
+    );
+    return (rowCount ?? 0) > 0;
+  },
+
+  async refundReveal(
+    id: string,
+    at: string,
+    trigger: RefundTrigger,
+    reason: string,
+  ): Promise<boolean> {
+    await ensureSchema();
+    // The timestamp is passed twice rather than reused as $2, for the same
+    // reason as voidDealFee: one placeholder used as both a timestamptz and as
+    // text inside jsonb_build_object gives Postgres two answers for its type.
+    const { rowCount } = await getPool().query(
+      `UPDATE reveals
+          SET refunded_at = $2::timestamptz,
+              data = data || jsonb_build_object('refundedAt', $5::text, 'refundTrigger', $3::text, 'refundReason', $4::text)
+        WHERE id = $1 AND refunded_at IS NULL`,
+      [id, at, trigger, reason, at],
     );
     return (rowCount ?? 0) > 0;
   },

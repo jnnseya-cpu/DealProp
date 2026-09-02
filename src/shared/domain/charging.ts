@@ -10,6 +10,7 @@ import {
 } from "@shared/domain/pricing";
 import { STREAMS, type RevenueStream } from "@shared/domain/revenue";
 import { permissionDefinition, type PermissionKey } from "@shared/domain/permissions";
+import type { RevealQuote } from "@shared/domain/reveal";
 
 /**
  * The gate every charge passes through before any money is asked for.
@@ -37,7 +38,16 @@ import { permissionDefinition, type PermissionKey } from "@shared/domain/permiss
 
 export type PurchaseRequest =
   | { readonly kind: "plan"; readonly planId: PlanId }
-  | { readonly kind: "topup"; readonly packId: string };
+  | { readonly kind: "topup"; readonly packId: string }
+  /**
+   * Opening one opportunity.
+   *
+   * Names the opportunity, never its class and never its price. The class is
+   * derived on the server from the property and the price read from the
+   * catalogue, because a request that could name its own class could buy a
+   * portfolio disposal at the standard-residential price.
+   */
+  | { readonly kind: "reveal"; readonly opportunityId: string };
 
 export interface ChargeContext {
   readonly customer: CustomerTaxProfile;
@@ -45,6 +55,13 @@ export interface ChargeContext {
   readonly permissionsHeld: readonly PermissionKey[];
   /** True where a reversal is outstanding against this account. */
   readonly owesUs: boolean;
+  /**
+   * The reveal being bought, already quoted on the server.
+   *
+   * Required for a reveal request and ignored otherwise. Passed in rather than
+   * looked up here because the quote needs the store, and this file is pure.
+   */
+  readonly reveal?: RevealQuote;
 }
 
 export interface ChargeAuthorisation {
@@ -74,7 +91,14 @@ const REFUSED = (reason: string): ChargeAuthorisation => ({
  * they are gated in `dealRevenue()` as well as here.
  */
 function streamFor(request: PurchaseRequest): RevenueStream {
-  return request.kind === "plan" ? "buyer-subscription" : "ai-credits";
+  switch (request.kind) {
+    case "plan":
+      return "buyer-subscription";
+    case "topup":
+      return "ai-credits";
+    case "reveal":
+      return "opportunity-reveal";
+  }
 }
 
 export function authorisePurchase(
@@ -120,6 +144,25 @@ export function authorisePurchase(
       allowed: true,
       price: priceBreakdown(chosen.price, chosen.statedAs, tax),
       description: `${chosen.name} — monthly`,
+      reason: tax.reason,
+    };
+  }
+
+  if (request.kind === "reveal") {
+    const quote = context.reveal;
+    if (quote === undefined) {
+      return REFUSED("No opportunity was quoted, so there is nothing to charge for.");
+    }
+    if (!quote.chargeable) {
+      return REFUSED(quote.blockers.map((b) => b.reason).join(" "));
+    }
+    return {
+      allowed: true,
+      // Inclusive of VAT: this is a consumer-facing unlock at a stated price,
+      // and a price that grows at checkout is the commonest reason a checkout
+      // is abandoned.
+      price: priceBreakdown(quote.price, "inclusive", tax),
+      description: `Opportunity reveal — ${quote.opportunity.replace(/-/g, " ")}`,
       reason: tax.reason,
     };
   }

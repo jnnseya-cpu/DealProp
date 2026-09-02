@@ -53,6 +53,7 @@ export const config = {
   matcher: [
     "/deals/:path*",
     "/invest/:path*",
+    "/opportunities/:path*",
     "/capital/:path*",
     // Certification attaches to a signed-in person, so the page behind it is
     // gated too — otherwise the form would accept a statement from nobody.

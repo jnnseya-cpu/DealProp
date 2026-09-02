@@ -20,6 +20,9 @@ import type {
   FeePayer,
   SellerAgreement,
 } from "@shared/domain/fees";
+import type { InventoryCategory, InventoryItem } from "@shared/domain/inventory";
+import type { RefundTrigger } from "@shared/domain/reveal";
+import type { OpportunityClass } from "@shared/domain/pricing";
 import type { CreditLot, LedgerEntry } from "@shared/domain/ledger";
 import type { Subscription } from "@shared/domain/entitlements";
 import type { Money } from "@shared/money";
@@ -78,6 +81,16 @@ export interface DealRecord {
    * so a later repricing cannot be applied backwards to a signed agreement.
    */
   readonly sellerAgreement?: SellerAgreement;
+  /**
+   * Where this opportunity came from, and whether anybody with authority over
+   * the property has said it is for sale.
+   *
+   * Absent is read as AI-discovered and unconfirmed, which is the honest
+   * default: the alternative is that an opportunity nobody entered a category
+   * for reads as verified, and the whole point of the category is that it
+   * cannot over-claim by accident.
+   */
+  readonly inventory?: InventoryItem;
   /**
    * An estate-agency instruction already running on the property.
    *
@@ -228,6 +241,7 @@ export interface Database {
   agentDecisions: AgentDecision[];
   /** Fees raised against a deal. Money, so each moves at most once. */
   dealFees: DealFee[];
+  reveals: RevealRecord[];
   /**
    * Addresses that must never be written to again, by address rather than by
    * candidate.
@@ -355,6 +369,39 @@ export interface DealFee {
   readonly voidedAt?: string;
   readonly voidedBy?: string;
   readonly voidReason?: string;
+}
+
+/**
+ * One buyer opening one opportunity.
+ *
+ * The amount, the category and the sentence the buyer was shown are all frozen
+ * here rather than recomputed. Every other figure on this platform is
+ * recomputed so it cannot go stale; these three are the terms of a sale that
+ * happened, and if the property is later reclassified the buyer must still be
+ * able to see what they were told at the time — it is the whole basis of the
+ * refund.
+ */
+export interface RevealRecord {
+  readonly id: string;
+  readonly dealId: string;
+  readonly accountId: string;
+  readonly opportunity: OpportunityClass;
+  /** Pence taken, frozen at the moment of sale. */
+  readonly paid: Money;
+  readonly paidAt: string;
+  readonly categoryAtPurchase: InventoryCategory;
+  /** The category sentence shown, verbatim. */
+  readonly disclosureShown: string;
+  /**
+   * Held unique by the store.
+   *
+   * A reveal is money and money moves at most once. The key is the check, not
+   * a read-then-write in application code.
+   */
+  readonly idempotencyKey: string;
+  readonly refundedAt?: string;
+  readonly refundTrigger?: RefundTrigger;
+  readonly refundReason?: string;
 }
 
 export interface ReversalInput {
@@ -517,7 +564,9 @@ export type AuditAction =
   | "fee-voided"
   | "fee-disclosure-recorded"
   | "seller-agreement-recorded"
-  | "seller-instruction-recorded";
+  | "seller-instruction-recorded"
+  | "opportunity-opened"
+  | "opportunity-refunded";
 
 export type SubscriberTokenField = "confirmToken" | "unsubscribeToken";
 
@@ -627,6 +676,26 @@ export interface Store {
   raiseDealFee(fee: DealFee): Promise<boolean>;
   /** Void a fee. Never a delete: an invoice that was sent happened. */
   voidDealFee(id: string, at: string, by: string, reason: string): Promise<boolean>;
+
+  /** Every opportunity this account has opened, most recent first. */
+  listRevealsForAccount(accountId: string): Promise<readonly RevealRecord[]>;
+  /** Every buyer who has opened this opportunity. */
+  listRevealsForDeal(dealId: string): Promise<readonly RevealRecord[]>;
+  /**
+   * Record a reveal, once.
+   *
+   * Returns false where the idempotency key has already been used — the key is
+   * held unique by the store, so a retried payment confirmation cannot charge a
+   * buyer twice for the same introduction.
+   */
+  recordReveal(record: RevealRecord): Promise<boolean>;
+  /**
+   * Refund a reveal, once.
+   *
+   * Returns false where it is already refunded. The record is never deleted:
+   * a sale that happened happened, and the refund is a second fact about it.
+   */
+  refundReveal(id: string, at: string, trigger: RefundTrigger, reason: string): Promise<boolean>;
 
   /** Every decision on this deal, most recent first. */
   listAgentDecisions(dealId: string): Promise<readonly AgentDecision[]>;

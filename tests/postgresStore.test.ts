@@ -210,7 +210,7 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       // Subscribers are consent records. Wiping them on reseed would destroy
       // the evidence of why an address was mailed.
       await store.saveSubscriber(subscriber({ status: "confirmed" }));
-      await store.replaceAll({ deals: [dealRecord()], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], dealFees: [], pendingCharges: [] });
+      await store.replaceAll({ deals: [dealRecord()], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], dealFees: [], reveals: [], pendingCharges: [] });
       expect(await store.listSubscribers()).toHaveLength(1);
       expect(await store.listDeals()).toHaveLength(1);
     });
@@ -286,6 +286,74 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         await store.raiseDealFee({ ...fee, id: "fee-5", dealId: "deal-2" });
         expect(await store.listDealFees("deal-1")).toHaveLength(1);
         expect(await store.listDealFees("deal-3")).toHaveLength(0);
+      });
+    });
+
+    describe("opportunities a buyer has opened", () => {
+      const reveal = {
+        id: "rev-1",
+        dealId: "deal-1",
+        accountId: "acc-1",
+        opportunity: "owner-verified" as const,
+        paid: fromMajor(99),
+        paidAt: "2026-08-30T09:00:00.000Z",
+        categoryAtPurchase: "owner-verified" as const,
+        disclosureShown:
+          "The owner has confirmed to us that this property is for sale and has agreed to be contacted about it.",
+        idempotencyKey: "pay-abc",
+      };
+
+      it("charges once for one introduction, whatever the caller does", async () => {
+        // A retried payment confirmation is the normal case, not the unusual
+        // one: providers retry until they get a 200. The key is the check.
+        expect(await store.recordReveal(reveal)).toBe(true);
+        expect(await store.recordReveal({ ...reveal, id: "rev-2" })).toBe(false);
+        expect(await store.listRevealsForAccount("acc-1")).toHaveLength(1);
+      });
+
+      it("cannot be raced into charging twice", async () => {
+        const attempts = await Promise.all(
+          Array.from({ length: 8 }, (_, i) => store.recordReveal({ ...reveal, id: `race-${i}` })),
+        );
+        expect(attempts.filter(Boolean)).toHaveLength(1);
+        expect(await store.listRevealsForDeal("deal-1")).toHaveLength(1);
+      });
+
+      it("keeps what the buyer was shown, so a later reclassification cannot rewrite it", async () => {
+        await store.recordReveal(reveal);
+        const [stored] = await store.listRevealsForAccount("acc-1");
+        expect(stored?.disclosureShown).toBe(reveal.disclosureShown);
+        expect(stored?.categoryAtPurchase).toBe("owner-verified");
+        expect(stored?.paid).toBe(fromMajor(99));
+      });
+
+      it("refunds once, and never deletes the sale", async () => {
+        await store.recordReveal(reveal);
+        expect(
+          await store.refundReveal("rev-1", "2026-09-02T00:00:00.000Z", "seller-unreachable", "No reply in 7 days."),
+        ).toBe(true);
+        expect(
+          await store.refundReveal("rev-1", "2026-09-02T00:00:00.000Z", "seller-unreachable", "again"),
+        ).toBe(false);
+
+        const all = await store.listRevealsForDeal("deal-1");
+        expect(all).toHaveLength(1);
+        expect(all[0]?.refundedAt).toBe("2026-09-02T00:00:00.000Z");
+        expect(all[0]?.refundTrigger).toBe("seller-unreachable");
+        expect(all[0]?.paid).toBe(fromMajor(99));
+      });
+
+      it("scopes each buyer to their own opened opportunities", async () => {
+        await store.recordReveal(reveal);
+        await store.recordReveal({
+          ...reveal,
+          id: "rev-3",
+          accountId: "acc-2",
+          idempotencyKey: "pay-def",
+        });
+        expect(await store.listRevealsForAccount("acc-1")).toHaveLength(1);
+        expect(await store.listRevealsForAccount("acc-3")).toHaveLength(0);
+        expect(await store.listRevealsForDeal("deal-1")).toHaveLength(2);
       });
     });
 
@@ -705,7 +773,7 @@ contract(
     // Queue through the write chain first. Deleting the file outright would
     // race a write still in flight from the previous test, which would then
     // land after the delete and recreate it.
-    await fileStore.replaceAll({ deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], dealFees: [], pendingCharges: [] });
+    await fileStore.replaceAll({ deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], dealFees: [], reveals: [], pendingCharges: [] });
     rmSync(process.env.LODE_DATA_FILE ?? "", { force: true });
   },
 );

@@ -1,4 +1,5 @@
 import type { BuyBox, FundingBox } from "@shared/domain/matching";
+import type { RefundTrigger } from "@shared/domain/reveal";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { AgentDecision } from "@shared/domain/agents";
@@ -15,6 +16,7 @@ import type {
   SpendResult,
   DataRoomGrant,
   DealFee,
+  RevealRecord,
   OutreachMessage,
   PendingCharge,
   StoredCandidate,
@@ -272,6 +274,22 @@ export async function raiseDealFee(fee: DealFee) {
 
 export async function voidDealFee(id: string, at: string, by: string, reason: string) {
   return (await store()).voidDealFee(id, at, by, reason);
+}
+
+export async function listRevealsForAccount(accountId: string) {
+  return (await store()).listRevealsForAccount(accountId);
+}
+
+export async function listRevealsForDeal(dealId: string) {
+  return (await store()).listRevealsForDeal(dealId);
+}
+
+export async function recordReveal(record: RevealRecord) {
+  return (await store()).recordReveal(record);
+}
+
+export async function refundReveal(id: string, at: string, trigger: RefundTrigger, reason: string) {
+  return (await store()).refundReveal(id, at, trigger, reason);
 }
 
 export async function listAgentDecisions(dealId: string) {
