@@ -67,6 +67,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Opt out | `/outreach/opt-out` | One click, no account, no confirmation step |
 | Data room | `/dataroom/[token]` | One funder's expiring, watermarked view of one deal |
 | Your billing | `/account/billing` | Plan, balance, top up, change plan |
+| After payment | `/account/billing/complete` | Reads the ledger, never the redirect — nothing is credited from a URL |
 | Blog | `/blog` | Posts written by the agent from real engine output |
 | Post | `/blog/[slug]` | Auto-linked glossary terms, related posts, JSON-LD |
 | Topic hub | `/blog/topic/[topic]` | Six hubs, each linking its posts and definitions |
@@ -416,19 +417,16 @@ Deliberately out of scope for this slice, in rough priority order:
 - **Portal listing data.** Still refused, permanently and by code — see
   [Where the data comes from](#where-the-data-comes-from). The signals GoldMine
   wanted from listings now come from open sources instead.
-- **A payment provider.** Everything behind one is built and tested — catalogue,
-  ledger, entitlements, the verified webhook, the enforcement points — but
-  nothing takes a card. What remains is mapping one provider's payload into the
-  event shape `/api/billing/webhook` already handles, and a checkout page. See
+- **A live Stripe account.** The adapter is written and tested end to end: a
+  signed Stripe delivery moves the ledger, and every one of the five webhook
+  defences still refuses when it should. What remains is a real account, the
+  keys, and pointing the webhook at the deployment. See
   [The money side](#the-money-side).
 - **Reconciliation against the provider.** The ledger is the record of what this
   platform believes; comparing it to what the provider believes is a job that
   does not exist yet, and a divergence would currently go unnoticed.
 - **Dunning email.** A failed payment reduces entitlement correctly and tells
   nobody.
-- **A checkout page.** `authorisePurchase()` and `coolingOff()` are the seam a
-  checkout will call and are unreachable until one exists. They are tested but
-  not yet wired, which is stated here rather than left to be discovered.
 - **Stopping one person opening several accounts.** One trial per account is
   enforced; one trial per *person* is not, and nothing in an application can do
   it. That belongs at the provider, which can see the card, and to requiring a

@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { CustomerKind } from "@shared/domain/pricing";
 
 /**
  * Verifying that a payment confirmation actually came from the payment provider.
@@ -155,6 +156,38 @@ export function signPayload(rawBody: string, timestamp: number, secret: string):
 }
 
 /* ------------------------------------------------------------ the events */
+
+/**
+ * A payment event, in the shape this platform normalises to.
+ *
+ * Declared here rather than in the route because two things produce one: the
+ * route's own reader for this platform's shape, and the Stripe adapter. One
+ * definition means the adapter cannot drift into producing something the route
+ * does not read.
+ */
+export interface BillingEvent {
+  readonly id: string;
+  readonly type: BillingEventType;
+  readonly accountId: string;
+  /** The provider's payment id, which a later refund or dispute names. */
+  readonly paymentReference?: string;
+  readonly amountMinorUnits?: number;
+  /** On a refund: the cash actually returned. Absent means the whole payment. */
+  readonly refundedMinorUnits?: number;
+  readonly currency?: string;
+  readonly packId?: string;
+  /** The opportunity being opened, where this payment is a reveal. */
+  readonly opportunityId?: string;
+  /** The pending charge this confirmation settles, where the provider echoes it. */
+  readonly chargeId?: string;
+  readonly planId?: string;
+  readonly customerCountry?: string;
+  readonly customerKind?: CustomerKind;
+  readonly periodStart?: string;
+  readonly periodEnd?: string;
+  /** When the provider raised this, for ordering. */
+  readonly occurredAt?: string;
+}
 
 /**
  * The events acted on, and only these.

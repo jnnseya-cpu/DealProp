@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { PendingCharge } from "@backend/store/schema";
 import { savePendingCharge } from "@backend/store/repository";
+import { isStripeEndpoint, stripeSessionBody } from "@backend/billing/stripe";
 
 /**
  * Creating a charge with the payment provider.
@@ -35,7 +36,11 @@ export interface ChargeRequest {
   readonly currency: string;
   readonly planId?: string;
   readonly packId?: string;
+  /** The opportunity being opened, where this is a reveal. */
+  readonly opportunityId?: string;
   readonly returnUrl: string;
+  /** Where to send somebody who abandons the payment. */
+  readonly cancelUrl?: string;
 }
 
 export interface ChargeResult {
@@ -100,24 +105,50 @@ export async function createCharge(
 
   const transport = options.transport ?? fetch;
 
+  // Stripe takes form-encoded line items rather than a JSON amount, which is
+  // why it needs an adapter rather than a configuration value. Everything else
+  // — the recorded charge, the idempotency key, the amount from the catalogue —
+  // is identical either way.
+  const stripe = isStripeEndpoint(config.url);
+  const metadata: Record<string, string> = {
+    chargeId: id,
+    accountId: request.accountId,
+    ...(request.planId !== undefined ? { planId: request.planId } : {}),
+    ...(request.packId !== undefined ? { packId: request.packId } : {}),
+    ...(request.opportunityId !== undefined ? { opportunityId: request.opportunityId } : {}),
+  };
+
   try {
     const response = await transport(config.url, {
       method: "POST",
       headers: {
-        "content-type": "application/json",
+        "content-type": stripe
+          ? "application/x-www-form-urlencoded"
+          : "application/json",
         authorization: `Bearer ${config.apiKey}`,
         "idempotency-key": idempotencyKey,
       },
-      body: JSON.stringify({
-        reference: id,
-        amount: request.amountMinorUnits,
-        currency: request.currency,
-        description: request.description,
-        // So the confirmation can be matched to the charge rather than to a
-        // customer, an amount, or anything else that repeats.
-        metadata: { chargeId: id, accountId: request.accountId },
-        return_url: request.returnUrl,
-      }),
+      body: stripe
+        ? stripeSessionBody({
+            amountMinorUnits: request.amountMinorUnits,
+            currency: request.currency,
+            description: request.description,
+            chargeId: id,
+            accountId: request.accountId,
+            returnUrl: request.returnUrl,
+            cancelUrl: request.cancelUrl ?? request.returnUrl,
+            metadata,
+          }).toString()
+        : JSON.stringify({
+            reference: id,
+            amount: request.amountMinorUnits,
+            currency: request.currency,
+            description: request.description,
+            // So the confirmation can be matched to the charge rather than to a
+            // customer, an amount, or anything else that repeats.
+            metadata,
+            return_url: request.returnUrl,
+          }),
       signal: AbortSignal.timeout(15_000),
     });
 

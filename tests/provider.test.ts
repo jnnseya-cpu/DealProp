@@ -152,3 +152,60 @@ describe("creating a charge", () => {
     expect(a.charge?.idempotencyKey).not.toBe(b.charge?.idempotencyKey);
   });
 });
+
+describe("talking to Stripe", () => {
+  const STRIPE = { url: "https://api.stripe.com/v1/checkout/sessions", apiKey: "sk_test" };
+
+  it("sends form-encoded line items rather than a JSON amount", async () => {
+    // Stripe's Checkout Sessions API does not take JSON, and prices are line
+    // items rather than an amount. That single fact is why it needs an adapter
+    // rather than a configuration value.
+    const t = transport({ body: { url: "https://checkout.stripe.com/c/pay/cs_1" } });
+    const result = await createCharge(request, { transport: t.fn, config: STRIPE });
+
+    expect(result.ok).toBe(true);
+    expect(result.redirectUrl).toBe("https://checkout.stripe.com/c/pay/cs_1");
+
+    const init = t.calls[0]?.init;
+    const headers = init?.headers as Record<string, string>;
+    expect(headers["content-type"]).toBe("application/x-www-form-urlencoded");
+
+    const form = new URLSearchParams(String(init?.body));
+    expect(form.get("line_items[0][price_data][unit_amount]")).toBe("10000");
+    expect(form.get("metadata[accountId]")).toBe("acc-1");
+    expect(form.get("metadata[packId]")).toBe("topup-100");
+  });
+
+  it("still sends JSON to a provider that is not Stripe", async () => {
+    const t = transport({ body: { url: "https://provider.example/pay/1" } });
+    await createCharge(request, { transport: t.fn, config: CONFIG });
+
+    const init = t.calls[0]?.init;
+    const headers = init?.headers as Record<string, string>;
+    expect(headers["content-type"]).toBe("application/json");
+    const body = JSON.parse(String(init?.body)) as { amount?: number };
+    expect(body.amount).toBe(10_000);
+  });
+
+  it("records the charge before either provider is called", async () => {
+    // The charge exists whichever adapter is used, and it exists before the
+    // request goes out — a charge that exists only in the provider's records
+    // is money nothing here can account for.
+    const t = transport({ throws: true });
+    const result = await createCharge(request, { transport: t.fn, config: STRIPE });
+    expect(result.ok).toBe(false);
+    expect(result.charge).toBeDefined();
+    expect(await getPendingCharge(result.charge?.id ?? "")).toBeDefined();
+  });
+
+  it("carries the opportunity through, so a reveal can be matched to its deal", async () => {
+    const t = transport({ body: { url: "https://checkout.stripe.com/c/pay/cs_2" } });
+    await createCharge(
+      { ...request, packId: undefined, opportunityId: "deal-0001" },
+      { transport: t.fn, config: STRIPE },
+    );
+    const form = new URLSearchParams(String(t.calls[0]?.init?.body));
+    expect(form.get("metadata[opportunityId]")).toBe("deal-0001");
+    expect(form.get("payment_intent_data[metadata][opportunityId]")).toBe("deal-0001");
+  });
+});

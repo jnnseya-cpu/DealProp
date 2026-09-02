@@ -15,8 +15,14 @@ import { expiryFrom } from "@shared/domain/ledger";
 import { confirmationMatches, CURRENCY } from "@shared/domain/charging";
 import { entitlementsFor, periodAllowance } from "@shared/domain/entitlements";
 import type { Subscription, SubscriptionStatus } from "@shared/domain/entitlements";
-import { isHandledEvent, verifyWebhook, type BillingEventType } from "@backend/billing/webhook";
+import { isHandledEvent, verifyWebhook, type BillingEvent } from "@backend/billing/webhook";
+import {
+  looksLikeStripe,
+  normaliseStripeEvent,
+  signatureHeaderFrom,
+} from "@backend/billing/stripe";
 import { mayStartTrial } from "@shared/domain/accounts";
+import { openOpportunity, quoteRevealForDeal } from "@backend/billing/reveal";
 import {
   applyTopUp,
   claimBillingEvent,
@@ -66,26 +72,80 @@ export const dynamic = "force-dynamic";
  * five defences.
  */
 
-interface BillingEvent {
-  readonly id: string;
-  readonly type: BillingEventType;
-  readonly accountId: string;
-  /** The provider's payment id, which a later refund or dispute names. */
-  readonly paymentReference?: string;
-  readonly amountMinorUnits?: number;
-  /** On a refund: the cash actually returned. Absent means the whole payment. */
-  readonly refundedMinorUnits?: number;
-  readonly currency?: string;
-  readonly packId?: string;
-  /** The pending charge this confirmation settles, where the provider echoes it. */
-  readonly chargeId?: string;
-  readonly planId?: string;
-  readonly customerCountry?: string;
-  readonly customerKind?: CustomerKind;
-  readonly periodStart?: string;
-  readonly periodEnd?: string;
-  /** When the provider raised this, for ordering. */
-  readonly occurredAt?: string;
+
+/** Anything at all, read defensively. */
+type Unknown = Record<string, unknown>;
+
+/**
+ * What a delivery turned out to be.
+ *
+ * Three answers rather than two, because "I cannot read this" and "I read it
+ * and do not act on this type" call for different responses: the first is a
+ * 400 the provider should fix, the second is a 200 it should stop retrying.
+ */
+type Reading =
+  | { readonly kind: "unreadable" }
+  | { readonly kind: "unhandled"; readonly type: string }
+  | { readonly kind: "event"; readonly event: BillingEvent };
+
+function text(value: unknown): string | undefined {
+  return typeof value === "string" && value !== "" ? value : undefined;
+}
+
+function whole(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isSafeInteger(value) ? value : undefined;
+}
+
+/**
+ * Read this platform's own event shape.
+ *
+ * Field by field, like the Stripe adapter, and for the same reason: what
+ * arrives is whatever the caller sent, and this is the one endpoint where
+ * believing it costs money. The three fields that decide whether anything
+ * happens at all — id, type and account — are required, and everything else is
+ * optional because different event types carry different halves of it.
+ */
+function nativeEvent(parsed: Unknown): Reading {
+  const id = text(parsed.id);
+  const type = text(parsed.type);
+  const accountId = text(parsed.accountId);
+  if (id === undefined || type === undefined || accountId === undefined) {
+    return { kind: "unreadable" };
+  }
+  // Unhandled and unreadable mean different things to whoever is reading the
+  // provider's delivery log, so they are different answers rather than one.
+  if (!isHandledEvent(type)) return { kind: "unhandled", type };
+
+  return { kind: "event", event: {
+    id,
+    type,
+    accountId,
+    ...(text(parsed.paymentReference) !== undefined
+      ? { paymentReference: text(parsed.paymentReference) }
+      : {}),
+    ...(whole(parsed.amountMinorUnits) !== undefined
+      ? { amountMinorUnits: whole(parsed.amountMinorUnits) }
+      : {}),
+    ...(whole(parsed.refundedMinorUnits) !== undefined
+      ? { refundedMinorUnits: whole(parsed.refundedMinorUnits) }
+      : {}),
+    ...(text(parsed.currency) !== undefined ? { currency: text(parsed.currency) } : {}),
+    ...(text(parsed.packId) !== undefined ? { packId: text(parsed.packId) } : {}),
+    ...(text(parsed.opportunityId) !== undefined
+      ? { opportunityId: text(parsed.opportunityId) }
+      : {}),
+    ...(text(parsed.chargeId) !== undefined ? { chargeId: text(parsed.chargeId) } : {}),
+    ...(text(parsed.planId) !== undefined ? { planId: text(parsed.planId) } : {}),
+    ...(text(parsed.customerCountry) !== undefined
+      ? { customerCountry: text(parsed.customerCountry) }
+      : {}),
+    ...(parsed.customerKind === "business" || parsed.customerKind === "consumer"
+      ? { customerKind: parsed.customerKind }
+      : {}),
+    ...(text(parsed.periodStart) !== undefined ? { periodStart: text(parsed.periodStart) } : {}),
+    ...(text(parsed.periodEnd) !== undefined ? { periodEnd: text(parsed.periodEnd) } : {}),
+    ...(text(parsed.occurredAt) !== undefined ? { occurredAt: text(parsed.occurredAt) } : {}),
+  } };
 }
 
 function ok(reason: string): NextResponse {
@@ -99,7 +159,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   // and a signature that can never match, which tends to get "fixed" by
   // removing the check.
   const raw = await request.text();
-  const verification = verifyWebhook(raw, request.headers.get("x-billing-signature"));
+  const verification = verifyWebhook(raw, signatureHeaderFrom(request.headers));
 
   if (!verification.ok) {
     // The reason goes to the log, not to the caller. Whoever can read the log
@@ -109,31 +169,43 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ status: "refused" }, { status: 401, headers: NO_STORE });
   }
 
-  let event: BillingEvent;
+  let parsed: Record<string, unknown>;
   try {
-    event = JSON.parse(raw) as BillingEvent;
+    parsed = JSON.parse(raw) as Record<string, unknown>;
   } catch {
     return NextResponse.json({ status: "unreadable" }, { status: 400, headers: NO_STORE });
   }
 
-  if (typeof event.id !== "string" || event.id === "" || typeof event.type !== "string") {
+  // Two shapes reach here: this platform's own normalised event, and Stripe's.
+  // The adapter is tried only when the payload is recognisably Stripe's, and
+  // it returns undefined for anything it cannot read rather than guessing —
+  // an unmapped Stripe type falls through to "not handled", which is the same
+  // outcome as an unknown native type and the correct one.
+  // Two shapes reach here: this platform's own normalised event, and Stripe's.
+  // Both are read field by field rather than trusted — JSON.parse returns
+  // whatever was sent, and this endpoint is the one place where believing the
+  // caller costs money. An unreadable payload of either shape is a 400.
+  const reading: Reading = looksLikeStripe(parsed)
+    ? ((): Reading => {
+        const mapped = normaliseStripeEvent(parsed);
+        return mapped === undefined ? { kind: "unreadable" } : { kind: "event", event: mapped };
+      })()
+    : nativeEvent(parsed);
+
+  if (reading.kind === "unreadable") {
     return NextResponse.json({ status: "unreadable" }, { status: 400, headers: NO_STORE });
   }
-
-  if (!isHandledEvent(event.type)) {
+  if (reading.kind === "unhandled") {
     // Recorded rather than errored: an unknown type is not a failure the
     // provider can fix by sending it again.
-    return ok(`Event type ${event.type} is not handled.`);
+    return ok(`Event type ${reading.type} is not handled.`);
   }
+  const event = reading.event;
 
   const at = new Date().toISOString();
   const claimed = await claimBillingEvent(event.id, event.type, at);
   if (!claimed) {
     return ok("Already processed.");
-  }
-
-  if (typeof event.accountId !== "string" || event.accountId === "") {
-    return NextResponse.json({ status: "unreadable" }, { status: 400, headers: NO_STORE });
   }
 
   try {
@@ -168,6 +240,48 @@ export async function POST(request: Request): Promise<NextResponse> {
  * is only allowed to say *which* pack and *how much was taken*, and the second
  * has to agree with what this platform would have charged for the first.
  */
+/**
+ * A paid reveal.
+ *
+ * The quote is recomputed here rather than read from the event, for the same
+ * reason the pack price is: what the provider says was paid is checked against
+ * what this platform would have charged, and nothing is opened on a mismatch.
+ * `openOpportunity()` keys the write on the payment reference, so a redelivered
+ * confirmation opens it once.
+ */
+async function handleReveal(event: BillingEvent): Promise<NextResponse> {
+  const account = await getAccount(event.accountId);
+  if (account === undefined) {
+    return ok("No such account. Nothing applied.");
+  }
+
+  const offer = await quoteRevealForDeal(event.opportunityId ?? "", account);
+  if (offer === undefined) {
+    return ok("No such opportunity. Nothing applied.");
+  }
+
+  const tax = taxDecision({
+    country: event.customerCountry ?? "GB",
+    kind: event.customerKind ?? "consumer",
+  });
+  const expected = priceBreakdown(offer.quote.price, "inclusive", tax);
+  const check = confirmationMatches(
+    { gross: expected.gross, currency: CURRENCY },
+    { amountMinorUnits: event.amountMinorUnits, currency: event.currency },
+  );
+  if (!check.matches) {
+    process.stderr.write(`billing webhook ${event.id}: ${check.reason}\n`);
+    return ok(`${check.reason} Nothing applied.`);
+  }
+
+  const outcome = await openOpportunity(
+    offer.record.id,
+    account,
+    event.paymentReference ?? event.id,
+  );
+  return ok(outcome.message);
+}
+
 async function handlePayment(event: BillingEvent, at: string): Promise<NextResponse> {
   // Where the provider echoes our reference, the confirmation is matched to the
   // charge we raised rather than to an amount, which can repeat.
@@ -187,6 +301,14 @@ async function handlePayment(event: BillingEvent, at: string): Promise<NextRespo
       return ok("The confirmed amount does not match the charge raised. Nothing applied.");
     }
     await savePendingCharge({ ...pending, settledAt: at });
+  }
+
+  // A reveal is not balance: it opens one opportunity for one buyer, and the
+  // record of what they were shown at the time is frozen with it. Handled
+  // before the pack lookup because the two are different products and falling
+  // through from one to the other would credit balance for an introduction.
+  if (event.opportunityId !== undefined) {
+    return await handleReveal(event);
   }
 
   const pack = event.packId === undefined ? undefined : creditPack(event.packId);

@@ -377,7 +377,20 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     `prohibitions.ts` is the register and a test walks its citations, failing if
     one names a function nobody wrote — the failure mode of every compliance
     register is a note that reads as a control and is not one.
-70. **A fee needs four things, and money is one of them.** The permission, the
+70. **One file knows a provider's names, and it is `stripe.ts`.** Stripe takes
+    form-encoded line items rather than a JSON amount, which is why it needs an
+    adapter rather than a configuration value. Its signature scheme is already
+    what `verifyWebhook()` implements, so the adapter adds a header name and
+    nothing else — a provider that signed differently would be a change to
+    `webhook.ts`, and it must stay visible as one. The event map is closed:
+    `checkout.session.completed` and not `payment_intent.succeeded`, because
+    mapping both applies one purchase twice and the event-id claim would not
+    catch it.
+71. **Nothing is credited from a redirect.** `/account/billing/complete` reads
+    the ledger and says a confirmation still to arrive is normal. The URL a
+    customer is sent to is the one signal an attacker fully controls, and there
+    is no code path from that page to the ledger.
+72. **A fee needs four things, and money is one of them.** The permission, the
     stage, the disclosure to the seller and a named person raising it.
     `fees.ts` reports every missing one at once. The seller pays exactly one
     fee — a percentage of the price achieved, on completion and at no other
@@ -387,9 +400,9 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
 ### Outstanding
 
-- Payments. `authorisePurchase()` prices a plan, a pack and a reveal, and
-  `/api/billing/webhook` verifies an inbound event, but no provider is
-  connected and nothing takes a card.
+- A live payment account. The Stripe adapter is written and tested end to end
+  — a signed delivery moves the ledger — but no real keys are configured, so
+  `createCharge()` fails closed and the preflight says so.
 - Portfolio OS. §19's last step — the property entering the buyer's portfolio
   after completion — is not built.
 - Stripe Connect payouts to providers and agents. `providerFee()` computes the

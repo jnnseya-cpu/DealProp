@@ -10,7 +10,9 @@ import {
   CURRENCY,
   type PurchaseRequest,
 } from "@shared/domain/charging";
-import type { CustomerKind } from "@shared/domain/pricing";
+import { PLANS, type CustomerKind } from "@shared/domain/pricing";
+import { quoteRevealForDeal } from "@backend/billing/reveal";
+import { siteUrl } from "@backend/site";
 import { createCharge, providerConfig } from "@backend/billing/provider";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +47,15 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "No account." }, { status: 401, headers: NO_STORE });
   }
 
-  let body: { kind?: unknown; planId?: unknown; packId?: unknown; country?: unknown; customerKind?: unknown; vatNumber?: unknown };
+  let body: {
+    kind?: unknown;
+    planId?: unknown;
+    packId?: unknown;
+    opportunityId?: unknown;
+    country?: unknown;
+    customerKind?: unknown;
+    vatNumber?: unknown;
+  };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -55,9 +65,22 @@ export async function POST(request: Request): Promise<NextResponse> {
   const purchase = purchaseFrom(body);
   if (purchase === undefined) {
     return NextResponse.json(
-      { error: "Name a plan or a credit pack." },
+      { error: "Name a plan, a credit pack or an opportunity." },
       { status: 400, headers: NO_STORE },
     );
+  }
+
+  // A reveal is priced from the opportunity, and the opportunity is quoted on
+  // the server. The request names which one; it never names its class, and
+  // therefore never its price — a request that could name its own class could
+  // buy a portfolio disposal at the standard-residential price.
+  const offer =
+    purchase.kind === "reveal"
+      ? await quoteRevealForDeal(purchase.opportunityId, account)
+      : undefined;
+
+  if (purchase.kind === "reveal" && offer === undefined) {
+    return NextResponse.json({ error: "No such opportunity." }, { status: 404, headers: NO_STORE });
   }
 
   const [lots, entries] = await Promise.all([
@@ -74,6 +97,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     },
     permissionsHeld: permissionsHeld(),
     owesUs: !position.maySpend,
+    ...(offer !== undefined ? { reveal: offer.quote } : {}),
   });
 
   if (!authorisation.allowed) {
@@ -109,9 +133,38 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
+  // The charge is created here, with the figure this platform computed. The
+  // route previously stopped at "authorised" and imported `createCharge`
+  // without calling it, which meant every button on the billing page led
+  // nowhere — the catalogue, the ledger and the entitlements were all correct
+  // and nothing could take a penny. A control with no call site is not a
+  // control, and a checkout with no call site is not a checkout.
+  const origin = siteUrl();
+  const charge = await createCharge({
+    accountId: account.id,
+    description: authorisation.description,
+    amountMinorUnits: amountInMinorUnits(authorisation.price),
+    currency: CURRENCY,
+    ...(purchase.kind === "plan" ? { planId: purchase.planId } : {}),
+    ...(purchase.kind === "topup" ? { packId: purchase.packId } : {}),
+    ...(purchase.kind === "reveal" ? { opportunityId: purchase.opportunityId } : {}),
+    returnUrl: `${origin}/account/billing/complete?charge={CHECKOUT_SESSION_ID}`,
+    cancelUrl: `${origin}/account/billing`,
+  });
+
+  if (!charge.ok || charge.redirectUrl === undefined) {
+    // 502 rather than 500: this platform did its part and the provider did
+    // not. The pending charge is already recorded, so nothing is lost.
+    return NextResponse.json(
+      { status: "provider-failed", reason: charge.reason },
+      { status: 502, headers: NO_STORE },
+    );
+  }
+
   return NextResponse.json(
     {
       status: "authorised",
+      redirectUrl: charge.redirectUrl,
       description: authorisation.description,
       amountMinorUnits: amountInMinorUnits(authorisation.price),
       currency: CURRENCY,
@@ -125,12 +178,25 @@ export async function POST(request: Request): Promise<NextResponse> {
 }
 
 /** A request names what is being bought. It never names what it costs. */
-function purchaseFrom(body: { kind?: unknown; planId?: unknown; packId?: unknown }): PurchaseRequest | undefined {
+function purchaseFrom(body: {
+  kind?: unknown;
+  planId?: unknown;
+  packId?: unknown;
+  opportunityId?: unknown;
+}): PurchaseRequest | undefined {
   if (body.kind === "plan" && typeof body.planId === "string") {
-    return { kind: "plan", planId: body.planId as PurchaseRequest extends { planId: infer P } ? P : never };
+    const known = PLANS.find((p) => p.id === body.planId);
+    // Narrowed against the catalogue rather than cast into it. The previous
+    // conditional type asserted the string was a PlanId and asserted nothing
+    // about whether such a plan existed.
+    if (known === undefined) return undefined;
+    return { kind: "plan", planId: known.id };
   }
   if (body.kind === "topup" && typeof body.packId === "string") {
     return { kind: "topup", packId: body.packId };
+  }
+  if (body.kind === "reveal" && typeof body.opportunityId === "string" && body.opportunityId !== "") {
+    return { kind: "reveal", opportunityId: body.opportunityId };
   }
   return undefined;
 }
