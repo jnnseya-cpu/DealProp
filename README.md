@@ -44,7 +44,7 @@ listed honestly in [Not built yet](#not-built-yet).
 
 | Page | Route | What it does |
 |---|---|---|
-| Landing | `/` | Every figure computed at render time from the seeded deal |
+| Landing | `/` | Five audience doors, the positioning, the launch focus; every figure computed at render time |
 | Free appraisal | `/appraise` | True discount, walk-away price and Red Team. No account, nothing stored |
 | Agents and capital | `/partners` | Referral route, what a funder is shown, what we are not supervised for |
 | Seller intake | `/sell` | Situation first, price fourth; screening feeds Seller Protection |

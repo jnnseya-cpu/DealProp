@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { RECENT_DAYS, supplyPosition, type SupplyRecord } from "@shared/domain/supply";
+import {
+  focusCoverage,
+  LAUNCH_FOCUS,
+  LAUNCH_REGION,
+  RECENT_DAYS,
+  supplyPosition,
+  type SupplyRecord,
+} from "@shared/domain/supply";
 
 /**
  * The supply statement.
@@ -154,6 +161,51 @@ describe("what it never says", () => {
     const everything = JSON.stringify(position).toLowerCase();
     for (const word of ["margin", "yield", "return", "profit", "roi", "£"]) {
       expect(everything, `supply position mentions "${word}"`).not.toContain(word);
+    }
+  });
+});
+
+describe("what we say we are focusing on", () => {
+  it("says the region and reports coverage inside it", () => {
+    const inside = focusCoverage(["B23", "WV1", "DY4"]);
+    expect(inside.outside).toEqual([]);
+    expect(inside.statement).toContain(LAUNCH_REGION.label);
+    expect(inside.statement).toContain("every open opportunity is inside it");
+  });
+
+  it("states drift rather than tidying it away", () => {
+    // A page that says "the West Midlands" while the pipeline is half in Leeds
+    // is a page whose first checkable claim is wrong, and a reader who catches
+    // one stops believing the figures that are true.
+    const drifted = focusCoverage(["B23", "LS1", "M14"]);
+    expect(drifted.outside).toEqual(["LS1", "M14"]);
+    expect(drifted.statement).toContain("outside it");
+    expect(drifted.statement).toContain("LS1, M14");
+  });
+
+  it("does not claim coverage it has not got", () => {
+    const empty = focusCoverage([]);
+    expect(empty.statement).toContain("Nothing is on the platform yet");
+  });
+
+  it("keeps the focus free of any return, yield or margin", () => {
+    // Same rule as the rest of this file: a public statement that deals are
+    // available at a given margin is a financial promotion under FSMA s.21.
+    //
+    // Word boundaries rather than substrings. "Property returning after a
+    // failed sale" is a kind of stock, not a rate of return, and a substring
+    // ban fails on it — which teaches whoever hits it to weaken the check.
+    const text = LAUNCH_FOCUS.join(" ").toLowerCase();
+    for (const pattern of [
+      /\bmargins?\b/,
+      /\byields?\b/,
+      /\breturns?\b/,
+      /\bprofits?\b/,
+      /\broi\b/,
+      /%/,
+      /\u00a3/,
+    ]) {
+      expect(pattern.test(text), pattern.source).toBe(false);
     }
   });
 });

@@ -167,3 +167,85 @@ function summarise(
 
   return `${open} open ${open === 1 ? "opportunity" : "opportunities"}${where}, from ${total} on the platform in total, ${recent} added in the last ${RECENT_DAYS} days.${refused}`;
 }
+
+/* ----------------------------------------------------------- launch focus */
+
+/**
+ * Where this platform is concentrating, and on what.
+ *
+ * A statement of strategy rather than of inventory, and the distinction
+ * matters: "we are focusing on the West Midlands" is true on day one, and "we
+ * have deals across the West Midlands" is a claim that has to be counted.
+ * `focusCoverage()` below keeps the two apart, and reports honestly when the
+ * real coverage has drifted outside what the page says.
+ *
+ * Concentrated deliberately. A marketplace thin across the whole country is
+ * useless to everybody in it; the same number of deals inside one travel-to-work
+ * area is a market. The postcode areas are the West Midlands conurbation.
+ */
+export const LAUNCH_REGION = {
+  label: "Birmingham and the West Midlands",
+  postcodeAreas: ["B", "CV", "DY", "WS", "WV"] as readonly string[],
+} as const;
+
+/**
+ * The stock this is built for.
+ *
+ * Every one of them is a property an ordinary agent struggles with, which is
+ * exactly why the seller is reachable and the buyer is a professional. A
+ * chain-free vacant refurbishment is not a compromise on the sort of stock we
+ * would rather have — it is the stock the engine is for.
+ */
+export const LAUNCH_FOCUS: readonly string[] = [
+  "Vacant residential property",
+  "Chain-free sales",
+  "Landlord portfolio disposals",
+  "Refurbishment properties",
+  "Unsold auction lots",
+  "Property returning after a failed sale",
+  "Buyers needing bridging finance",
+  "Cash investors and small developers",
+];
+
+export interface FocusCoverage {
+  /** Postcode areas on the platform that are inside the launch region. */
+  readonly inside: readonly string[];
+  /** Areas outside it. Reported rather than hidden — see below. */
+  readonly outside: readonly string[];
+  readonly statement: string;
+}
+
+/**
+ * How the real coverage compares with the stated focus.
+ *
+ * Reported rather than quietly reconciled. A page that says "the West
+ * Midlands" while the pipeline is half in Leeds is a page whose first
+ * checkable claim is wrong, and a reader who catches one stops believing the
+ * rest — including the figures that are true.
+ */
+export function focusCoverage(areas: readonly string[]): FocusCoverage {
+  // Postcode areas are the letters at the front: "B23" is in "B".
+  const letters = (area: string): string => area.replace(/[0-9].*$/, "").toUpperCase();
+  const inside = areas.filter((a) => LAUNCH_REGION.postcodeAreas.includes(letters(a)));
+  const outside = areas.filter((a) => !LAUNCH_REGION.postcodeAreas.includes(letters(a)));
+
+  if (areas.length === 0) {
+    return {
+      inside,
+      outside,
+      statement: `Concentrating on ${LAUNCH_REGION.label}. Nothing is on the platform yet.`,
+    };
+  }
+  if (outside.length === 0) {
+    return {
+      inside,
+      outside,
+      statement: `Concentrating on ${LAUNCH_REGION.label}, and every open opportunity is inside it.`,
+    };
+  }
+  return {
+    inside,
+    outside,
+    statement: `Concentrating on ${LAUNCH_REGION.label}. ${outside.length} of ${areas.length} postcode ${areas.length === 1 ? "area is" : "areas are"} outside it — ${outside.join(", ")} — which is stated rather than tidied away.`,
+  };
+}

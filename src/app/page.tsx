@@ -8,7 +8,13 @@ import { SEED_BUY_BOXES, SEED_DEALS, SEED_FUNDING_BOXES } from "@backend/store/s
 import { listBuyBoxes, listDeals, listFundingBoxes } from "@backend/store/repository";
 import { scoreDeal } from "@shared/domain/dealScore";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
-import { RECENT_DAYS, supplyPosition, type SupplyPosition } from "@shared/domain/supply";
+import {
+  focusCoverage,
+  LAUNCH_FOCUS,
+  RECENT_DAYS,
+  supplyPosition,
+  type SupplyPosition,
+} from "@shared/domain/supply";
 import { add, sub, type Money } from "@shared/money";
 import { buildSellerRoutes, type SellerRoutesReport } from "@shared/domain/sellerRoutes";
 import { SiteFooter } from "@/app/components/SiteFooter";
@@ -176,6 +182,17 @@ function Hero({ routes, supply }: { routes: SellerRoutesReport; supply: SupplyPo
             the opportunity, funders bring the capital — and the OS structures a transaction that
             survives tax, stress testing and completion.
           </p>
+          {/*
+            The positioning line, once, in the position where somebody who read
+            nothing else would still know what this is. Not repeated further
+            down: a sentence that appears three times reads as a slogan rather
+            than as a description.
+          */}
+          <p className="mt-4 max-w-[33rem] border-l-2 border-lode-400/70 py-1 pl-4 text-[14px] leading-[1.6] text-ink-400">
+            The AI marketplace for motivated property sales — connecting verified sellers,
+            acquisition-ready buyers, finance and professional services in one
+            completion-controlled transaction.
+          </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-2.5">
             <Button href="/sell" variant="primary">See my options — free</Button>
@@ -338,41 +355,56 @@ function Doors() {
     {
       tag: "Sell",
       title: "I have a property problem",
-      body: "Tell us the situation, not the asking price. You get costed routes — cash, deferred, JV or assisted sale — and what each one costs you. Free, and nobody phones you unless you ask.",
+      body: "Tell us the situation, not the asking price. You get costed routes — cash, deferred, JV or assisted sale — and what each one costs you. Listing is free; you pay only when your property sells.",
       cta: "See my options",
       href: "/sell",
     },
     {
       tag: "Buy",
       title: "I appraise deals",
-      body: "Start with the free appraisal: paste a deal and get the true discount after every cost, the price to walk away above, and the single stress that breaks it. No account.",
+      body: "Discover verified motivated properties, unlock the whole opportunity and negotiate through your acquisition agent. Start free: paste a deal and get the true discount, the walk-away price and the stress that breaks it. No account.",
       cta: "Appraise a deal",
       href: "/appraise",
     },
     {
       tag: "Fund",
       title: "I have capital",
-      body: "Set a Funding Box and receive only deals inside your mandate, with the underwriting done, the downside modelled and the regulatory route already classified.",
+      body: "List your lending criteria free and receive property-backed applications already matched to them — underwriting done, downside modelled, regulatory route classified.",
       cta: "How funding works",
       href: "/partners#capital",
     },
     {
-      tag: "Refer",
-      title: "I am an agent or a professional",
-      body: "You have instructions you cannot close. Refer them, keep a fee, keep the client — and get back the ones we cannot help either.",
-      cta: "Refer an instruction",
+      tag: "Agents",
+      title: "I am an estate agent",
+      body: "Add properties free and receive buyers whose identity and funding we have already checked — not unfiltered enquiries. You keep the client and the instruction.",
+      cta: "How agents work with us",
       href: "/partners",
+    },
+    {
+      tag: "Professionals",
+      title: "I am a conveyancer or surveyor",
+      body: "Join free. Receive work that is already transaction-ready, and pay only on a completed instruction — never for a lead.",
+      cta: "Join the panel",
+      href: "/partners#professionals",
     },
   ];
 
   return (
     <section className="border-b hairline bg-surface-1">
-      <div className="mx-auto grid max-w-7xl gap-px overflow-hidden sm:grid-cols-2 lg:grid-cols-4">
-        {doors.map((d) => (
+      {/*
+        Six columns, not five. Five audiences across a 1280px page gives each
+        one 256px, which is not enough for a sentence anybody would read. Three
+        cards of two columns and two of three fills both rows evenly and keeps
+        every body at a readable measure.
+      */}
+      <div className="mx-auto grid max-w-7xl gap-px overflow-hidden sm:grid-cols-2 lg:grid-cols-6">
+        {doors.map((d, i) => (
           <Link
             key={d.tag}
             href={d.href}
-            className="group border-b border-r hairline px-6 py-8 transition-colors last:border-r-0 hover:bg-surface-2"
+            className={`group border-b border-r hairline px-6 py-8 transition-colors last:border-r-0 hover:bg-surface-2 ${
+              i < 3 ? "lg:col-span-2" : "lg:col-span-3"
+            }`}
           >
             <span className="eyebrow">{d.tag}</span>
             <h3 className="mt-3 font-display text-[19px] leading-snug text-ink-100">{d.title}</h3>
@@ -421,6 +453,24 @@ function SupplySection({ supply }: { supply: SupplyPosition }) {
             <p className="mt-4 max-w-[34rem] text-[14px] leading-[1.6] text-ink-400">
               {supply.summary}
             </p>
+
+            {/*
+              Where we are concentrating, and how the real coverage compares.
+              A page that says "the West Midlands" while the pipeline is half in
+              Leeds is a page whose first checkable claim is wrong, and a reader
+              who catches one stops believing the figures that are true.
+            */}
+            <p className="mt-4 max-w-[34rem] border-l-2 border-lode-400/70 py-1 pl-4 text-[14px] leading-[1.6] text-ink-300">
+              {focusCoverage(supply.areas).statement}
+            </p>
+            <ul className="mt-5 grid max-w-[34rem] gap-x-8 gap-y-2 sm:grid-cols-2">
+              {LAUNCH_FOCUS.map((focus) => (
+                <li key={focus} className="flex gap-2.5 text-[13px] leading-[1.6] text-ink-400">
+                  <span className="mt-[0.5rem] h-1 w-1 shrink-0 rounded-full bg-lode-400" />
+                  {focus}
+                </li>
+              ))}
+            </ul>
           </div>
 
           <div>
