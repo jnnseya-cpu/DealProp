@@ -66,6 +66,7 @@ export const PROHIBITIONS: readonly Prohibition[] = [
     enforcedBy: [
       "inventory.ts categoryDefect() — catches a label claiming more than is recorded",
       "reveal.ts quoteReveal() — refuses to charge on unconfirmed stock",
+      "sellerDueDiligence.ts sellerDueDiligence() — nothing goes to market until the seller has been checked and the authority to sell evidenced",
     ],
   },
   {

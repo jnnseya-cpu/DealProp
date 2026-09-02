@@ -22,6 +22,7 @@ import type {
 } from "@shared/domain/fees";
 import type { InventoryCategory, InventoryItem } from "@shared/domain/inventory";
 import type { MaterialRecord } from "@shared/domain/materialInformation";
+import type { SellerDueDiligence } from "@shared/domain/sellerDueDiligence";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { OpportunityClass } from "@shared/domain/pricing";
 import type { CreditLot, LedgerEntry } from "@shared/domain/ledger";
@@ -102,6 +103,15 @@ export interface DealRecord {
    * Protection Regulations are about.
    */
   readonly material?: MaterialRecord;
+  /**
+   * What has been checked about the seller.
+   *
+   * Absent means nothing has, which stops the property being marketed. The
+   * Money Laundering Regulations make us responsible for both parties to the
+   * transaction, and a seller nobody has looked at is exactly the seller they
+   * exist for.
+   */
+  readonly sellerChecks?: SellerDueDiligence;
   /**
    * An estate-agency instruction already running on the property.
    *
@@ -579,7 +589,8 @@ export type AuditAction =
   | "opportunity-opened"
   | "opportunity-refunded"
   | "passport-evidence-recorded"
-  | "material-information-recorded";
+  | "material-information-recorded"
+  | "seller-checks-recorded";
 
 export type SubscriberTokenField = "confirmToken" | "unsubscribeToken";
 

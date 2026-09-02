@@ -24,6 +24,7 @@ import {
 import { authorisePurchase } from "@shared/domain/charging";
 import { buyerPassport } from "@shared/domain/passport";
 import { materialInformation, type MaterialRecord } from "@shared/domain/materialInformation";
+import { sellerDueDiligence } from "@shared/domain/sellerDueDiligence";
 import { revealPrice } from "@shared/domain/pricing";
 import type { PropertyFacts } from "@shared/domain/types";
 import { bps } from "@shared/money";
@@ -69,6 +70,20 @@ const PROCEEDABLE = buyerPassport(
   NOW,
 );
 
+const SELLER_CHECKED = sellerDueDiligence(
+  {
+    kind: "individual",
+    identityVerifiedAt: "2026-08-01T00:00:00.000Z",
+    identityMethod: "Photo ID and proof of address",
+    screenedAt: "2026-08-01T00:00:00.000Z",
+    authorityEvidencedAt: "2026-08-01T00:00:00.000Z",
+    authorityEvidence: "Named as sole registered proprietor on title WM123456.",
+    riskAssessedAt: "2026-08-01T00:00:00.000Z",
+    riskAssessedBy: "Jo Bloggs",
+  },
+  NOW,
+);
+
 /** Part A answered, which is what a property needs before it may be marketed. */
 const MARKETABLE: MaterialRecord = {
   price: { state: "stated", value: "£172,000" },
@@ -83,6 +98,7 @@ function context(overrides: Partial<RevealContext> = {}): RevealContext {
     permissionsHeld: EVERYTHING,
     passport: PROCEEDABLE,
     material: materialInformation(property(), MARKETABLE),
+    sellerChecks: SELLER_CHECKED,
     ...overrides,
   };
 }

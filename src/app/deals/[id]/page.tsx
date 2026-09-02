@@ -85,6 +85,7 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
                 ["fees", "Fees"],
                 ["funding", "Funding"],
                 ["material", "Material"],
+                ["seller-checks", "Seller checks"],
                 ["negotiation", "Negotiation"],
                 ["memorandum", "Memorandum"],
               ] as const

@@ -25,6 +25,10 @@ import {
   type MaterialReport,
 } from "@shared/domain/materialInformation";
 import {
+  sellerDueDiligence,
+  type DueDiligenceReport,
+} from "@shared/domain/sellerDueDiligence";
+import {
   rankOpportunities,
   scoreOpportunity,
   type OpportunityScore,
@@ -63,6 +67,8 @@ export interface RevealOffer {
   readonly score: OpportunityScore;
   /** What a buyer is entitled to be told before they spend money. */
   readonly material: MaterialReport;
+  /** What has been checked about the seller, under the Regulations. */
+  readonly sellerChecks: DueDiligenceReport;
 }
 
 export async function quoteRevealForDeal(
@@ -115,6 +121,7 @@ function offerFor(
       : buyerPassport(account.passportEvidence ?? {}, inputs.purchasePrice, now);
 
   const material = materialInformation(property, record.material ?? {});
+  const sellerChecks = sellerDueDiligence(record.sellerChecks, now);
 
   const quote = quoteReveal({
     opportunity: classifyOpportunity(property, item),
@@ -130,6 +137,7 @@ function offerFor(
     // market is the fact that it is on a portal now.
     openlyAdvertised: (record.listing?.daysOnMarket ?? 0) > 0,
     material,
+    sellerChecks,
     alreadyOpened: mine !== undefined,
   });
 
@@ -146,6 +154,7 @@ function offerFor(
     ...(mine !== undefined ? { opened: mine } : {}),
     ...(passport !== undefined ? { passport } : {}),
     material,
+    sellerChecks,
     score: scoreOpportunity({
       inputs,
       item,

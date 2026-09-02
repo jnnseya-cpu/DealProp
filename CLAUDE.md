@@ -46,7 +46,7 @@ seller-facing options cannot disagree.
 `negotiation`, `campaign`, `offers`, `agents`, `appraisalRequest`, `identity`,
 `supply`, `permissions`, `fees`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`, `inventory`, `reveal`,
-`passport`, `opportunityScore`, `prohibitions`, `materialInformation`.
+`passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -359,11 +359,18 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     between "no covenants" and "nobody looked", and omitting the second is a
     misleading omission under the CPRs. Part A unanswered stops the property
     being marketed at all, and therefore stops the reveal.
-67. **The twelve prohibitions each name the control that enforces them.**
+67. **The Regulations cover both parties, so the seller is checked too.**
+    `sellerDueDiligence.ts` asks three separate questions and conflating them
+    is the usual mistake: who are they, may they sell it, and who is behind it.
+    The middle one is where transactions actually fail — the person on the
+    telephone is very often not the registered proprietor — and an executor, an
+    attorney and a company each need different evidence. Nothing recorded is
+    unchecked, never "no concerns", and it stops the property being marketed.
+68. **The twelve prohibitions each name the control that enforces them.**
     `prohibitions.ts` is the register and a test walks its citations, failing if
     one names a function nobody wrote — the failure mode of every compliance
     register is a note that reads as a control and is not one.
-68. **A fee needs four things, and money is one of them.** The permission, the
+69. **A fee needs four things, and money is one of them.** The permission, the
     stage, the disclosure to the seller and a named person raising it.
     `fees.ts` reports every missing one at once. The seller pays exactly one
     fee — a percentage of the price achieved, on completion and at no other

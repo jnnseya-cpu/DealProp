@@ -4,6 +4,7 @@ import { revealPrice, type OpportunityClass } from "@shared/domain/pricing";
 import type { PropertyFacts, PropertyType, Tenure } from "@shared/domain/types";
 import { mayApproachSeller, type Passport } from "@shared/domain/passport";
 import type { MaterialReport } from "@shared/domain/materialInformation";
+import type { DueDiligenceReport } from "@shared/domain/sellerDueDiligence";
 import {
   categoryDefect,
   categoryDefinition,
@@ -110,6 +111,15 @@ export interface RevealContext {
    */
   readonly material?: MaterialReport;
   /**
+   * Customer due diligence on the seller.
+   *
+   * The Money Laundering Regulations make an estate agency business
+   * responsible for checking both parties, not the one who is paying. Absent
+   * means unchecked, which stops the property being marketed — and therefore
+   * stops it being sold.
+   */
+  readonly sellerChecks?: DueDiligenceReport;
+  /**
    * The buyer's passport.
    *
    * Absent means nobody has been graded, which is treated as grade D. A reveal
@@ -162,6 +172,17 @@ export function quoteReveal(context: RevealContext): RevealQuote {
       reason: approach.reason,
       remedy:
         "Complete the Buyer Readiness Passport: identity, screening and evidence of funds. Spending a motivated seller's time on a buyer with no money is how a marketplace destroys its own supply, and the seller blames whoever introduced them.",
+    });
+  }
+
+  if (context.sellerChecks === undefined || !context.sellerChecks.mayGoToMarket) {
+    blockers.push({
+      reason:
+        context.sellerChecks === undefined
+          ? "Nothing has been checked about the seller."
+          : context.sellerChecks.summary,
+      remedy:
+        "Complete the seller's due diligence: identity, sanctions and PEP screening, the authority to sell, and a recorded risk assessment. The Regulations make us responsible for both parties, and the person on the telephone is very often not the registered proprietor.",
     });
   }
 

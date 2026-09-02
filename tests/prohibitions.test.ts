@@ -17,6 +17,7 @@ import { GRADES } from "@shared/domain/passport";
 import { categoryDefinition } from "@shared/domain/inventory";
 import { quoteReveal } from "@shared/domain/reveal";
 import { materialInformation } from "@shared/domain/materialInformation";
+import { sellerDueDiligence } from "@shared/domain/sellerDueDiligence";
 import { matchFundingBox, type FundingBox } from "@shared/domain/matching";
 import { scoreDeal } from "@shared/domain/dealScore";
 import { SEED_FUNDING_BOXES } from "@backend/store/seed";
@@ -101,6 +102,20 @@ const MARKETABLE = materialInformation(property, {
   "council-tax": { state: "stated", value: "Band B" },
 });
 
+const SELLER_CHECKED = sellerDueDiligence(
+  {
+    kind: "individual",
+    identityVerifiedAt: "2026-08-01T00:00:00.000Z",
+    identityMethod: "Photo ID and proof of address",
+    screenedAt: "2026-08-01T00:00:00.000Z",
+    authorityEvidencedAt: "2026-08-01T00:00:00.000Z",
+    authorityEvidence: "Named as sole registered proprietor on title WM123456.",
+    riskAssessedAt: "2026-08-01T00:00:00.000Z",
+    riskAssessedBy: "Jo Bloggs",
+  },
+  NOW,
+);
+
 const CONFIRMED = {
   category: "owner-verified" as const,
   confirmation: {
@@ -181,6 +196,7 @@ describe("never charge a toll on information anybody could look up", () => {
       permissionsHeld: EVERYTHING,
       passport: READY,
       material: MARKETABLE,
+      sellerChecks: SELLER_CHECKED,
       openlyAdvertised: true,
     });
     expect(advertised.chargeable).toBe(false);
@@ -197,6 +213,7 @@ describe("never charge a toll on information anybody could look up", () => {
         permissionsHeld: EVERYTHING,
         passport: READY,
         material: MARKETABLE,
+        sellerChecks: SELLER_CHECKED,
       }).chargeable,
     ).toBe(true);
   });

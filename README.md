@@ -60,6 +60,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Opportunity | `/opportunities/[id]` | Category, score, evidence used and missing, the reveal, the refund claim |
 | Passport | `/account/passport` | Identity, funds and conveyancer — the gate on reaching a seller |
 | Material information | `/deals/[id]/material` | Parts A, B and C; Part A unanswered stops the property being marketed |
+| Seller checks | `/deals/[id]/seller-checks` | Identity, screening, authority to sell, beneficial owners, risk assessment |
 | Conduct | `/operator/conduct` | The twelve prohibitions and the control enforcing each one |
 | Discovery | `/operator/discovery` | Run discovery, review candidates, approve or suppress |
 | Outreach | `/operator/outreach` | Draft, approve, send; suppression list |
