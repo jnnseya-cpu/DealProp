@@ -51,7 +51,7 @@ export function ConsentBanner({ onChange }: { onChange: (state: ConsentState) =>
     <div
       role="dialog"
       aria-label="Cookies"
-      className="fixed inset-x-0 bottom-0 z-50 border-t hairline bg-ink-950/95 px-5 py-4 backdrop-blur"
+      className="app-safe-bottom fixed inset-x-0 bottom-0 z-50 border-t hairline bg-ink-950/95 px-5 py-4 backdrop-blur"
     >
       <div className="mx-auto flex max-w-4xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-2xl text-sm leading-relaxed text-ink-300">{CONSENT_TEXT}</p>

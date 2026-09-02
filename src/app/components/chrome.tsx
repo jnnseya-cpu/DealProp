@@ -104,7 +104,7 @@ export function SiteHeader({
 }) {
   return (
     <header
-      className={`border-b hairline ${sticky ? "sticky top-0 z-40 bg-ink-950/85 backdrop-blur-xl" : ""}`}
+      className={`app-header border-b hairline ${sticky ? "sticky top-0 z-40 bg-ink-950/85 backdrop-blur-xl" : ""}`}
     >
       <div className={`mx-auto flex ${width} items-center justify-between gap-6 px-6 py-3`}>
         <div className="flex min-w-0 items-center gap-3.5">

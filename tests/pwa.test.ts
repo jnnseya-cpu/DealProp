@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -91,6 +91,26 @@ describe("manifest", () => {
     expect(m.display).toBe("standalone");
   });
 
+  it("keeps the OS colours equal to the stylesheet's own tokens", () => {
+    // The splash is painted by the operating system before any of our CSS has
+    // loaded. If these disagree with the app's background by a shade, the
+    // launch flashes one colour and repaints in another — the visual signature
+    // of an app that crashed and restarted. Found by hand once; checked here so
+    // it cannot happen again when either file is edited alone.
+    const css = readFileSync(path.join(process.cwd(), "src/app/globals.css"), "utf8");
+    const token = (name: string): string => {
+      const found = new RegExp(`--color-${name}:\\s*(#[0-9a-f]{6})`, "i").exec(css);
+      expect(found, `--color-${name} is not defined in globals.css`).not.toBeNull();
+      return (found?.[1] ?? "").toLowerCase();
+    };
+
+    expect(PWA_COLOURS.background).toBe(token("ink-950"));
+    expect(PWA_COLOURS.theme).toBe(token("ink-950"));
+    expect(PWA_COLOURS.foreground).toBe(token("ink-100"));
+    expect(PWA_COLOURS.muted).toBe(token("ink-400"));
+    expect(PWA_COLOURS.accent).toBe(token("lode-400"));
+  });
+
   it("uses the app's own background colour for the splash", () => {
     // Android fills the splash with background_color. If it disagrees with the
     // app's background the launch flashes one colour then repaints another.
@@ -122,9 +142,15 @@ describe("manifest", () => {
   });
 
   it("only shortcuts to routes that exist", () => {
-    const routes = new Set(["/", "/sell", "/deals", "/newsletter", "/offline"]);
+    // Read from the filesystem rather than from a list kept here by hand. The
+    // list version passed for a route that had been deleted and failed for one
+    // that had been added, which is the wrong answer in both directions — a
+    // shortcut to a missing route is a launcher icon that opens a 404.
     for (const shortcut of m.shortcuts ?? []) {
-      expect(routes.has(String(shortcut.url))).toBe(true);
+      const url = String(shortcut.url);
+      const segment = url === "/" ? "" : url.replace(/^\//, "");
+      const page = path.join(process.cwd(), "src/app", segment, "page.tsx");
+      expect(existsSync(page), `${url} has no page at ${page}`).toBe(true);
     }
   });
 });

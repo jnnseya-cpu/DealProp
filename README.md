@@ -294,7 +294,25 @@ Configuration lives in `.env.example`. No credentials are in this repository.
 
 The app installs to a home screen and launches standalone with a branded splash.
 
-The two platforms do this completely differently, and both are covered:
+### Running to the edges without running under them
+
+`viewport-fit=cover` and a translucent status bar are what let the app fill a
+phone screen — and, with nothing else done, they are also why the header sits
+under the notch and the last row of a table sits under the home indicator. That
+is the giveaway that an installed app is a website in a shell, and it is fixed
+in `globals.css`: `.app-header` grows into `env(safe-area-inset-top)` so its own
+background fills the cutout, `.app-safe-bottom` and `main` clear the home
+indicator, and the body takes the left and right insets for landscape. The
+insets are zero in a browser tab and on any device without a cutout, so none of
+it is conditional.
+
+Three other defaults are right for a document and wrong for an application, and
+are changed on touch inputs only: the grey flash on tap, rubber-banding the
+whole app past its own background, and iOS enlarging text on rotation. Touch
+targets grow by padding — never by setting `display`, which is how the first
+attempt silently deleted Tailwind's `flex` from every link on the site.
+
+The two platforms do the splash completely differently, and both are covered:
 
 - **Android and desktop Chrome** generate the splash from `app/manifest.ts`
   alone — `background_color` fills the screen and the largest icon is centred on

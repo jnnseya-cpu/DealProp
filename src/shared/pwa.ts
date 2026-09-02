@@ -8,15 +8,27 @@
  * device and look like a crash.
  */
 
-/** The only brand values an OS-level splash can express. */
+/**
+ * The only brand values an OS-level splash can express.
+ *
+ * These must equal the tokens in `globals.css`, and the equality is checked by
+ * a test rather than left to whoever edits one of the two files. The splash is
+ * painted by the operating system before a single line of our CSS has loaded;
+ * if it disagrees with the app's own background by even a shade, the launch
+ * flashes one colour and then repaints in another, which is the exact visual
+ * signature of an app that has crashed and restarted.
+ */
 export const PWA_COLOURS = {
-  /** Painted behind the app before first paint, and behind the splash. */
-  background: "#0a0a0b",
+  /** Painted behind the app before first paint, and behind the splash. `--color-ink-950`. */
+  background: "#0a0b0d",
   /** Tints the status bar and task switcher. */
-  theme: "#0a0a0b",
-  foreground: "#e6e6ec",
-  muted: "#6f6f7d",
-  accent: "#d4a94b",
+  theme: "#0a0b0d",
+  /** `--color-ink-100`. */
+  foreground: "#e8ebef",
+  /** `--color-ink-400`. */
+  muted: "#737b8a",
+  /** `--color-lode-400`. */
+  accent: "#c9a44e",
 } as const;
 
 export interface IosDevice {

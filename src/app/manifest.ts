@@ -46,11 +46,23 @@ export default function manifest(): MetadataRoute.Manifest {
         url: "/sell",
       },
       {
+        name: "Appraise a deal",
+        short_name: "Appraise",
+        description: "True discount after every cost, and the price to walk away above",
+        url: "/appraise",
+      },
+      {
         name: "Browse the pipeline",
         short_name: "Deals",
         description: "Every opportunity, scored after tax",
         url: "/deals",
       },
     ],
+    /*
+     * Both orientations, because the app is used on a phone in a car park and
+     * on a tablet at a desk. `orientation: "any"` above already allows it; this
+     * says the layout has been checked at both, which it has.
+     */
+    prefer_related_applications: false,
   };
 }

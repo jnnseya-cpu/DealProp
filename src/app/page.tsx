@@ -77,7 +77,7 @@ export default function Home() {
 
 function Nav() {
   return (
-    <nav className="sticky top-0 z-50 border-b hairline bg-ink-950/85 backdrop-blur-xl">
+    <nav className="app-header sticky top-0 z-50 border-b hairline bg-ink-950/85 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-8 px-6 py-3">
         <div className="flex items-center gap-2.5">
           <Mark size={19} />

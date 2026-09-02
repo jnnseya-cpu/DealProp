@@ -76,6 +76,56 @@ html {
   /* Stops a scrollbar appearing and disappearing between routes and shifting
      the whole layout by 15px, which reads as the page flinching. */
   scrollbar-gutter: stable;
+  /* iOS enlarges text on rotation unless told not to, which reflows a table
+     mid-read and looks like the layout breaking. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/*
+ * The installed app.
+ *
+ * `viewport-fit=cover` and a translucent status bar are what let the app run to
+ * the edges of the screen — and they are also why, with nothing else done, the
+ * header sits under the notch and the last row of a table sits under the home
+ * indicator. Both are the giveaway that an installed app is a website in a
+ * shell.
+ *
+ * The insets are zero in a browser tab and on every device without a cutout, so
+ * these are unconditional rather than wrapped in a display-mode query.
+ */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+body {
+  /* Landscape on a notched phone puts the cutout down one side. */
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/*
+ * A sticky header has to grow into the status bar, not start below it.
+ *
+ * Padding rather than margin, so the header's own background fills the inset
+ * and the content behind it scrolls under an opaque bar instead of appearing
+ * in the gap.
+ */
+.app-header {
+  padding-top: var(--safe-top);
+}
+
+/* Anything anchored to the bottom clears the home indicator. */
+.app-safe-bottom {
+  padding-bottom: calc(var(--safe-bottom) + 0.5rem);
+}
+
+/* The last thing on a scrolling page should not end under the indicator. */
+main {
+  padding-bottom: var(--safe-bottom);
 }
 
 body {
@@ -143,6 +193,71 @@ h1, h2, h3 {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-ink-400);
+}
+
+/*
+ * Touch behaviour.
+ *
+ * Three defaults that are right for a document and wrong for an application.
+ */
+
+/* The grey flash on tap is the browser telling you it is a web page. */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/*
+ * Overscroll.
+ *
+ * Rubber-banding the whole app past its own background — and, in a browser
+ * tab, pulling to refresh mid-form — are both page behaviours. `contain` keeps
+ * a scrollable panel's own bounce while stopping it propagating to the app.
+ */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/*
+ * Touch targets.
+ *
+ * A 13px text link is a comfortable pointer target and a poor thumb one, so on
+ * a touch input the hit area grows. Only on a touch input: a 44px-tall nav item
+ * looks wrong under a mouse.
+ *
+ * **Nothing here sets `display`.** The first attempt forced `inline-flex` onto
+ * every link and then tried to exclude the layout-bearing ones with
+ * `display: revert` — which reverts to the user-agent value and therefore
+ * silently deleted Tailwind's `flex` from every `a.flex` on the site. The
+ * wordmark broke onto two lines and it was only caught by looking at a
+ * screenshot. Padding grows a target without touching layout at all, which is
+ * why that is what this does now.
+ */
+@media (pointer: coarse) {
+  /* Navigation and footer links: small, dense, and the most-missed targets. */
+  nav a,
+  footer a,
+  summary {
+    padding-block: 0.45rem;
+  }
+
+  /* Buttons are already inline-block, so a minimum height is safe on them. */
+  button,
+  [type="submit"],
+  [role="button"] {
+    min-height: 44px;
+  }
+
+  /* A checkbox is the hardest thing on any form to hit accurately. */
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-lode-400) 30%, transparent);
+  color: var(--color-ink-100);
 }
 
 /* --- controls ------------------------------------------------------------ */

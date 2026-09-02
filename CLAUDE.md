@@ -61,7 +61,12 @@ Access control: `src/middleware.ts` gates `/deals`, `/invest`, `/capital`,
 `src/app/operator/guard.ts` is the per-page lock; `src/shared/domain/accounts.ts`
 `can()` is the only place a permission decision is made.
 API: `/api/cron/newsletter` weekly send, secret-protected and idempotent.
-PWA: installable, `src/shared/pwa.ts` is the single source for devices/icons/colours.
+PWA: installable, `src/shared/pwa.ts` is the single source for devices/icons/colours,
+and a test pins those colours to the `globals.css` tokens — a splash that
+disagrees with the app by a shade looks like a crash and restart. Safe-area
+insets are consumed by `.app-header` and `.app-safe-bottom` in `globals.css`;
+without them the installed app runs under the notch and the home indicator,
+which is the giveaway that it is a website in a shell.
 Assets regenerate with `npm run pwa:assets` — never hand-edit `public/`.
 Go-live: `docs/GO-LIVE.md` is the runbook; `npm run preflight` is the gate and
 exits non-zero on blockers, `npm run verify` runs the whole sequence, and
@@ -302,6 +307,11 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     answers about a person nobody has spoken to. It is also never a trackable
     route: the deal is in the query string and both vendors read `location.href`
     themselves.
+58. **Never set `display` in a touch-target rule.** The first attempt forced
+    `inline-flex` onto every link and excluded the layout-bearing ones with
+    `display: revert`, which reverts to the user-agent value and silently
+    deleted Tailwind's `flex` from every `a.flex` on the site. Padding grows a
+    target without touching layout.
 
 ### Outstanding
 
