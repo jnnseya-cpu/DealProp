@@ -303,6 +303,19 @@ function checkRegulatory(): void {
     );
   }
 
+  // Professional indemnity gates no revenue stream, so nothing above would
+  // ever mention it. It is checked here against redress-scheme membership
+  // because every redress scheme requires cover as a condition of joining:
+  // holding one without the other is not a gap, it is an inconsistency, and
+  // the scheme would treat the membership as void.
+  if (held.includes("redress-scheme") && !held.includes("professional-indemnity")) {
+    block(
+      "Regulatory",
+      "Redress scheme membership is recorded but professional indemnity insurance is not.",
+      'Record it as "professional-indemnity:<insurer, policy number and limit>". Every redress scheme requires cover as a condition of membership, so a membership held without it is one the scheme would treat as void.',
+    );
+  }
+
   const gated = STREAMS.filter((s) => (s.requiresPermissions ?? []).length > 0);
   const missing = gated.filter((s) =>
     (s.requiresPermissions ?? []).some((key) => !held.includes(key)),

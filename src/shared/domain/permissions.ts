@@ -27,7 +27,8 @@ export type PermissionKey =
   | "credit-broking"
   | "regulated-mortgage-introductions"
   | "financial-promotion-approver"
-  | "professional-referrals";
+  | "professional-referrals"
+  | "professional-indemnity";
 
 export interface PermissionDefinition {
   readonly key: PermissionKey;
@@ -63,6 +64,15 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     regulator: "The Property Ombudsman or Property Redress Scheme",
     authorises: "Estate agency work, alongside AML supervision. Neither is sufficient alone.",
     evidenceLabel: "Redress scheme and membership number",
+    criminal: false,
+  },
+  {
+    key: "professional-indemnity",
+    label: "Professional indemnity insurance",
+    regulator: "The insurer",
+    authorises:
+      "Nothing, strictly — it grants no permission. It is here because it is the difference between a claim that ends in a settlement and one that ends the company, and because every redress scheme requires it as a condition of membership. A platform giving a seller costed routes and a buyer an appraisal is giving advice somebody will one day say was wrong.",
+    evidenceLabel: "Insurer, policy number and the limit of indemnity",
     criminal: false,
   },
   {
