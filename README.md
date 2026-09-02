@@ -100,6 +100,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | SEO audit | `src/shared/domain/seo.ts` | Scores every post against what this codebase controls |
 | Negotiation | `src/shared/domain/negotiation.ts` | The price band, and the number that says stop |
 | Appraisal request | `src/shared/domain/appraisalRequest.ts` | A stranger's figures into engine inputs, with every default declared |
+| Supply | `src/shared/domain/supply.ts` | How many deals, where and how often — counted, never claimed |
 | Company identity | `src/shared/domain/identity.ts` | The statutory disclosures, read from configuration and never invented |
 | Agents | `src/shared/domain/agents.ts` | Nine triggers, nine outputs, and the four things accepting one can do |
 | Owner lookup | `src/backend/discovery/owners.ts` | Who owns one title, and how they may lawfully be approached |
@@ -137,6 +138,44 @@ succeed. `tests/boundaries.test.ts` fails instead.
 
 `docs/GO-LIVE.md` has the deployment itself: Vercel with the crons in
 `vercel.json`, or the `Dockerfile` and `output: "standalone"` anywhere else.
+
+---
+
+## Deal flow, stated rather than implied
+
+An investor's first question is not what the appraisal engine does. It is how
+many deals, where, and how often — because an appraisal engine with nothing
+behind it is a spreadsheet with better manners. The landing page answered none
+of the three, and the figures it *did* show ("verified buyers: 1") were read
+from the seed fixtures on a page whose own claim is that every number is
+computed.
+
+`supply.ts` computes the answer from the platform's own records and the answer
+is allowed to be small. A live count of four is more persuasive than silence: a
+reader who cannot find a number assumes the worst one, and a figure that moves
+when the platform moves is the only kind worth believing. With an empty store it
+says so — *"There is nothing here to match a mandate against, and saying
+otherwise would be the first thing you found out was untrue."*
+
+Three things it will not do:
+
+- **Count a blocked deal as available.** Seller Protection stopping a deal is
+  the point of the engine; a supply figure that quietly included them would be
+  the one number on the page that was a lie.
+- **Quote a rate before there is history for one.** Two deals entered on the
+  same afternoon are not "one every zero days", they are a seeding. Below eight
+  records, or with no span between the first and the last, it says it is too
+  early instead.
+- **Report any return, yield or margin.** A public statement that opportunities
+  are available at a given return is an inducement to engage in investment
+  activity, and under FSMA s.21 only an authorised person may communicate or
+  approve one. Counts, coverage and cadence are facts about the business; the
+  economics stay behind investor categorisation, where `can()` already puts
+  them. There is a test asserting none of those words can appear in the output.
+
+The worked example on the landing page is now labelled as one. It had a green
+dot and the word "Live" beside a seeded probate deal, which is the single claim
+on that page a reader could check and catch.
 
 ---
 

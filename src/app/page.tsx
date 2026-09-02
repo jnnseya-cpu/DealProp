@@ -5,12 +5,26 @@ import { HEAT_LABELS, scoreGoldMine } from "@shared/domain/goldmine";
 import { buildCloseReport } from "@shared/domain/completion";
 import { countInterestedBuyers, matchFundingBox, rankMatches } from "@shared/domain/matching";
 import { SEED_BUY_BOXES, SEED_DEALS, SEED_FUNDING_BOXES } from "@backend/store/seed";
+import { listBuyBoxes, listDeals, listFundingBoxes } from "@backend/store/repository";
+import { scoreDeal } from "@shared/domain/dealScore";
+import { toWorkingDeal } from "@shared/domain/workingDeal";
+import { RECENT_DAYS, supplyPosition, type SupplyPosition } from "@shared/domain/supply";
 import { add, sub, type Money } from "@shared/money";
 import { buildSellerRoutes, type SellerRoutesReport } from "@shared/domain/sellerRoutes";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { gbp, gbpSigned, percent } from "@shared/format";
 import { Button, Mark, scoreBg, scoreTone, VERDICT_TONE } from "@/app/components/chrome";
 import { BUYER_TIERS } from "@shared/domain/revenue";
+
+/*
+ * Recomputed at most every five minutes.
+ *
+ * The supply counts have to be live or they are worse than absent, but they do
+ * not have to be to the second — and a landing page that cannot be cached at
+ * all is a landing page that is slow for everybody to protect a number that
+ * moves a few times a week.
+ */
+export const revalidate = 300;
 
 /**
  * Landing page.
@@ -21,9 +35,38 @@ import { BUYER_TIERS } from "@shared/domain/revenue";
  * to show a product whose whole claim is that its numbers are trustworthy.
  */
 
-export default function Home() {
+export default async function Home() {
   const record = SEED_DEALS[0];
   if (record === undefined) throw new Error("seed deal missing");
+
+  /*
+   * Supply, from the platform rather than from the fixtures.
+   *
+   * The worked example below is seeded and stays seeded — it is an example and
+   * it is labelled as one. But the counts a visitor reads as "how big is this"
+   * were also coming from the seed constants, on a page whose own comment
+   * claims every figure is computed. An investor asking how many deals there
+   * are was being shown a fixture.
+   */
+  const [liveDeals, liveBuyBoxes, liveFundingBoxes] = await Promise.all([
+    listDeals(),
+    listBuyBoxes(),
+    listFundingBoxes(),
+  ]);
+  const supply = supplyPosition(
+    liveDeals.map((d) => ({
+      createdAt: d.createdAt,
+      status: d.status,
+      postcodeArea: d.property.postcodeArea,
+      locality: d.property.locality,
+      jurisdiction: d.property.jurisdiction,
+      blocked: scoreDeal(toWorkingDeal(d.inputs).inputs).protection.blocked,
+    })),
+    {
+      buy: liveBuyBoxes.filter((b) => b.active).length,
+      funding: liveFundingBoxes.filter((b) => b.active).length,
+    },
+  );
 
   const briefing = runDealDirector(record.inputs);
   const { scored, stack, exits, recycle, strategies } = briefing;
@@ -44,8 +87,9 @@ export default function Home() {
   return (
     <main className="relative overflow-x-hidden">
       <Nav />
-      <Hero buyers={buyers} funders={funders.length} routes={sellerRoutes} />
+      <Hero routes={sellerRoutes} supply={supply} />
       <Doors />
+      <SupplySection supply={supply} />
       <LiveDeal
         briefing={briefing}
         buyers={buyers}
@@ -108,15 +152,7 @@ function Nav() {
 }
 
 
-function Hero({
-  buyers,
-  funders,
-  routes,
-}: {
-  buyers: { total: number; fast: number };
-  funders: number;
-  routes: SellerRoutesReport;
-}) {
+function Hero({ routes, supply }: { routes: SellerRoutesReport; supply: SupplyPosition }) {
   return (
     <section className="grain relative border-b hairline">
       <div className="relative mx-auto grid max-w-7xl items-start gap-14 px-6 py-14 lg:grid-cols-[1fr_480px] lg:py-18">
@@ -149,9 +185,28 @@ function Hero({
             selling? The appraisal needs no account.
           </p>
 
+          {/*
+            Read from the platform, not from the seed constants these used to
+            come from. A visitor reads these as "how big is this", so a fixture
+            in this position is the first thing they would find out was untrue.
+          */}
           <dl className="mt-12 grid max-w-lg grid-cols-3 gap-8 border-t hairline pt-7">
-            <HeroStat label="Verified buyers" value={String(buyers.total)} sub={`${buyers.fast} can complete in 28 days`} />
-            <HeroStat label="Capital mandates" value={String(funders)} sub="matched to this deal" />
+            <HeroStat
+              label="Open opportunities"
+              value={String(supply.open)}
+              sub={
+                supply.areas.length === 0
+                  ? "none on the platform yet"
+                  : supply.areas.length === 1
+                    ? `in ${supply.areas[0]}`
+                    : `across ${supply.areas.length} postcode areas`
+              }
+            />
+            <HeroStat
+              label="Capital mandates"
+              value={String(supply.fundingMandates)}
+              sub={`${supply.buyMandates} buying mandate${supply.buyMandates === 1 ? "" : "s"} alongside`}
+            />
             <HeroStat label="Strategies tested" value="14" sub="per property, before advice" />
           </dl>
         </div>
@@ -210,9 +265,8 @@ function SellerRoutesCard({ report }: { report: SellerRoutesReport }) {
         <span className="font-mono text-[11px] tracking-[0.04em] text-ink-300">
           Probate · Erdington B23 · empty 412 days
         </span>
-        <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-500">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          Live
+        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-500">
+          Worked example
         </span>
       </div>
 
@@ -220,6 +274,11 @@ function SellerRoutesCard({ report }: { report: SellerRoutesReport }) {
         <p className="text-[13px] leading-[1.6] text-ink-300">
           Four routes, ranked against what this seller said mattered — not against which one pays
           us most. This is what each one puts in their hand.
+        </p>
+        <p className="mt-2 text-[12px] leading-[1.6] text-ink-500">
+          A worked example, not a live listing. The figures are computed by the same engine at the
+          moment you loaded this page — change the inputs and every number below changes — but the
+          property is an illustration.
         </p>
       </div>
 
@@ -327,6 +386,106 @@ function Doors() {
   );
 }
 
+/**
+ * How many, where, how often.
+ *
+ * The three questions an investor asks before any of the engine matters, and
+ * the page answered none of them. It answers them here from the platform's own
+ * records, and it is allowed to answer "four" — a reader who cannot find a
+ * number assumes the worst one, and a small number stated plainly is more
+ * persuasive than a large one they cannot check.
+ *
+ * No return, yield or margin appears anywhere in it. A public statement that
+ * deals are available at a given margin is an inducement to engage in
+ * investment activity, and under FSMA s.21 only an authorised person may
+ * communicate or approve one. Counts, coverage and cadence are facts about the
+ * business; the economics stay behind categorisation, where `can()` puts them.
+ */
+function SupplySection({ supply }: { supply: SupplyPosition }) {
+  return (
+    <section id="supply" className="border-b hairline">
+      <div className="mx-auto max-w-7xl px-6 py-20">
+        <div className="grid gap-12 lg:grid-cols-[0.9fr_1.1fr]">
+          <div>
+            <p className="eyebrow">Deal flow</p>
+            <h2 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
+              How many, where, and how often.
+            </h2>
+            <p className="mt-5 max-w-[34rem] text-[15px] leading-[1.6] text-ink-300">
+              The three questions worth asking before any of the analysis matters, because an
+              appraisal engine with nothing behind it is a spreadsheet with better manners. These
+              are counted from the platform when this page is built, not written by hand.
+            </p>
+            <p className="mt-4 max-w-[34rem] text-[14px] leading-[1.6] text-ink-400">
+              {supply.summary}
+            </p>
+          </div>
+
+          <div>
+            <dl className="grid grid-cols-2 gap-x-8 gap-y-8 sm:grid-cols-3">
+              <HeroStat
+                label="Open now"
+                value={String(supply.open)}
+                sub={`of ${supply.total} on the platform`}
+              />
+              <HeroStat
+                label="Postcode areas"
+                value={String(supply.areas.length)}
+                sub={supply.areas.length > 0 ? supply.areas.join(", ") : "none yet"}
+              />
+              <HeroStat
+                label={`Added in ${RECENT_DAYS} days`}
+                value={String(supply.recent)}
+                sub={
+                  supply.tooEarlyForCadence
+                    ? "too early for a rate"
+                    : `about one every ${supply.meanDaysBetween ?? 0} days`
+                }
+              />
+              <HeroStat
+                label="Refused"
+                value={String(supply.blocked)}
+                sub="stopped by Seller Protection"
+              />
+              <HeroStat
+                label="Buying mandates"
+                value={String(supply.buyMandates)}
+                sub="active Buy Boxes"
+              />
+              <HeroStat
+                label="Capital mandates"
+                value={String(supply.fundingMandates)}
+                sub="active Funding Boxes"
+              />
+            </dl>
+
+            <div className="mt-8 rounded-lg border-l-2 border-lode-500/80 bg-surface-1 px-5 py-4">
+              <p className="text-[13px] leading-[1.65] text-ink-300">
+                <span className="text-ink-100">This is early, and it is stated rather than
+                implied.</span>{" "}
+                Supply is the constraint on this business, not analysis — so the honest thing to
+                show a buyer is the number, and the honest thing to do about it is recruit the
+                agents who hold the instructions nobody can close.{" "}
+                <Link href="/partners" className="text-lode-300 underline underline-offset-2">
+                  That is what the referral route is for
+                </Link>
+                .
+              </p>
+            </div>
+
+            <p className="mt-4 text-[12px] leading-[1.6] text-ink-500">
+              What each deal is worth is not shown here and will not be. A public statement that
+              opportunities are available at a given return is a financial promotion, and one may
+              only be made or approved by a person authorised under FSMA. The economics are behind
+              investor categorisation, which is a form you sign rather than a box you tick.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function LiveDeal({
   briefing,
   buyers,
@@ -359,7 +518,7 @@ function LiveDeal({
     <section id="engine" className="border-b hairline">
       <div className="mx-auto max-w-7xl px-6 py-20">
         <SectionHead
-          eyebrow="Deal Engine"
+          eyebrow="Deal Engine · worked example"
           title="The number most sourcers never show you"
           lede={`A property bought at ${gbp(a.costs.purchasePrice)} and worth ${gbp(a.exit.grossDevelopmentValue)} finished is not a ${gbp(naiveProfit)} profit. Lode charges every cost, then charges the tax, and only then scores the deal.`}
         />
@@ -415,6 +574,16 @@ function LiveDeal({
                   {funderCount} capital {funderCount === 1 ? "mandate" : "mandates"}
                 </span>{" "}
                 match this deal{topFunder !== undefined && <> — strongest is {topFunder}</>}.
+              </p>
+              {/* Said explicitly, because this figure sits a screen below the
+                  live platform counts and would otherwise be read as one. */}
+              <p className="mt-2 text-xs leading-relaxed text-ink-500">
+                Matched against the example mandates in this walkthrough. The platform&rsquo;s real
+                counts are in{" "}
+                <Link href="#supply" className="text-ink-400 underline underline-offset-2">
+                  deal flow
+                </Link>
+                , above.
               </p>
             </div>
           </div>

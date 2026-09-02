@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { Button, Panel, SiteHeader, Stat } from "@/app/components/chrome";
 import { SiteFooter } from "@/app/components/SiteFooter";
-import { listBuyBoxes, listFundingBoxes } from "@backend/store/repository";
+import { listBuyBoxes, listDeals, listFundingBoxes } from "@backend/store/repository";
+import { scoreDeal } from "@shared/domain/dealScore";
+import { toWorkingDeal } from "@shared/domain/workingDeal";
+import { supplyPosition } from "@shared/domain/supply";
 import { companyIdentity, identityGaps } from "@shared/domain/identity";
 import { operatorPermissions } from "@backend/permissions";
 import { disclosureFor, TRADE_PARTNERS } from "@shared/domain/partners";
@@ -29,7 +32,25 @@ export const metadata = {
  * gets volume.
  */
 export default async function PartnersPage() {
-  const [buyBoxes, fundingBoxes] = await Promise.all([listBuyBoxes(), listFundingBoxes()]);
+  const [deals, buyBoxes, fundingBoxes] = await Promise.all([
+    listDeals(),
+    listBuyBoxes(),
+    listFundingBoxes(),
+  ]);
+  const supply = supplyPosition(
+    deals.map((d) => ({
+      createdAt: d.createdAt,
+      status: d.status,
+      postcodeArea: d.property.postcodeArea,
+      locality: d.property.locality,
+      jurisdiction: d.property.jurisdiction,
+      blocked: scoreDeal(toWorkingDeal(d.inputs).inputs).protection.blocked,
+    })),
+    {
+      buy: buyBoxes.filter((b) => b.active).length,
+      funding: fundingBoxes.filter((b) => b.active).length,
+    },
+  );
   const identity = companyIdentity(process.env);
   const permissions = operatorPermissions();
   const outstanding = identityGaps(identity);
@@ -63,6 +84,14 @@ export default async function PartnersPage() {
           <h2 className="font-display text-[22px] leading-tight text-ink-100">
             If you are an estate agent
           </h2>
+          <p className="mt-3 max-w-[42rem] text-[14px] leading-[1.6] text-ink-400">
+            Being straight about why we are asking: there {supply.open === 1 ? "is" : "are"}{" "}
+            <span className="text-ink-100">{supply.open} open{" "}
+            {supply.open === 1 ? "opportunity" : "opportunities"}</span> on the platform today.
+            Supply is the constraint on this business, and you are holding it — the instruction that
+            has been on four hundred days is a fee you will never earn and a client you cannot
+            serve.
+          </p>
 
           <div className="mt-5 grid gap-5 lg:grid-cols-3">
             <Panel eyebrow="What you keep" title="The client">
@@ -160,18 +189,23 @@ export default async function PartnersPage() {
           </div>
 
           <div className="mt-5 grid gap-5 sm:grid-cols-3">
-            <Panel eyebrow="Recorded now" title="Mandates">
+            <Panel eyebrow="Recorded now" title="Supply">
               <div className="grid grid-cols-2 gap-4">
-                <Stat label="Funding boxes" value={String(fundingBoxes.length)} size="sm" />
-                <Stat label="Buy boxes" value={String(buyBoxes.length)} size="sm" />
+                <Stat label="Open deals" value={String(supply.open)} size="sm" />
+                <Stat label="Postcode areas" value={String(supply.areas.length)} size="sm" />
+                <Stat label="Funding boxes" value={String(supply.fundingMandates)} size="sm" />
+                <Stat label="Buy boxes" value={String(supply.buyMandates)} size="sm" />
               </div>
               <p className="mt-3 text-[12px] leading-[1.6] text-ink-500">
-                Live counts from the platform, not a marketing figure. If this reads low, it is low.
+                Counted from the platform, not written by hand. If it reads low, it is low.
               </p>
             </Panel>
 
             <Panel eyebrow="Track record" title="None yet" className="sm:col-span-2">
               <p className="text-[13px] leading-[1.65] text-ink-300">
+                {supply.summary}
+              </p>
+              <p className="mt-3 border-t hairline pt-3 text-[13px] leading-[1.65] text-ink-300">
                 No completed transaction has run through this platform, so there is no default
                 history, no loss rate and no repayment record to show you. We would rather say that
                 here than let you discover it in diligence. The engines, the controls and the audit

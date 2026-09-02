@@ -44,6 +44,7 @@ seller-facing options cannot disagree.
 `partners`, `sources`, `registrySignal`, `accounts`, `blog`, `analytics`, `seo`,
 `pricing`, `entitlements`, `ledger`, `charging`, `borrowing`, `fundingMetrics`,
 `negotiation`, `campaign`, `offers`, `agents`, `appraisalRequest`, `identity`,
+`supply`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
@@ -312,6 +313,13 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     `display: revert`, which reverts to the user-agent value and silently
     deleted Tailwind's `flex` from every `a.flex` on the site. Padding grows a
     target without touching layout.
+59. **Supply is counted, never claimed, and a small number is stated.** The
+    landing page's "verified buyers" came from the seed constants on a page
+    whose comment says every figure is computed. `supply.ts` reads the store; a
+    blocked deal is never counted as available; a cadence is withheld until
+    there is history for one; and no return, yield or margin appears in a public
+    supply statement, because that would be a financial promotion under FSMA
+    s.21. A worked example is labelled as one — it said "Live" beside a fixture.
 
 ### Outstanding
 
