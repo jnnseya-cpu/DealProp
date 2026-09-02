@@ -31,7 +31,7 @@ export default async function OpportunitiesPage() {
   const account = viewerAccount(viewer);
 
   const records = await listDeals();
-  const offers = account === undefined ? [] : await offersFor(records, account.id);
+  const offers = account === undefined ? [] : await offersFor(records, account);
 
   const openable = offers.filter((o) => o.quote.chargeable || o.opened !== undefined);
   const unconfirmed = offers.filter((o) => !o.quote.chargeable && o.opened === undefined);

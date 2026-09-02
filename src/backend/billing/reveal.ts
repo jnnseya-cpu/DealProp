@@ -19,6 +19,7 @@ import {
 } from "@backend/store/repository";
 import { audit } from "@backend/audit";
 import type { Account } from "@shared/domain/accounts";
+import { buyerPassport, type Passport } from "@shared/domain/passport";
 import type { DealRecord, RevealRecord } from "@backend/store/schema";
 
 /**
@@ -47,15 +48,19 @@ export interface RevealOffer {
   readonly card: OpportunityCard;
   /** The buyer's own purchase of this opportunity, where they have made one. */
   readonly opened?: RevealRecord;
+  /** The buyer's readiness against this opportunity's price. */
+  readonly passport?: Passport;
 }
 
 export async function quoteRevealForDeal(
   dealId: string,
-  accountId: string,
+  account: Account | undefined,
+  now: Date = new Date(),
 ): Promise<RevealOffer | undefined> {
   const record = await getDeal(dealId);
   if (record === undefined) return undefined;
-  return offerFor(record, await listRevealsForAccount(accountId));
+  const opened = account === undefined ? [] : await listRevealsForAccount(account.id);
+  return offerFor(record, opened, account, now);
 }
 
 /**
@@ -67,22 +72,38 @@ export async function quoteRevealForDeal(
  */
 export async function offersFor(
   records: readonly DealRecord[],
-  accountId: string,
+  account: Account,
+  now: Date = new Date(),
 ): Promise<readonly RevealOffer[]> {
-  const opened = await listRevealsForAccount(accountId);
-  return records.map((record) => offerFor(record, opened));
+  const opened = await listRevealsForAccount(account.id);
+  return records.map((record) => offerFor(record, opened, account, now));
 }
 
-function offerFor(record: DealRecord, opened: readonly RevealRecord[]): RevealOffer {
+function offerFor(
+  record: DealRecord,
+  opened: readonly RevealRecord[],
+  account: Account | undefined,
+  now: Date,
+): RevealOffer {
   const item = inventoryOf(record);
   const inputs = toWorkingDeal(record.inputs).inputs;
   const property = appraise(inputs).inputs.property;
   const mine = opened.find((r) => r.dealId === record.id && r.refundedAt === undefined);
 
+  // Graded against this opportunity's own price. "Funded" is not an absolute:
+  // £180,000 evidenced is grade A against a terrace and grade B against a
+  // townhouse, and a marketplace that grades buyers without reference to what
+  // they are buying is grading them against nothing.
+  const passport =
+    account === undefined
+      ? undefined
+      : buyerPassport(account.passportEvidence ?? {}, inputs.purchasePrice, now);
+
   const quote = quoteReveal({
     opportunity: classifyOpportunity(property, item),
     item,
     permissionsHeld: permissionsHeld(),
+    ...(passport !== undefined ? { passport } : {}),
     // Completed and withdrawn are the two states where there is no
     // introduction left to make. A funded deal is still one, because the buyer
     // is buying an introduction to a transaction rather than to a vacancy.
@@ -101,6 +122,7 @@ function offerFor(record: DealRecord, opened: readonly RevealRecord[]): RevealOf
       quote,
     }),
     ...(mine !== undefined ? { opened: mine } : {}),
+    ...(passport !== undefined ? { passport } : {}),
   };
 }
 
@@ -131,7 +153,7 @@ export async function openOpportunity(
   account: Account,
   paymentReference: string,
 ): Promise<RevealOutcome> {
-  const offer = await quoteRevealForDeal(dealId, account.id);
+  const offer = await quoteRevealForDeal(dealId, account);
   if (offer === undefined) return { ok: false, message: "No such opportunity." };
 
   if (!offer.quote.chargeable) {

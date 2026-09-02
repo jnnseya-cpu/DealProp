@@ -3,6 +3,7 @@ import {
   UK_INVESTOR_CATEGORISATION,
   type InvestorCategory,
 } from "@shared/domain/jurisdictions/uk-financial-promotion";
+import type { PassportEvidence } from "@shared/domain/passport";
 
 /**
  * Accounts, roles and what each may see.
@@ -108,6 +109,16 @@ export interface Account {
    */
   readonly trialClaimedAt?: string;
   readonly certification?: InvestorCertification;
+  /**
+   * What has been checked about this buyer, for the Buyer Readiness Passport.
+   *
+   * Held on the account rather than on a deal because it is a fact about the
+   * person, not about a purchase: the same identity check and the same funds
+   * evidence apply to every opportunity they look at. The grade is derived
+   * from it against the price and the date, never stored — the same rule
+   * entitlement follows, and for the same reason.
+   */
+  readonly passportEvidence?: PassportEvidence;
 }
 
 /** An account as it may safely be rendered or logged. */

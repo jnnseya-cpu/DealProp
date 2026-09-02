@@ -28,10 +28,10 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
   const viewer = await requirePermission("view-deal-material", `/opportunities/${id}`);
   const account = viewerAccount(viewer);
 
-  const offer = await quoteRevealForDeal(id, account?.id ?? "");
+  const offer = await quoteRevealForDeal(id, account);
   if (offer === undefined) notFound();
 
-  const { card, quote, opened } = offer;
+  const { card, quote, opened, passport } = offer;
 
   return (
     <main className="min-h-screen pb-24">
@@ -128,6 +128,38 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
                 Refunded {opened.refundedAt.slice(0, 10)} — {opened.refundReason}
               </p>
             )}
+          </Panel>
+        )}
+
+        {passport !== undefined && opened === undefined && (
+          <Panel
+            className="mt-6"
+            eyebrow="Your passport"
+            title={`Grade ${passport.grade} — ${passport.definition.label}`}
+            action={
+              <Badge tone={passport.mayApproachSeller ? "good" : "warn"}>
+                {passport.mayApproachSeller ? "May be introduced" : "Not yet"}
+              </Badge>
+            }
+          >
+            <p className="text-[13px] leading-[1.65] text-ink-300">{passport.definition.meaning}</p>
+            <ul className="mt-4 space-y-2.5 border-t hairline pt-4">
+              {passport.checks.map((check) => (
+                <li key={check.label} className="text-[13px] leading-[1.6]">
+                  <span className={check.held ? "text-ink-100" : "text-amber-300"}>
+                    {check.held ? "\u2713" : "\u2014"} {check.label}
+                  </span>{" "}
+                  <span className="text-ink-500">{check.detail}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 border-t hairline pt-4 text-[12px] leading-[1.6] text-ink-500">
+              {passport.caveat}{" "}
+              <Link href="/account/passport" className="text-lode-300 hover:underline">
+                Record what is missing
+              </Link>
+              .
+            </p>
           </Panel>
         )}
 

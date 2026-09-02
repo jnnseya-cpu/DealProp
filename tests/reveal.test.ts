@@ -22,6 +22,7 @@ import {
   type RevealContext,
 } from "@shared/domain/reveal";
 import { authorisePurchase } from "@shared/domain/charging";
+import { buyerPassport } from "@shared/domain/passport";
 import { revealPrice } from "@shared/domain/pricing";
 import type { PropertyFacts } from "@shared/domain/types";
 import { bps } from "@shared/money";
@@ -46,11 +47,33 @@ const EVERYTHING = heldKeys(
   readPermissions("estate-agency-aml:XAML00000000,redress-scheme:TPO-12345"),
 );
 
+const NOW = new Date("2026-09-01T00:00:00.000Z");
+
+/** A buyer who has been checked. Grade A against the guide price used here. */
+const PROCEEDABLE = buyerPassport(
+  {
+    identityVerifiedAt: "2026-06-01T00:00:00.000Z",
+    identityMethod: "Photo ID and address, checked electronically",
+    screenedAt: "2026-08-01T00:00:00.000Z",
+    sourceOfFundsAt: "2026-08-01T00:00:00.000Z",
+    proofOfFunds: {
+      kind: "cash",
+      evidencedAt: "2026-08-20T00:00:00.000Z",
+      amount: fromMajor(250_000),
+      issuer: "Lloyds",
+    },
+    completedPurchases: 2,
+  },
+  fromMajor(172_000),
+  NOW,
+);
+
 function context(overrides: Partial<RevealContext> = {}): RevealContext {
   return {
     opportunity: "owner-verified",
     item: { category: "owner-verified", confirmation: OWNER_SAID },
     permissionsHeld: EVERYTHING,
+    passport: PROCEEDABLE,
     ...overrides,
   };
 }
@@ -156,6 +179,26 @@ describe("whether the reveal may be charged", () => {
     const none = quoteReveal(context({ permissionsHeld: [] }));
     expect(none.chargeable).toBe(false);
     expect(none.blockers.map((b) => b.remedy).join(" ")).toContain("estate agency work");
+  });
+
+  it("refuses a buyer nobody has checked, and one checked but unfunded", () => {
+    // A reveal ends in an introduction, so the gate on approaching a seller is
+    // the gate on paying. Checking after the money has moved is too late for
+    // both sides.
+    const ungraded = quoteReveal({ ...context(), passport: undefined });
+    expect(ungraded.chargeable).toBe(false);
+    expect(ungraded.blockers.map((b) => b.remedy).join(" ")).toContain("destroys its own supply");
+
+    const identifiedOnly = buyerPassport(
+      {
+        identityVerifiedAt: "2026-06-01T00:00:00.000Z",
+        screenedAt: "2026-08-01T00:00:00.000Z",
+      },
+      fromMajor(172_000),
+      NOW,
+    );
+    expect(identifiedOnly.grade).toBe("C");
+    expect(quoteReveal(context({ passport: identifiedOnly })).chargeable).toBe(false);
   });
 
   it("refuses on a property that is already gone, and on a second charge", () => {

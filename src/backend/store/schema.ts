@@ -566,7 +566,8 @@ export type AuditAction =
   | "seller-agreement-recorded"
   | "seller-instruction-recorded"
   | "opportunity-opened"
-  | "opportunity-refunded";
+  | "opportunity-refunded"
+  | "passport-evidence-recorded";
 
 export type SubscriberTokenField = "confirmToken" | "unsubscribeToken";
 

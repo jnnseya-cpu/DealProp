@@ -2,6 +2,7 @@ import { ZERO, type Money } from "@shared/money";
 import { permissionDefinition, type PermissionKey } from "@shared/domain/permissions";
 import { revealPrice, type OpportunityClass } from "@shared/domain/pricing";
 import type { PropertyFacts, PropertyType, Tenure } from "@shared/domain/types";
+import { mayApproachSeller, type Passport } from "@shared/domain/passport";
 import {
   categoryDefect,
   categoryDefinition,
@@ -89,6 +90,15 @@ export interface RevealContext {
   readonly closed?: boolean;
   /** True where this buyer has already paid to open this opportunity. */
   readonly alreadyOpened?: boolean;
+  /**
+   * The buyer's passport.
+   *
+   * Absent means nobody has been graded, which is treated as grade D. A reveal
+   * ends in an introduction, so the gate on approaching a seller is the gate on
+   * paying to open the opportunity — checking readiness after the money has
+   * changed hands is checking it too late for both sides.
+   */
+  readonly passport?: Passport;
 }
 
 export function quoteReveal(context: RevealContext): RevealQuote {
@@ -117,6 +127,22 @@ export function quoteReveal(context: RevealContext): RevealQuote {
       reason: "Nobody connected to the property has confirmed it is for sale.",
       remedy:
         "Contact the owner and record what they said. Until then the opportunity may be shown, with its category, but not sold — a buyer who pays and finds an owner who never agreed to sell has been sold nothing.",
+    });
+  }
+
+  const approach =
+    context.passport === undefined
+      ? {
+          allowed: false,
+          reason:
+            "Nothing is recorded about this buyer. A reveal ends in an introduction, and a seller's patience is finite.",
+        }
+      : mayApproachSeller(context.passport);
+  if (!approach.allowed) {
+    blockers.push({
+      reason: approach.reason,
+      remedy:
+        "Complete the Buyer Readiness Passport: identity, screening and evidence of funds. Spending a motivated seller's time on a buyer with no money is how a marketplace destroys its own supply, and the seller blames whoever introduced them.",
     });
   }
 
