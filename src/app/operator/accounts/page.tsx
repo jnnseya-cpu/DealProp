@@ -30,6 +30,7 @@ export default async function AccountsPage() {
             <Link href="/deals" className="transition hover:text-ink-100">Deals</Link>
             <Link href="/operator/accounts" className="text-ink-100">Accounts</Link>
             <Link href="/operator/audit" className="transition hover:text-ink-100">Audit</Link>
+            <Link href="/operator/conduct" className="transition hover:text-ink-100">Conduct</Link>
             <SignOutButton />
           </nav>
         }

@@ -117,6 +117,10 @@ function offerFor(
     // introduction left to make. A funded deal is still one, because the buyer
     // is buying an introduction to a transaction rather than to a vacancy.
     closed: record.status === "completed" || record.status === "withdrawn",
+    // A recorded listing signal means the property is being advertised: the
+    // signal is derived from a live listing, so its presence with days on
+    // market is the fact that it is on a portal now.
+    openlyAdvertised: (record.listing?.daysOnMarket ?? 0) > 0,
     alreadyOpened: mine !== undefined,
   });
 

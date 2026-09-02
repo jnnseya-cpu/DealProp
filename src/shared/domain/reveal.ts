@@ -91,6 +91,15 @@ export interface RevealContext {
   /** True where this buyer has already paid to open this opportunity. */
   readonly alreadyOpened?: boolean;
   /**
+   * True where the property is currently advertised somewhere public.
+   *
+   * A property on a portal has its agent's telephone number beside it. The fee
+   * would be a toll on information the buyer could have had for nothing, and
+   * they find that out with one search — which is why this is a refusal rather
+   * than a smaller price.
+   */
+  readonly openlyAdvertised?: boolean;
+  /**
    * The buyer's passport.
    *
    * Absent means nobody has been graded, which is treated as grade D. A reveal
@@ -143,6 +152,14 @@ export function quoteReveal(context: RevealContext): RevealQuote {
       reason: approach.reason,
       remedy:
         "Complete the Buyer Readiness Passport: identity, screening and evidence of funds. Spending a motivated seller's time on a buyer with no money is how a marketplace destroys its own supply, and the seller blames whoever introduced them.",
+    });
+  }
+
+  if (context.openlyAdvertised === true) {
+    blockers.push({
+      reason: "This property is openly advertised elsewhere.",
+      remedy:
+        "Nothing is charged for it. The fee buys a verified pack and an introduction to somebody who agreed to be introduced; on a property with an agent's number already beside it on a portal, it would buy information the buyer could have had for nothing.",
     });
   }
 

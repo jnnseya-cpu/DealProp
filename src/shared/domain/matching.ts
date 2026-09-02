@@ -1,5 +1,10 @@
 import { pct, type Bps, type Money } from "@shared/money";
 import { gbp } from "@shared/format";
+import {
+  funderIsVerified,
+  FUNDER_VERIFICATION_MONTHS,
+  type FunderVerification,
+} from "@shared/domain/prohibitions";
 import type {
   DealAppraisal,
   JurisdictionCode,
@@ -97,6 +102,15 @@ export interface FundingBox {
   /** Required annual return, basis points. Equity partners use profit share. */
   readonly requiredReturnBps: Bps;
   readonly personalGuaranteeRequired: boolean;
+  /**
+   * What we checked before letting this funder's capital be advertised.
+   *
+   * Absent means unverified, which is a hard failure in every match. An
+   * unverified private lender advertising capital is how advance-fee fraud
+   * reaches a borrower, and the introduction would have come from us — so this
+   * is evidence with a date and a name on it, never a boolean somebody set.
+   */
+  readonly verification?: FunderVerification;
   readonly active: boolean;
 }
 
@@ -250,10 +264,22 @@ export function matchFundingBox(
   box: FundingBox,
   scored: DealScoreResult,
   borrowerCompletedDeals: number,
+  now: Date = new Date(),
 ): MatchResult<FundingBox> {
   const { api, result } = evaluator();
   const a = scored.appraisal;
   const p = a.inputs.property;
+
+  // First, and hard. Everything below is about whether the mandate fits the
+  // deal; this is about whether the funder should be visible to a borrower at
+  // all, and no amount of fit substitutes for it.
+  api.hard(
+    "Funder verified",
+    funderIsVerified(box.verification, now),
+    box.verification === undefined
+      ? "Nothing has been checked about this funder. Unverified capital is not advertised."
+      : `Verification recorded ${box.verification.verifiedAt.slice(0, 10)} by ${box.verification.verifiedBy}; it stands for ${FUNDER_VERIFICATION_MONTHS} months.`,
+  );
 
   // The funder is being asked for the debt portion, so the ticket is the
   // senior facility, not the whole cost of the project.

@@ -56,6 +56,10 @@ listed honestly in [Not built yet](#not-built-yet).
 | Negotiation | `/deals/[id]/negotiation` | Opening, target, walk-away and floor, computed from the engine |
 | Agents | `/deals/[id]/agents` | The nine agents, what each proposes, and who has to decide |
 | Fees | `/deals/[id]/fees` | What may be invoiced, what is blocking the rest, and raising it |
+| Opportunities | `/opportunities` | The marketplace, ranked by what can be established rather than by discount |
+| Opportunity | `/opportunities/[id]` | Category, score, evidence used and missing, the reveal, the refund claim |
+| Passport | `/account/passport` | Identity, funds and conveyancer — the gate on reaching a seller |
+| Conduct | `/operator/conduct` | The twelve prohibitions and the control enforcing each one |
 | Discovery | `/operator/discovery` | Run discovery, review candidates, approve or suppress |
 | Outreach | `/operator/outreach` | Draft, approve, send; suppression list |
 | Opt out | `/outreach/opt-out` | One click, no account, no confirmation step |

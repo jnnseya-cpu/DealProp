@@ -82,6 +82,7 @@ export default async function BillingPage() {
             <Link href="/deals" className="transition hover:text-ink-100">Deals</Link>
             <Link href="/operator/billing" className="text-ink-100">Billing</Link>
             <Link href="/operator/audit" className="transition hover:text-ink-100">Audit</Link>
+            <Link href="/operator/conduct" className="transition hover:text-ink-100">Conduct</Link>
             <SignOutButton />
           </nav>
         }

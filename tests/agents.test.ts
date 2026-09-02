@@ -121,6 +121,11 @@ const fundingBox: FundingBox = {
   requiresFirstCharge: true,
   minBorrowerCompletedDeals: 0,
   requiredReturnBps: pct(10),
+  verification: {
+    verifiedAt: "2026-08-01T00:00:00.000Z",
+    verifiedBy: "Jo Bloggs",
+    evidence: "Companies House and FCA register checked.",
+  },
   personalGuaranteeRequired: true,
   active: true,
 };

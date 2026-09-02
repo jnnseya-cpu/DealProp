@@ -3,6 +3,7 @@ import { STANDARD_MILESTONES, type Milestone, type MilestoneStatus } from "@shar
 import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { DealInputs, FinanceTerms, PropertyFacts, SellerProfile } from "@shared/domain/types";
 import type { ListingSignal } from "@shared/domain/goldmine";
+import type { FunderVerification } from "@shared/domain/prohibitions";
 import { replaceAll, type DealRecord } from "./repository";
 
 /**
@@ -393,6 +394,22 @@ const BUY_BOXES: BuyBox[] = [
   },
 ];
 
+/**
+ * The verification on every seeded funder.
+ *
+ * Dated relative to when the fixture is loaded rather than pinned to a
+ * calendar date, because a verification stands for twelve months and a pinned
+ * one lapses. A seed whose funders silently become unverifiable a year after
+ * it was written is the same failure as an entitlement limit read from the
+ * wall clock: nothing errors, the page simply starts showing nothing, and
+ * whoever looks at it concludes the matching engine is broken.
+ */
+const SEED_VERIFICATION: FunderVerification = {
+  verifiedAt: new Date().toISOString(),
+  verifiedBy: "Jo Bloggs",
+  evidence: "Companies House record and FCA register entry checked; source of capital confirmed.",
+};
+
 const FUNDING_BOXES: FundingBox[] = [
   {
     id: "fb-001",
@@ -412,6 +429,10 @@ const FUNDING_BOXES: FundingBox[] = [
     requiresFirstCharge: true,
     minBorrowerCompletedDeals: 2,
     requiredReturnBps: pct(9),
+    // Verified before the mandate may be shown to a borrower: an unverified
+    // lender advertising capital is how advance-fee fraud reaches somebody, and
+    // the introduction would have come from us.
+    verification: SEED_VERIFICATION,
     personalGuaranteeRequired: true,
     active: true,
   },
@@ -433,6 +454,10 @@ const FUNDING_BOXES: FundingBox[] = [
     requiresFirstCharge: true,
     minBorrowerCompletedDeals: 5,
     requiredReturnBps: pct(8),
+    // Verified before the mandate may be shown to a borrower: an unverified
+    // lender advertising capital is how advance-fee fraud reaches somebody, and
+    // the introduction would have come from us.
+    verification: SEED_VERIFICATION,
     personalGuaranteeRequired: false,
     active: true,
   },
@@ -454,6 +479,10 @@ const FUNDING_BOXES: FundingBox[] = [
     requiresFirstCharge: false,
     minBorrowerCompletedDeals: 1,
     requiredReturnBps: pct(12),
+    // Verified before the mandate may be shown to a borrower: an unverified
+    // lender advertising capital is how advance-fee fraud reaches somebody, and
+    // the introduction would have come from us.
+    verification: SEED_VERIFICATION,
     personalGuaranteeRequired: false,
     active: true,
   },

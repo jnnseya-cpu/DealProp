@@ -45,7 +45,8 @@ seller-facing options cannot disagree.
 `pricing`, `entitlements`, `ledger`, `charging`, `borrowing`, `fundingMetrics`,
 `negotiation`, `campaign`, `offers`, `agents`, `appraisalRequest`, `identity`,
 `supply`, `permissions`, `fees`,
-`fundingReadiness`, `regulatoryRoute`, `outreach`.
+`fundingReadiness`, `regulatoryRoute`, `outreach`, `inventory`, `reveal`,
+`passport`, `opportunityScore`, `prohibitions`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -55,8 +56,10 @@ Pages: `/` landing, `/appraise` free no-signup appraisal, `/partners` agents,
 professionals and capital, `/sell` intake, `/sell/[id]` seller options, `/deals`
 pipeline, `/deals/[id]` Deal Room, `/deals/[id]/agents` agent board,
 `/deals/[id]/memorandum` print pack,
-`/invest` Buy Boxes, `/capital` Funding Boxes, `/newsletter` (+ confirm,
-unsubscribe), `/operator` sign-in.
+`/invest` Buy Boxes, `/capital` Funding Boxes, `/opportunities` (+ `/[id]`) the
+marketplace, `/account/passport` buyer readiness, `/operator/conduct` the
+prohibitions register, `/newsletter` (+ confirm, unsubscribe), `/operator`
+sign-in.
 Access control: `src/middleware.ts` gates `/deals`, `/invest`, `/capital`,
 `/account` behind either credential and fails closed without `OPERATOR_SECRET`.
 `src/app/operator/guard.ts` is the per-page lock; `src/shared/domain/accounts.ts`
@@ -325,14 +328,52 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     the charge gate and the fee engine from one catalogue. A bare key grants
     nothing and blocks the preflight — the revenue model was previously switched
     off by an unreachable default rather than by a decision.
-61. **A fee needs four things, and money is one of them.** The permission, the
+61. **Stock is three kinds and they are not equivalent.** `inventory.ts` carries
+    the category with the opportunity, and `categoryDefect()` catches a label
+    claiming more than is recorded — in both directions, because under-claiming
+    prices the work wrong too. Money hangs off the recorded confirmation, never
+    the label: a label can be wrong, a confirmation is a fact with a name and a
+    date on it.
+62. **A reveal is refused far more often than it is charged.** No confirmed
+    sale, no estate-agency permissions, an openly advertised property, a second
+    charge, an ungraded buyer — any one of them and nothing is taken. The
+    guarantee is published and applied from one list, and `decideRefund()` needs
+    nobody's agreement, because a guarantee an operator can decline is a
+    concession.
+63. **The card a buyer sees before paying is a closed shape, not a filtered
+    deal.** No address, no seller situation, no return figure. A filter is a
+    list of things somebody remembered to remove; a closed shape is a list of
+    things somebody decided to include, and a test pins the keys.
+64. **Nobody reaches a seller before identity and funding are checked.**
+    `mayApproachSeller()` owns the decision so no call site reads the grade and
+    invents its own. Grade C — we know exactly who they are and nothing else —
+    is the refusal that matters.
+65. **A score is capped by what can be proved.** Low confidence caps at 40, and
+    the number is load-bearing: at 55 an unevidenced 62 still beats an evidenced
+    42, which is the ordering §18 exists to prevent. Every score publishes its
+    confidence, evidence used, evidence missing, calculation date, principal
+    reasons and principal risks.
+66. **The twelve prohibitions each name the control that enforces them.**
+    `prohibitions.ts` is the register and a test walks its citations, failing if
+    one names a function nobody wrote — the failure mode of every compliance
+    register is a note that reads as a control and is not one.
+67. **A fee needs four things, and money is one of them.** The permission, the
     stage, the disclosure to the seller and a named person raising it.
-    `fees.ts` reports every missing one at once. The seller is never a payer:
-    there is no code path that bills them and a test asserts there cannot be.
+    `fees.ts` reports every missing one at once. The seller pays exactly one
+    fee — a percentage of the price achieved, on completion and at no other
+    point — and it needs two more things again: their signature, and that they
+    are not still instructed under sole agency or sole selling rights, where a
+    fee on top would make them pay twice for one completion.
 
 ### Outstanding
 
-- Payments. Nothing charges anybody; `revenue.ts` models it and stops there.
+- Payments. `authorisePurchase()` prices a plan, a pack and a reveal, and
+  `/api/billing/webhook` verifies an inbound event, but no provider is
+  connected and nothing takes a card.
+- Portfolio OS. §19's last step — the property entering the buyer's portfolio
+  after completion — is not built.
+- Stripe Connect payouts to providers and agents. `providerFee()` computes the
+  share; nothing pays it out.
 - GoldMine live import — parsers exist and are fixture-tested; no live call has
   been made (egress blocked in the build environment). Verify before relying.
 

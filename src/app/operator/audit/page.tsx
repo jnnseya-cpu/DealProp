@@ -36,6 +36,7 @@ export default async function AuditPage() {
           <nav className="flex items-center gap-6 text-sm text-ink-400">
             <Link href="/deals" className="transition hover:text-ink-100">Deals</Link>
             <Link href="/operator/audit" className="text-ink-100">Audit</Link>
+            <Link href="/operator/conduct" className="transition hover:text-ink-100">Conduct</Link>
             <SignOutButton />
           </nav>
         }
