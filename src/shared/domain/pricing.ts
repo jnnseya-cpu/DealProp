@@ -1,4 +1,5 @@
-import { fromMajor, money, scale, sub, ZERO, type Money } from "@shared/money";
+import { applyBps, fromMajor, money, pct, scale, sub, ZERO, type Bps, type Money } from "@shared/money";
+import { gbp, percent } from "@shared/format";
 
 /**
  * The chargeable catalogue: every price this platform may ask anybody for.
@@ -293,7 +294,7 @@ export const PLANS: readonly Plan[] = [
     audience: "buyer",
     name: "Investor",
     summary: "Deal alerts and full search.",
-    price: fromMajor(49),
+    price: fromMajor(39),
     statedAs: "inclusive",
     features: ["Full opportunity search", "Three Buy Boxes", "Deal alerts", "Full Deal Score breakdown"],
     limits: { ...NOTHING, maxBuyBoxes: 3, fullDealScore: true },
@@ -301,9 +302,9 @@ export const PLANS: readonly Plan[] = [
   {
     id: "buyer-dealmaker",
     audience: "buyer",
-    name: "DealMaker",
-    summary: "Analysis and structuring.",
-    price: fromMajor(149),
+    name: "Acquisition",
+    summary: "Analysis, structuring and negotiation.",
+    price: fromMajor(129),
     statedAs: "inclusive",
     features: ["Strategy Router", "Red Team stress testing", "Capital Stack builder", "GoldMine access", "Monthly AI credits"],
     limits: {
@@ -344,7 +345,7 @@ export const PLANS: readonly Plan[] = [
     audience: "buyer",
     name: "Business",
     summary: "Teams, automation and API.",
-    price: fromMajor(999),
+    price: fromMajor(1_500),
     statedAs: "exclusive",
     features: ["Team accounts", "Portfolio sourcing", "API access", "Custom underwriting rules"],
     limits: {
@@ -427,6 +428,326 @@ export const FREE_PLAN_ID: PlanId = "buyer-explorer";
  * fifty pounds of usage whenever it is spent, and repricing an operation
  * reprices it for everyone at once.
  */
+/* ------------------------------------------------- the marketplace model */
+
+/**
+ * The five stages a transaction earns at.
+ *
+ * The point of the model is that one completed property produces several
+ * revenue events rather than one, so a deal that dies at stage three has still
+ * paid for the work done up to it. The seller pays at exactly one of them, and
+ * it is the last.
+ */
+export type RevenueStage = "discovery" | "analysis" | "negotiation" | "services" | "completion";
+
+/**
+ * What kind of opportunity is being unlocked.
+ *
+ * Reveal is priced by what the pack is worth to a buyer, not by what the
+ * property is worth — a land opportunity takes an order of magnitude more
+ * verification than a three-bed terrace, and that is what is being sold.
+ */
+export type OpportunityClass =
+  | "standard-residential"
+  | "owner-verified"
+  | "vacant-refurbishment"
+  | "hmo-mixed-use"
+  | "small-development"
+  | "commercial"
+  | "land"
+  | "portfolio";
+
+export interface RevealPrice {
+  readonly opportunity: OpportunityClass;
+  readonly label: string;
+  /** The floor and ceiling of the band, so a page can state a range honestly. */
+  readonly from: Money;
+  readonly to: Money;
+  /** What is actually charged unless an operator prices the opportunity itself. */
+  readonly standard: Money;
+}
+
+/**
+ * Reveal prices.
+ *
+ * The fee buys a verified opportunity pack, a controlled introduction and the
+ * transaction intelligence around it. It does not buy an address: charging to
+ * unlock a telephone number that is already on a portal is the thing that makes
+ * a buyer feel cheated the first time they check, and it is prohibited outright
+ * in the specification's own list of what not to do.
+ */
+export const REVEAL_PRICES: readonly RevealPrice[] = [
+  { opportunity: "standard-residential", label: "Standard residential", from: fromMajor(29), to: fromMajor(49), standard: fromMajor(39) },
+  { opportunity: "owner-verified", label: "Owner-verified motivated seller", from: fromMajor(79), to: fromMajor(149), standard: fromMajor(99) },
+  { opportunity: "vacant-refurbishment", label: "Vacant or refurbishment", from: fromMajor(99), to: fromMajor(199), standard: fromMajor(149) },
+  { opportunity: "hmo-mixed-use", label: "HMO or small mixed-use", from: fromMajor(149), to: fromMajor(299), standard: fromMajor(199) },
+  { opportunity: "small-development", label: "Small development", from: fromMajor(249), to: fromMajor(499), standard: fromMajor(349) },
+  { opportunity: "commercial", label: "Commercial", from: fromMajor(299), to: fromMajor(750), standard: fromMajor(495) },
+  { opportunity: "land", label: "Land", from: fromMajor(399), to: fromMajor(1_500), standard: fromMajor(750) },
+  { opportunity: "portfolio", label: "Portfolio disposal", from: fromMajor(750), to: fromMajor(2_500), standard: fromMajor(1_250) },
+];
+
+export function revealPrice(opportunity: OpportunityClass): RevealPrice {
+  const found = REVEAL_PRICES.find((r) => r.opportunity === opportunity);
+  if (found === undefined) throw new Error(`No reveal price for "${opportunity}".`);
+  return found;
+}
+
+/**
+ * Acquisition Credit Units.
+ *
+ * Platform units rather than exposed model tokens, so the provider behind an
+ * analysis can change without repricing the product. They are still money: an
+ * ACU is bought with cash, sits in the same append-only ledger as everything
+ * else, and a bonus lot has no cash behind it and can never be refunded out.
+ *
+ * `pence` is what one ACU cost at the headline package, and exists so a page
+ * can show a function's cost in real money rather than in a currency the reader
+ * has to learn before they can judge whether it is dear.
+ */
+export const ACU_HEADLINE_PENCE = 10;
+
+export interface AcuPackage {
+  readonly id: string;
+  readonly name: string;
+  readonly price: Money;
+  readonly acus: number;
+  readonly statedAs: TaxTreatmentOfPrice;
+}
+
+export const ACU_PACKAGES: readonly AcuPackage[] = [
+  { id: "acu-trial", name: "Trial", price: ZERO, acus: 30, statedAs: "inclusive" },
+  { id: "acu-starter", name: "Starter", price: fromMajor(10), acus: 100, statedAs: "inclusive" },
+  { id: "acu-investor", name: "Investor", price: fromMajor(45), acus: 500, statedAs: "inclusive" },
+  { id: "acu-acquisition", name: "Acquisition", price: fromMajor(160), acus: 2_000, statedAs: "inclusive" },
+  { id: "acu-professional", name: "Professional", price: fromMajor(650), acus: 10_000, statedAs: "inclusive" },
+];
+
+export function acuPackage(id: string): AcuPackage | undefined {
+  return ACU_PACKAGES.find((p) => p.id === id);
+}
+
+export type AcuFunction =
+  | "quick-score"
+  | "comparable-sales"
+  | "rental-yield"
+  | "refurbishment-estimate"
+  | "planning-potential"
+  | "title-risk"
+  | "full-appraisal"
+  | "offer-strategy"
+  | "seller-questions"
+  | "negotiation-round"
+  | "negotiation-mandate"
+  | "development-residual"
+  | "finance-comparison"
+  | "portfolio-impact"
+  | "transaction-monitoring"
+  | "investment-committee-report";
+
+/**
+ * What each analysis costs in ACUs.
+ *
+ * The negotiation mandate is a range in the specification because its cost
+ * depends on how many rounds it runs. It is priced here at its floor and each
+ * round is charged as it happens, so a buyer is never billed for negotiation
+ * that did not take place.
+ */
+export const ACU_COSTS: Record<AcuFunction, number> = {
+  "quick-score": 3,
+  "comparable-sales": 10,
+  "rental-yield": 8,
+  "refurbishment-estimate": 15,
+  "planning-potential": 20,
+  "title-risk": 20,
+  "full-appraisal": 30,
+  "offer-strategy": 12,
+  "seller-questions": 5,
+  "negotiation-round": 15,
+  "negotiation-mandate": 75,
+  "development-residual": 50,
+  "finance-comparison": 15,
+  "portfolio-impact": 25,
+  "transaction-monitoring": 5,
+  "investment-committee-report": 75,
+};
+
+export function acuCost(fn: AcuFunction): number {
+  return ACU_COSTS[fn];
+}
+
+/** An ACU cost in money, so a page can show both. */
+export function acuAsMoney(acus: number): Money {
+  return money(acus * ACU_HEADLINE_PENCE);
+}
+
+/**
+ * The seller's success fee.
+ *
+ * The one charge the seller pays, and only on completion. Banded with a floor
+ * and a ceiling because a percentage alone is wrong at both ends: 0.60% of a
+ * £90,000 terrace does not cover the work, and 0.60% of a £2m portfolio is a
+ * number nobody would agree to.
+ */
+export type SellerService = "standard" | "managed";
+
+export interface SuccessFeeBand {
+  readonly service: SellerService;
+  readonly label: string;
+  readonly rateBps: Bps;
+  readonly minimum: Money;
+  /** Undefined where the fee is negotiated rather than capped. */
+  readonly maximum?: Money;
+  readonly includes: readonly string[];
+}
+
+export const SUCCESS_FEE_BANDS: readonly SuccessFeeBand[] = [
+  {
+    service: "standard",
+    label: "Standard sale",
+    rateBps: pct(0.6),
+    minimum: fromMajor(1_250),
+    maximum: fromMajor(7_500),
+    includes: [
+      "Buyer identity and funding verification",
+      "Offer comparison and structured negotiation",
+      "Transaction progression to completion",
+    ],
+  },
+  {
+    service: "managed",
+    label: "AI-managed premium sale",
+    rateBps: pct(1),
+    minimum: fromMajor(2_500),
+    includes: [
+      "Everything in the standard sale",
+      "Human-reviewed negotiation",
+      "Reserve-buyer management if the transaction fails",
+    ],
+  },
+];
+
+export function successFeeBand(service: SellerService): SuccessFeeBand {
+  const found = SUCCESS_FEE_BANDS.find((b) => b.service === service);
+  if (found === undefined) throw new Error(`No success fee band for "${service}".`);
+  return found;
+}
+
+/**
+ * The seller's fee on a completed sale.
+ *
+ * Computed here and nowhere else. The floor and the ceiling are applied after
+ * the percentage, in that order, so a small sale pays the minimum and a large
+ * one pays the cap rather than the percentage.
+ */
+export function successFee(salePrice: Money, service: SellerService): Money {
+  const band = successFeeBand(service);
+  const percentage = applyBps(salePrice, band.rateBps);
+  const floored = percentage < band.minimum ? band.minimum : percentage;
+  if (band.maximum === undefined) return floored;
+  return floored > band.maximum ? band.maximum : floored;
+}
+
+/**
+ * The seller's headline, in one sentence, stated from the band.
+ *
+ * Exists so no page has to restate a rate or a floor. A percentage published
+ * on a landing page and charged at a different one is a refund and a
+ * complaint, and the version the seller read is never the one that loses.
+ */
+export function sellerFeeHeadline(service: SellerService = "standard"): string {
+  const band = successFeeBand(service);
+  const floor = `minimum ${gbp(band.minimum)}`;
+  const cap = band.maximum === undefined ? "" : `, capped at ${gbp(band.maximum)}`;
+  return `${percent(band.rateBps, 2)} of the price achieved, ${floor}${cap}`;
+}
+
+/**
+ * What a service provider pays when the platform wins them the work.
+ *
+ * Deliberately not one rate. A conveyancer's fee is largely fixed and a
+ * percentage of it is a rounding error to us and an irritation to them; a
+ * contractor's job is large and variable and a percentage is the only thing
+ * that scales. `fixed` and `rateBps` are exclusive — one or the other, never
+ * both, so nobody has to work out which applied.
+ */
+export type ProviderKind =
+  | "conveyancer"
+  | "surveyor"
+  | "structural-engineer"
+  | "valuer"
+  | "epc-assessor"
+  | "photographer"
+  | "contractor"
+  | "removals"
+  | "property-manager"
+  | "letting-agent"
+  | "auctioneer"
+  | "broker"
+  | "insurance"
+  | "utilities";
+
+export interface ProviderCommission {
+  readonly kind: ProviderKind;
+  readonly label: string;
+  /** A fixed fee per completed instruction, in pence. */
+  readonly fixed?: Money;
+  /** A share of what the provider is paid. */
+  readonly rateBps?: Bps;
+  readonly basis: string;
+  /**
+   * True where the arrangement itself needs an authorisation before any money
+   * changes hands. A broker referral is a regulated introduction; a removals
+   * commission is not.
+   */
+  readonly requiresAuthorisedArrangement: boolean;
+}
+
+export const PROVIDER_COMMISSIONS: readonly ProviderCommission[] = [
+  { kind: "conveyancer", label: "Conveyancer", fixed: fromMajor(200), basis: "Per completed instruction.", requiresAuthorisedArrangement: false },
+  { kind: "surveyor", label: "Surveyor", rateBps: pct(10), basis: "Of the fee the surveyor is paid.", requiresAuthorisedArrangement: false },
+  { kind: "structural-engineer", label: "Structural engineer", rateBps: pct(10), basis: "Of the fee the engineer is paid.", requiresAuthorisedArrangement: false },
+  { kind: "valuer", label: "Valuer", rateBps: pct(10), basis: "Of the fee the valuer is paid.", requiresAuthorisedArrangement: false },
+  { kind: "epc-assessor", label: "EPC assessor", fixed: fromMajor(17.5), basis: "Per completed booking.", requiresAuthorisedArrangement: false },
+  { kind: "photographer", label: "Photography and floor plans", rateBps: pct(12.5), basis: "Of the booking value.", requiresAuthorisedArrangement: false },
+  { kind: "contractor", label: "Refurbishment contractor", rateBps: pct(6.5), basis: "Of the contract value won through the platform.", requiresAuthorisedArrangement: false },
+  { kind: "removals", label: "Removals", rateBps: pct(10), basis: "Of the booking value.", requiresAuthorisedArrangement: false },
+  { kind: "property-manager", label: "Property manager", rateBps: pct(8), basis: "Of the first month's management fee.", requiresAuthorisedArrangement: false },
+  { kind: "letting-agent", label: "Letting agent", fixed: fromMajor(150), basis: "Per completed referral.", requiresAuthorisedArrangement: false },
+  { kind: "auctioneer", label: "Auctioneer", rateBps: pct(10), basis: "Agreed revenue share.", requiresAuthorisedArrangement: false },
+  { kind: "broker", label: "Mortgage or bridging broker", rateBps: pct(20), basis: "Of the broker's own fee, under an authorised introducer agreement.", requiresAuthorisedArrangement: true },
+  { kind: "insurance", label: "Insurance", rateBps: pct(15), basis: "Under an authorised affiliate agreement.", requiresAuthorisedArrangement: true },
+  { kind: "utilities", label: "Utilities and broadband", rateBps: pct(20), basis: "Affiliate commission.", requiresAuthorisedArrangement: false },
+];
+
+export function providerCommission(kind: ProviderKind): ProviderCommission {
+  const found = PROVIDER_COMMISSIONS.find((p) => p.kind === kind);
+  if (found === undefined) throw new Error(`No commission recorded for "${kind}".`);
+  return found;
+}
+
+/**
+ * What the platform earns from one provider engagement.
+ *
+ * `paidToProvider` is what the customer paid the provider. The commission is a
+ * share of that, never a mark-up on top of it — a mark-up is a different
+ * product and a different disclosure.
+ */
+export function providerFee(kind: ProviderKind, paidToProvider: Money): Money {
+  const commission = providerCommission(kind);
+  if (commission.fixed !== undefined) return commission.fixed;
+  if (commission.rateBps !== undefined) return applyBps(paidToProvider, commission.rateBps);
+  return ZERO;
+}
+
+/** The managed acquisition service, priced three ways for three kinds of buyer. */
+export const MANAGED_ACQUISITION = {
+  setup: fromMajor(299),
+  monthlyRetainer: { from: fromMajor(499), to: fromMajor(1_500) },
+  completionRateBps: { from: pct(0.25), to: pct(0.5) },
+  fixedCompletionFee: { from: fromMajor(1_500), to: fromMajor(5_000) },
+} as const;
+
 export interface CreditPack {
   readonly id: string;
   readonly price: Money;

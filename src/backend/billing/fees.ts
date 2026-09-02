@@ -4,10 +4,14 @@ import { toWorkingDeal } from "@shared/domain/workingDeal";
 import {
   feeDefinition,
   feePosition,
+  type AgentInstruction,
   type FeeDisclosure,
   type FeeKey,
   type FeePosition,
+  type InstructionKind,
+  type SellerAgreement,
 } from "@shared/domain/fees";
+import type { SellerService } from "@shared/domain/pricing";
 import { authoriseDecision, type Actor } from "@shared/domain/agents";
 import { permissionsHeld } from "@backend/permissions";
 import { audit } from "@backend/audit";
@@ -57,6 +61,10 @@ async function buildPosition(record: DealRecord): Promise<FeeView> {
       status: record.status,
       permissionsHeld: permissionsHeld(),
       ...(record.feeDisclosure !== undefined ? { disclosure: record.feeDisclosure } : {}),
+      ...(record.sellerAgreement !== undefined ? { sellerAgreement: record.sellerAgreement } : {}),
+      ...(record.existingInstruction !== undefined
+        ? { existingInstruction: record.existingInstruction }
+        : {}),
       raised: live.map((f) => f.feeKey),
     }),
   };
@@ -107,6 +115,95 @@ export async function recordFeeDisclosure(
   return {
     ok: true,
     message: `Recorded against ${actor.name}. The fees named in it are now collectable on this deal.`,
+  };
+}
+
+/** The terms version signed. Bumped when the seller-facing fee terms change. */
+export const SELLER_TERMS_VERSION = "seller-terms-1";
+
+/**
+ * Record that the seller signed, and for which service.
+ *
+ * Written once per signature rather than edited, in the sense that re-signing
+ * replaces the whole agreement including its version. A fee changed after
+ * signature is the old fee; storing the version is what makes that provable
+ * rather than asserted.
+ */
+export async function recordSellerAgreement(
+  dealId: string,
+  service: SellerService,
+  note: string,
+  actor: Actor,
+): Promise<FeeOutcome> {
+  const authorisation = authoriseDecision(actor, note);
+  if (!authorisation.ok) return { ok: false, message: authorisation.reason };
+  if (actor.kind !== "account") return { ok: false, message: authorisation.reason };
+
+  const record = await getDeal(dealId);
+  if (record === undefined) return { ok: false, message: "No such deal." };
+
+  const agreement: SellerAgreement = {
+    signedAt: new Date().toISOString(),
+    signedBy: note.trim(),
+    service,
+    termsVersion: SELLER_TERMS_VERSION,
+  };
+  await saveDeal({ ...record, sellerAgreement: agreement });
+  await audit("seller-agreement-recorded", {
+    account: { id: actor.id, email: actor.email },
+    subject: dealId,
+    detail: `${service} · ${agreement.termsVersion} · signed by ${agreement.signedBy}`,
+  });
+
+  return {
+    ok: true,
+    message: `Recorded: ${agreement.signedBy} signed the ${service} terms, against ${actor.name}.`,
+  };
+}
+
+/**
+ * Record what the seller is already instructed to, and whether it has ended.
+ *
+ * The question is asked because the answer decides whether the seller would be
+ * paying twice, and there is no way to find it out from the property. It is
+ * therefore recorded from what the seller says, with the person who asked
+ * named — an unanswered question is not the same as "none", and `undefined`
+ * here means nobody asked.
+ */
+export async function recordExistingInstruction(
+  dealId: string,
+  kind: InstructionKind,
+  agent: string,
+  released: boolean,
+  actor: Actor,
+): Promise<FeeOutcome> {
+  const named = agent.trim();
+  const authorisation = authoriseDecision(actor, named === "" ? "" : named);
+  if (!authorisation.ok) return { ok: false, message: authorisation.reason };
+  if (actor.kind !== "account") return { ok: false, message: authorisation.reason };
+
+  const record = await getDeal(dealId);
+  if (record === undefined) return { ok: false, message: "No such deal." };
+
+  const instruction: AgentInstruction = {
+    kind,
+    agent: named,
+    ...(released
+      ? { releasedAt: new Date().toISOString(), releasedBy: actor.name }
+      : {}),
+  };
+  await saveDeal({ ...record, existingInstruction: instruction });
+  await audit("seller-instruction-recorded", {
+    account: { id: actor.id, email: actor.email },
+    subject: dealId,
+    detail: `${kind} · ${named}${released ? " · released" : ""}`,
+  });
+
+  return {
+    ok: true,
+    message: released
+      ? `Recorded as released, against ${actor.name}. The seller fee is no longer blocked by it.`
+      : `Recorded, against ${actor.name}.`,
   };
 }
 

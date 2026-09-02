@@ -3,13 +3,17 @@ import { bps, fromMajor, pct, toMajor, ZERO } from "@shared/money";
 import { appraise } from "@shared/domain/economics";
 import type { DealInputs, FinanceTerms, PropertyFacts, SellerProfile } from "@shared/domain/types";
 import {
+  bindsSellerElsewhere,
   chargeableFees,
   feeAmount,
   feePosition,
   FEE_DEFINITIONS,
+  type AgentInstruction,
   type FeeContext,
   type FeeKey,
+  type SellerAgreement,
 } from "@shared/domain/fees";
+import { sellerFeeHeadline, successFee, successFeeBand } from "@shared/domain/pricing";
 import { DEFAULT_ASSUMPTIONS, STREAMS, dealRevenue } from "@shared/domain/revenue";
 import { readPermissions, heldKeys, PERMISSIONS } from "@shared/domain/permissions";
 
@@ -74,6 +78,13 @@ const EVERYTHING = heldKeys(
   ),
 );
 
+const SIGNED: SellerAgreement = {
+  signedAt: "2026-07-20T00:00:00.000Z",
+  signedBy: "A. Okafor",
+  service: "standard",
+  termsVersion: "seller-terms-1",
+};
+
 function context(overrides: Partial<FeeContext> = {}): FeeContext {
   return {
     appraisal: APPRAISAL,
@@ -81,6 +92,7 @@ function context(overrides: Partial<FeeContext> = {}): FeeContext {
     permissionsHeld: EVERYTHING,
     disclosure: DISCLOSED,
     raised: [],
+    sellerAgreement: SIGNED,
     ...overrides,
   };
 }
@@ -92,13 +104,15 @@ function fee(key: FeeKey, ctx: FeeContext) {
 }
 
 describe("the catalogue", () => {
-  it("never invoices the seller", () => {
-    // The seller is the supply engine and is not charged. There is no code
-    // path that bills them and there must never be one.
-    for (const definition of FEE_DEFINITIONS) {
-      expect(definition.payer, definition.key).not.toBe("seller");
-      expect(["buyer", "lender"]).toContain(definition.payer);
-    }
+  it("charges the seller once, on completion, and at no other stage", () => {
+    // The proposition is "pay only when your property sells". One seller-paid
+    // fee exists; if a second ever appears, or the first becomes due before
+    // completion, the proposition is false and this fails.
+    const sellerPaid = FEE_DEFINITIONS.filter((d) => d.payer === "seller");
+    expect(sellerPaid).toHaveLength(1);
+    expect(sellerPaid[0]?.key).toBe("seller-success-fee");
+    expect(sellerPaid[0]?.dueAt).toEqual(["completed"]);
+    expect(sellerPaid[0]?.requiresSellerDisclosure).toBe(true);
   });
 
   it("names permissions that exist in the catalogue", () => {
@@ -115,7 +129,9 @@ describe("the catalogue", () => {
     const revenue = dealRevenue(APPRAISAL, { ...DEFAULT_ASSUMPTIONS, permissionsHeld: EVERYTHING });
     for (const definition of FEE_DEFINITIONS) {
       const line = revenue.lines.find((l) => l.stream === definition.stream);
-      expect(line?.amount, definition.key).toBe(feeAmount(definition.key, APPRAISAL));
+      expect(line?.amount, definition.key).toBe(
+        feeAmount(definition.key, { appraisal: APPRAISAL, sellerAgreement: SIGNED }),
+      );
     }
   });
 });
@@ -182,14 +198,107 @@ describe("what stops a fee", () => {
   });
 });
 
+describe("the seller success fee", () => {
+  const instructed = (kind: AgentInstruction["kind"], released = false): AgentInstruction => ({
+    kind,
+    agent: "Marsh & Co",
+    ...(released ? { releasedAt: "2026-07-01T00:00:00.000Z", releasedBy: "Jo Bloggs" } : {}),
+  });
+
+  it("is the banded price from the catalogue, not a bare percentage", () => {
+    const charged = fee("seller-success-fee", context()).amount;
+    expect(charged).toBe(successFee(APPRAISAL.inputs.purchasePrice, "standard"));
+
+    // A £172,000 sale at 0.60% is £1,032, which is below the floor.
+    expect(toMajor(charged)).toBe(1_250);
+
+    // The managed service is a different signed service and a different price.
+    const managed = fee(
+      "seller-success-fee",
+      context({ sellerAgreement: { ...SIGNED, service: "managed" } }),
+    ).amount;
+    expect(toMajor(managed)).toBe(2_500);
+  });
+
+  it("refuses without a signed agreement", () => {
+    const unsigned = fee("seller-success-fee", context({ sellerAgreement: undefined }));
+    expect(unsigned.chargeable).toBe(false);
+    expect(unsigned.blockers.map((b) => b.reason).join(" ")).toContain("has not signed");
+
+    // The amount is still quoted, because showing a seller what it would cost
+    // is not charging them.
+    expect(unsigned.amount).toBeGreaterThan(ZERO);
+  });
+
+  it("refuses while the seller is bound to another agent, and says why", () => {
+    for (const kind of ["sole-selling-rights", "sole-agency"] as const) {
+      const bound = fee("seller-success-fee", context({ existingInstruction: instructed(kind) }));
+      expect(bound.chargeable, kind).toBe(false);
+      const said = bound.blockers.map((b) => `${b.reason} ${b.remedy}`).join(" ");
+      expect(said, kind).toContain("Marsh & Co");
+      expect(said, kind).toContain("pay twice");
+    }
+  });
+
+  it("clears once the instruction is released, and never blocked multi-agency", () => {
+    expect(
+      fee("seller-success-fee", context({ existingInstruction: instructed("sole-agency", true) }))
+        .chargeable,
+    ).toBe(true);
+
+    // Under multi-agency the seller has already accepted that whoever
+    // introduces the buyer is paid. That is the arrangement we are part of.
+    expect(bindsSellerElsewhere(instructed("multi-agency"))).toBe(false);
+    expect(
+      fee("seller-success-fee", context({ existingInstruction: instructed("multi-agency") }))
+        .chargeable,
+    ).toBe(true);
+  });
+
+  it("is not payable on a sale that did not complete", () => {
+    for (const status of ["new", "qualified", "in-market", "funded"] as const) {
+      const early = fee("seller-success-fee", context({ status }));
+      expect(early.chargeable, status).toBe(false);
+    }
+  });
+});
+
+describe("what the seller is told the fee is", () => {
+  it("states the rate, the floor and the cap the engine actually charges", () => {
+    // A rate published on one page and charged from another eventually
+    // disagree, and the version the seller read is never the one that loses.
+    const band = successFeeBand("standard");
+    const headline = sellerFeeHeadline();
+    expect(headline).toContain("0.60%");
+    expect(headline).toContain("£1,250");
+    expect(headline).toContain("£7,500");
+
+    // At a price between the floor and the cap the percentage is what is
+    // charged, so the sentence describes the arithmetic rather than decorating
+    // it.
+    const midMarket = fromMajor(500_000);
+    expect(successFee(midMarket, "standard")).toBe(
+      (midMarket * band.rateBps) / 10_000,
+    );
+  });
+
+  it("does not offer a cap it has not got", () => {
+    // The managed service is negotiated at the top end rather than capped, so
+    // the sentence must not imply a ceiling.
+    expect(sellerFeeHeadline("managed")).not.toContain("capped");
+    expect(successFeeBand("managed").maximum).toBeUndefined();
+  });
+});
+
 describe("the position on a deal", () => {
   it("adds up only what may be invoiced now", () => {
     const position = feePosition(context());
-    expect(position.fees).toHaveLength(3);
+    expect(position.fees).toHaveLength(FEE_DEFINITIONS.length);
     expect(position.chargeableNow).toBe(
-      feeAmount("deal-packaging", APPRAISAL) +
-        feeAmount("deal-success-fee", APPRAISAL) +
-        feeAmount("funding-introduction", APPRAISAL),
+      feeAmount("deal-packaging", { appraisal: APPRAISAL }) +
+        feeAmount("deal-success-fee", { appraisal: APPRAISAL }) +
+        feeAmount("seller-success-fee", { appraisal: APPRAISAL, sellerAgreement: SIGNED }) +
+        feeAmount("funding-introduction", { appraisal: APPRAISAL }),
     );
     expect(position.blocked).toBe(ZERO);
     expect(position.summary).toContain("may be invoiced now");
@@ -199,7 +308,7 @@ describe("the position on a deal", () => {
     const position = feePosition(
       context({ status: "in-market", raised: ["deal-packaging"] }),
     );
-    expect(toMajor(position.raised)).toBe(toMajor(feeAmount("deal-packaging", APPRAISAL)));
+    expect(toMajor(position.raised)).toBe(toMajor(feeAmount("deal-packaging", { appraisal: APPRAISAL })));
     expect(position.blocked).toBeGreaterThan(ZERO);
     expect(position.chargeableNow).toBe(ZERO);
   });

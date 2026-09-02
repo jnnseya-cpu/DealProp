@@ -13,7 +13,13 @@ import type {
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { AgentDecision } from "@shared/domain/agents";
-import type { FeeDisclosure, FeeKey, FeePayer } from "@shared/domain/fees";
+import type {
+  AgentInstruction,
+  FeeDisclosure,
+  FeeKey,
+  FeePayer,
+  SellerAgreement,
+} from "@shared/domain/fees";
 import type { CreditLot, LedgerEntry } from "@shared/domain/ledger";
 import type { Subscription } from "@shared/domain/entitlements";
 import type { Money } from "@shared/money";
@@ -64,6 +70,23 @@ export interface DealRecord {
    * late, and a fee they were never told about is unenforceable.
    */
   readonly feeDisclosure?: FeeDisclosure;
+  /**
+   * What the seller signed, and for which service.
+   *
+   * Absent means nothing was signed, and the seller success fee is refused —
+   * a percentage nobody agreed to is not a fee. The terms version is recorded
+   * so a later repricing cannot be applied backwards to a signed agreement.
+   */
+  readonly sellerAgreement?: SellerAgreement;
+  /**
+   * An estate-agency instruction already running on the property.
+   *
+   * Under sole agency or sole selling rights the existing agent is paid on a
+   * sale whoever introduced the buyer, so charging on top of it makes the
+   * seller pay twice for one completion. Recorded here so the fee engine can
+   * refuse until the release is recorded.
+   */
+  readonly existingInstruction?: AgentInstruction;
   /**
    * The deal owner's consent to identify this transaction to a third party.
    *
@@ -492,7 +515,9 @@ export type AuditAction =
   | "agent-proposal-dismissed"
   | "fee-raised"
   | "fee-voided"
-  | "fee-disclosure-recorded";
+  | "fee-disclosure-recorded"
+  | "seller-agreement-recorded"
+  | "seller-instruction-recorded";
 
 export type SubscriberTokenField = "confirmToken" | "unsubscribeToken";
 

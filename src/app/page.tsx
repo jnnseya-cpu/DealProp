@@ -15,6 +15,7 @@ import { SiteFooter } from "@/app/components/SiteFooter";
 import { gbp, gbpSigned, percent } from "@shared/format";
 import { Button, Mark, scoreBg, scoreTone, VERDICT_TONE } from "@/app/components/chrome";
 import { BUYER_TIERS } from "@shared/domain/revenue";
+import { sellerFeeHeadline } from "@shared/domain/pricing";
 
 /*
  * Recomputed at most every five minutes.
@@ -181,8 +182,9 @@ function Hero({ routes, supply }: { routes: SellerRoutesReport; supply: SupplyPo
             <Button href="/appraise">Appraise a deal instead</Button>
           </div>
           <p className="mt-3 text-[13px] text-ink-500">
-            Sellers are never charged and nobody phones you unless you ask. Buying rather than
-            selling? The appraisal needs no account.
+            Seeing your options is free and nobody phones you unless you ask. If you go on to sell
+            through us we charge {sellerFeeHeadline()} — and nothing at all if it does not sell.
+            Buying rather than selling? The appraisal needs no account.
           </p>
 
           {/*

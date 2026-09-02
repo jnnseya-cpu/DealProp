@@ -1,14 +1,23 @@
 import { add, applyBps, fromMajor, pct, ZERO, type Bps, type Money } from "@shared/money";
 import type { DealAppraisal } from "@shared/domain/types";
-import { PLANS, type PlanAudience } from "@shared/domain/pricing";
+import {
+  plan,
+  successFee,
+  successFeeBand,
+  type PlanAudience,
+  type SellerService,
+} from "@shared/domain/pricing";
+import { PLANS } from "@shared/domain/pricing";
 import { permissionDefinition, type PermissionKey } from "@shared/domain/permissions";
 
 /**
  * Monetisation model.
  *
- * The strategic position encoded here: the motivated seller is the supply
- * engine and is not charged. Revenue comes from the professionals, capital and
- * completed transactions that gather around the opportunity.
+ * The strategic position encoded here: nobody pays to be introduced to a
+ * possibility. The seller pays a percentage of a completed sale and nothing at
+ * any other point; the buyer pays for access, analysis and the transaction;
+ * the capital and the professionals pay for qualified flow. Every charge on
+ * the list attaches to something that has actually happened.
  *
  * REGULATORY DEPENDENCY: several of these streams are only lawful with the
  * right permissions. Success fees on introductions engage estate agency and
@@ -20,6 +29,7 @@ import { permissionDefinition, type PermissionKey } from "@shared/domain/permiss
 
 export type RevenueStream =
   | "buyer-subscription"
+  | "seller-success-fee"
   | "deal-success-fee"
   | "funding-introduction"
   | "deal-packaging"
@@ -52,6 +62,14 @@ export const STREAMS: readonly StreamDefinition[] = [
     payer: "Investors and dealmakers",
     recurring: true,
     note: "Recurring access to opportunities, analysis and structuring. The cleanest revenue on the platform: no permission dependency, no transaction linkage.",
+  },
+  {
+    key: "seller-success-fee",
+    label: "Seller success fee",
+    payer: "Seller",
+    recurring: false,
+    requiresPermissions: ["estate-agency-aml", "redress-scheme"],
+    note: "A percentage of the price achieved, due on completion and at no other point. Selling a property for a fee is estate agency work: it needs AML supervision, redress-scheme membership, and the fee disclosed to the seller before they are bound.",
   },
   {
     key: "deal-success-fee",
@@ -139,6 +157,8 @@ export const BUYER_TIERS: readonly Tier[] = tiersFor("buyer");
 export const FUNDER_TIERS: readonly Tier[] = tiersFor("funder");
 
 export interface RevenueAssumptions {
+  /** Which seller service the modelled sale is on. Decides the banded fee. */
+  readonly sellerService: SellerService;
   readonly successFeeBps: Bps;
   readonly fundingIntroBps: Bps;
   readonly packagingFee: Money;
@@ -149,15 +169,31 @@ export interface RevenueAssumptions {
   readonly permissionsHeld: readonly PermissionKey[];
 }
 
+/**
+ * The mid-tier buyer subscription, allocated to one deal.
+ *
+ * Derived rather than restated. It was written here as a literal and drifted
+ * from the catalogue the first time a tier was repriced, which is exactly the
+ * failure `pricing.ts` exists to prevent.
+ */
+const MID_TIER = plan("buyer-dealmaker");
+if (MID_TIER === undefined) throw new Error("The mid-tier buyer plan is missing from the catalogue.");
+
 export const DEFAULT_ASSUMPTIONS: RevenueAssumptions = {
+  sellerService: "standard",
+  // The buyer-side rate is a modelling assumption; the seller-side one is a
+  // published price and therefore comes from the catalogue.
   successFeeBps: pct(0.75),
   fundingIntroBps: pct(0.5),
   packagingFee: fromMajor(199),
   aiCreditsPerDeal: fromMajor(50),
-  subscriptionAllocation: fromMajor(149),
+  subscriptionAllocation: MID_TIER.price,
   professionalServices: fromMajor(300),
   permissionsHeld: [],
 };
+
+/** The published seller rate, so a page never has to restate it. */
+export const SELLER_SUCCESS_FEE_BPS: Bps = successFeeBand("standard").rateBps;
 
 export interface RevenueLine {
   readonly stream: RevenueStream;
@@ -217,6 +253,10 @@ export function dealRevenue(
   consider("buyer-subscription", assumptions.subscriptionAllocation);
   consider("ai-credits", assumptions.aiCreditsPerDeal);
   consider("deal-packaging", assumptions.packagingFee);
+  consider(
+    "seller-success-fee",
+    successFee(appraisal.inputs.purchasePrice, assumptions.sellerService),
+  );
   consider("deal-success-fee", applyBps(appraisal.inputs.purchasePrice, assumptions.successFeeBps));
   consider("funding-introduction", applyBps(appraisal.funding.seniorDebt, assumptions.fundingIntroBps));
   consider("professional-marketplace", assumptions.professionalServices);

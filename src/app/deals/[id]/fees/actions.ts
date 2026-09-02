@@ -2,9 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
-import { raiseFee, recordFeeDisclosure, voidFee } from "@backend/billing/fees";
+import {
+  raiseFee,
+  recordExistingInstruction,
+  recordFeeDisclosure,
+  recordSellerAgreement,
+  voidFee,
+} from "@backend/billing/fees";
 import type { Actor } from "@shared/domain/agents";
-import { FEE_DEFINITIONS, type FeeKey } from "@shared/domain/fees";
+import { FEE_DEFINITIONS, type FeeKey, type InstructionKind } from "@shared/domain/fees";
+import { SUCCESS_FEE_BANDS, type SellerService } from "@shared/domain/pricing";
 
 /**
  * Raising and disclosing fees.
@@ -40,6 +47,67 @@ export async function recordDisclosureAction(
   const dealId = String(formData.get("dealId") ?? "").trim();
   const actor = await actorFor(dealId);
   const result = await recordFeeDisclosure(dealId, String(formData.get("wording") ?? ""), actor);
+  if (result.ok) revalidatePath(`/deals/${dealId}/fees`);
+  return result;
+}
+
+function isSellerService(value: string): value is SellerService {
+  return SUCCESS_FEE_BANDS.some((b) => b.service === value);
+}
+
+const INSTRUCTION_KINDS: readonly InstructionKind[] = [
+  "none",
+  "multi-agency",
+  "sole-agency",
+  "sole-selling-rights",
+];
+
+function isInstructionKind(value: string): value is InstructionKind {
+  return INSTRUCTION_KINDS.includes(value as InstructionKind);
+}
+
+/**
+ * Record the seller's signature.
+ *
+ * The service is named, never the price. The band behind it is read from the
+ * catalogue on the server, so a form that could post an amount could not have
+ * changed what is charged.
+ */
+export async function recordSellerAgreementAction(
+  _previous: FeeResult | undefined,
+  formData: FormData,
+): Promise<FeeResult> {
+  const dealId = String(formData.get("dealId") ?? "").trim();
+  const service = String(formData.get("service") ?? "").trim();
+  if (!isSellerService(service)) return { ok: false, message: "No such service." };
+
+  const actor = await actorFor(dealId);
+  const result = await recordSellerAgreement(
+    dealId,
+    service,
+    String(formData.get("signedBy") ?? ""),
+    actor,
+  );
+  if (result.ok) revalidatePath(`/deals/${dealId}/fees`);
+  return result;
+}
+
+export async function recordInstructionAction(
+  _previous: FeeResult | undefined,
+  formData: FormData,
+): Promise<FeeResult> {
+  const dealId = String(formData.get("dealId") ?? "").trim();
+  const kind = String(formData.get("kind") ?? "").trim();
+  if (!isInstructionKind(kind)) return { ok: false, message: "No such instruction." };
+
+  const actor = await actorFor(dealId);
+  const result = await recordExistingInstruction(
+    dealId,
+    kind,
+    String(formData.get("agent") ?? ""),
+    formData.get("released") === "on",
+    actor,
+  );
   if (result.ok) revalidatePath(`/deals/${dealId}/fees`);
   return result;
 }

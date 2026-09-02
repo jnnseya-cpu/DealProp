@@ -8,7 +8,15 @@ import { permissionSet } from "@backend/permissions";
 import { permissionDefinition } from "@shared/domain/permissions";
 import { gbp } from "@shared/format";
 import { ZERO } from "@shared/money";
-import { DisclosureForm, RaiseFeeForm, VoidFeeForm } from "./Forms";
+import {
+  DisclosureForm,
+  InstructionForm,
+  RaiseFeeForm,
+  SellerAgreementForm,
+  VoidFeeForm,
+} from "./Forms";
+import { bindsSellerElsewhere } from "@shared/domain/fees";
+import { successFeeBand } from "@shared/domain/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +51,9 @@ export default async function FeesPage({ params }: { params: Promise<{ id: strin
   });
 
   const live = raised.filter((f) => f.voidedAt === undefined);
+  const agreement = record.sellerAgreement;
+  const instruction = record.existingInstruction;
+  const boundElsewhere = bindsSellerElsewhere(instruction);
 
   return (
     <main className="min-h-screen pb-20">
@@ -117,6 +128,79 @@ export default async function FeesPage({ params }: { params: Promise<{ id: strin
               dealId={record.id}
               {...(record.feeDisclosure !== undefined
                 ? { current: record.feeDisclosure.wording }
+                : {})}
+            />
+          </div>
+        </Panel>
+
+        {/* --- the seller's side ----------------------------------------- */}
+        <Panel
+          className="mt-6"
+          eyebrow="The seller pays once"
+          title="What the seller signed, and who else they are instructed to"
+          action={
+            agreement !== undefined && !boundElsewhere ? (
+              <Badge tone="good">Clear</Badge>
+            ) : (
+              <Badge tone="warn">{agreement === undefined ? "Nothing signed" : "Bound elsewhere"}</Badge>
+            )
+          }
+        >
+          <p className="text-[13px] leading-[1.65] text-ink-300">
+            The seller pays a percentage of the price achieved, on completion and at no other
+            point. Two things have to be true before it may be raised. They have to have signed
+            for it — a percentage nobody agreed to is not a fee. And they must not still be
+            instructed under sole agency or sole selling rights, where their existing agent is
+            paid on a sale whoever introduced the buyer: charging on top of that makes them pay
+            twice for one completion.
+          </p>
+
+          <div className="mt-4 border-t hairline pt-4">
+            {agreement !== undefined && (
+              <p className="mb-3.5 border-l-2 border-emerald-500/80 py-1 pl-4 text-[13px] leading-[1.65] text-ink-200">
+                {agreement.signedBy} signed the {successFeeBand(agreement.service).label.toLowerCase()}{" "}
+                terms.
+                <span className="mt-1 block font-mono text-[11px] text-ink-500">
+                  {agreement.termsVersion} · {agreement.signedAt.slice(0, 16).replace("T", " ")}
+                </span>
+              </p>
+            )}
+            <SellerAgreementForm
+              dealId={record.id}
+              {...(agreement !== undefined
+                ? { current: { signedBy: agreement.signedBy, service: agreement.service } }
+                : {})}
+            />
+          </div>
+
+          <div className="mt-5 border-t hairline pt-4">
+            {instruction !== undefined && (
+              <p
+                className={`mb-3.5 border-l-2 py-1 pl-4 text-[13px] leading-[1.65] text-ink-200 ${
+                  boundElsewhere ? "border-amber-500/80" : "border-emerald-500/80"
+                }`}
+              >
+                {instruction.kind === "none"
+                  ? "No agent instructed."
+                  : `${instruction.agent} — ${instruction.kind.replace(/-/g, " ")}.`}
+                {instruction.releasedAt !== undefined && (
+                  <span className="mt-1 block font-mono text-[11px] text-ink-500">
+                    Released {instruction.releasedAt.slice(0, 10)} · recorded by{" "}
+                    {instruction.releasedBy}
+                  </span>
+                )}
+              </p>
+            )}
+            <InstructionForm
+              dealId={record.id}
+              {...(instruction !== undefined
+                ? {
+                    current: {
+                      kind: instruction.kind,
+                      agent: instruction.agent,
+                      released: instruction.releasedAt !== undefined,
+                    },
+                  }
                 : {})}
             />
           </div>

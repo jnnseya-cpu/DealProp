@@ -359,7 +359,7 @@ function renderHtml(
     <p style="margin:18px 0 0 0;font:400 14px/1.6 -apple-system,sans-serif;color:#9a9aa8;">
       Have a property problem rather than a portfolio?
       <a href="${url(LINKS.sell)}" style="color:#e3c377;">Tell us the situation</a> —
-      it is free for sellers, and we will tell you plainly if an ordinary sale would serve you better.
+      seeing the routes is free, and we will tell you plainly if an ordinary sale would serve you better.
     </p>
   </td></tr>
 
