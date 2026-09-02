@@ -227,3 +227,49 @@ export function isStripeEndpoint(url: string): boolean {
     return false;
   }
 }
+
+/* --------------------------------------------------------------- payouts */
+
+export interface StripeTransferRequest {
+  readonly amountMinorUnits: number;
+  readonly currency: string;
+  /** The connected account the money goes to. */
+  readonly destination: string;
+  /** What this is a share of, so the two sides can be reconciled. */
+  readonly sourceReference: string;
+  readonly description: string;
+}
+
+/**
+ * A transfer to a connected account, form-encoded.
+ *
+ * Stripe Connect's Transfers API, like Checkout, takes
+ * `application/x-www-form-urlencoded`. `transfer_group` carries the reference
+ * of what this is a share of, which is what makes a payout traceable back to
+ * the payment it came out of — without it the two sides reconcile by amount
+ * and date, and amounts repeat.
+ *
+ * The amount is passed through rather than computed. It was decided by
+ * `splitWithProvider()` and checked by `decidePayout()` before this was
+ * called, and recomputing it here would be a second place that states it.
+ */
+export function stripeTransferBody(request: StripeTransferRequest): URLSearchParams {
+  const form = new URLSearchParams();
+  form.set("amount", String(request.amountMinorUnits));
+  form.set("currency", request.currency.toLowerCase());
+  form.set("destination", request.destination);
+  form.set("transfer_group", request.sourceReference);
+  form.set("description", request.description);
+  form.set("metadata[sourceReference]", request.sourceReference);
+  return form;
+}
+
+/** Stripe's Transfers endpoint, derived from the configured API root. */
+export function stripeTransferUrl(checkoutUrl: string): string {
+  try {
+    const url = new URL(checkoutUrl);
+    return `${url.origin}/v1/transfers`;
+  } catch {
+    return "";
+  }
+}

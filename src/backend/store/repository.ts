@@ -1,5 +1,6 @@
 import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { RefundTrigger } from "@shared/domain/reveal";
+import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { AgentDecision } from "@shared/domain/agents";
@@ -16,6 +17,7 @@ import type {
   SpendResult,
   DataRoomGrant,
   DealFee,
+  PayoutRecord,
   RevealRecord,
   OutreachMessage,
   PendingCharge,
@@ -290,6 +292,35 @@ export async function recordReveal(record: RevealRecord) {
 
 export async function refundReveal(id: string, at: string, trigger: RefundTrigger, reason: string) {
   return (await store()).refundReveal(id, at, trigger, reason);
+}
+
+export async function listPayoutRecipients() {
+  return (await store()).listPayoutRecipients();
+}
+
+export async function getPayoutRecipient(id: string) {
+  return (await store()).getPayoutRecipient(id);
+}
+
+export async function savePayoutRecipient(recipient: PayoutRecipient) {
+  return (await store()).savePayoutRecipient(recipient);
+}
+
+export async function listPayouts() {
+  return (await store()).listPayouts();
+}
+
+export async function recordPayout(payout: PayoutRecord) {
+  return (await store()).recordPayout(payout);
+}
+
+export async function closePayout(
+  id: string,
+  outcome:
+    | { readonly settledAt: string; readonly transferReference: string }
+    | { readonly failedAt: string; readonly failureReason: string },
+) {
+  return (await store()).closePayout(id, outcome);
 }
 
 export async function listAgentDecisions(dealId: string) {

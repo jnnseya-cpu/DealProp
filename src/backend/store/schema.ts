@@ -23,6 +23,7 @@ import type {
 import type { InventoryCategory, InventoryItem } from "@shared/domain/inventory";
 import type { MaterialRecord } from "@shared/domain/materialInformation";
 import type { SellerDueDiligence } from "@shared/domain/sellerDueDiligence";
+import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { OpportunityClass } from "@shared/domain/pricing";
 import type { CreditLot, LedgerEntry } from "@shared/domain/ledger";
@@ -263,6 +264,8 @@ export interface Database {
   /** Fees raised against a deal. Money, so each moves at most once. */
   dealFees: DealFee[];
   reveals: RevealRecord[];
+  payoutRecipients: PayoutRecipient[];
+  payouts: PayoutRecord[];
   /**
    * Addresses that must never be written to again, by address rather than by
    * candidate.
@@ -423,6 +426,41 @@ export interface RevealRecord {
   readonly refundedAt?: string;
   readonly refundTrigger?: RefundTrigger;
   readonly refundReason?: string;
+}
+
+/**
+ * One payment out.
+ *
+ * Recorded before the provider is called and settled afterwards, the same way
+ * a pending charge works and for the same reason: a transfer that exists only
+ * in the provider's records is money nothing here can account for — and in
+ * this direction it has already gone.
+ */
+export interface PayoutRecord {
+  readonly id: string;
+  readonly recipientId: string;
+  /** What this is a share of. A deal, or a collected payment. */
+  readonly sourceReference: string;
+  readonly amount: Money;
+  readonly currency: string;
+  /** The whole payment this is a share of, for the reconciliation. */
+  readonly gross: Money;
+  /** How the split was arrived at, verbatim, as it was stated at the time. */
+  readonly basis: string;
+  /** ISO-8601, when the money it comes from was collected. */
+  readonly collectedAt: string;
+  readonly createdAt: string;
+  /** Who authorised it. Named — a payout is somebody deciding to send money. */
+  readonly authorisedBy: string;
+  /** Held unique by the store. Money moves at most once. */
+  readonly idempotencyKey: string;
+  /** Set when the provider confirms it has gone. */
+  readonly settledAt?: string;
+  /** The provider's transfer id, so it can be traced. */
+  readonly transferReference?: string;
+  /** Set where the transfer failed. The record stays either way. */
+  readonly failedAt?: string;
+  readonly failureReason?: string;
 }
 
 export interface ReversalInput {
@@ -590,7 +628,10 @@ export type AuditAction =
   | "opportunity-refunded"
   | "passport-evidence-recorded"
   | "material-information-recorded"
-  | "seller-checks-recorded";
+  | "seller-checks-recorded"
+  | "payout-recipient-recorded"
+  | "payout-made"
+  | "payout-failed";
 
 export type SubscriberTokenField = "confirmToken" | "unsubscribeToken";
 
@@ -720,6 +761,28 @@ export interface Store {
    * a sale that happened happened, and the refund is a second fact about it.
    */
   refundReveal(id: string, at: string, trigger: RefundTrigger, reason: string): Promise<boolean>;
+
+  listPayoutRecipients(): Promise<readonly PayoutRecipient[]>;
+  getPayoutRecipient(id: string): Promise<PayoutRecipient | undefined>;
+  savePayoutRecipient(recipient: PayoutRecipient): Promise<PayoutRecipient>;
+
+  listPayouts(): Promise<readonly PayoutRecord[]>;
+  /**
+   * Record a payout, once.
+   *
+   * Returns false where the idempotency key has already been used. Money going
+   * out is more dangerous than money coming in — a duplicate payment in is
+   * refundable and a duplicate payment out is gone — so the key is the check
+   * and it is held by the store, never by a read before a write.
+   */
+  recordPayout(payout: PayoutRecord): Promise<boolean>;
+  /** Mark a payout settled or failed. Never deletes: it happened either way. */
+  closePayout(
+    id: string,
+    outcome:
+      | { readonly settledAt: string; readonly transferReference: string }
+      | { readonly failedAt: string; readonly failureReason: string },
+  ): Promise<boolean>;
 
   /** Every decision on this deal, most recent first. */
   listAgentDecisions(dealId: string): Promise<readonly AgentDecision[]>;

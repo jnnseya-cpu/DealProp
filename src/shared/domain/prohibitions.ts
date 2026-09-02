@@ -116,6 +116,7 @@ export const PROHIBITIONS: readonly Prohibition[] = [
     why: "Client money needs a client account and the rules that come with it. Holding a deposit in a trading account mixes it with our own money and loses it if we fail — and it is somebody's house.",
     enforcedBy: [
       "Structural: there is no code path that takes a deposit. The ledger holds prepaid platform balance only, and a test asserts no purchase-deposit path exists.",
+      "payouts.ts — what moves through it is our own revenue being split, never somebody's house deposit",
     ],
   },
   {

@@ -491,7 +491,7 @@ const FUNDING_BOXES: FundingBox[] = [
 export async function seed(): Promise<void> {
   // Subscribers are deliberately absent: nobody may be enrolled without their
   // own recorded consent, so there is no such thing as a seeded subscriber.
-  await replaceAll({ deals: DEALS, buyBoxes: BUY_BOXES, fundingBoxes: FUNDING_BOXES, subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], dealFees: [], reveals: [], pendingCharges: [] });
+  await replaceAll({ deals: DEALS, buyBoxes: BUY_BOXES, fundingBoxes: FUNDING_BOXES, subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], dealFees: [], reveals: [], payoutRecipients: [], payouts: [], pendingCharges: [] });
 }
 
 export const SEED_DEALS = DEALS;

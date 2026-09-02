@@ -46,7 +46,7 @@ seller-facing options cannot disagree.
 `negotiation`, `campaign`, `offers`, `agents`, `appraisalRequest`, `identity`,
 `supply`, `permissions`, `fees`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`, `inventory`, `reveal`,
-`passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`, `workflow`.
+`passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`, `workflow`, `payouts`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -390,7 +390,20 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     the ledger and says a confirmation still to arrive is normal. The URL a
     customer is sent to is the one signal an attacker fully controls, and there
     is no code path from that page to the ledger.
-72. **A fee needs four things, and money is one of them.** The permission, the
+72. **Money out is held, and blocked, and paid once.** A wrong payment in can
+    be refunded; a wrong payment out is gone. The hold is fourteen days —
+    exactly the buyer's own refund window, because paying out before it expires
+    is paying out money we have promised to give back — and an outstanding
+    reversal blocks entirely however old the money is, since a share paid on
+    money later charged back loses the whole amount rather than the commission.
+    The idempotency key is derived from the recipient and the source, never
+    generated, and the store holds it unique.
+73. **Nothing pays an account nobody checked.** A payout recipient carries a
+    verification with a date, a named checker and what was checked, and it
+    lapses. Sending money to an unchecked account is how a marketplace becomes
+    the payment leg of somebody else's fraud, and it is unrecoverable by the
+    time anybody notices.
+74. **A fee needs four things, and money is one of them.** The permission, the
     stage, the disclosure to the seller and a named person raising it.
     `fees.ts` reports every missing one at once. The seller pays exactly one
     fee — a percentage of the price achieved, on completion and at no other
@@ -405,8 +418,9 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
   `createCharge()` fails closed and the preflight says so.
 - Portfolio OS. §19's last step — the property entering the buyer's portfolio
   after completion — is not built.
-- Stripe Connect payouts to providers and agents. `providerFee()` computes the
-  share; nothing pays it out.
+- A live Connect account. The payout path is built and tested against both
+  store engines, but with no provider configured `makePayout()` records the
+  payout as failed rather than as sent, which is the safe state.
 - GoldMine live import — parsers exist and are fixture-tested; no live call has
   been made (egress blocked in the build environment). Verify before relying.
 

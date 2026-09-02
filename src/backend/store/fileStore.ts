@@ -4,7 +4,8 @@ import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { AgentDecision } from "@shared/domain/agents";
-import type { DealFee, RevealRecord } from "@backend/store/schema";
+import type { DealFee, PayoutRecord, RevealRecord } from "@backend/store/schema";
+import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
@@ -92,6 +93,8 @@ function emptyDatabase(): Database {
     agentDecisions: [],
     dealFees: [],
     reveals: [],
+    payoutRecipients: [],
+    payouts: [],
     pendingCharges: [],
   };
 }
@@ -124,6 +127,8 @@ async function readDatabase(): Promise<Database> {
       agentDecisions: parsed.agentDecisions ?? [],
       dealFees: parsed.dealFees ?? [],
       reveals: parsed.reveals ?? [],
+      payoutRecipients: parsed.payoutRecipients ?? [],
+      payouts: parsed.payouts ?? [],
       pendingCharges: parsed.pendingCharges ?? [],
     };
   } catch (error) {
@@ -712,6 +717,57 @@ async function refundReveal(
   });
 }
 
+async function listPayoutRecipients(): Promise<readonly PayoutRecipient[]> {
+  return (await readDatabase()).payoutRecipients;
+}
+
+async function getPayoutRecipient(id: string): Promise<PayoutRecipient | undefined> {
+  return (await readDatabase()).payoutRecipients.find((r) => r.id === id);
+}
+
+async function savePayoutRecipient(recipient: PayoutRecipient): Promise<PayoutRecipient> {
+  await mutate((db) => {
+    const index = db.payoutRecipients.findIndex((r) => r.id === recipient.id);
+    if (index < 0) db.payoutRecipients.push(recipient);
+    else db.payoutRecipients[index] = recipient;
+    return true;
+  });
+  return recipient;
+}
+
+async function listPayouts(): Promise<readonly PayoutRecord[]> {
+  const db = await readDatabase();
+  return [...db.payouts].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+async function recordPayout(payout: PayoutRecord): Promise<boolean> {
+  return mutate((db) => {
+    // The key is the check. Money going out is more dangerous than money
+    // coming in: a duplicate payment in is refundable and a duplicate payment
+    // out is gone.
+    if (db.payouts.some((p) => p.idempotencyKey === payout.idempotencyKey)) return false;
+    db.payouts.push(payout);
+    return true;
+  });
+}
+
+async function closePayout(
+  id: string,
+  outcome:
+    | { readonly settledAt: string; readonly transferReference: string }
+    | { readonly failedAt: string; readonly failureReason: string },
+): Promise<boolean> {
+  return mutate((db) => {
+    const index = db.payouts.findIndex(
+      (p) => p.id === id && p.settledAt === undefined && p.failedAt === undefined,
+    );
+    const current = db.payouts[index];
+    if (index < 0 || current === undefined) return false;
+    db.payouts[index] = { ...current, ...outcome };
+    return true;
+  });
+}
+
 async function voidDealFee(id: string, at: string, by: string, reason: string): Promise<boolean> {
   return mutate((db) => {
     const index = db.dealFees.findIndex((f) => f.id === id && f.voidedAt === undefined);
@@ -956,6 +1012,12 @@ export const fileStore: Store = {
   listRevealsForDeal,
   recordReveal,
   refundReveal,
+  listPayoutRecipients,
+  getPayoutRecipient,
+  savePayoutRecipient,
+  listPayouts,
+  recordPayout,
+  closePayout,
   voidDealFee,
   listAgentDecisions,
   saveAgentDecision,

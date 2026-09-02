@@ -210,7 +210,7 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       // Subscribers are consent records. Wiping them on reseed would destroy
       // the evidence of why an address was mailed.
       await store.saveSubscriber(subscriber({ status: "confirmed" }));
-      await store.replaceAll({ deals: [dealRecord()], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], dealFees: [], reveals: [], pendingCharges: [] });
+      await store.replaceAll({ deals: [dealRecord()], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], dealFees: [], reveals: [], payoutRecipients: [], payouts: [], pendingCharges: [] });
       expect(await store.listSubscribers()).toHaveLength(1);
       expect(await store.listDeals()).toHaveLength(1);
     });
@@ -354,6 +354,92 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         expect(await store.listRevealsForAccount("acc-1")).toHaveLength(1);
         expect(await store.listRevealsForAccount("acc-3")).toHaveLength(0);
         expect(await store.listRevealsForDeal("deal-1")).toHaveLength(2);
+      });
+    });
+
+    describe("money going out", () => {
+      const recipient = {
+        id: "rec-1",
+        name: "Marsh Surveyors",
+        kind: "provider" as const,
+        connectedAccountId: "acct_1",
+        verifiedAt: "2026-08-01T00:00:00.000Z",
+        verifiedBy: "Jo Bloggs",
+        verificationEvidence: "Companies House and bank account holder confirmed.",
+      };
+      const payout = {
+        id: "pay-1",
+        recipientId: "rec-1",
+        sourceReference: "deal-1",
+        amount: fromMajor(450),
+        currency: "GBP",
+        gross: fromMajor(500),
+        basis: "Surveyor: 10% of the fee the surveyor is paid.",
+        collectedAt: "2026-08-01T00:00:00.000Z",
+        createdAt: "2026-09-01T00:00:00.000Z",
+        authorisedBy: "Jo Bloggs",
+        idempotencyKey: "payout:rec-1:deal-1",
+      };
+
+      it("upserts a recipient by id", async () => {
+        await store.savePayoutRecipient(recipient);
+        await store.savePayoutRecipient({ ...recipient, name: "Marsh & Co Surveyors" });
+        expect(await store.listPayoutRecipients()).toHaveLength(1);
+        expect((await store.getPayoutRecipient("rec-1"))?.name).toBe("Marsh & Co Surveyors");
+      });
+
+      it("pays once, whatever the caller does", async () => {
+        // A duplicate payment in is refundable. A duplicate payment out is
+        // gone, which is why the key is the check rather than a read.
+        expect(await store.recordPayout(payout)).toBe(true);
+        expect(await store.recordPayout({ ...payout, id: "pay-2" })).toBe(false);
+        expect(await store.listPayouts()).toHaveLength(1);
+      });
+
+      it("cannot be raced into paying twice", async () => {
+        const attempts = await Promise.all(
+          Array.from({ length: 8 }, (_, i) => store.recordPayout({ ...payout, id: `race-${i}` })),
+        );
+        expect(attempts.filter(Boolean)).toHaveLength(1);
+        expect(await store.listPayouts()).toHaveLength(1);
+      });
+
+      it("closes as settled once, and keeps the amount", async () => {
+        await store.recordPayout(payout);
+        expect(
+          await store.closePayout("pay-1", {
+            settledAt: "2026-09-02T00:00:00.000Z",
+            transferReference: "tr_1",
+          }),
+        ).toBe(true);
+        // Closed once. A second close would overwrite the outcome of the first.
+        expect(
+          await store.closePayout("pay-1", {
+            failedAt: "2026-09-03T00:00:00.000Z",
+            failureReason: "changed my mind",
+          }),
+        ).toBe(false);
+
+        const [stored] = await store.listPayouts();
+        expect(stored?.settledAt).toBe("2026-09-02T00:00:00.000Z");
+        expect(stored?.transferReference).toBe("tr_1");
+        expect(stored?.failedAt).toBeUndefined();
+        expect(stored?.amount).toBe(fromMajor(450));
+      });
+
+      it("closes as failed, and keeps the record either way", async () => {
+        // A transfer that was attempted happened, whichever way it went.
+        await store.recordPayout(payout);
+        expect(
+          await store.closePayout("pay-1", {
+            failedAt: "2026-09-02T00:00:00.000Z",
+            failureReason: "The provider answered 402.",
+          }),
+        ).toBe(true);
+
+        const [stored] = await store.listPayouts();
+        expect(stored?.failureReason).toBe("The provider answered 402.");
+        expect(stored?.settledAt).toBeUndefined();
       });
     });
 
@@ -773,7 +859,7 @@ contract(
     // Queue through the write chain first. Deleting the file outright would
     // race a write still in flight from the previous test, which would then
     // land after the delete and recreate it.
-    await fileStore.replaceAll({ deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], dealFees: [], reveals: [], pendingCharges: [] });
+    await fileStore.replaceAll({ deals: [], buyBoxes: [], fundingBoxes: [], subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], dealFees: [], reveals: [], payoutRecipients: [], payouts: [], pendingCharges: [] });
     rmSync(process.env.LODE_DATA_FILE ?? "", { force: true });
   },
 );

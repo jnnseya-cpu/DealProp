@@ -3,7 +3,8 @@ import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { AgentDecision } from "@shared/domain/agents";
-import type { DealFee, RevealRecord } from "@backend/store/schema";
+import type { DealFee, PayoutRecord, RevealRecord } from "@backend/store/schema";
+import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
@@ -216,6 +217,24 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS reveals_account ON reveals (account_id, paid_at DESC);
   CREATE INDEX IF NOT EXISTS reveals_deal ON reveals (deal_id, paid_at DESC);
+  CREATE TABLE IF NOT EXISTS payout_recipients (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+  );
+  -- Money out. The unique idempotency key is the control, and it matters more
+  -- here than anywhere else on the platform: a duplicate payment in can be
+  -- refunded and a duplicate payment out is gone.
+  CREATE TABLE IF NOT EXISTS payouts (
+    id text PRIMARY KEY,
+    recipient_id text NOT NULL,
+    idempotency_key text NOT NULL UNIQUE,
+    data jsonb NOT NULL,
+    created_at timestamptz NOT NULL,
+    settled_at timestamptz,
+    failed_at timestamptz
+  );
+  CREATE INDEX IF NOT EXISTS payouts_recipient ON payouts (recipient_id, created_at DESC);
   CREATE TABLE IF NOT EXISTS pending_charges (
     id text PRIMARY KEY,
     account_id text NOT NULL,
@@ -1065,6 +1084,91 @@ export const postgresStore: Store = {
               data = data || jsonb_build_object('refundedAt', $5::text, 'refundTrigger', $3::text, 'refundReason', $4::text)
         WHERE id = $1 AND refunded_at IS NULL`,
       [id, at, trigger, reason, at],
+    );
+    return (rowCount ?? 0) > 0;
+  },
+
+  async listPayoutRecipients(): Promise<readonly PayoutRecipient[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: PayoutRecipient }>(
+      "SELECT data FROM payout_recipients ORDER BY updated_at DESC",
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async getPayoutRecipient(id: string): Promise<PayoutRecipient | undefined> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: PayoutRecipient }>(
+      "SELECT data FROM payout_recipients WHERE id = $1",
+      [id],
+    );
+    return rows[0]?.data;
+  },
+
+  async savePayoutRecipient(recipient: PayoutRecipient): Promise<PayoutRecipient> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO payout_recipients (id, data) VALUES ($1, $2)
+       ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
+      [recipient.id, JSON.stringify(recipient)],
+    );
+    return recipient;
+  },
+
+  async listPayouts(): Promise<readonly PayoutRecord[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: PayoutRecord }>(
+      "SELECT data FROM payouts ORDER BY created_at DESC",
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async recordPayout(payout: PayoutRecord): Promise<boolean> {
+    await ensureSchema();
+    // ON CONFLICT against the unique key: the check and the write are one
+    // statement, so two callers cannot both find it unpaid and both pay it.
+    const { rowCount } = await getPool().query(
+      `INSERT INTO payouts (id, recipient_id, idempotency_key, data, created_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT DO NOTHING`,
+      [
+        payout.id,
+        payout.recipientId,
+        payout.idempotencyKey,
+        JSON.stringify(payout),
+        payout.createdAt,
+      ],
+    );
+    return (rowCount ?? 0) > 0;
+  },
+
+  async closePayout(
+    id: string,
+    outcome:
+      | { readonly settledAt: string; readonly transferReference: string }
+      | { readonly failedAt: string; readonly failureReason: string },
+  ): Promise<boolean> {
+    await ensureSchema();
+    // Timestamps passed twice rather than reused as one placeholder, for the
+    // same reason as voidDealFee: Postgres deduces a parameter's type from how
+    // it is used, and one placeholder used as both a timestamptz and as text
+    // inside jsonb_build_object gives it two answers.
+    if ("settledAt" in outcome) {
+      const { rowCount } = await getPool().query(
+        `UPDATE payouts
+            SET settled_at = $2::timestamptz,
+                data = data || jsonb_build_object('settledAt', $4::text, 'transferReference', $3::text)
+          WHERE id = $1 AND settled_at IS NULL AND failed_at IS NULL`,
+        [id, outcome.settledAt, outcome.transferReference, outcome.settledAt],
+      );
+      return (rowCount ?? 0) > 0;
+    }
+    const { rowCount } = await getPool().query(
+      `UPDATE payouts
+          SET failed_at = $2::timestamptz,
+              data = data || jsonb_build_object('failedAt', $4::text, 'failureReason', $3::text)
+        WHERE id = $1 AND settled_at IS NULL AND failed_at IS NULL`,
+      [id, outcome.failedAt, outcome.failureReason, outcome.failedAt],
     );
     return (rowCount ?? 0) > 0;
   },

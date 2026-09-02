@@ -37,6 +37,7 @@ export default async function AuditPage() {
             <Link href="/deals" className="transition hover:text-ink-100">Deals</Link>
             <Link href="/operator/audit" className="text-ink-100">Audit</Link>
             <Link href="/operator/conduct" className="transition hover:text-ink-100">Conduct</Link>
+            <Link href="/operator/payouts" className="transition hover:text-ink-100">Payouts</Link>
             <SignOutButton />
           </nav>
         }
