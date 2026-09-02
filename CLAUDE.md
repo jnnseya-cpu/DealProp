@@ -46,7 +46,7 @@ seller-facing options cannot disagree.
 `negotiation`, `campaign`, `offers`, `agents`, `appraisalRequest`, `identity`,
 `supply`, `permissions`, `fees`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`, `inventory`, `reveal`,
-`passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`.
+`passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`, `workflow`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -366,11 +366,18 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     telephone is very often not the registered proprietor — and an executor, an
     attorney and a company each need different evidence. Nothing recorded is
     unchecked, never "no concerns", and it stops the property being marketed.
-68. **The twelve prohibitions each name the control that enforces them.**
+68. **A stage is derived, never set.** `workflow.ts` walks the twelve steps
+    forward and stops at the first gap, so a deal with an accepted price and no
+    seller checks reports as stuck at the check rather than as further on. A
+    stage field somebody advances tells you what they believe; this tells you
+    what can be proved, and the two diverge exactly when it matters. Portfolio
+    OS is in the list marked `built: false`, because a step drawn as working
+    would misrepresent the product.
+69. **The twelve prohibitions each name the control that enforces them.**
     `prohibitions.ts` is the register and a test walks its citations, failing if
     one names a function nobody wrote — the failure mode of every compliance
     register is a note that reads as a control and is not one.
-69. **A fee needs four things, and money is one of them.** The permission, the
+70. **A fee needs four things, and money is one of them.** The permission, the
     stage, the disclosure to the seller and a named person raising it.
     `fees.ts` reports every missing one at once. The seller pays exactly one
     fee — a percentage of the price achieved, on completion and at no other

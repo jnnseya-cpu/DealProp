@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireOperator, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
 import { getDeal, listFundingBoxes, listBuyBoxes } from "@backend/store/repository";
+import { positionOf } from "@backend/workflow";
 import { runDealDirector } from "@shared/domain/director";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
 import { buildCloseReport } from "@shared/domain/completion";
@@ -48,7 +49,11 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
   const { scored, stack, exits, recycle, strategies, diagnostics } = briefing;
   const a = scored.appraisal;
 
-  const [fundingBoxes, buyBoxes] = await Promise.all([listFundingBoxes(), listBuyBoxes()]);
+  const [fundingBoxes, buyBoxes, position] = await Promise.all([
+    listFundingBoxes(),
+    listBuyBoxes(),
+    positionOf(record),
+  ]);
   const funders = rankMatches(
     fundingBoxes.map((b) => matchFundingBox(b, scored, record.borrowerCompletedDeals)),
   );
@@ -176,6 +181,40 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
             ))}
           </ul>
         </div>
+
+        {/* --- where this transaction has actually got to ------------------ */}
+        <Panel
+          eyebrow="Transaction"
+          title={`At ${position.at.label.toLowerCase()}`}
+          className="mt-6"
+        >
+          <p className="text-[13px] leading-[1.65] text-ink-300">{position.summary}</p>
+          <p className="mt-2.5 text-[12px] leading-[1.6] text-ink-500">
+            Derived from what is recorded, never from a stage anybody set. A deal with an accepted
+            price and no seller checks is not further on — it is stuck at the check, and the first
+            gap is where it stops.
+          </p>
+          <ol className="mt-4 space-y-2.5 border-t hairline pt-4">
+            {position.stages.map((step) => (
+              <li key={step.stage.key} className="text-[13px] leading-[1.6]">
+                <span
+                  className={
+                    step.reached
+                      ? "text-ink-100"
+                      : step.stage.built
+                        ? "text-amber-300"
+                        : "text-ink-600"
+                  }
+                >
+                  {step.reached ? "\u2713" : step.stage.built ? "\u2014" : "\u00b7"}{" "}
+                  {step.stage.label}
+                  {!step.stage.built && " — not built"}
+                </span>{" "}
+                <span className="text-ink-500">{step.detail}</span>
+              </li>
+            ))}
+          </ol>
+        </Panel>
 
         {/* --- What would change the answer -------------------------------- */}
         {briefing.gatingActions.length > 0 && (
