@@ -46,7 +46,7 @@ seller-facing options cannot disagree.
 `negotiation`, `campaign`, `offers`, `agents`, `appraisalRequest`, `identity`,
 `supply`, `permissions`, `fees`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`, `inventory`, `reveal`,
-`passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`, `workflow`, `payouts`.
+`passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`, `workflow`, `payouts`, `portfolio`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -403,7 +403,18 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     lapses. Sending money to an unchecked account is how a marketplace becomes
     the payment leg of somebody else's fraud, and it is unrecoverable by the
     time anybody notices.
-74. **A fee needs four things, and money is one of them.** The permission, the
+74. **A holding's value is evidenced or it is an assumption, and the difference
+    is printed.** The most tempting mistake in a portfolio view is carrying the
+    appraisal's post-works value forward as though the works happened and a
+    valuer agreed — every figure downstream inherits it. With no valuation
+    recorded the current value is what was paid, marked as stale, and a
+    valuation needs a figure, a date and a valuer or it is not one.
+75. **The refinance window is a date, not a status.** Computed from the
+    completion date and the facility term: seasoned at six months, urgent
+    ninety days before the end. What kills a refurbishment is not the interest,
+    it is arriving at the term end with no exit arranged, and by then the
+    options are an extension fee, a forced sale or the lender taking it.
+76. **A fee needs four things, and money is one of them.** The permission, the
     stage, the disclosure to the seller and a named person raising it.
     `fees.ts` reports every missing one at once. The seller pays exactly one
     fee — a percentage of the price achieved, on completion and at no other
@@ -416,8 +427,6 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 - A live payment account. The Stripe adapter is written and tested end to end
   — a signed delivery moves the ledger — but no real keys are configured, so
   `createCharge()` fails closed and the preflight says so.
-- Portfolio OS. §19's last step — the property entering the buyer's portfolio
-  after completion — is not built.
 - A live Connect account. The payout path is built and tested against both
   store engines, but with no provider configured `makePayout()` records the
   payout as failed rather than as sent, which is the safe state.

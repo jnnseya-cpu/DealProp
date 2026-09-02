@@ -18,10 +18,10 @@ import type { DealStatus } from "@shared/domain/types";
  * stuck at the check, and saying otherwise is how a transaction reaches
  * exchange with a hole in it.
  *
- * The last step is not built. `portfolio` is in the list because the
- * specification ends there and leaving it out would misrepresent the shape of
- * the product, but it is marked `built: false` and the page says so. A step
- * drawn as though it works is worse than a step drawn as missing.
+ * A step whose evidence does not exist is marked `built: false` and the page
+ * says so, because a step drawn as though it works is worse than a step drawn
+ * as missing. Every one of the twelve is now built; the flag stays because the
+ * next specification will add one that is not.
  */
 
 export const WORKFLOW_VERSION = "workflow-1";
@@ -132,12 +132,9 @@ export const STAGES: readonly StageDefinition[] = [
   {
     key: "portfolio",
     label: "Portfolio OS",
-    what: "The property enters the buyer's portfolio: performance, refinancing windows, and the next acquisition.",
-    // Deliberately honest. Drawing this as working would misrepresent the
-    // product to whoever reads the page, and it is the one step nothing here
-    // implements.
-    evidencedBy: "Not built. Nothing records a property after completion.",
-    built: false,
+    what: "The property enters the buyer's portfolio: what it is worth, what is owed, when the facility ends, and what a refinance would release.",
+    evidencedBy: "Holding facts recorded against the completed deal.",
+    built: true,
   },
 ];
 
@@ -166,6 +163,8 @@ export interface WorkflowFacts {
   readonly offersRecorded: number;
   readonly solicitorInstructed: boolean;
   readonly milestonesStarted: number;
+  /** True where the property is recorded as held after completion. */
+  readonly heldInPortfolio: boolean;
   readonly status: DealStatus;
 }
 
@@ -270,8 +269,10 @@ export function workflowPosition(facts: WorkflowFacts): WorkflowPosition {
       detail: facts.status === "completed" ? "Completed." : `The deal is "${facts.status}".`,
     },
     portfolio: {
-      met: false,
-      detail: "Not built. Nothing records a property after completion.",
+      met: facts.heldInPortfolio,
+      detail: facts.heldInPortfolio
+        ? "Held, with what it is worth and what is owed against it recorded."
+        : "Completed, but nothing is recorded about holding it — so nothing is counting down to the facility end.",
     },
   };
 
@@ -299,7 +300,7 @@ export function workflowPosition(facts: WorkflowFacts): WorkflowPosition {
     next,
     summary:
       next === undefined
-        ? `At ${at.label.toLowerCase()}, which is as far as this platform goes — the property entering a buyer's portfolio is specified and not built.`
+        ? `At ${at.label.toLowerCase()}, which is the end of the workflow. What happens next is the next acquisition.`
         : `At ${at.label.toLowerCase()}. ${next}`,
     version: WORKFLOW_VERSION,
   };

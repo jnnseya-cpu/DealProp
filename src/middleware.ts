@@ -54,6 +54,7 @@ export const config = {
     "/deals/:path*",
     "/invest/:path*",
     "/opportunities/:path*",
+    "/portfolio/:path*",
     "/capital/:path*",
     // Certification attaches to a signed-in person, so the page behind it is
     // gated too — otherwise the form would accept a statement from nobody.

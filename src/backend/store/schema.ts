@@ -24,6 +24,7 @@ import type { InventoryCategory, InventoryItem } from "@shared/domain/inventory"
 import type { MaterialRecord } from "@shared/domain/materialInformation";
 import type { SellerDueDiligence } from "@shared/domain/sellerDueDiligence";
 import type { PayoutRecipient } from "@shared/domain/payouts";
+import type { HoldingFacts } from "@shared/domain/portfolio";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { OpportunityClass } from "@shared/domain/pricing";
 import type { CreditLot, LedgerEntry } from "@shared/domain/ledger";
@@ -84,6 +85,16 @@ export interface DealRecord {
    * so a later repricing cannot be applied backwards to a signed agreement.
    */
   readonly sellerAgreement?: SellerAgreement;
+  /**
+   * What is known about this property after completion.
+   *
+   * Absent until it completes, and absent afterwards until somebody records
+   * it. Recorded rather than derived because what a property is worth today,
+   * what has been spent on it and what debt is against it are facts somebody
+   * has to establish — the appraisal knows what they were projected to be,
+   * which is a different thing entirely.
+   */
+  readonly holding?: HoldingFacts;
   /**
    * Where this opportunity came from, and whether anybody with authority over
    * the property has said it is for sale.
@@ -631,7 +642,8 @@ export type AuditAction =
   | "seller-checks-recorded"
   | "payout-recipient-recorded"
   | "payout-made"
-  | "payout-failed";
+  | "payout-failed"
+  | "holding-recorded";
 
 export type SubscriberTokenField = "confirmToken" | "unsubscribeToken";
 

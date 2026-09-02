@@ -37,6 +37,7 @@ export async function positionOf(
     offersRecorded: record.offers?.length ?? 0,
     solicitorInstructed: record.evidence?.solicitorInstructed === true,
     milestonesStarted: (record.milestones ?? []).filter((m) => m.status !== "not-started").length,
+    heldInPortfolio: record.holding !== undefined,
     status: record.status,
   });
 }

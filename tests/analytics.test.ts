@@ -26,6 +26,7 @@ const SELLER_DATA_ROUTES = [
   "/account/certify",
   "/invest",
   "/opportunities",
+  "/portfolio",
   "/opportunities/deal-0001",
   "/capital",
   "/api/health",

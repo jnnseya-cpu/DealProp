@@ -63,6 +63,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Seller checks | `/deals/[id]/seller-checks` | Identity, screening, authority to sell, beneficial owners, risk assessment |
 | Conduct | `/operator/conduct` | The twelve prohibitions and the control enforcing each one |
 | Payouts | `/operator/payouts` | Who may be paid, what is held, and what has moved out |
+| Portfolio | `/portfolio` | What is held, what it is worth, and when the facility has to be refinanced |
 | Discovery | `/operator/discovery` | Run discovery, review candidates, approve or suppress |
 | Outreach | `/operator/outreach` | Draft, approve, send; suppression list |
 | Opt out | `/outreach/opt-out` | One click, no account, no confirmation step |

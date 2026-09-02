@@ -25,6 +25,7 @@ const NOTHING: WorkflowFacts = {
   offersRecorded: 0,
   solicitorInstructed: false,
   milestonesStarted: 0,
+  heldInPortfolio: false,
   status: "new",
 };
 
@@ -39,6 +40,7 @@ const EVERYTHING: WorkflowFacts = {
   offersRecorded: 3,
   solicitorInstructed: true,
   milestonesStarted: 4,
+  heldInPortfolio: true,
   status: "completed",
 };
 
@@ -96,23 +98,27 @@ describe("the first gap is where it stops", () => {
 });
 
 describe("what is not built says so", () => {
-  it("marks Portfolio OS as unbuilt rather than drawing it as working", () => {
-    // A step drawn as though it works is worse than a step drawn as missing.
-    const portfolio = stageDefinition("portfolio");
-    expect(portfolio.built).toBe(false);
-    expect(portfolio.evidencedBy).toContain("Not built");
-
-    // Every other step is built, so the list is not quietly aspirational.
-    for (const stage of STAGES) {
-      if (stage.key !== "portfolio") expect(stage.built, stage.key).toBe(true);
-    }
+  it("has no unbuilt step left, and would say so if it did", () => {
+    // The flag stays because the next specification will add a step that is
+    // not built, and drawing that one as working would be worse than drawing
+    // it as missing.
+    for (const stage of STAGES) expect(stage.built, stage.key).toBe(true);
+    expect(stageDefinition("portfolio").evidencedBy).toContain("Holding facts recorded");
   });
 
-  it("stops asking for a next step once it runs out of built ones", () => {
+  it("runs all the way to the portfolio when the evidence exists", () => {
     const done = workflowPosition(EVERYTHING);
-    expect(done.at.key).toBe("completed");
+    expect(done.at.key).toBe("portfolio");
     expect(done.next).toBeUndefined();
-    expect(done.summary).toContain("specified and not built");
+    expect(done.summary).toContain("end of the workflow");
+  });
+
+  it("stops at completion where nothing is recorded about holding it", () => {
+    // Completed and forgotten is exactly the marketplace behaviour this step
+    // exists to replace, so it reads as a gap rather than as finished.
+    const forgotten = workflowPosition({ ...EVERYTHING, heldInPortfolio: false });
+    expect(forgotten.at.key).toBe("completed");
+    expect(forgotten.next).toContain("nothing is counting down");
   });
 });
 

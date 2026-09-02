@@ -20,6 +20,7 @@ export default function robots(): MetadataRoute.Robots {
           "/deals",
           "/invest",
           "/opportunities",
+          "/portfolio",
           "/capital",
           "/operator",
           "/account",
