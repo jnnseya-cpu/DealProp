@@ -28,12 +28,21 @@ uninformative: no version, no hostnames, no error text.
 
 ```bash
 npm install
+npm run setup:env # generates the secrets; lists what only you can supply
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 772 tests
+npm test          # 1,002 tests, 1,055 with a Postgres in TEST_DATABASE_URL
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 ```
+
+`setup:env` writes a gitignored `.env.local`, generates `OPERATOR_SECRET` and
+`CRON_SECRET` with a CSPRNG, and leaves blank every value that is a fact about
+your company — a placeholder company number is a false statement of identity,
+not a missing one. It never overwrites a value already set.
+
+The preflight reads `.env.local` and `.env` the way the app does, and prints
+which it read. A real environment variable always wins over a file.
 
 ---
 

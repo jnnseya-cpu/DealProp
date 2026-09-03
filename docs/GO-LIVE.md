@@ -54,6 +54,14 @@ engine enforces this; do not work around it.
 
 ## 2. Provision
 
+`npm run preflight` reads `.env.local` and `.env` the way the app does, and
+prints which it read. A real environment variable always wins over a file, so a
+host's own configuration cannot be replaced by a stray file in a container
+image. If the preflight passes locally and fails in CI, the provenance line at
+the top of the output is the answer: `.env.local` is gitignored and CI never
+sees it.
+
+
 **Postgres.** Managed, with `?sslmode=require`. The connection string's
 `sslmode` governs TLS and overrides any driver option — verified against pg
 8.23. `sslmode=no-verify` encrypts without authenticating the server and is only
@@ -62,7 +70,20 @@ for a self-hosted database with a self-signed certificate.
 The schema creates itself on first connection. There is no migration step yet;
 when a column has to change shape rather than be added, that stops being true.
 
-**Secrets.** Generate each one separately and never reuse:
+**Secrets.** Generate each one separately and never reuse. On a host, set them
+through the platform's own configuration. Locally:
+
+```bash
+npm run setup:env
+```
+
+That writes a gitignored `.env.local`, generates `OPERATOR_SECRET` and
+`CRON_SECRET` with a CSPRNG, and lists the values only you can supply — leaving
+each of them blank, because a placeholder company number is a false statement of
+identity rather than a missing one. It never overwrites a value that is already
+set: regenerating `OPERATOR_SECRET` would sign every operator out, silently.
+
+Or by hand:
 
 ```bash
 openssl rand -base64 32   # OPERATOR_SECRET

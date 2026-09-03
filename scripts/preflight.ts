@@ -25,6 +25,7 @@ import { companyIdentity, identityGaps } from "../src/shared/domain/identity";
 import { heldKeys, permissionDefinition, readPermissions } from "../src/shared/domain/permissions";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { applyEnv, loadEnv } from "./env";
 
 type Level = "block" | "warn" | "pass";
 
@@ -47,7 +48,19 @@ const block = (area: string, message: string, remedy: string): void => {
   checks.push({ level: "block", area, message, remedy });
 };
 
-const env = process.env;
+/**
+ * The environment as the running app would see it, not as this process sees
+ * it. Without this a correctly configured `.env.local` still reported nine
+ * blockers, because `tsx` does not load env files and Next does.
+ */
+const loaded = loadEnv();
+// Applied to process.env as well as read here, because several checks import
+// modules that read it themselves — the store reads DATABASE_URL at import and
+// takes no argument. Reading the file into a local object and leaving
+// process.env alone made the identity checks pass from the file while the
+// Postgres reachability check reported "DATABASE_URL is not set".
+applyEnv(loaded);
+const env = loaded.env;
 
 /** Values that appear in this repository and must never reach production. */
 const KNOWN_DEV_SECRETS = new Set(["test-operator-secret", "lode", "changeme", "secret", "password"]);
@@ -265,7 +278,7 @@ function checkEmail(): void {
  * check and be a false statement of identity.
  */
 function checkIdentity(): void {
-  const identity = companyIdentity(process.env);
+  const identity = companyIdentity(env);
   const gaps = identityGaps(identity);
   const blocking = gaps.filter((g) => g.blocking);
   const advisory = gaps.filter((g) => !g.blocking);
@@ -638,6 +651,15 @@ async function main(): Promise<void> {
   const icon: Record<Level, string> = { block: "BLOCK", warn: " WARN", pass: " PASS" };
 
   process.stdout.write("\nGo-live preflight\n=================\n\n");
+  // Where the values came from. Without this, "it passes locally and fails in
+  // CI" is a mystery rather than the obvious consequence of a file that is
+  // gitignored — and a run that read no file at all should look different from
+  // one that read two.
+  process.stdout.write(
+    loaded.sources.length === 0
+      ? "Read the process environment only; no .env files found.\n\n"
+      : `Read ${loaded.sources.join(" and ")}, under the process environment.\n\n`,
+  );
   for (const check of [...blockers, ...warnings, ...passes]) {
     process.stdout.write(`[${icon[check.level]}] ${check.area}: ${check.message}\n`);
     if (check.remedy !== undefined) {

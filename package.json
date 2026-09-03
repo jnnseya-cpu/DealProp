@@ -16,7 +16,8 @@
     "docs:pdf": "tsx scripts/generate-gtm-pdf.ts",
     "test:pg": "TEST_DATABASE_URL=${TEST_DATABASE_URL:-postgres://lode:lode@127.0.0.1:5432/lode_test} vitest run",
     "preflight": "tsx scripts/preflight.ts",
-    "verify": "npm run typecheck && npm run test && npm run build && npm run preflight"
+    "verify": "npm run typecheck && npm run test && npm run build && npm run preflight",
+    "setup:env": "tsx scripts/setup-env.ts"
   },
   "dependencies": {
     "next": "^15.5.23",
