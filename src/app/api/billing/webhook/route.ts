@@ -22,6 +22,7 @@ import {
   signatureHeaderFrom,
 } from "@backend/billing/stripe";
 import { mayStartTrial } from "@shared/domain/accounts";
+import { callerFrom, consume } from "@backend/rateLimit";
 import { openOpportunity, quoteRevealForDeal } from "@backend/billing/reveal";
 import {
   applyTopUp,
@@ -158,6 +159,21 @@ export async function POST(request: Request): Promise<NextResponse> {
   // The exact bytes. Parsing first and re-serialising produces different bytes
   // and a signature that can never match, which tends to get "fixed" by
   // removing the check.
+  // Bounded before the signature is computed. Verifying costs an HMAC over the
+  // whole body, and an endpoint that will do that for anybody, unboundedly, is
+  // a free way to burn our CPU without ever holding the secret. The limit is
+  // high because a provider legitimately redelivers in bursts.
+  const gate = consume("webhook", callerFrom(request.headers));
+  if (!gate.allowed) {
+    return NextResponse.json(
+      { status: "slow-down" },
+      {
+        status: 429,
+        headers: { ...NO_STORE, "retry-after": String(gate.retryAfterSeconds) },
+      },
+    );
+  }
+
   const raw = await request.text();
   const verification = verifyWebhook(raw, signatureHeaderFrom(request.headers));
 

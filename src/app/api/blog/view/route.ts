@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { callerFrom, consume } from "@backend/rateLimit";
 import { loadCorpus } from "@backend/blog/corpus";
 import { recordBlogView } from "@backend/store/repository";
 
@@ -26,6 +27,16 @@ export const dynamic = "force-dynamic";
  * show up.
  */
 export async function POST(request: Request): Promise<NextResponse> {
+  // Unauthenticated and it writes on every call, so it is a free way to make
+  // us do database work and to inflate a number somebody reads as a fact.
+  const gate = consume("view-count", callerFrom(request.headers));
+  if (!gate.allowed) {
+    return NextResponse.json(
+      { status: "slow-down" },
+      { status: 429, headers: { "retry-after": String(gate.retryAfterSeconds) } },
+    );
+  }
+
   let slug: unknown;
   try {
     const body: unknown = await request.json();

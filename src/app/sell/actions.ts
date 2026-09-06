@@ -21,6 +21,8 @@ import type {
 import { allSituations } from "@shared/domain/motivation";
 import { newToken } from "@backend/auth/tokens";
 import { saveDeal } from "@backend/store/repository";
+import { callerFrom, consume } from "@backend/rateLimit";
+import { headers as nextHeaders } from "next/headers";
 
 /**
  * Intake submission.
@@ -94,6 +96,20 @@ function ageBand(raw: FormDataEntryValue | null): AgeBand {
 }
 
 export async function submitEnquiry(formData: FormData): Promise<void> {
+  /*
+    A public form that writes a record, so it is a free way to fill the
+    pipeline with junk and the store with rows. A person submits one enquiry;
+    a script submits thousands, and the operator then cannot find the real
+    ones — which costs more than the storage does.
+
+    Redirected rather than thrown: this action redirects on success and has no
+    error surface to return to, and a thrown error would show a stack page to
+    somebody who is, in the ordinary case, a distressed seller who pressed the
+    button twice.
+  */
+  const gate = consume("intake", callerFrom(await nextHeaders()));
+  if (!gate.allowed) redirect("/sell?slow-down=1");
+
   const priorities = formData
     .getAll("priorities")
     .filter((p): p is string => typeof p === "string")

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
+import { cookies, headers as nextHeaders } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   OPERATOR_COOKIE,
@@ -10,9 +10,10 @@ import {
   operatorPasswordMatches,
 } from "@backend/auth/operator";
 import { createSession, SESSION_COOKIE, SESSION_SECONDS } from "@backend/auth/session";
-import { verifyPassword } from "@backend/auth/password";
-import { findAccountByEmail } from "@backend/store/repository";
+import { hashPassword, needsRehash, verifyPassword } from "@backend/auth/password";
+import { findAccountByEmail, saveAccount } from "@backend/store/repository";
 import { audit } from "@backend/audit";
+import { callerFrom, consume } from "@backend/rateLimit";
 
 /**
  * Operator sign-in.
@@ -29,6 +30,25 @@ export async function signIn(
   const submitted = String(formData.get("password") ?? "");
   const email = String(formData.get("email") ?? "").trim();
   const next = String(formData.get("next") ?? "/deals");
+
+  /*
+    Counted before a password is checked, not after.
+
+    Verifying costs ~170ms of scrypt on a single-threaded runtime, so an
+    unlimited sign-in endpoint is a denial of service that needs no
+    vulnerability and barely any traffic: six attempts a second saturate a
+    core and every other request on the instance waits behind them. The limit
+    is what makes the memory-hard hash affordable rather than a liability.
+
+    Bucketed by caller and address together, so somebody guessing at one
+    account cannot lock out every other person behind the same office NAT.
+  */
+  const headers = await nextHeaders();
+  const gate = consume("sign-in", `${callerFrom(headers)}|${email.toLowerCase()}`);
+  if (!gate.allowed) {
+    await audit("sign-in-failed", { detail: "rate limited" });
+    return `Too many attempts. Try again in ${gate.retryAfterSeconds} seconds.`;
+  }
 
   // A named account first. The shared password remains as the bootstrap — it
   // is what creates the first administrator, and what a solo operator uses on
@@ -47,6 +67,22 @@ export async function signIn(
       // tells an attacker which addresses are real.
       await audit("sign-in-failed", { email });
       return "That email and password do not match an active account.";
+    }
+
+    // The one moment the plaintext is available, so the one moment a hash made
+    // at weaker parameters can be upgraded. Best-effort: a failure here must
+    // not stop somebody signing in with a correct password.
+    if (needsRehash(account.passwordHash)) {
+      try {
+        const upgraded = await hashPassword(submitted);
+        await saveAccount({
+          ...account,
+          passwordHash: upgraded.hash,
+          passwordSalt: upgraded.salt,
+        });
+      } catch (error) {
+        process.stderr.write(`password rehash failed for ${account.id}: ${String(error)}\n`);
+      }
     }
 
     const jar = await cookies();
