@@ -1,3 +1,4 @@
+import { SiteFooter } from "@/app/components/SiteFooter";
 import Link from "next/link";
 import { TrackOnView } from "@/app/components/TrackOnView";
 import { SiteHeader } from "@/app/components/chrome";
@@ -82,6 +83,7 @@ export default async function UnsubscribePage({
           </>
         )}
       </div>
+      <SiteFooter />
     </main>
   );
 }

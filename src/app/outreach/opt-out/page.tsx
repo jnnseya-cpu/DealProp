@@ -1,3 +1,4 @@
+import { SiteFooter } from "@/app/components/SiteFooter";
 import { addSuppression } from "@backend/store/repository";
 import { SiteHeader } from "@/app/components/chrome";
 
@@ -51,6 +52,7 @@ export default async function OptOutPage({
           enquiries.
         </p>
       </div>
+      <SiteFooter />
     </main>
   );
 }

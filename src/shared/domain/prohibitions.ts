@@ -1,4 +1,5 @@
 import type { Bps } from "@shared/money";
+import type { PermissionKey } from "@shared/domain/permissions";
 
 /**
  * The twelve things this platform must not do.
@@ -123,7 +124,10 @@ export const PROHIBITIONS: readonly Prohibition[] = [
     key: "guaranteed-valuation",
     rule: "Never describe an estimated valuation as guaranteed.",
     why: "Every figure this platform produces is an engine estimate. Presenting one as certain is a misleading action under the CPRs, and it is the sentence a buyer quotes back when the survey disagrees.",
-    enforcedBy: ["prohibitions.ts checkValuationLanguage() — refuses the vocabulary of certainty"],
+    enforcedBy: [
+      "prohibitions.ts checkValuationLanguage() — refuses the vocabulary of certainty",
+      "tests/publicCopy.test.ts — runs it over the marketing copy itself, which is what it was written for and was never applied to",
+    ],
   },
   {
     key: "publish-seller-distress",
@@ -208,6 +212,58 @@ const CERTAINTY_PATTERNS: readonly { readonly pattern: RegExp; readonly finding:
 export function checkValuationLanguage(text: string): LanguageCheck {
   const findings = CERTAINTY_PATTERNS.filter((c) => c.pattern.test(text)).map((c) => c.finding);
   return { clean: findings.length === 0, findings };
+}
+
+/* ------------------------------------------- returns on a public page */
+
+/**
+ * Figures that are an inducement rather than a fact about a property.
+ *
+ * A price, a cost and a discount describe the thing being bought. A margin, a
+ * return on cash and a profit describe what an investor would make, and a
+ * public statement that opportunities are *available* at one of those is an
+ * invitation to engage in investment activity. Under FSMA s.21 only an
+ * authorised person may communicate or approve one, and doing it without the
+ * permission is a criminal offence, not a regulatory tidy-up.
+ *
+ * The line this codebase draws — and it is a line, so it is written down: a
+ * worked example labelled as an illustration publishes its own arithmetic, the
+ * way the blog publishes deals with the working shown including the refused
+ * ones. What the supply statement may never say is how many opportunities are
+ * available at what return. `supplyPosition()` carries no return figure at all,
+ * which is the structural half; this is the half that decides whether the page
+ * may say so.
+ */
+export const INDUCEMENT_FIGURES: readonly string[] = [
+  "margin on gross development value",
+  "return on cash",
+  "profit before tax",
+  "profit after tax",
+  "yield",
+];
+
+export interface PromotionDecision {
+  readonly allowed: boolean;
+  /**
+   * Publishable copy either way — printed on the page in place of the figures,
+   * so a refusal explains itself to the reader rather than leaving a gap.
+   */
+  readonly reason: string;
+}
+
+export function mayPublishReturns(held: readonly PermissionKey[]): PromotionDecision {
+  if (held.includes("financial-promotion-approver")) {
+    return {
+      allowed: true,
+      reason:
+        "What each opportunity is worth is shown to categorised investors. Every promotion on this platform is approved by an authorised person, as FSMA s.21 requires.",
+    };
+  }
+  return {
+    allowed: false,
+    reason:
+      "What each opportunity is worth is not shown here and will not be. A public statement that opportunities are available at a given return is an invitation to engage in investment activity, and under FSMA s.21 only an authorised person may communicate or approve one. The economics are behind investor categorisation, which is a form you sign rather than a box you tick.",
+  };
 }
 
 /* --------------------------------------------------- ranking by fit only */

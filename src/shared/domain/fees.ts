@@ -2,7 +2,7 @@ import { add, applyBps, ZERO, type Money } from "@shared/money";
 import { gbp } from "@shared/format";
 import type { DealAppraisal, DealStatus } from "@shared/domain/types";
 import { permissionDefinition, type PermissionKey } from "@shared/domain/permissions";
-import { successFee, type SellerService } from "@shared/domain/pricing";
+import { sellerFeeHeadline, successFee, type SellerService } from "@shared/domain/pricing";
 import { DEFAULT_ASSUMPTIONS, type RevenueAssumptions, type RevenueStream } from "@shared/domain/revenue";
 
 /**
@@ -203,6 +203,50 @@ export function feeDefinition(key: FeeKey): FeeDefinition {
   const found = FEE_DEFINITIONS.find((f) => f.key === key);
   if (found === undefined) throw new Error(`No fee definition for "${key}".`);
   return found;
+}
+
+/**
+ * What the site may say to a seller about what they will pay.
+ *
+ * The footer said "we do not charge sellers" on every page of a platform whose
+ * hero, two screens above, quoted a percentage of the price achieved. Both
+ * sentences were typed, which is how they came to disagree, and the false one
+ * appeared on more pages than the true one. Under the CPRs that is a
+ * misleading action, and it is the kind that is discovered by the one person
+ * who most needs to be able to trust the page.
+ *
+ * So it is computed, from the same definition the fee engine charges against:
+ * a fee whose permissions are not recorded is a fee that cannot be raised, and
+ * a page that quotes it is quoting a charge nobody may lawfully take.
+ * `dealRevenue()` already excludes the income; this is the sentence that says
+ * so out loud.
+ */
+export interface SellerFeeStatement {
+  /** True where the fee could actually be raised, permissions and all. */
+  readonly chargeable: boolean;
+  /** Publishable copy. Complete sentences, safe in a footer or a hero. */
+  readonly statement: string;
+}
+
+export function sellerFeeStatement(
+  held: readonly PermissionKey[],
+  service: SellerService = "standard",
+): SellerFeeStatement {
+  const definition = feeDefinition("seller-success-fee");
+  const missing = definition.requiresPermissions.filter((key) => !held.includes(key));
+
+  if (missing.length === 0) {
+    return {
+      chargeable: true,
+      statement: `Seeing your options is free. If you sell through us we charge ${sellerFeeHeadline(service)}, due only on completion — and nothing at all if the property does not sell.`,
+    };
+  }
+
+  return {
+    chargeable: false,
+    statement:
+      "Seeing your options is free and there is nothing for a seller to pay. Introducing a seller to a buyer for a fee is estate agency work, and that income is refused until the supervision behind it is recorded.",
+  };
 }
 
 export interface FeeBlocker {

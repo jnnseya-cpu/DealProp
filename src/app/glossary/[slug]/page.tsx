@@ -1,3 +1,4 @@
+import { SiteFooter } from "@/app/components/SiteFooter";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -163,6 +164,7 @@ export default async function TermPage({ params }: { params: Promise<{ slug: str
           </section>
         )}
       </div>
+      <SiteFooter />
     </main>
   );
 }

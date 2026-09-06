@@ -1,3 +1,4 @@
+import { SiteFooter } from "@/app/components/SiteFooter";
 import Link from "next/link";
 import { Badge, Button, Panel, SiteHeader, Stat } from "@/app/components/chrome";
 import { appraise, maxViablePrice } from "@shared/domain/economics";
@@ -118,6 +119,7 @@ export default async function AppraisePage({
           <Result inputs={parsed.inputs} assumptions={parsed.assumptions} />
         )}
       </div>
+      <SiteFooter />
     </main>
   );
 }

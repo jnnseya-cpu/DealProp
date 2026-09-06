@@ -31,7 +31,7 @@ npm install
 npm run setup:env # generates the secrets; lists what only you can supply
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 1,002 tests, 1,055 with a Postgres in TEST_DATABASE_URL
+npm test          # 1,063 tests, 1,121 with a Postgres in TEST_DATABASE_URL
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 npm run backup    # pg_dump, custom format, with the restore command printed
@@ -124,6 +124,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Permissions | `src/shared/domain/permissions.ts` | One catalogue, evidenced. A bare key grants nothing |
 | Fees | `src/shared/domain/fees.ts` | What may actually be invoiced now, and what is stopping the rest |
 | Company identity | `src/shared/domain/identity.ts` | The statutory disclosures, read from configuration and never invented |
+| Public copy | `src/shared/domain/prohibitions.ts` | What the marketing pages may state — certainty, returns, and what a seller pays |
 | Agents | `src/shared/domain/agents.ts` | Nine triggers, nine outputs, and the four things accepting one can do |
 | Owner lookup | `src/backend/discovery/owners.ts` | Who owns one title, and how they may lawfully be approached |
 | Borrowing | `src/shared/domain/borrowing.ts` | Total cost of a facility, and what actually arrives on the day |
@@ -582,7 +583,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 772 tests, Postgres suite skipped
+npm test          # 1,063 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 

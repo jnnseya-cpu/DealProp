@@ -21,7 +21,28 @@ import { SiteFooter } from "@/app/components/SiteFooter";
 import { gbp, gbpSigned, percent } from "@shared/format";
 import { Button, Mark, scoreBg, scoreTone, VERDICT_TONE } from "@/app/components/chrome";
 import { BUYER_TIERS } from "@shared/domain/revenue";
-import { sellerFeeHeadline } from "@shared/domain/pricing";
+import { sellerFeeStatement, type SellerFeeStatement } from "@shared/domain/fees";
+import { mayPublishReturns, type PromotionDecision } from "@shared/domain/prohibitions";
+import { permissionsHeld } from "@backend/permissions";
+import { situationLabel } from "@shared/domain/motivation";
+import { REVEAL_GUARANTEE } from "@shared/domain/reveal";
+import { GRADES } from "@shared/domain/passport";
+import { MATERIAL_ITEMS } from "@shared/domain/materialInformation";
+import { sellerDueDiligence } from "@shared/domain/sellerDueDiligence";
+import { REVEAL_PRICES } from "@shared/domain/pricing";
+import type { OccupancyStatus } from "@shared/domain/types";
+
+/**
+ * A Record rather than a ternary, so a fourth occupancy status is a type error
+ * here instead of being quietly described as owner-occupied on the front page.
+ */
+const OCCUPANCY_LABELS: Record<OccupancyStatus, string> = {
+  vacant: "vacant",
+  "owner-occupied": "owner-occupied",
+  tenanted: "tenanted",
+  "tenanted-arrears": "tenanted, arrears",
+  unknown: "occupancy not recorded",
+};
 
 /*
  * Recomputed at most every five minutes.
@@ -88,6 +109,22 @@ export default async function Home() {
   // The seller's own view of the same deal, so the hero can show what a seller
   // receives rather than what a buyer makes.
   const sellerRoutes = buildSellerRoutes(record.property, record.seller);
+  // The worked example, described from the record it is computed from rather
+  // than from a string somebody typed above it.
+  const subject = [
+    situationLabel(record.seller.situation),
+    `${record.property.locality} ${record.property.postcodeArea}`,
+    OCCUPANCY_LABELS[record.property.occupancy],
+  ].join(" · ");
+
+  // Whether a return figure may be shown to somebody who is not signed in.
+  // Read from the same permission catalogue that gates the revenue model and
+  // the fee engine, so there is one answer to "are we authorised to say this".
+  const permissions = permissionsHeld();
+  const promotion = mayPublishReturns(permissions);
+  // What a seller will actually pay, decided by the fee engine rather than by
+  // whoever last edited this paragraph.
+  const sellerFee = sellerFeeStatement(permissions);
 
   const stress = (key: string): Money =>
     scored.redTeam.results.find((r) => r.stress.key === key)?.profit ?? scored.appraisal.profit;
@@ -95,15 +132,22 @@ export default async function Home() {
   return (
     <main className="relative overflow-x-hidden">
       <Nav />
-      <Hero routes={sellerRoutes} supply={supply} />
+      <Hero
+        sellerFee={sellerFee}
+        routes={sellerRoutes}
+        supply={supply}
+        subject={subject}
+        strategiesTested={strategies.tested}
+      />
       <Doors />
-      <SupplySection supply={supply} />
+      <SupplySection supply={supply} promotion={promotion} />
       <LiveDeal
         briefing={briefing}
         buyers={buyers}
         funderCount={funders.length}
         topFunder={funders[0]?.target.funderName}
       />
+      <TrustSection />
       <ProtectionSection protection={scored.protection} />
       <ScoreSection components={scored.breakdown.components} composite={scored.breakdown.composite} />
       <RedTeamSection
@@ -160,7 +204,19 @@ function Nav() {
 }
 
 
-function Hero({ routes, supply }: { routes: SellerRoutesReport; supply: SupplyPosition }) {
+function Hero({
+  routes,
+  supply,
+  subject,
+  strategiesTested,
+  sellerFee,
+}: {
+  routes: SellerRoutesReport;
+  supply: SupplyPosition;
+  subject: string;
+  strategiesTested: number;
+  sellerFee: SellerFeeStatement;
+}) {
   return (
     <section className="grain relative border-b hairline">
       <div className="relative mx-auto grid max-w-7xl items-start gap-14 px-6 py-14 lg:grid-cols-[1fr_480px] lg:py-18">
@@ -199,10 +255,15 @@ function Hero({ routes, supply }: { routes: SellerRoutesReport; supply: SupplyPo
             <Button href="/sell" variant="primary">See my options — free</Button>
             <Button href="/appraise">Appraise a deal instead</Button>
           </div>
+          {/*
+            The fee sentence is computed rather than typed. A percentage
+            published on a landing page is only true while the permissions
+            behind it are recorded, and the footer of this very site asserted
+            the opposite of this paragraph on every page.
+          */}
           <p className="mt-3 text-[13px] text-ink-500">
-            Seeing your options is free and nobody phones you unless you ask. If you go on to sell
-            through us we charge {sellerFeeHeadline()} — and nothing at all if it does not sell.
-            Buying rather than selling? The appraisal needs no account.
+            {sellerFee.statement} Nobody phones you unless you ask. Buying rather than selling? The
+            appraisal needs no account.
           </p>
 
           {/*
@@ -227,11 +288,21 @@ function Hero({ routes, supply }: { routes: SellerRoutesReport; supply: SupplyPo
               value={String(supply.fundingMandates)}
               sub={`${supply.buyMandates} buying mandate${supply.buyMandates === 1 ? "" : "s"} alongside`}
             />
-            <HeroStat label="Strategies tested" value="14" sub="per property, before advice" />
+            {/*
+              Read from the router rather than typed. "14" was correct on the
+              day it was written and would have gone on saying 14 the day a
+              fifteenth structure was added — a wrong number on the most
+              prominent line of the site, and nobody would have known.
+            */}
+            <HeroStat
+              label="Strategies tested"
+              value={String(strategiesTested)}
+              sub="per property, before advice"
+            />
           </dl>
         </div>
 
-        <SellerRoutesCard report={routes} />
+        <SellerRoutesCard report={routes} subject={subject} />
       </div>
     </section>
   );
@@ -275,15 +346,22 @@ function HeroStat({ label, value, sub }: { label: string; value: string; sub: st
  * costs them. The buyer's arithmetic is a click away at /appraise, where the
  * audience for it is the audience that asked.
  */
-function SellerRoutesCard({ report }: { report: SellerRoutesReport }) {
+function SellerRoutesCard({ report, subject }: { report: SellerRoutesReport; subject: string }) {
   const routes = report.routes.filter((r) => !r.unavailable).slice(0, 3);
   const best = report.best;
 
   return (
     <div className="overflow-hidden rounded-xl border hairline bg-surface-1">
       <div className="flex items-center justify-between border-b hairline bg-surface-2 px-4 py-2.5">
+        {/*
+          Derived from the same fixture the routes below are computed from.
+          It read "empty 412 days" — a figure that is in no record anywhere,
+          on a card whose own text promises every number is computed. An
+          invented day count is the one thing on this card a reader could
+          check, and it was the one thing that was made up.
+        */}
         <span className="font-mono text-[11px] tracking-[0.04em] text-ink-300">
-          Probate · Erdington B23 · empty 412 days
+          {subject}
         </span>
         <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-500">
           Worked example
@@ -436,7 +514,13 @@ function Doors() {
  * communicate or approve one. Counts, coverage and cadence are facts about the
  * business; the economics stay behind categorisation, where `can()` puts them.
  */
-function SupplySection({ supply }: { supply: SupplyPosition }) {
+function SupplySection({
+  supply,
+  promotion,
+}: {
+  supply: SupplyPosition;
+  promotion: PromotionDecision;
+}) {
   return (
     <section id="supply" className="border-b hairline">
       <div className="mx-auto max-w-7xl px-6 py-20">
@@ -526,12 +610,14 @@ function SupplySection({ supply }: { supply: SupplyPosition }) {
               </p>
             </div>
 
-            <p className="mt-4 text-[12px] leading-[1.6] text-ink-500">
-              What each deal is worth is not shown here and will not be. A public statement that
-              opportunities are available at a given return is a financial promotion, and one may
-              only be made or approved by a person authorised under FSMA. The economics are behind
-              investor categorisation, which is a form you sign rather than a box you tick.
-            </p>
+            {/*
+              This paragraph used to assert the platform's regulatory position
+              in prose, on a page that then published a return four sections
+              down. It is now read from the permission catalogue — the same
+              answer the revenue model, the charge gate and the regulatory
+              router get — so the page cannot state a position it does not hold.
+            */}
+            <p className="mt-4 text-[12px] leading-[1.6] text-ink-500">{promotion.reason}</p>
           </div>
         </div>
       </div>
@@ -596,27 +682,22 @@ function LiveDeal({
           </div>
 
           <div className="space-y-4">
-            <BigFigure
-              label="Profit before tax"
-              value={gbpSigned(a.profitBeforeTax)}
-              muted
-            />
-            <BigFigure
-              label={a.profitTaxLabel}
-              value={`− ${gbp(a.profitTax)}`}
-              muted
-            />
-            <BigFigure
-              label="Profit after tax"
-              value={gbpSigned(a.profit)}
-              accent
-            />
+            <BigFigure label="Profit before tax" value={gbpSigned(a.profitBeforeTax)} muted />
+            <BigFigure label={a.profitTaxLabel} value={`− ${gbp(a.profitTax)}`} muted />
+            <BigFigure label="Profit after tax" value={gbpSigned(a.profit)} accent />
             <div className="grid grid-cols-2 gap-4">
               <MiniStat label="Headline discount" value={percent(a.discountToOmvBps)} />
               <MiniStat label="True discount" value={percent(a.trueDiscountBps)} hint="after every cost" />
               <MiniStat label="Margin on GDV" value={percent(a.marginOnGdvBps)} />
               <MiniStat label="Return on cash" value={percent(a.roiOnCashBps, 0)} />
             </div>
+            {/*
+              These are the illustration's own arithmetic, on a property named
+              in the eyebrow as a worked example. What may not be published is a
+              statement that opportunities are available at a given return —
+              that is the supply statement above, and it consults
+              `mayPublishReturns()` rather than asserting the position in prose.
+            */}
             <div className="rounded-xl border hairline bg-surface-2 px-5 py-4">
               <p className="text-sm text-ink-300">
                 <span className="text-lode-300">
@@ -837,7 +918,7 @@ function StrategySection({
       <div className="mx-auto max-w-7xl px-6 py-20">
         <SectionHead
           eyebrow="Strategy Router"
-          title="One property. Fourteen strategies tested. Most rejected."
+          title={`One property. ${strategies.tested} strategies tested. Most rejected.`}
           lede="Never force a property into a predetermined strategy. The rejections are the product — an investor who is told why cash purchase fails but assisted sale clears has learned something reusable."
         />
 
@@ -1039,6 +1120,112 @@ function CloseSection({ close }: { close: ReturnType<typeof buildCloseReport> })
   );
 }
 
+/**
+ * What is checked, who is allowed through, and what happens when it is wrong.
+ *
+ * The page described the engine at length — the score, the stress tests, the
+ * capital stack — and said nothing about the three things a buyer actually
+ * weighs before paying: whether the property was checked before it was
+ * marketed, whether the person they are competing with has money, and what
+ * happens if the introduction turns out to be worthless. Those controls were
+ * built and were invisible.
+ *
+ * Every list here is read from the module that enforces it. A guarantee
+ * published in marketing and applied by support eventually differ, and the
+ * difference is always in the platform's favour, which is how it becomes a
+ * complaint to a redress scheme.
+ */
+function TrustSection() {
+  const partA = MATERIAL_ITEMS.filter((i) => i.part === "A").length;
+  const partBC = MATERIAL_ITEMS.length - partA;
+  // The questions the Regulations require of a seller, read from the engine
+  // with nothing recorded — which is the state every seller starts in.
+  const sellerChecks = sellerDueDiligence(undefined, new Date()).checks;
+
+  return (
+    <section className="border-b hairline bg-surface-1">
+      <div className="mx-auto max-w-7xl px-6 py-20">
+        <SectionHead
+          eyebrow="What protects a buyer"
+          title="Checked before it is listed. Graded before it reaches a seller. Refunded if it was wrong."
+          lede="Three controls, in the order a buyer meets them. Each list below is read from the code that enforces it, so what is published here and what is applied cannot drift apart."
+        />
+
+        <div className="mt-14 grid gap-5 lg:grid-cols-3">
+          <div className="rounded-2xl border hairline bg-surface-2 px-6 py-7">
+            <p className="text-sm font-medium text-ink-100">Before it is marketed</p>
+            <p className="tnum mt-3 text-[28px] leading-none text-ink-100">{partA}</p>
+            <p className="mt-2 text-xs leading-relaxed text-ink-400">
+              questions that must be answered on every property before it can be shown to anybody,
+              with {partBC} more that apply according to tenure and jurisdiction. An unanswered one
+              is published as unanswered, naming who was asked — a buyer cannot otherwise tell
+              &ldquo;no covenants&rdquo; from &ldquo;nobody looked&rdquo;.
+            </p>
+            <ul className="mt-5 space-y-2 border-t hairline pt-5">
+              {sellerChecks.map((check) => (
+                <li key={check.label} className="flex gap-2 text-xs leading-relaxed text-ink-300">
+                  <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-lode-400" />
+                  <span>
+                    {check.label}
+                    {check.blocking && <span className="text-ink-500"> — blocks marketing</span>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-[11px] leading-relaxed text-ink-500">
+              Asked of the seller, not only of the buyer. The person on the telephone is very often
+              not the registered proprietor.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border hairline bg-surface-2 px-6 py-7">
+            <p className="text-sm font-medium text-ink-100">Before a buyer reaches a seller</p>
+            <p className="mt-3 text-xs leading-relaxed text-ink-400">
+              A motivated seller has finite patience and one property to sell. Spending it on
+              somebody with no money is how the supply side dies, and the seller blames whoever
+              introduced them.
+            </p>
+            <ul className="mt-5 space-y-3.5 border-t hairline pt-5">
+              {GRADES.map((g) => (
+                <li key={g.grade} className="flex gap-3">
+                  <span
+                    className={`tnum mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[12px] ${
+                      g.mayApproachSeller
+                        ? "bg-emerald-400/10 text-emerald-300"
+                        : "bg-ink-850 text-ink-500"
+                    }`}
+                  >
+                    {g.grade}
+                  </span>
+                  <span className="text-xs leading-relaxed text-ink-300">
+                    <span className="text-ink-100">{g.label}.</span> {g.meaning}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="rounded-2xl border hairline bg-surface-2 px-6 py-7">
+            <p className="text-sm font-medium text-ink-100">If the introduction was wrong</p>
+            <p className="mt-3 text-xs leading-relaxed text-ink-400">
+              The reveal fee buys a verified pack and a controlled introduction. It never buys an
+              address that is already on a portal.
+            </p>
+            <ul className="mt-5 space-y-2 border-t hairline pt-5">
+              {REVEAL_GUARANTEE.map((line) => (
+                <li key={line} className="flex gap-2 text-xs leading-relaxed text-ink-300">
+                  <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-lode-400" />
+                  {line}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ProtectionSection({ protection }: { protection: ReturnType<typeof runDealDirector>["scored"]["protection"] }) {
   return (
     <section className="border-b hairline bg-surface-1">
@@ -1144,6 +1331,50 @@ function Pricing() {
               </ul>
             </div>
           ))}
+        </div>
+
+        {/*
+          The subscription was the whole of this section, and the subscription
+          is not how a buyer pays for a property. The reveal fee is the actual
+          transaction and it was not stated anywhere a visitor could reach —
+          a price somebody first meets at the checkout is a price they read as
+          a surprise. Read from `pricing.ts`, which is the only place a price
+          is allowed to exist.
+        */}
+        <div className="mt-5 overflow-hidden rounded-2xl border hairline bg-surface-2">
+          <div className="border-b hairline px-6 py-5">
+            <p className="text-sm font-medium text-ink-100">Then a fee per introduction</p>
+            <p className="mt-2 max-w-[46rem] text-xs leading-relaxed text-ink-400">
+              Paid once, when a buyer opens a specific opportunity — never to see an address that
+              is already advertised. Priced by what the opportunity is, because the work behind a
+              plot of land and the work behind a terraced house are not the same. The band is the
+              floor and the ceiling; the middle figure is what is charged unless the opportunity is
+              priced individually.
+            </p>
+          </div>
+          <ul className="grid sm:grid-cols-2">
+            {REVEAL_PRICES.map((r) => (
+              <li
+                key={r.opportunity}
+                className="flex items-baseline justify-between gap-4 border-b hairline px-6 py-3 last:border-0 sm:odd:border-r"
+              >
+                <span className="text-[13px] text-ink-300">{r.label}</span>
+                <span className="tnum shrink-0 text-[13px] text-ink-100">
+                  {gbp(r.standard)}
+                  <span className="text-ink-500">
+                    {" "}
+                    ({gbp(r.from)}–{gbp(r.to)})
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="border-t hairline bg-surface-3 px-6 py-4">
+            <p className="text-xs leading-relaxed text-ink-400">
+              Refundable in full on any of the grounds listed above. Claims are made through the
+              platform and the refund is automatic; nobody has to be persuaded.
+            </p>
+          </div>
         </div>
       </div>
     </section>

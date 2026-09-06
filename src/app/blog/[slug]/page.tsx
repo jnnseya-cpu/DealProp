@@ -1,3 +1,4 @@
+import { SiteFooter } from "@/app/components/SiteFooter";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -215,6 +216,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           </p>
         </footer>
       </article>
+      <SiteFooter />
     </main>
   );
 }

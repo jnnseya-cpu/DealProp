@@ -1,8 +1,22 @@
+import { SiteFooter } from "@/app/components/SiteFooter";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { SiteHeader } from "@/app/components/chrome";
 import { siteUrl, SITE_NAME } from "@backend/site";
 import { canonical, GLOSSARY, TOPIC_DEFINITIONS, TOPICS } from "@shared/domain/blog";
+
+/*
+ * Not indefinitely static.
+ *
+ * The footer prints the Companies Act 2006 s.82 disclosure, and it reads it
+ * from the environment at render time. A page prerendered once at build has
+ * that environment baked into it — and the Dockerfile deliberately passes only
+ * NEXT_PUBLIC_* as build arguments, so at build there is no company identity to
+ * read. A page with no revalidate would therefore serve "identity has not been
+ * configured" for the life of the deployment, on the pages a seller actually
+ * lands on. An hour is the window after a deploy, not a permanent state.
+ */
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: `Property investment glossary — ${SITE_NAME}`,
@@ -58,6 +72,7 @@ export default function GlossaryIndex() {
           );
         })}
       </div>
+      <SiteFooter />
     </main>
   );
 }

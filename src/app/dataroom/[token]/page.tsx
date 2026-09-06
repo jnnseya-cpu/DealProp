@@ -1,3 +1,4 @@
+import { SiteFooter } from "@/app/components/SiteFooter";
 import { notFound } from "next/navigation";
 import { getDeal } from "@backend/store/repository";
 import { openDataRoom } from "@backend/outreach/stages";
@@ -159,6 +160,7 @@ export default async function DataRoomPage({
           page is individual to you and is logged. Access ends {grant.expiresAt.slice(0, 10)}.
         </p>
       </div>
+      <SiteFooter />
     </main>
   );
 }

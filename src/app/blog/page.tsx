@@ -1,3 +1,4 @@
+import { SiteFooter } from "@/app/components/SiteFooter";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { SiteHeader } from "@/app/components/chrome";
@@ -97,6 +98,7 @@ export default async function BlogIndex() {
           ))}
         </div>
       </div>
+      <SiteFooter />
     </main>
   );
 }

@@ -28,9 +28,28 @@ COPY . .
 ARG NEXT_PUBLIC_SITE_URL
 ARG NEXT_PUBLIC_META_PIXEL_ID
 ARG NEXT_PUBLIC_GA_MEASUREMENT_ID
+# The statutory identity, for the same reason and with the same caveat. These
+# are printed on every page by the Companies Act 2006 s.82, so they are not
+# secrets — and the public pages are prerendered at build, which is where they
+# are read. Supplied at runtime as well; a page regenerates within its
+# revalidate window either way, and passing them here removes the window after
+# a fresh deploy in which a marketing page would say "identity has not been
+# configured" to a seller. Nothing else about the company belongs here.
+ARG COMPANY_LEGAL_NAME
+ARG COMPANY_TRADING_NAME
+ARG COMPANY_NUMBER
+ARG COMPANY_PLACE_OF_REGISTRATION
+ARG COMPANY_REGISTERED_OFFICE
+ARG COMPANY_CONTACT_EMAIL
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
     NEXT_PUBLIC_META_PIXEL_ID=$NEXT_PUBLIC_META_PIXEL_ID \
     NEXT_PUBLIC_GA_MEASUREMENT_ID=$NEXT_PUBLIC_GA_MEASUREMENT_ID \
+    COMPANY_LEGAL_NAME=$COMPANY_LEGAL_NAME \
+    COMPANY_TRADING_NAME=$COMPANY_TRADING_NAME \
+    COMPANY_NUMBER=$COMPANY_NUMBER \
+    COMPANY_PLACE_OF_REGISTRATION=$COMPANY_PLACE_OF_REGISTRATION \
+    COMPANY_REGISTERED_OFFICE=$COMPANY_REGISTERED_OFFICE \
+    COMPANY_CONTACT_EMAIL=$COMPANY_CONTACT_EMAIL \
     NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 

@@ -1,6 +1,21 @@
+import { SiteFooter } from "@/app/components/SiteFooter";
 import { SellForm } from "./SellForm";
 import { SiteHeader } from "@/app/components/chrome";
-import { sellerFeeHeadline } from "@shared/domain/pricing";
+import { sellerFeeStatement } from "@shared/domain/fees";
+import { permissionsHeld } from "@backend/permissions";
+
+/*
+ * Not indefinitely static.
+ *
+ * The footer prints the Companies Act 2006 s.82 disclosure, and it reads it
+ * from the environment at render time. A page prerendered once at build has
+ * that environment baked into it — and the Dockerfile deliberately passes only
+ * NEXT_PUBLIC_* as build arguments, so at build there is no company identity to
+ * read. A page with no revalidate would therefore serve "identity has not been
+ * configured" for the life of the deployment, on the pages a seller actually
+ * lands on. An hour is the window after a deploy, not a permanent state.
+ */
+export const revalidate = 3600;
 
 export const metadata = {
   title: "Sell — Lode",
@@ -28,13 +43,12 @@ export default function SellPage() {
           stop at any point.
         </p>
         <p className="mt-4 max-w-xl border-l-2 border-lode-400/70 py-1 pl-4 text-[13px] leading-[1.65] text-ink-400">
-          Seeing your options costs nothing. If you go on to sell through us the fee is{" "}
-          {sellerFeeHeadline()}, payable on completion — so if the property does not sell, you pay
-          us nothing at all.
+          {sellerFeeStatement(permissionsHeld()).statement}
         </p>
       </div>
 
       <SellForm />
+      <SiteFooter />
     </main>
   );
 }

@@ -75,9 +75,9 @@ export default async function PartnersPage() {
           The instructions you cannot close are the ones we want.
         </h1>
         <p className="mt-4 max-w-[38rem] text-[15px] leading-[1.6] text-ink-300">
-          We are not an estate agent and we do not take instructions. What we take is the property
-          that has been on the market four hundred days through three reductions, where the client
-          needs it dealt with rather than maximised.
+          We do not take instructions, we do not market the property and we never put a board up.
+          What we take is the property that has been on the market four hundred days through three
+          reductions, where the client needs it dealt with rather than maximised.
         </p>
 
         {/* --- agents ---------------------------------------------------- */}

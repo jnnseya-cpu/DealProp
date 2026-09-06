@@ -1,3 +1,4 @@
+import { SiteFooter } from "@/app/components/SiteFooter";
 import { notFound } from "next/navigation";
 import { getDeal } from "@backend/store/repository";
 import { coveredBuyBoxes } from "@backend/billing/mandates";
@@ -130,6 +131,7 @@ export default async function SellerOptionsPage({
         )}
         <Obligations pack={pack} />
       </div>
+      <SiteFooter />
     </main>
   );
 }

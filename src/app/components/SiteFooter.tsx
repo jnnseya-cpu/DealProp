@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { companyIdentity, identityGaps, registrationLine } from "@shared/domain/identity";
 import { Mark } from "@/app/components/chrome";
+import { sellerFeeStatement } from "@shared/domain/fees";
+import { permissionsHeld } from "@backend/permissions";
 
 /**
  * The footer, and specifically the identity block in it.
@@ -108,10 +110,16 @@ export function SiteFooter({ width = "max-w-7xl" }: { width?: string }) {
             </p>
           )}
 
+          {/*
+            "We do not charge sellers" was printed here, on every page of a site
+            whose seller journey quotes a percentage of the price achieved two
+            screens above. Two typed sentences will eventually disagree and the
+            false one is always the one on more pages. This asks the fee engine.
+          */}
           <p className="mt-4 max-w-3xl">
             Figures shown anywhere on this site are screening estimates produced by an engine, not
             advice, not a valuation and not an offer. Tax figures always require professional
-            review. We are not an estate agent and we do not charge sellers.
+            review. {sellerFeeStatement(permissionsHeld(process.env.HELD_PERMISSIONS)).statement}
           </p>
         </div>
       </div>
