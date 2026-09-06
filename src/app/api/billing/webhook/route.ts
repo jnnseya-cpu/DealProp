@@ -23,6 +23,7 @@ import {
 } from "@backend/billing/stripe";
 import { mayStartTrial } from "@shared/domain/accounts";
 import { callerFrom, consume } from "@backend/rateLimit";
+import { messageOf, report } from "@backend/report";
 import { openOpportunity, quoteRevealForDeal } from "@backend/billing/reveal";
 import {
   applyTopUp,
@@ -244,7 +245,15 @@ export async function POST(request: Request): Promise<NextResponse> {
     // one case worth a 500: the provider retries, the claim is already held, and
     // the discrepancy has to be reconciled by hand rather than papered over by a
     // duplicate. Logged loudly for exactly that reason.
-    process.stderr.write(`billing webhook ${event.id} claimed but not applied: ${String(error)}\n`);
+    // Claimed but not applied is the one webhook outcome that needs a person:
+    // the provider will retry, the claim is already held, and the discrepancy
+    // has to be reconciled by hand rather than papered over by a duplicate.
+    report({
+      severity: "error",
+      area: "billing",
+      message: `Webhook claimed but not applied: ${messageOf(error)}`,
+      subject: event.id,
+    });
     return NextResponse.json({ status: "error" }, { status: 500, headers: NO_STORE });
   }
 }

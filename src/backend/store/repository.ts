@@ -85,8 +85,34 @@ async function store(): Promise<Store> {
     selected = postgresStore;
   } else {
     selected = fileStore;
+    warnAboutTheFileStore();
   }
   return selected;
+}
+
+/**
+ * Say so, loudly, once, when the file store is serving.
+ *
+ * The preflight blocks on an unset `DATABASE_URL`, but a preflight is a
+ * deploy-time gate and gates get skipped. Falling back silently means a
+ * deployment can run for weeks on a JSON file, and on any host running more
+ * than one instance the instances do not share a filesystem: writes land on
+ * whichever container served the request and diverge without erroring. By the
+ * time somebody notices, the reconciliation is manual and the loser is
+ * whichever seller's enquiry went to the other container.
+ *
+ * Written to stderr rather than thrown. Throwing would stop local development,
+ * which is the case this store exists for; a line in the log that a human
+ * reads once is the proportionate answer, and it names the consequence rather
+ * than the setting.
+ */
+function warnAboutTheFileStore(): void {
+  process.stderr.write(
+    "STORE: DATABASE_URL is not set, so this process is serving from a JSON file. " +
+      "That is correct for local development and wrong on any host running more than one " +
+      "instance — instances do not share a filesystem and writes will diverge silently. " +
+      "Run `npm run preflight` before deploying.\n",
+  );
 }
 
 /** Which engine is serving this process. Reported by scripts, never inferred. */

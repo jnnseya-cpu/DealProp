@@ -124,6 +124,17 @@ canonicalises itself to localhost.
 
 ---
 
+### Scheduled work
+
+`vercel.json` schedules the three cron endpoints on Vercel. **Nothing schedules
+them anywhere else** — the Dockerfile builds a standalone server with no
+scheduler in it, so a self-hosted deployment silently never expires lapsed
+balance, never sends the newsletter and never sends approved outreach. All
+three fail by not happening, which is the hardest kind of failure to notice.
+
+`docs/crontab.example` has the equivalent for a host with cron. Check the audit
+trail after the first scheduled run rather than assuming it fired.
+
 ## 3. What gets deployed, and where each layer ends up
 
 **One application and one database. There is no separate backend service.**

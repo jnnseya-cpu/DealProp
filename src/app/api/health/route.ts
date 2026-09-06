@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { report } from "@backend/report";
 import { storeKind } from "@backend/store/repository";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ export async function GET(): Promise<NextResponse> {
   } catch {
     // The reason is written to the server log, not returned. Whoever can read
     // the log is entitled to it; whoever can curl the endpoint is not.
-    process.stderr.write("health: store unreachable\n");
+    report({ severity: "error", area: "store", message: "Health check: the store is unreachable." });
     return NextResponse.json(
       { status: "unavailable" },
       { status: 503, headers: { "cache-control": "no-store" } },

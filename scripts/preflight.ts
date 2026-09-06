@@ -530,6 +530,16 @@ function checkBilling(): void {
     }
   }
 
+  if ((env.ERROR_REPORT_URL ?? "") === "") {
+    warn(
+      "Monitoring",
+      "ERROR_REPORT_URL is not set, so failures are written to stderr and nowhere else. A payout that did not send and a webhook claimed but not applied both announce themselves by being noticed later.",
+      "Point it at an incident tool, a chat webhook, or your own collector. Anything that accepts a JSON POST.",
+    );
+  } else {
+    pass("Monitoring", "Failures needing a person are posted somewhere as well as logged.");
+  }
+
   const checkoutUrl = env.BILLING_CHECKOUT_URL ?? "";
   const checkoutKey = env.BILLING_API_KEY ?? "";
   if (checkoutUrl === "" && checkoutKey === "") {

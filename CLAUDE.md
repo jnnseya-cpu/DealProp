@@ -414,7 +414,27 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
     ninety days before the end. What kills a refurbishment is not the interest,
     it is arriving at the term end with no exit arranged, and by then the
     options are an extension fee, a forced sale or the lender taking it.
-76. **A fee needs four things, and money is one of them.** The permission, the
+76. **A limiter fails open and says it is per-process.** Nothing bounded an
+    inbound request until sign-in cost 170ms of scrypt, at which point six
+    attempts a second saturated a core. `rateLimit.ts` allows where it cannot
+    decide, because a bug in a limiter must cost a defence rather than the
+    platform, and it holds no shared state — on four instances a caller gets
+    four times the allowance, which is still a bound and is not a quota.
+77. **Password parameters travel with the hash.** `COST` was declared,
+    commented as OWASP's floor, and passed to neither scrypt call, because the
+    promisified type had no parameter for it — a signature that cannot express
+    an argument guarantees the argument is forgotten. Correcting the cost
+    without recording it would have locked out every account, so hashes are
+    `scrypt$N$r$p$digest`, old ones verify at their own parameters, and they
+    are upgraded on the one occasion the plaintext exists.
+78. **A page is a rendering limit and never a supply figure.** `pageDeals()`
+    bounds the listing surfaces, which loaded the whole table and scored every
+    row. The pipeline headline reads the total, not its own row count — the
+    alternative says "50 opportunities" on a pipeline of four thousand.
+79. **The first non-additive schema change has somewhere to go.**
+    `migrations/` runs numbered files once each, in a transaction, recorded.
+    The base schema stays additive; this is for what additive DDL cannot say.
+80. **A fee needs four things, and money is one of them.** The permission, the
     stage, the disclosure to the seller and a named person raising it.
     `fees.ts` reports every missing one at once. The seller pays exactly one
     fee — a percentage of the price achieved, on completion and at no other

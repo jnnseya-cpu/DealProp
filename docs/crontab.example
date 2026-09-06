@@ -1,0 +1,32 @@
+# Scheduling the cron endpoints on a host that is not Vercel.
+#
+# `vercel.json` schedules these three on Vercel and nothing schedules them
+# anywhere else. The Dockerfile builds a standalone server with no scheduler in
+# it, so a self-hosted deployment silently never expires lapsed balance, never
+# sends the newsletter, and never sends approved outreach — three things that
+# fail by not happening, which is the hardest kind of failure to notice.
+#
+# Install with `crontab -e` on the host, or as a Kubernetes CronJob, or as
+# whatever your platform calls the same idea. Set SITE and CRON_SECRET first.
+#
+#   SITE=https://lode.example
+#   CRON_SECRET=<the same value the app has>
+#
+# --fail makes curl exit non-zero on a 4xx or 5xx so the failure reaches
+# cron's mail rather than being swallowed as a successful request that did
+# nothing. --max-time bounds a hung request; without it a stuck send can hold
+# a slot until the next one starts.
+
+SHELL=/bin/sh
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# Weekly newsletter — Monday 08:00 UTC.
+0 8 * * 1 curl --fail --silent --show-error --max-time 300 -H "authorization: Bearer $CRON_SECRET" -X POST "$SITE/api/cron/newsletter"
+
+# Expire lapsed prepaid balance — daily 03:00 UTC.
+0 3 * * * curl --fail --silent --show-error --max-time 300 -H "authorization: Bearer $CRON_SECRET" -X POST "$SITE/api/cron/billing"
+
+# Send approved outreach — weekdays, inside the business-hours window that
+# `campaign.ts` enforces. The endpoint re-checks the window itself, so a run
+# outside it sends nothing rather than being trusted to be scheduled correctly.
+0 10,14 * * 1-5 curl --fail --silent --show-error --max-time 300 -H "authorization: Bearer $CRON_SECRET" -X POST "$SITE/api/cron/outreach"

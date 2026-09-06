@@ -1,3 +1,5 @@
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
 import { Pool, type PoolClient } from "pg";
 import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
@@ -318,15 +320,75 @@ function getPool(): Pool {
 }
 
 /**
- * Create the tables on first use.
+ * Apply anything in `migrations/`, once each, in order.
  *
- * Idempotent DDL run once per process rather than a migration framework: there
- * is one version of this schema and it is additive. The moment a column has to
- * change shape, this becomes a real migration step and should be moved out.
+ * The base schema above is additive: every statement is
+ * `CREATE TABLE IF NOT EXISTS` and re-running it is free. That covers adding a
+ * table or a column that starts empty, and it covered everything until now.
+ *
+ * What it cannot express is a column changing shape, a backfill, or a
+ * constraint added to a table that already has rows breaking it — and the
+ * previous comment said, correctly, that the first time one of those was
+ * needed this stopped being true. This is where it goes, so that moment is a
+ * file rather than a crisis.
+ *
+ * Each file runs inside a transaction and is recorded. A failure rolls back and
+ * throws rather than continuing: a half-applied migration is worse than an
+ * unapplied one, and carrying on past a failure is how the two get confused.
+ */
+async function applyMigrations(): Promise<void> {
+  const pool = getPool();
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS schema_migrations (
+       name text PRIMARY KEY,
+       applied_at timestamptz NOT NULL DEFAULT now()
+     )`,
+  );
+
+  const directory = path.join(process.cwd(), "migrations");
+  let files: string[];
+  try {
+    files = (await readdir(directory)).filter((f) => f.endsWith(".sql")).sort();
+  } catch {
+    // No directory is the normal state until the first one is written.
+    return;
+  }
+  if (files.length === 0) return;
+
+  const { rows } = await pool.query<{ name: string }>("SELECT name FROM schema_migrations");
+  const done = new Set(rows.map((r) => r.name));
+
+  for (const name of files) {
+    if (done.has(name)) continue;
+    const sql = await readFile(path.join(directory, name), "utf8");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(sql);
+      await client.query("INSERT INTO schema_migrations (name) VALUES ($1)", [name]);
+      await client.query("COMMIT");
+      process.stdout.write(`migration applied: ${name}\n`);
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw new Error(
+        `Migration ${name} failed and was rolled back: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      client.release();
+    }
+  }
+}
+
+/**
+ * Create the tables on first use, then apply any migrations.
+ *
+ * Idempotent DDL run once per process. The additive base schema handles the
+ * ordinary case; `applyMigrations()` handles the changes it cannot express.
  */
 function ensureSchema(): Promise<void> {
   ready ??= getPool()
     .query(SCHEMA)
+    .then(() => applyMigrations())
     .then(() => undefined)
     .catch((error: unknown) => {
       // Do not cache a failed bootstrap: a transient connection error at boot

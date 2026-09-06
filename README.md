@@ -34,6 +34,7 @@ npm run dev       # http://localhost:3000
 npm test          # 1,002 tests, 1,055 with a Postgres in TEST_DATABASE_URL
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
+npm run backup    # pg_dump, custom format, with the restore command printed
 ```
 
 `setup:env` writes a gitignored `.env.local`, generates `OPERATOR_SECRET` and
@@ -447,9 +448,6 @@ Deliberately out of scope for this slice, in rough priority order:
 - **A built container image.** The `Dockerfile` is written against a standalone
   build that was produced and served successfully, but no image has been built —
   there was no Docker daemon available. Build it once before relying on it.
-- **Schema migrations.** The schema creates itself on first connection and is
-  additive only. The moment a column has to change shape rather than be added,
-  that stops being true and this becomes a real migration step.
 - **Seats.** `seats` is in the catalogue and enforced nowhere, because there is
   no team feature to enforce it against.
 - **Server-side conversions.** Meta's Conversions API and GA4 Measurement

@@ -9,6 +9,7 @@ import {
 import type { ProviderKind } from "@shared/domain/pricing";
 import { authoriseDecision, type Actor } from "@shared/domain/agents";
 import { audit } from "@backend/audit";
+import { report } from "@backend/report";
 import { providerConfig } from "@backend/billing/provider";
 import { stripeTransferBody, stripeTransferUrl } from "@backend/billing/stripe";
 import {
@@ -232,6 +233,14 @@ export async function makePayout(
     // the provider's records is money nothing here can account for, and in
     // this direction it has already left.
     await closePayout(record.id, { failedAt: new Date().toISOString(), failureReason: reason });
+    // Money that was supposed to leave and did not. Somebody is owed it and
+    // will not chase us for days.
+    report({
+      severity: "error",
+      area: "payouts",
+      message: `Payout to ${recipient.name} failed: ${reason}`,
+      subject: record.sourceReference,
+    });
     await audit("payout-failed", {
       account: { id: actor.id, email: actor.email },
       subject: record.sourceReference,
