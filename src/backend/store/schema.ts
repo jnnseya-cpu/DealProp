@@ -643,7 +643,8 @@ export type AuditAction =
   | "payout-recipient-recorded"
   | "payout-made"
   | "payout-failed"
-  | "holding-recorded";
+  | "holding-recorded"
+  | "sale-confirmation-recorded";
 
 export type SubscriberTokenField = "confirmToken" | "unsubscribeToken";
 

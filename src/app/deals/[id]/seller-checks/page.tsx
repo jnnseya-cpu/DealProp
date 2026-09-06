@@ -6,6 +6,12 @@ import { audit } from "@backend/audit";
 import { getDeal } from "@backend/store/repository";
 import { sellerDueDiligence, SELLER_CHECK_VALID_MONTHS } from "@shared/domain/sellerDueDiligence";
 import { AuthorityForm, IdentityForm, RiskForm } from "./Forms";
+import { InventoryForm } from "./InventoryForm";
+import {
+  categoryDefect,
+  categoryDefinition,
+  saleIsConfirmed,
+} from "@shared/domain/inventory";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +42,11 @@ export default async function SellerChecksPage({ params }: { params: Promise<{ i
   const checks = record.sellerChecks;
   const report = sellerDueDiligence(checks, new Date());
   const held = report.checks.filter((c) => c.held).length;
+
+  const item = record.inventory;
+  const category = item === undefined ? undefined : categoryDefinition(item.category);
+  const defect = item === undefined ? undefined : categoryDefect(item);
+  const confirmed = saleIsConfirmed(item);
 
   return (
     <main className="min-h-screen pb-20">
@@ -78,8 +89,66 @@ export default async function SellerChecksPage({ params }: { params: Promise<{ i
           />
         </div>
 
+        {/* --- the first question, and until now the one with nowhere to answer it --- */}
         <Panel
           className="mt-8"
+          eyebrow="Before anything else"
+          title="Has anybody said it is for sale?"
+          action={
+            <Badge tone={confirmed ? "good" : "warn"}>
+              {item === undefined
+                ? "Nothing recorded"
+                : confirmed
+                  ? "Confirmed"
+                  : defect !== undefined
+                    ? "Mismatched"
+                    : "Not confirmed"}
+            </Badge>
+          }
+        >
+          <p className="text-[13px] leading-[1.65] text-ink-300">
+            Nothing may be sold until somebody with authority over the property has said it is for
+            sale. A buyer who pays to open an opportunity and finds an owner who never agreed has
+            been sold nothing, and they only discover that after paying.
+          </p>
+
+          {item !== undefined && (
+            <p
+              className={`mt-3.5 border-l-2 py-1 pl-4 text-[13px] leading-[1.65] ${
+                confirmed ? "border-emerald-500/80 text-ink-200" : "border-amber-500/80 text-amber-200"
+              }`}
+            >
+              {category?.disclosure}
+              {item.confirmation !== undefined && (
+                <span className="mt-1.5 block text-ink-300">
+                  &ldquo;{item.confirmation.evidence}&rdquo;
+                  <span className="mt-1 block font-mono text-[11px] text-ink-500">
+                    {item.confirmation.by === "owner" ? "The owner" : "The instructed agent"} ·
+                    recorded by {item.confirmation.recordedBy} ·{" "}
+                    {item.confirmation.at.slice(0, 10)}
+                  </span>
+                </span>
+              )}
+            </p>
+          )}
+
+          {defect !== undefined && (
+            <p className="mt-3 border-l-2 border-amber-500/80 py-1 pl-4 text-[13px] leading-[1.65] text-amber-200">
+              {defect}
+            </p>
+          )}
+
+          <div className="mt-4 border-t hairline pt-4">
+            <InventoryForm
+              dealId={record.id}
+              {...(item !== undefined ? { category: item.category } : {})}
+              {...(item?.confirmation !== undefined ? { evidence: item.confirmation.evidence } : {})}
+            />
+          </div>
+        </Panel>
+
+        <Panel
+          className="mt-6"
           eyebrow="Where it stands"
           title="Every check, and what is missing"
           action={

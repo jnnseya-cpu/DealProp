@@ -193,6 +193,29 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
       exit: "sell",
     },
     borrowerCompletedDeals: 0,
+    /**
+     * The seller filling in this form is the owner saying it is for sale.
+     *
+     * Recorded as exactly that and nothing more. Before this, an enquiry from
+     * a person who had just typed out their situation and asked for help was
+     * stored as "nobody has confirmed it is for sale" — which was both untrue
+     * and the reason no enquiry could ever become a sellable opportunity.
+     *
+     * What is deliberately *not* claimed here is that they are the registered
+     * proprietor. That is a different question, it is asked at
+     * `/deals/[id]/seller-checks`, and the reveal stays blocked until it is
+     * answered — so recording what they said cannot short-circuit checking who
+     * they are.
+     */
+    inventory: {
+      category: "owner-verified",
+      confirmation: {
+        by: "owner",
+        at: new Date().toISOString(),
+        recordedBy: "Seller enquiry form",
+        evidence: `Submitted their own property through the enquiry form, describing the situation as "${intake.seller.situation}".`,
+      },
+    },
     status: "new",
   });
 

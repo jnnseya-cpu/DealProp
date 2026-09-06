@@ -4,6 +4,9 @@ import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { DealInputs, FinanceTerms, PropertyFacts, SellerProfile } from "@shared/domain/types";
 import type { ListingSignal } from "@shared/domain/goldmine";
 import type { FunderVerification } from "@shared/domain/prohibitions";
+import type { InventoryItem } from "@shared/domain/inventory";
+import type { SellerDueDiligence } from "@shared/domain/sellerDueDiligence";
+import type { MaterialRecord } from "@shared/domain/materialInformation";
 import { replaceAll, type DealRecord } from "./repository";
 
 /**
@@ -262,6 +265,11 @@ const DEALS: DealRecord[] = [
     inputs: deal("deal-0001", "LODE-0001", erdington, erdingtonSeller, fromMajor(172_000)),
     listing: erdingtonListing,
     borrowerCompletedDeals: 6,
+    inventory: confirmedByOwner(
+      "Rang after the second reduction. Wants it sold before the estate is wound up and is happy to be contacted by buyers.",
+    ),
+    sellerChecks: checkedSeller("estate"),
+    material: partA("£172,000", "Freehold", "Band B"),
     status: "in-market",
     milestones: milestones({
       "seller-id": "complete",
@@ -291,6 +299,30 @@ const DEALS: DealRecord[] = [
     inputs: deal("deal-0002", "LODE-0002", sellyOak, sellyOakSeller, fromMajor(150_000)),
     listing: sellyOakListing,
     borrowerCompletedDeals: 2,
+    // Agent-authorised rather than owner-verified: the second lawful route in,
+    // and the one the estate-agent proposition depends on.
+    inventory: {
+      category: "agent-authorised",
+      confirmation: {
+        by: "instructed-agent",
+        at: new Date().toISOString(),
+        recordedBy: "Jo Bloggs",
+        evidence:
+          "Instructed agent confirmed in writing that the vendor has authorised it to be offered here alongside their own marketing.",
+      },
+    },
+    sellerChecks: checkedSeller(),
+    material: {
+      // Leasehold, so Part A includes the lease. A freehold three-answer set
+      // would leave this refused, which is the point of the tenure branch in
+      // `itemsFor()`.
+      ...partA("£150,000", "Leasehold", "Band C"),
+      "lease-term": {
+        state: "stated",
+        value: "112 years unexpired, ground rent £150 fixed, service charge £1,240 a year.",
+      },
+      "building-safety": { state: "not-applicable", why: "two storeys, no cladding" },
+    },
     status: "qualified",
     milestones: milestones({
       "seller-id": "complete",
@@ -311,6 +343,10 @@ const DEALS: DealRecord[] = [
       exit: "sell",
     }),
     borrowerCompletedDeals: 11,
+    // Deliberately left with nothing recorded. Seller Protection blocks this
+    // deal, and a seed where every record is complete demonstrates only the
+    // happy path — the gates refusing is the more useful thing to be able to
+    // see.
     status: "new",
     milestones: milestones({
       "seller-id": "complete",
@@ -332,6 +368,17 @@ const DEALS: DealRecord[] = [
     }),
     listing: harborneListing,
     borrowerCompletedDeals: 4,
+    // Confirmed and checked, but the council tax band was never established —
+    // so this one is refused by the material information gate alone, which is
+    // the failure hardest to notice without a screen that states it.
+    inventory: confirmedByOwner(
+      "Landlord disposing of the last of a small portfolio; wants a clean sale and no chain.",
+    ),
+    sellerChecks: checkedSeller(),
+    material: {
+      price: { state: "stated", value: "£232,000" },
+      tenure: { state: "stated", value: "Freehold" },
+    },
     status: "new",
     milestones: milestones({ "seller-id": "complete" }),
   },
@@ -404,6 +451,55 @@ const BUY_BOXES: BuyBox[] = [
  * wall clock: nothing errors, the page simply starts showing nothing, and
  * whoever looks at it concludes the matching engine is broken.
  */
+/**
+ * The three facts a property needs before it may be marketed, for the seeded
+ * deals.
+ *
+ * Present so the seed demonstrates a working platform rather than four records
+ * that look complete and cannot be sold. Dated relative to load for the same
+ * reason the funder verification is: a pinned date lapses, and a demo that
+ * quietly stops working a year after it was written is worse than no demo.
+ */
+function confirmedByOwner(said: string): InventoryItem {
+  return {
+    category: "owner-verified",
+    confirmation: {
+      by: "owner",
+      at: new Date().toISOString(),
+      recordedBy: "Jo Bloggs",
+      evidence: said,
+    },
+  };
+}
+
+function checkedSeller(kind: SellerDueDiligence["kind"] = "individual"): SellerDueDiligence {
+  const at = new Date().toISOString();
+  return {
+    kind,
+    identityVerifiedAt: at,
+    identityMethod: "Photo ID and proof of address, checked electronically",
+    screenedAt: at,
+    authorityEvidencedAt: at,
+    authorityEvidence:
+      kind === "estate"
+        ? "Grant of probate seen; the executor is named on it and on the title."
+        : "Named as sole registered proprietor on the title.",
+    riskAssessedAt: at,
+    riskAssessedBy: "Jo Bloggs",
+  };
+}
+
+/** Part A, which applies to every property without exception. */
+function partA(price: string, tenure: string, band: string): MaterialRecord {
+  return {
+    price: { state: "stated", value: price },
+    tenure: { state: "stated", value: tenure },
+    "council-tax": { state: "stated", value: band },
+    utilities: { state: "stated", value: "Mains gas, electricity, water and drainage." },
+    flood: { state: "not-known", whoWasAsked: "The owner" },
+  };
+}
+
 const SEED_VERIFICATION: FunderVerification = {
   verifiedAt: new Date().toISOString(),
   verifiedBy: "Jo Bloggs",
