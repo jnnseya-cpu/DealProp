@@ -46,7 +46,7 @@ seller-facing options cannot disagree.
 `negotiation`, `campaign`, `offers`, `agents`, `appraisalRequest`, `identity`,
 `supply`, `permissions`, `fees`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`, `inventory`, `reveal`,
-`passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`, `workflow`, `payouts`, `portfolio`.
+`passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`, `workflow`, `payouts`, `portfolio`, `screening`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -434,7 +434,15 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 79. **The first non-additive schema change has somewhere to go.**
     `migrations/` runs numbered files once each, in a transaction, recorded.
     The base schema stays additive; this is for what additive DDL cannot say.
-80. **A fee needs four things, and money is one of them.** The permission, the
+80. **A check that could not be run is inconclusive, never clear.**
+    `screening.ts` is the port and `backend/screening.ts` the adapter; with no
+    provider configured every check returns an outcome that clears no gate, so
+    a deployment without one refuses visibly rather than silently approving
+    everybody. A manual check is a first-class outcome with a reference and an
+    author, and `method` never lies about which it was — an operator reading a
+    clear result is entitled to know whether a provider said so or a colleague
+    typed it.
+81. **A fee needs four things, and money is one of them.** The permission, the
     stage, the disclosure to the seller and a named person raising it.
     `fees.ts` reports every missing one at once. The seller pays exactly one
     fee — a percentage of the price achieved, on completion and at no other
@@ -452,6 +460,17 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
   payout as failed rather than as sent, which is the safe state.
 - GoldMine live import — parsers exist and are fixture-tested; no live call has
   been made (egress blocked in the build environment). Verify before relying.
+- An identity and sanctions provider. `screening.ts` is the port and the
+  closed path is tested; no adapter is written, so every check is inconclusive
+  and operators record manual ones. That is honest and it does not scale.
+- The Price Paid and corporate-ownership halves of the registry signal. The
+  EPC half is wired through `backend/registry.ts` and surfaced on the Deal
+  Room; `registryPressure()` scores absent facts at nothing and says which are
+  missing, so a partial signal is honest rather than misleading.
+- An HM Land Registry title reader. `lookupOwner()` takes one as an argument
+  and is fully tested against a fixture; nothing in the app passes a real one,
+  because there is no licensed API endpoint configured. It is the owner
+  outreach spine and it waits on a credential, not on code.
 
 ---
 

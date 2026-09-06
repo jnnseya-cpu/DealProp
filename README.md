@@ -434,6 +434,12 @@ Deliberately out of scope for this slice, in rough priority order:
   defences still refuses when it should. What remains is a real account, the
   keys, and pointing the webhook at the deployment. See
   [The money side](#the-money-side).
+- **An identity and sanctions provider.** Both the Buyer Readiness Passport and
+  the seller's due diligence turn on a screening date, and with no provider
+  connected those dates come from a person who ran the check elsewhere. The
+  seam is built and fails closed — an unrun check is inconclusive, never clear
+  — so connecting one is an adapter rather than a rewrite. Until then this is
+  linear human labour per transaction.
 - **Reconciliation against the provider.** The ledger is the record of what this
   platform believes; comparing it to what the provider believes is a job that
   does not exist yet, and a divergence would currently go unnoticed.

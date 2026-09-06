@@ -4,6 +4,7 @@ import { requireOperator, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
 import { getDeal, listFundingBoxes, listBuyBoxes } from "@backend/store/repository";
 import { positionOf } from "@backend/workflow";
+import { registryFor } from "@backend/registry";
 import { runDealDirector } from "@shared/domain/director";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
 import { buildCloseReport } from "@shared/domain/completion";
@@ -49,10 +50,11 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
   const { scored, stack, exits, recycle, strategies, diagnostics } = briefing;
   const a = scored.appraisal;
 
-  const [fundingBoxes, buyBoxes, position] = await Promise.all([
+  const [fundingBoxes, buyBoxes, position, registry] = await Promise.all([
     listFundingBoxes(),
     listBuyBoxes(),
     positionOf(record),
+    registryFor(record),
   ]);
   const funders = rankMatches(
     fundingBoxes.map((b) => matchFundingBox(b, scored, record.borrowerCompletedDeals)),
@@ -181,6 +183,48 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
             ))}
           </ul>
         </div>
+
+        {/* --- what the public record says, from licensed sources ---------- */}
+        <Panel
+          eyebrow="Registry signal"
+          title={
+            registry.pressure === undefined
+              ? "Nothing read from the public record"
+              : `${registry.pressure.score} pressure, ${percent(registry.pressure.confidenceBps, 0)} of the picture`
+          }
+          className="mt-6"
+        >
+          {registry.pressure === undefined ? (
+            <p className="text-[13px] leading-[1.65] text-ink-400">
+              {registry.reason ?? "Nothing recorded."} GoldMine reads days on market, reductions and
+              agent changes — every one of which can only come from a portal, and no portal permits
+              taking them. This is the same question asked of the sources we are licensed for.
+            </p>
+          ) : (
+            <>
+              <p className="text-[13px] leading-[1.65] text-ink-300">
+                {registry.pressure.summary}
+              </p>
+              {registry.pressure.factors.length > 0 && (
+                <ul className="mt-4 space-y-2.5 border-t hairline pt-4">
+                  {registry.pressure.factors.map((factor) => (
+                    <li key={factor.key} className="text-[13px] leading-[1.6]">
+                      <span className="text-ink-100">{factor.label}</span>{" "}
+                      <span className="text-ink-500">{factor.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {registry.pressure.missing.length > 0 && (
+                <p className="mt-4 border-t hairline pt-4 text-[13px] leading-[1.6] text-ink-500">
+                  Not known: {registry.pressure.missing.join(", ")}. A high score built on two
+                  fields is not the same as one built on six, which is what the confidence figure
+                  is for.
+                </p>
+              )}
+            </>
+          )}
+        </Panel>
 
         {/* --- where this transaction has actually got to ------------------ */}
         <Panel
