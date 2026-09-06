@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { listBuyBoxes, listDeals } from "@backend/store/repository";
+import { listBuyBoxes, pageDeals } from "@backend/store/repository";
 import { scoreDeal } from "@shared/domain/dealScore";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
-import { matchBuyBox } from "@shared/domain/matching";
+import { matchBuyBox, MATCH_HORIZON } from "@shared/domain/matching";
 import { STRUCTURE_LABELS } from "@shared/domain/strategies";
 import { gbp, percent } from "@shared/format";
 import { SiteHeader } from "@/app/components/chrome";
@@ -30,7 +30,11 @@ export const metadata = {
  */
 export default async function InvestPage() {
   await requireOperator("/invest");
-  const [boxes, records] = await Promise.all([listBuyBoxes(), listDeals()]);
+  // A bounded page rather than the whole table. Every row here is scored and
+  // then matched against every mandate, so an unbounded read is an unbounded
+  // amount of blocking CPU on a single-threaded runtime.
+  const [boxes, page] = await Promise.all([listBuyBoxes(), pageDeals(MATCH_HORIZON)]);
+  const records = page.rows;
 
   const scored = records.map((record) => ({
     record,
@@ -48,6 +52,7 @@ export default async function InvestPage() {
     .sort((a, b) => Number(b.box.active) - Number(a.box.active) || b.matches.length - a.matches.length);
 
   const activeCount = boxes.filter((b) => b.active).length;
+  const beyond = Math.max(0, page.total - records.length);
 
   return (
     <main className="min-h-screen pb-24">
@@ -76,6 +81,14 @@ export default async function InvestPage() {
           buyer exists, it means one of these mandates was satisfied on every hard criterion — so
           an inactive or badly specified mandate is not a neutral thing to leave lying around.
         </p>
+        {beyond > 0 && (
+          <p className="mt-3 max-w-2xl text-[13px] leading-[1.6] text-ink-500">
+            Matched against the {records.length} most recent opportunities, of {page.total} on the
+            platform. Every one shown is scored and run against every mandate, so the window is
+            what keeps this page from blocking the server for everybody else — the {beyond} behind
+            it are matched when they are the recent ones.
+          </p>
+        )}
 
         <div className="mt-10">
           <BuyBoxForm />

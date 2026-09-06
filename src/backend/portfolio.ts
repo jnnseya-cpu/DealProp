@@ -42,6 +42,11 @@ export interface PortfolioView {
 }
 
 export async function portfolio(now: Date = new Date()): Promise<PortfolioView> {
+  // Unbounded deliberately: this filters to completed deals, which is the
+  // smallest set on the platform and the one a portfolio is by definition
+  // made of. If holdings ever outgrow a page this wants a status-filtered
+  // query rather than a limit, because a portfolio missing a property is
+  // worse than a slow one.
   const records = await listDeals();
   const completed = records.filter((r) => r.status === "completed");
 

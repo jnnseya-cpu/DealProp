@@ -357,6 +357,55 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       });
     });
 
+    describe("a page of deals", () => {
+      const at = (n: number) => ({
+        ...dealRecord(),
+        id: `deal-${n}`,
+        reference: `LODE-${String(n).padStart(4, "0")}`,
+        createdAt: `2026-0${n}-01T00:00:00.000Z`,
+      });
+
+      it("returns newest first, with the total beside it", async () => {
+        // The total comes from the same scan as the rows. A separate COUNT can
+        // disagree with the rows it describes when a write lands between them.
+        for (const n of [1, 2, 3]) await store.saveDeal(at(n));
+        const page = await store.pageDeals(2, 0);
+        expect(page.total).toBe(3);
+        expect(page.rows.map((r) => r.id)).toEqual(["deal-3", "deal-2"]);
+      });
+
+      it("pages without repeating or skipping a row", async () => {
+        for (const n of [1, 2, 3]) await store.saveDeal(at(n));
+        const first = await store.pageDeals(2, 0);
+        const second = await store.pageDeals(2, 2);
+        expect(second.rows.map((r) => r.id)).toEqual(["deal-1"]);
+        expect(new Set([...first.rows, ...second.rows].map((r) => r.id)).size).toBe(3);
+      });
+
+      it("reports the real total on a page past the end", async () => {
+        // Reporting zero here would make a page past the end read as an empty
+        // pipeline on a table with thousands in it.
+        for (const n of [1, 2, 3]) await store.saveDeal(at(n));
+        const past = await store.pageDeals(10, 500);
+        expect(past.rows).toEqual([]);
+        expect(past.total).toBe(3);
+      });
+
+      it("returns nothing, and zero, from an empty table", async () => {
+        const empty = await store.pageDeals(10, 0);
+        expect(empty.rows).toEqual([]);
+        expect(empty.total).toBe(0);
+      });
+
+      it("agrees with listDeals about what is there", async () => {
+        for (const n of [1, 2, 3]) await store.saveDeal(at(n));
+        const all = await store.listDeals();
+        const page = await store.pageDeals(100, 0);
+        expect(page.total).toBe(all.length);
+        expect(new Set(page.rows.map((r) => r.id))).toEqual(new Set(all.map((r) => r.id)));
+      });
+    });
+
     describe("money going out", () => {
       const recipient = {
         id: "rec-1",

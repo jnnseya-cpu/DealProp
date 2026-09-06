@@ -98,6 +98,10 @@ export async function listDeals(): Promise<readonly DealRecord[]> {
   return (await store()).listDeals();
 }
 
+export async function pageDeals(limit: number, offset = 0) {
+  return (await store()).pageDeals(limit, offset);
+}
+
 export async function getDeal(id: string): Promise<DealRecord | undefined> {
   return (await store()).getDeal(id);
 }

@@ -166,6 +166,18 @@ async function listDeals(): Promise<readonly DealRecord[]> {
   return db.deals;
 }
 
+async function pageDeals(
+  limit: number,
+  offset: number,
+): Promise<{ readonly rows: readonly DealRecord[]; readonly total: number }> {
+  const db = await readDatabase();
+  // Newest first, matching the Postgres engine. The file store has no index to
+  // lean on, so the sort is done here and the contract suite holds the two to
+  // the same order.
+  const sorted = [...db.deals].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return { rows: sorted.slice(offset, offset + limit), total: sorted.length };
+}
+
 async function getDeal(id: string): Promise<DealRecord | undefined> {
   const db = await readDatabase();
   return db.deals.find((d) => d.id === id);
@@ -969,6 +981,7 @@ async function listAudit(
 export const fileStore: Store = {
   kind: "file",
   listDeals,
+  pageDeals,
   getDeal,
   saveDeal,
   listBuyBoxes,

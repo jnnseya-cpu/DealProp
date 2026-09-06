@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listDeals } from "@backend/store/repository";
+import { pageDeals } from "@backend/store/repository";
 import { scoreDeal } from "@shared/domain/dealScore";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
 import { gbp, gbpSigned, percent } from "@shared/format";
@@ -8,6 +8,16 @@ import { requireOperator } from "@/app/operator/guard";
 import { SignOutButton } from "@/app/operator/SignOutButton";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * How many deals one pipeline page renders.
+ *
+ * Every row is scored to show its verdict, and the page loaded the whole table
+ * before doing it. Fifty is a screenful and change; the count above it says
+ * how many there are in total, so a bounded page never reads as an empty
+ * pipeline.
+ */
+const PAGE_SIZE = 50;
 
 export const metadata = {
   title: "Deals — Lode",
@@ -24,7 +34,9 @@ export const metadata = {
  */
 export default async function DealsPage() {
   await requireOperator("/deals");
-  const records = await listDeals();
+  // A page rather than the table. Every row is scored to render its verdict.
+  const page = await pageDeals(PAGE_SIZE);
+  const records = page.rows;
 
   const rows = records
     .map((record) => {
@@ -53,8 +65,20 @@ export default async function DealsPage() {
           <div>
             <p className="eyebrow">Pipeline</p>
             <h1 className="mt-2.5 font-display text-[32px] leading-tight text-ink-100">
-              {rows.length} {rows.length === 1 ? "opportunity" : "opportunities"}
+              {page.total} {page.total === 1 ? "opportunity" : "opportunities"}
             </h1>
+            {/*
+              The total, not the page. A bounded read that reported its own row
+              count would say "50 opportunities" on a pipeline of four thousand
+              — the page is a rendering limit and must never read as a supply
+              figure.
+            */}
+            {page.total > rows.length && (
+              <p className="mt-2 text-[13px] leading-[1.6] text-ink-500">
+                Showing the {rows.length} most recent. Each one is scored to render its verdict,
+                so the window is what keeps this page from blocking the server for everybody else.
+              </p>
+            )}
           </div>
           <p className="max-w-md text-[13px] leading-[1.6] text-ink-400">
             Appraised after tax and shocked by the same nine stress scenarios before reaching

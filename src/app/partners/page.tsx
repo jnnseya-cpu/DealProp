@@ -33,6 +33,7 @@ export const metadata = {
  */
 export default async function PartnersPage() {
   const [deals, buyBoxes, fundingBoxes] = await Promise.all([
+    // Unbounded deliberately. Same as the landing page: the figures shown are counts of everything, and this page is revalidated rather than rendered per request.
     listDeals(),
     listBuyBoxes(),
     listFundingBoxes(),

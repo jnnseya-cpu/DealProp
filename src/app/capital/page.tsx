@@ -1,8 +1,13 @@
 import Link from "next/link";
-import { listDeals, listFundingBoxes } from "@backend/store/repository";
+import { listFundingBoxes, pageDeals } from "@backend/store/repository";
 import { scoreDeal } from "@shared/domain/dealScore";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
-import { FUNDER_KIND_LABELS, matchFundingBox, type FundingBox } from "@shared/domain/matching";
+import {
+  FUNDER_KIND_LABELS,
+  matchFundingBox,
+  MATCH_HORIZON,
+  type FundingBox,
+} from "@shared/domain/matching";
 import { add } from "@shared/money";
 import { gbp, months, percent } from "@shared/format";
 import { SiteHeader } from "@/app/components/chrome";
@@ -29,7 +34,10 @@ export const metadata = {
  */
 export default async function CapitalPage() {
   await requireOperator("/capital");
-  const [boxes, records] = await Promise.all([listFundingBoxes(), listDeals()]);
+  // Bounded for the same reason as /invest: every row is scored and then run
+  // against every mandate, so an unbounded read is unbounded blocking CPU.
+  const [boxes, page] = await Promise.all([listFundingBoxes(), pageDeals(MATCH_HORIZON)]);
+  const records = page.rows;
 
   const scored = records.map((record) => ({
     record,

@@ -2,11 +2,20 @@ import Link from "next/link";
 import { Badge, Panel, SiteHeader, scoreTone } from "@/app/components/chrome";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { offersFor } from "@backend/billing/reveal";
-import { listDeals } from "@backend/store/repository";
+import { pageDeals } from "@backend/store/repository";
 import { gbp, titleCase } from "@shared/format";
 import { REVEAL_GUARANTEE } from "@shared/domain/reveal";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * How many opportunities one browse page renders.
+ *
+ * Every one is fully assessed to be shown honestly — its category, its score,
+ * what evidence is missing, whether this buyer may open it. That is the point
+ * of the page and it is why it cannot be unbounded.
+ */
+const BROWSE_SIZE = 60;
 
 export const metadata = {
   title: "Opportunities — Lode",
@@ -30,8 +39,11 @@ export default async function OpportunitiesPage() {
   const viewer = await requirePermission("view-deal-material", "/opportunities");
   const account = viewerAccount(viewer);
 
-  const records = await listDeals();
-  const offers = account === undefined ? [] : await offersFor(records, account);
+  // Bounded. Each row costs an appraisal, a score, a material report, a
+  // due-diligence report and a passport grading — about 0.16ms, which is
+  // nothing at four deals and 1.6 seconds of blocking CPU at ten thousand.
+  const page = await pageDeals(BROWSE_SIZE);
+  const offers = account === undefined ? [] : await offersFor(page.rows, account);
 
   const openable = offers.filter((o) => o.quote.chargeable || o.opened !== undefined);
   const unconfirmed = offers.filter((o) => !o.quote.chargeable && o.opened === undefined);
@@ -66,6 +78,14 @@ export default async function OpportunitiesPage() {
           complete in three weeks, because a deal is worth its discount multiplied by the chance
           it happens.
         </p>
+
+        {page.total > offers.length && (
+          <p className="mt-3 max-w-[42rem] text-[13px] leading-[1.6] text-ink-500">
+            Showing {offers.length} of {page.total}. Each one is fully assessed to be shown
+            honestly — its category, its score, what evidence is missing — which is the point of
+            the page and the reason it is a window rather than everything.
+          </p>
+        )}
 
         {account === undefined && (
           <p className="mt-6 border-l-2 border-amber-500/80 py-1 pl-4 text-[13px] leading-[1.65] text-amber-300">

@@ -56,6 +56,7 @@ export default async function Home() {
    * are was being shown a fixture.
    */
   const [liveDeals, liveBuyBoxes, liveFundingBoxes] = await Promise.all([
+    // Unbounded deliberately. The supply statement answers "how many are there", and a partial answer to that is a wrong answer. Affordable because this page is ISR-cached at 300s, so the scan runs about twelve times an hour however much traffic arrives.
     listDeals(),
     listBuyBoxes(),
     listFundingBoxes(),

@@ -503,6 +503,37 @@ export const postgresStore: Store = {
   kind: "postgres",
 
   listDeals: () => all<DealRecord>("deals"),
+
+  async pageDeals(
+    limit: number,
+    offset: number,
+  ): Promise<{ readonly rows: readonly DealRecord[]; readonly total: number }> {
+    await ensureSchema();
+    // One statement rather than two. A separate COUNT can disagree with the
+    // rows it is meant to describe — a write landing between them shows "12 of
+    // 4,309" beside thirteen rows — and it is a second round trip for a number
+    // the same scan already knows.
+    const { rows } = await getPool().query<{ data: DealRecord; total: string }>(
+      `SELECT data, count(*) OVER () AS total
+         FROM deals
+        ORDER BY data->>'createdAt' DESC, id
+        LIMIT $1 OFFSET $2`,
+      [Math.max(1, Math.trunc(limit)), Math.max(0, Math.trunc(offset))],
+    );
+    if (rows.length > 0) {
+      return { rows: rows.map((r) => r.data), total: Number(rows[0]?.total ?? 0) };
+    }
+
+    // An empty page is either an empty table or a page past the end, and the
+    // window function cannot tell us which because there is no row to carry
+    // the count. Reporting zero would make a page past the end say "no deals"
+    // on a table with thousands, so the count is asked for separately — one
+    // extra round trip, only in the case that returns nothing to render.
+    const { rows: counted } = await getPool().query<{ total: string }>(
+      "SELECT count(*) AS total FROM deals",
+    );
+    return { rows: [], total: Number(counted[0]?.total ?? 0) };
+  },
   getDeal: (id) => one<DealRecord>("deals", id),
   saveDeal: (deal) => upsert("deals", deal),
 

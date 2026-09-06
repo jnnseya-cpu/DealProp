@@ -651,7 +651,32 @@ export type SubscriberTokenField = "confirmToken" | "unsubscribeToken";
 export interface Store {
   readonly kind: "file" | "postgres";
 
+  /**
+   * Every deal. Unbounded, and increasingly the wrong call.
+   *
+   * Kept for the places that genuinely need the whole set — the supply count,
+   * the blog corpus, a reseed — and left unbounded there because a partial
+   * answer to "how many are there" is a wrong answer. Anything rendering a
+   * list wants `pageDeals()`.
+   */
   listDeals(): Promise<readonly DealRecord[]>;
+  /**
+   * A page of deals, newest first, and the total.
+   *
+   * Added because every listing surface loaded the entire table and then
+   * scored every row: `/invest` is O(deals x boxes) and cost 18 seconds of
+   * blocking CPU at five thousand deals against five hundred mandates. On a
+   * single-threaded runtime that is not a slow page, it is an outage for
+   * everybody on the instance.
+   *
+   * The total is returned alongside rather than fetched separately, so a page
+   * can say "12 of 4,310" without a second round trip and without the count
+   * disagreeing with the rows.
+   */
+  pageDeals(limit: number, offset: number): Promise<{
+    readonly rows: readonly DealRecord[];
+    readonly total: number;
+  }>;
   getDeal(id: string): Promise<DealRecord | undefined>;
   saveDeal(deal: DealRecord): Promise<DealRecord>;
 
