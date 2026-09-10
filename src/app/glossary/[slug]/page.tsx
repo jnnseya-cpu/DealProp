@@ -9,6 +9,7 @@ import { siteUrl, SITE_NAME } from "@backend/site";
 import {
   breadcrumbJsonLd,
   canonical,
+  definedTermJsonLd,
   GLOSSARY,
   glossaryTerm,
   termsMentioned,
@@ -69,16 +70,20 @@ export default async function TermPage({ params }: { params: Promise<{ slug: str
           __html: JSON.stringify(breadcrumbJsonLd(trail, siteUrl())),
         }}
       />
+      {/*
+        One term, with an `@id` every post that mentions it points at.
+
+        It used to emit the one-sentence summary and a bare string for the set
+        it belongs to. Neither could be joined to anything: a consumer reading
+        an Article that mentions "true discount" had no way to tell it was the
+        same entity as this page. It now carries the full definition, the
+        aliases that also mean it, and the identifier the rest of the graph
+        uses.
+      */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "DefinedTerm",
-            name: term.term,
-            description: term.short,
-            inDefinedTermSet: canonical(siteUrl(), "/glossary"),
-          }),
+          __html: JSON.stringify(definedTermJsonLd(term, siteUrl())),
         }}
       />
 

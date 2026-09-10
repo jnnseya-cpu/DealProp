@@ -23,6 +23,8 @@ import { IOS_DEVICES, PWA_ICONS, splashPath } from "../src/shared/pwa";
 import { CREDIT_PACKS, PLANS, FREE_PLAN_ID, plan } from "../src/shared/domain/pricing";
 import { companyIdentity, identityGaps } from "../src/shared/domain/identity";
 import { heldKeys, permissionDefinition, readPermissions } from "../src/shared/domain/permissions";
+import { auditAgainstFloor, SCORE_FLOOR } from "../src/shared/domain/seo";
+import { loadCorpus } from "../src/backend/blog/corpus";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { applyEnv, loadEnv } from "./env";
@@ -406,6 +408,45 @@ function checkAssets(): void {
   }
 }
 
+/* ------------------------------------------------------------------- blog */
+
+/**
+ * The published corpus, audited before it is published rather than after.
+ *
+ * A warning rather than a blocker, and the distinction is the point: a thin
+ * post costs traffic, and traffic is recoverable. Nothing here can stop a
+ * transaction or expose anybody, so it does not get to stop a release — the
+ * blockers on this list are things that would.
+ *
+ * It is still worth failing loudly about, because the alternative is a
+ * dashboard nobody reads. The corpus went from a best score of 78 and a worst
+ * of 16 to clearing 90 across the board, and the only thing that keeps it
+ * there is somebody being told when it stops being true.
+ */
+async function checkBlog(): Promise<void> {
+  try {
+    const audit = auditAgainstFloor(await loadCorpus());
+    if (audit.clears) {
+      pass("Blog", `${audit.reports.length} posts published, lowest SEO audit ${audit.floor}/100.`);
+      return;
+    }
+    warn(
+      "Blog",
+      audit.summary,
+      `Run \`npx vitest run tests/blogSeo.test.ts\` for the failing checks, or open /operator/blog for the remedies. The floor is ${SCORE_FLOOR}.`,
+    );
+  } catch (error) {
+    // The corpus reads the deal store, and a store that is unreachable is
+    // already reported by checkDatabase(). Reporting it twice as a blog
+    // problem would send somebody looking in the wrong place.
+    warn(
+      "Blog",
+      `Could not audit the corpus: ${String(error)}`,
+      "Usually a consequence of the storage finding above rather than a problem with the blog.",
+    );
+  }
+}
+
 /* ------------------------------------------------------------- analytics */
 
 function checkAnalytics(): void {
@@ -649,6 +690,7 @@ async function main(): Promise<void> {
   checkIdentity();
   checkRegulatory();
   checkAssets();
+  await checkBlog();
   checkAnalytics();
   checkBilling();
   checkDiscovery();

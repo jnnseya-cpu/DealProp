@@ -4,7 +4,12 @@ import { SignOutButton } from "@/app/operator/SignOutButton";
 import { requirePermission } from "@/app/operator/guard";
 import { listBlogViews } from "@backend/store/repository";
 import { loadCorpus } from "@backend/blog/corpus";
-import { auditCorpus, type SeoCheck, type SeoReport } from "@shared/domain/seo";
+import {
+  auditAgainstFloor,
+  SCORE_FLOOR,
+  type SeoCheck,
+  type SeoReport,
+} from "@shared/domain/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -40,14 +45,14 @@ export default async function BlogPerformancePage() {
   await requirePermission("view-content-performance", "/operator/blog");
 
   const [corpus, viewRows] = await Promise.all([loadCorpus(), listBlogViews()]);
-  const reports = auditCorpus(corpus);
+  // The floor, not the average. An average of 94 across nine posts hides one
+  // at 60, and the one at 60 is the only row on this page worth acting on.
+  const audit = auditAgainstFloor(corpus);
+  const reports = audit.reports;
   const views = new Map(viewRows.map((row) => [row.slug, row]));
 
   const totalOpens = viewRows.reduce((sum, row) => sum + row.views, 0);
-  const averageScore =
-    reports.length === 0
-      ? 0
-      : Math.round(reports.reduce((sum, r) => sum + r.score, 0) / reports.length);
+
   const problems = reports.reduce(
     (sum, r) => sum + r.issues.filter((i) => i.severity === "problem").length,
     0,
@@ -90,13 +95,24 @@ export default async function BlogPerformancePage() {
           <>
             <dl className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Stat label="Total opens" value={totalOpens.toLocaleString("en-GB")} />
-              <Stat label="Average SEO score" value={`${averageScore}`} />
+              <Stat
+                label={`Lowest SEO score (floor ${SCORE_FLOOR})`}
+                value={`${audit.floor}`}
+                tone={audit.clears ? "text-emerald-300" : "text-amber-300"}
+              />
               <Stat
                 label="Problems to fix"
                 value={`${problems}`}
                 tone={problems > 0 ? "text-amber-300" : "text-emerald-300"}
               />
             </dl>
+
+            {!audit.clears && (
+              <p className="mt-4 border-l-2 border-amber-400/70 py-1 pl-4 text-[13px] leading-[1.65] text-ink-300">
+                {audit.summary} The build fails on this — `npx vitest run
+                tests/blogSeo.test.ts` names the failing checks.
+              </p>
+            )}
 
             {totalOpens === 0 && (
               <p className="mt-6 rounded-2xl border hairline bg-surface-1 px-5 py-4 text-sm text-ink-400">

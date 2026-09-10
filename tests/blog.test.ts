@@ -23,6 +23,8 @@ function post(overrides: Partial<BlogPost> = {}): BlogPost {
     slug: "a-post",
     title: "A post",
     description: "About something.",
+    answer: "A short direct answer to the question the title asks.",
+    citations: [],
     topic: "deal-analysis",
     publishedAt: "2026-08-01T00:00:00.000Z",
     updatedAt: "2026-08-01T00:00:00.000Z",
@@ -188,7 +190,12 @@ describe("SEO metadata", () => {
     const json = articleJsonLd(post(), "https://example.com", "Lode");
     expect(json["@type"]).toBe("Article");
     expect(json.datePublished).toBe("2026-08-01T00:00:00.000Z");
-    expect(json.mainEntityOfPage).toBe("https://example.com/blog/a-post");
+    // A WebPage node with an @id rather than a bare string, so a consumer
+    // assembling the graph gets one page that many things can point at.
+    expect(json.mainEntityOfPage).toEqual({
+      "@type": "WebPage",
+      "@id": "https://example.com/blog/a-post",
+    });
     expect(json.articleSection).toBe("Deal analysis");
   });
 

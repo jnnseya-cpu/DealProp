@@ -31,7 +31,7 @@ npm install
 npm run setup:env # generates the secrets; lists what only you can supply
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 1,063 tests, 1,121 with a Postgres in TEST_DATABASE_URL
+npm test          # 1,080 tests, 1,138 with a Postgres in TEST_DATABASE_URL
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 npm run backup    # pg_dump, custom format, with the restore command printed
@@ -81,7 +81,9 @@ listed honestly in [Not built yet](#not-built-yet).
 | Your billing | `/account/billing` | Plan, balance, top up, change plan |
 | After payment | `/account/billing/complete` | Reads the ledger, never the redirect — nothing is credited from a URL |
 | Blog | `/blog` | Posts written by the agent from real engine output |
-| Post | `/blog/[slug]` | Auto-linked glossary terms, related posts, JSON-LD |
+| Post | `/blog/[slug]` | Answer first, auto-linked terms, cited sources, JSON-LD |
+| Post, as Markdown | `/blog/[slug]/index.md` | The same post for anything reading rather than rendering |
+| Machine index | `/llms.txt` | The corpus and glossary, computed |
 | Topic hub | `/blog/topic/[topic]` | Six hubs, each linking its posts and definitions |
 | Glossary | `/glossary`, `/glossary/[slug]` | Definition pages, linked from every mention |
 | Newsletter | `/newsletter` | Double opt-in signup, confirm and one-click unsubscribe |
@@ -117,7 +119,8 @@ listed honestly in [Not built yet](#not-built-yet).
 | Newsletter | `src/shared/domain/newsletter.ts` | Consent gating, weekly idempotency, issue composition |
 | Trade partners | `src/shared/domain/partners.ts` | Who does the works, why, and the disclosure |
 | Analytics gate | `src/shared/domain/analytics.ts` | Which routes and events a pixel may ever see |
-| SEO audit | `src/shared/domain/seo.ts` | Scores every post against what this codebase controls |
+| SEO audit | `src/shared/domain/seo.ts` | Scores every post against what this codebase controls; floor of 90, enforced |
+| Citations | `src/shared/domain/citations.ts` | Primary sources; legislation URLs derived, never typed |
 | Negotiation | `src/shared/domain/negotiation.ts` | The price band, and the number that says stop |
 | Appraisal request | `src/shared/domain/appraisalRequest.ts` | A stranger's figures into engine inputs, with every default declared |
 | Supply | `src/shared/domain/supply.ts` | How many deals, where and how often — counted, never claimed |
@@ -551,11 +554,31 @@ its vocabulary, each definition lists the posts that use it, and each topic hub
 links both. One post carries 22 internal links and not one of them is a
 hardcoded href — a renamed slug cannot leave a dead link behind.
 
-Also shipped: canonical URLs, OpenGraph, `Article`, `BreadcrumbList`, `FAQPage`
-and `DefinedTerm` structured data, a generated `sitemap.xml`, and a `robots.txt`
-that **disallows every operator surface** — those carry seller screening answers,
-and keeping them out of the index is the third layer behind middleware and the
-per-page guard, not a substitute for either.
+Also shipped: canonical URLs, OpenGraph, `Article`, `BreadcrumbList`, `FAQPage`,
+`DefinedTerm` and `DefinedTermSet` structured data joined by `@id` so an article
+that mentions a term and the page that defines it are the same entity, an
+`Organization` and `WebSite` graph everything else points at, a generated
+`sitemap.xml`, and a `robots.txt` that **disallows every operator surface** —
+those carry seller screening answers, and keeping them out of the index is the
+third layer behind middleware and the per-page guard, not a substitute for
+either.
+
+**Read by a machine, deliberately.** `/llms.txt` indexes the whole corpus and
+glossary in Markdown, computed so it cannot list a post that no longer exists.
+Every post is mirrored at `/blog/<slug>/index.md` — the same `BlogPost`, so
+there is no second copy to go stale — and the HTML declares it as a
+`rel="alternate"`. `robots.ts` names the model-reading crawlers and allows them
+explicitly, inheriting the same disallow list as everybody else; that is a
+decision rather than an oversight, and a publisher whose value is ad impressions
+should reach the opposite one.
+
+**Citations are references, never typed URLs.** `src/shared/domain/citations.ts`
+holds primary sources in two shapes and only two. Legislation is an identity — a
+kind, a year, a chapter or SI number, optionally a section — and the
+`legislation.gov.uk` address is *derived* from it, so a reference correct as a
+citation is correct as a link by construction. Guidance names the authority and
+links to their root, which is a domain rather than a path that changes without
+notice. There is no field for a deep URL and a test refuses one.
 
 The corpus degrades rather than failing: with the store unreachable the
 evergreen posts still serve, because a public page has no business 500ing
@@ -583,7 +606,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 1,063 tests, Postgres suite skipped
+npm test          # 1,080 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -722,12 +745,24 @@ calls it.
 
 ### The SEO score
 
-`src/shared/domain/seo.ts` audits every post against ten checks — title and
-description length against what Google actually renders, URL shape, body length,
-section headings, internal links, glossary coverage, whether anything links to
-the page, and rich-result eligibility. Each check returns a finding in figures
-and, where it fails, what to do about it; the score is derived from the findings
+`src/shared/domain/seo.ts` audits every post against fourteen checks. Ten are
+classic on-page: title and description length against what Google actually
+renders, URL shape, body length, section headings, internal links, glossary
+coverage, whether anything links to the page, and rich-result eligibility. Four
+are about being quoted rather than ranked — whether the post answers its own
+title before the preamble and in the length something will lift, whether its
+assertions cite a primary source, whether at least one heading is the question
+somebody typed, and whether the figures are on the page as a labelled table
+rather than buried in a sentence. Each check returns a finding in figures and,
+where it fails, what to do about it; the score is derived from the findings
 rather than the other way round.
+
+**The floor is enforced, not displayed.** `SCORE_FLOOR` is 90,
+`tests/blogSeo.test.ts` fails the build when any published post is below it, and
+the preflight reports the lowest score in the corpus. Every post currently
+audits at 100. That is worth stating precisely because the corpus previously
+scored between 16 and 78 while a dashboard displayed both — a number on a screen
+is not a control, and nobody reads a dashboard to learn that nothing is wrong.
 
 Checks with a floor and a target grade in between, so a post with four internal
 links and one with none are not reported identically — the point is to know what

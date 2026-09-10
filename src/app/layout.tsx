@@ -4,6 +4,9 @@ import { Analytics } from "@/app/components/Analytics";
 import { mono, sans, serif } from "./fonts";
 import { ServiceWorker } from "./ServiceWorker";
 import "./globals.css";
+import { companyIdentity } from "@shared/domain/identity";
+import { organizationJsonLd, websiteJsonLd } from "@shared/domain/blog";
+import { siteUrl, SITE_NAME } from "@backend/site";
 
 export const metadata: Metadata = {
   title: "Lode — Property Deal OS",
@@ -47,10 +50,58 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+/**
+ * The site's own entity data, assembled from what identity is configured.
+ *
+ * A function rather than a constant because it reads the environment, and the
+ * environment is read per render for the same reason the footer reads it per
+ * render: a page prerendered at build has no company identity to bake in.
+ */
+function siteGraph(): Record<string, unknown> {
+  const base = siteUrl();
+  const identity = companyIdentity(process.env);
+  const description =
+    "A property deal engine: every cost charged, then the tax, then the stress tests, before anything is scored.";
+
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      organizationJsonLd({
+        baseUrl: base,
+        name: identity.tradingName ?? SITE_NAME,
+        description,
+        ...(identity.legalName !== undefined ? { legalName: identity.legalName } : {}),
+        ...(identity.companyNumber !== undefined ? { companyNumber: identity.companyNumber } : {}),
+        ...(identity.registeredOffice !== undefined
+          ? { registeredOffice: identity.registeredOffice }
+          : {}),
+        ...(identity.contactEmail !== undefined ? { email: identity.contactEmail } : {}),
+      }),
+      websiteJsonLd({ baseUrl: base, name: identity.tradingName ?? SITE_NAME, description }),
+    ],
+  };
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en-GB" className={`${sans.variable} ${serif.variable} ${mono.variable}`}>
       <body className="min-h-screen bg-ink-950 text-ink-100 antialiased">
+        {/*
+          The organisation and the site, once, with the ids everything else
+          points at.
+
+          Every Article names its publisher by `@id` rather than repeating a
+          name, so a consumer assembling the graph ends up with one
+          organisation that published many articles rather than many
+          organisations that happen to share a string. Only what has been
+          recorded is emitted — a structured-data block is a statement of
+          identity like any other, and an invented registration number in one
+          is a false statement rather than a missing one.
+        */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteGraph()) }}
+        />
         {children}
         <ServiceWorker />
         {/* Mounted once, at the root. It decides for itself whether to load

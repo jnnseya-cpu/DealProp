@@ -7,6 +7,8 @@ function post(overrides: Partial<BlogPost> = {}): BlogPost {
     slug: "a-post",
     title: "A post",
     description: "About something.",
+    answer: "",
+    citations: [],
     topic: "deal-analysis",
     publishedAt: "2026-08-01T00:00:00.000Z",
     updatedAt: "2026-08-01T00:00:00.000Z",
@@ -26,8 +28,16 @@ function healthy(overrides: Partial<BlogPost> = {}): BlogPost {
     title: "True discount versus asking price on a below-market deal",
     description:
       "What a true discount actually measures once costs and tax are taken off, and why the headline percentage off asking price is almost never the number that matters.",
+    answer:
+      "True discount measures every pound deployed against open market value, rather than the headline reduction on the asking price. On an ordinary refurbishment purchase the two figures differ by most of the margin.",
+    citations: ["stamp-duty", "corporation-tax", "price-paid-data", "material-information"],
     body: [
-      { kind: "heading", text: "What the true discount measures" },
+      {
+        kind: "figures",
+        caption: "The same purchase, counted two ways",
+        rows: [{ label: "Headline discount", value: "20%" }],
+      },
+      { kind: "heading", text: "What does the true discount measure?" },
       { kind: "paragraph", text: `The true discount and the GDV and bridging finance. ${words(500)}` },
       { kind: "heading", text: "Why asking price misleads" },
       { kind: "paragraph", text: words(450) },

@@ -12,6 +12,7 @@ import {
   articleJsonLd,
   breadcrumbJsonLd,
   canonical,
+  externalCitations,
   faqJsonLd,
   internalLinks,
   readingMinutes,
@@ -40,7 +41,12 @@ export async function generateMetadata({
   return {
     title: `${post.title} — ${SITE_NAME}`,
     description: post.description,
-    alternates: { canonical: url },
+    alternates: {
+      canonical: url,
+      // The Markdown mirror, declared where a crawler looks for it rather than
+      // only listed in llms.txt. Same content, no layout to strip.
+      types: { "text/markdown": `${url}/index.md` },
+    },
     openGraph: {
       type: "article",
       title: post.title,
@@ -64,6 +70,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   const related = relatedPosts(post, corpus);
   const terms = termsMentioned(post);
   const links = internalLinks(post, corpus);
+  const sources = externalCitations(post);
   const faq = faqJsonLd(post);
 
   const trail = [
@@ -80,7 +87,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(articleJsonLd(post, base, SITE_NAME)),
+          __html: JSON.stringify(articleJsonLd(post, base, SITE_NAME, corpus)),
         }}
       />
       <script
@@ -142,9 +149,61 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           )}
         </div>
 
+        {/*
+          The answer, before the article.
+
+          It is the passage an answer engine is most likely to quote and the
+          first thing a reader arriving from a search result actually reads, so
+          both audiences want the same thing: the answer to the question the
+          title asks, in full sentences, with the caveat included rather than
+          four paragraphs below. `data-answer` is what the speakable
+          specification in the structured data points at.
+        */}
+        <div
+          data-answer
+          className="mt-8 border-l-2 border-lode-400/70 py-1 pl-5 text-[16px] leading-[1.65] text-ink-200"
+        >
+          {post.answer}
+        </div>
+
         <div className="mt-10">
           <Prose blocks={post.body} />
         </div>
+
+        {sources.length > 0 && (
+          <section className="mt-14 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+            <h2 className="eyebrow">Sources</h2>
+            <ul className="mt-4 space-y-3">
+              {sources.map((source) => (
+                <li key={source.key}>
+                  {/*
+                    `rel="nofollow"` is deliberately absent. These are
+                    citations of primary law and official data, and refusing to
+                    pass any signal to legislation.gov.uk to hoard it is the
+                    kind of optimisation that made the web worse and never
+                    worked anyway.
+                  */}
+                  <a
+                    href={source.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm text-lode-200 underline decoration-lode-500/40 underline-offset-2"
+                  >
+                    {source.title}
+                  </a>
+                  <p className="mt-0.5 text-sm leading-relaxed text-ink-400">
+                    {source.establishes}{" "}
+                    <span className="text-ink-500">
+                      {source.direct
+                        ? `Published by ${source.publisher}.`
+                        : `Published by ${source.publisher}; the link goes to their site rather than to the document, because a deep link into guidance is a slug that changes without notice.`}
+                    </span>
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {terms.length > 0 && (
           <section className="mt-14 rounded-2xl border hairline bg-surface-1 px-5 py-4">

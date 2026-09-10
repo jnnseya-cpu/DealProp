@@ -137,6 +137,8 @@ export const PROHIBITIONS: readonly Prohibition[] = [
       "reveal.ts opportunityCard() — a closed shape, so a field added to the deal cannot leak through it",
       "outreach.ts checkNeutralEnquiry() — refuses circumstances in an outbound message",
       "analytics.ts — deny-by-default route allowlist; no pixel sees a page carrying seller data",
+      "protection.ts publicProtectionSummary() — the only route from a protection outcome to a public surface, and it counts what it withholds",
+      "tests/blogSeo.test.ts — walks every published post for the vocabulary of the seller-subject flags",
     ],
   },
   {

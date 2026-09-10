@@ -1,4 +1,5 @@
 import {
+  externalCitations,
   internalLinks,
   plainText,
   relatedPosts,
@@ -18,9 +19,13 @@ import {
  * competitor, a search volume or a SERP. It checks the things that are (a)
  * entirely within this codebase's control and (b) known to matter — title and
  * description length against what Google actually renders, heading structure,
- * body length, internal linking, and structured-data eligibility. A post can
- * score 100 here and rank nowhere; a post scoring 40 has problems that are
- * definitely costing it.
+ * body length, internal linking, structured-data eligibility, and the four
+ * answer-engine checks described further down. A post can score 100 here and
+ * rank nowhere; a post scoring 40 has problems that are definitely costing it.
+ *
+ * The distinction is worth holding on to, because it is the one people give up
+ * first. Nothing here promises a position. What it promises is that if this
+ * page loses, it loses for a reason that is not on this list.
  *
  * Every check is deterministic and computed from the post itself. There is no
  * external service, no API key and nothing to be rate-limited by, which is why
@@ -28,6 +33,10 @@ import {
  */
 
 export type CheckId =
+  | "answer-first"
+  | "cited-sources"
+  | "question-headings"
+  | "figures-shown"
   | "title-length"
   | "title-topic"
   | "description-length"
@@ -102,6 +111,31 @@ const LINKS_MIN = 5;
 const GLOSSARY_MIN = 2;
 const RELATED_MIN = 2;
 
+/*
+ * What an answer engine takes, and what this codebase can do about it.
+ *
+ * The four checks below are the newer half of this audit and they are the same
+ * kind of check as the older half: deterministic, computed from the post, and
+ * about something entirely within this codebase's control. None of them claims
+ * to know whether a page will be cited — that is not knowable from here, and a
+ * check that pretended otherwise would be the ranking prediction this module's
+ * own doc comment refuses to make.
+ *
+ * What is knowable is whether the page is in a state to be quoted accurately:
+ * whether it answers its own title before the preamble, whether the assertions
+ * rest on a source somebody can check, whether the headings are the questions
+ * people actually type, and whether the figures are on the page as figures
+ * rather than buried in a sentence.
+ */
+
+/** An answer short enough to be lifted whole and long enough to be an answer. */
+const ANSWER_WORDS_MIN = 25;
+const ANSWER_WORDS_MAX = 75;
+const CITATIONS_MIN = 2;
+
+const QUESTION_OPENERS =
+  /^(what|why|how|when|who|which|should|can|could|do|does|is|are|will|would)\b/i;
+
 export function seoReport(post: BlogPost, corpus: readonly BlogPost[]): SeoReport {
   const text = plainText(post);
   const words = countWords(text);
@@ -111,7 +145,64 @@ export function seoReport(post: BlogPost, corpus: readonly BlogPost[]): SeoRepor
   const related = relatedPosts(post, corpus);
   const hasFaq = post.body.some((b) => b.kind === "faq");
 
+  const answerWords = countWords(post.answer);
+  const questionHeadings = post.body.filter(
+    (b) => b.kind === "heading" && (b.text.trim().endsWith("?") || QUESTION_OPENERS.test(b.text.trim())),
+  ).length;
+  const sources = externalCitations(post);
+  const figureBlocks = post.body.filter((b) => b.kind === "figures").length;
+
   const checks: SeoCheck[] = [
+    lengthCheck({
+      id: "answer-first",
+      label: "Answers its own title first",
+      value: answerWords,
+      min: ANSWER_WORDS_MIN,
+      max: ANSWER_WORDS_MAX,
+      unit: "words in the answer",
+      weight: 12,
+      shortRemedy: `Under ${ANSWER_WORDS_MIN} words is a headline, not an answer, and whatever quotes this page will quote the body instead — where the caveats are not.`,
+      longRemedy: `Over ${ANSWER_WORDS_MAX} words is a paragraph. It will be truncated by whoever lifts it, and the truncation will not be at the sentence you would have chosen.`,
+    }),
+
+    graded({
+      id: "cited-sources",
+      label: "Primary sources cited",
+      weight: 10,
+      value: sources.length,
+      floor: CITATIONS_MIN,
+      target: CITATIONS_MIN + 2,
+      finding: `${sources.length} source${sources.length === 1 ? "" : "s"} cited${
+        sources.length === 0 ? "" : ` (${sources.filter((c) => c.direct).length} directly addressable)`
+      }.`,
+      remedy: `At least ${CITATIONS_MIN}. A page asserting what the law requires and naming nothing is an opinion — and a page that cites the section is one a reader, and anything reading on their behalf, can check.`,
+    }),
+
+    check({
+      id: "question-headings",
+      label: "Headings are questions",
+      weight: 6,
+      passed: questionHeadings >= 1,
+      severityWhenFailed: "improvement",
+      finding: `${questionHeadings} of ${post.body.filter((b) => b.kind === "heading").length} headings are phrased as a question.`,
+      remedy:
+        "At least one. A heading that matches the question somebody typed is how a passage gets retrieved on its own, separately from the page it is on.",
+    }),
+
+    check({
+      id: "figures-shown",
+      label: "Figures shown as figures",
+      weight: 6,
+      passed: figureBlocks >= 1,
+      severityWhenFailed: "improvement",
+      finding:
+        figureBlocks >= 1
+          ? `${figureBlocks} figure block${figureBlocks === 1 ? "" : "s"}, each row labelled.`
+          : "No figure block; any numbers are inside sentences.",
+      remedy:
+        "A labelled table is extractable and a number in the middle of a sentence is not. This platform's whole claim is that its figures are computed, and a figure nobody can lift is a claim nobody repeats.",
+    }),
+
     lengthCheck({
       id: "title-length",
       label: "Title length",
@@ -241,6 +332,59 @@ export function seoReport(post: BlogPost, corpus: readonly BlogPost[]): SeoRepor
 /** Every post, worst first — which is the order they need working on. */
 export function auditCorpus(corpus: readonly BlogPost[]): readonly SeoReport[] {
   return corpus.map((post) => seoReport(post, corpus)).sort((a, b) => a.score - b.score);
+}
+
+/**
+ * The floor every published post has to clear.
+ *
+ * A score reached once is not a standard. The corpus was taken to 100 across
+ * the board in an afternoon and would have drifted back down with the third
+ * post somebody added in a hurry, because nothing would have said so — the
+ * operator dashboard shows the number and nobody reads a dashboard to find out
+ * that nothing has gone wrong.
+ *
+ * 90 rather than 100 deliberately. A post can lose the improvement-grade
+ * points on a single check — a shade under the comfortable word count, one
+ * heading that is not a question — and still be a post worth publishing. What
+ * it cannot do is fail a problem-grade check, because at these weights that
+ * takes it below the floor on its own.
+ */
+export const SCORE_FLOOR = 90;
+
+export interface CorpusAudit {
+  readonly reports: readonly SeoReport[];
+  /** The worst score in the corpus, which is the one that matters. */
+  readonly floor: number;
+  readonly clears: boolean;
+  /** Posts below the floor, worst first. Empty when the corpus clears. */
+  readonly failing: readonly SeoReport[];
+  readonly summary: string;
+}
+
+export function auditAgainstFloor(
+  corpus: readonly BlogPost[],
+  floor: number = SCORE_FLOOR,
+): CorpusAudit {
+  const reports = auditCorpus(corpus);
+  const failing = reports.filter((r) => r.score < floor);
+  // An empty corpus clears vacuously and must say so rather than reporting a
+  // floor of zero, which reads as a catastrophic failure of nine good posts.
+  const lowest = reports[0]?.score;
+
+  return {
+    reports,
+    floor: lowest ?? floor,
+    clears: failing.length === 0,
+    failing,
+    summary:
+      reports.length === 0
+        ? "No posts published."
+        : failing.length === 0
+          ? `${reports.length} posts, lowest score ${lowest}, floor ${floor}.`
+          : `${failing.length} of ${reports.length} posts below the floor of ${floor}: ${failing
+              .map((r) => `${r.slug} (${r.score})`)
+              .join(", ")}.`,
+  };
 }
 
 /* ------------------------------------------------------------- internals */

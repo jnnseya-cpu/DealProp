@@ -3,7 +3,13 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { SiteHeader } from "@/app/components/chrome";
 import { siteUrl, SITE_NAME } from "@backend/site";
-import { canonical, GLOSSARY, TOPIC_DEFINITIONS, TOPICS } from "@shared/domain/blog";
+import {
+  canonical,
+  definedTermSetJsonLd,
+  GLOSSARY,
+  TOPIC_DEFINITIONS,
+  TOPICS,
+} from "@shared/domain/blog";
 
 /*
  * Not indefinitely static.
@@ -28,6 +34,23 @@ export const metadata: Metadata = {
 export default function GlossaryIndex() {
   return (
     <main className="min-h-screen pb-24">
+      {/*
+        The glossary as a DefinedTermSet.
+
+        The most under-used piece of schema there is and the one that fits this
+        site exactly: a set of terms with stable addresses, each referenced by
+        `@id` from every post that uses it. That is an entity graph rather than
+        a keyword list — the difference between a model knowing this site
+        discusses true discount and knowing it defines it.
+      */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            definedTermSetJsonLd(siteUrl(), `${SITE_NAME} property glossary`),
+          ),
+        }}
+      />
       <SiteHeader
         trailing={
           <nav className="flex items-center gap-6 text-sm text-ink-400">
