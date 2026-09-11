@@ -111,6 +111,34 @@ function openSeller<T extends SellerLike>(seller: T, key: Buffer | undefined): T
  * strings — so nothing downstream needs a second type. That is what makes this
  * safe to wrap around an engine that knows nothing about it.
  */
+/**
+ * Free text an operator or a form wrote about this deal.
+ *
+ * `inventory.confirmation.evidence` is written by the public enquiry form and
+ * by operators recording a sale confirmation. It is free text next to a name
+ * and a date, which is exactly the shape of field that ends up holding
+ * somebody's circumstances whatever the intention was. Sealed for the same
+ * reason as the due-diligence evidence: the cost is nothing and the failure is
+ * silent.
+ */
+type InventoryLike = {
+  confirmation?: { evidence?: string };
+};
+
+function mapInventory<T extends InventoryLike>(
+  inventory: T | undefined,
+  transform: (value: string) => string,
+): T | undefined {
+  if (inventory?.confirmation?.evidence === undefined) return inventory;
+  return {
+    ...inventory,
+    confirmation: {
+      ...inventory.confirmation,
+      evidence: transform(inventory.confirmation.evidence),
+    },
+  };
+}
+
 type ChecksLike = {
   authorityEvidence?: string;
   enhancedMeasures?: string;
@@ -146,27 +174,30 @@ export function sealDeal(deal: DealRecord): DealRecord {
   if (key === undefined) return deal;
 
   const checks = mapChecks(deal.sellerChecks, (value) => encrypt(value, key));
+  const inventory = mapInventory(deal.inventory, (value) => encrypt(value, key));
 
   return {
     ...deal,
     seller: sealSeller(deal.seller, key),
     inputs: { ...deal.inputs, seller: sealSeller(deal.inputs.seller, key) },
     ...(checks !== undefined ? { sellerChecks: checks } : {}),
+    ...(inventory !== undefined ? { inventory } : {}),
   } as DealRecord;
 }
 
 /** The same record on the way out. */
 export function openDeal(deal: DealRecord): DealRecord {
   const key = readKey();
-  const checks = mapChecks(deal.sellerChecks, (value) =>
-    isEncrypted(value) ? decrypt(value, key) : value,
-  );
+  const open = (value: string): string => (isEncrypted(value) ? decrypt(value, key) : value);
+  const checks = mapChecks(deal.sellerChecks, open);
+  const inventory = mapInventory(deal.inventory, open);
 
   return {
     ...deal,
     seller: openSeller(deal.seller, key),
     inputs: { ...deal.inputs, seller: openSeller(deal.inputs.seller, key) },
     ...(checks !== undefined ? { sellerChecks: checks } : {}),
+    ...(inventory !== undefined ? { inventory } : {}),
   } as DealRecord;
 }
 

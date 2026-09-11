@@ -229,7 +229,21 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
         by: "owner",
         at: new Date().toISOString(),
         recordedBy: "Seller enquiry form",
-        evidence: `Submitted their own property through the enquiry form, describing the situation as "${intake.seller.situation}".`,
+        /*
+         * No situation in this sentence.
+         *
+         * It used to read `...describing the situation as "probate"`, which
+         * put the seller's circumstances into a field the store does not
+         * encrypt — so the one term the rest of the record goes to trouble to
+         * seal was sitting in plaintext two objects away. Caught by submitting
+         * a real enquiry and reading the file, not by a test.
+         *
+         * The evidence only has to establish that the owner confirmed the
+         * property is theirs. Their situation is recorded once, on the seller,
+         * encrypted, which is where anything that needs it should read it.
+         */
+        evidence:
+          "Submitted their own property through the public enquiry form, confirming it is theirs to sell.",
       },
     },
     status: "new",

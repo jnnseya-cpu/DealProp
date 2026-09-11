@@ -143,6 +143,32 @@ describe("sealing a deal", () => {
     });
   });
 
+  it("seals the free text on the inventory confirmation", () => {
+    withKey(() => {
+      const original = deal();
+      const withEvidence: DealRecord = {
+        ...original,
+        inventory: {
+          category: "owner-verified",
+          confirmation: {
+            by: "owner",
+            at: "2026-09-11T00:00:00.000Z",
+            recordedBy: "Seller enquiry form",
+            evidence: 'Submitted through the form, describing the situation as "probate".',
+          },
+        },
+      } as DealRecord;
+
+      const out = sealDeal(withEvidence);
+      // The public enquiry form used to interpolate the seller's situation
+      // into this sentence, so the one term the rest of the record goes to
+      // trouble to seal sat in plaintext two objects away. Found by submitting
+      // a real enquiry and reading the file.
+      expect(strings(out).join(" ")).not.toContain("probate");
+      expect(openDeal(out)).toEqual(withEvidence);
+    });
+  });
+
   it("seals both copies of the seller, not just the obvious one", () => {
     withKey(() => {
       const sealedDeal = sealDeal(deal());
