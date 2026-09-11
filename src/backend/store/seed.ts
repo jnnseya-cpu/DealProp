@@ -584,7 +584,81 @@ const FUNDING_BOXES: FundingBox[] = [
   },
 ];
 
+/**
+ * Whether this store is one it is safe to destroy.
+ *
+ * `seed()` calls `replaceAll()`, which truncates every table — deals,
+ * accounts, the ledger, payouts and the append-only audit trail — and replaces
+ * them with fixtures. There was no guard of any kind. One `npm run seed` in a
+ * shell that happened to have the production `DATABASE_URL` exported was total,
+ * silent, unrecoverable data loss, and nothing in the command's name suggests
+ * it does anything of the sort.
+ *
+ * The test is deliberately a whitelist rather than a blacklist. "Does this
+ * look like production?" gets the answer wrong on the one host nobody thought
+ * of; "is this demonstrably a local database?" gets it wrong in the safe
+ * direction, by refusing to seed a development machine that is set up
+ * unusually. The cost of a false refusal is a person typing one more flag.
+ */
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0", "host.docker.internal"]);
+
+export type SeedSafety =
+  | { readonly safe: true; readonly target: string }
+  | { readonly safe: false; readonly reason: string };
+
+export function seedSafety(
+  databaseUrl: string | undefined = process.env.DATABASE_URL,
+  override: boolean = process.env.SEED_I_UNDERSTAND_THIS_DESTROYS_DATA === "yes",
+): SeedSafety {
+  // No DATABASE_URL means the JSON file store, which is a development
+  // convenience by definition and holds nothing anybody deployed.
+  if (databaseUrl === undefined || databaseUrl.trim() === "") {
+    return { safe: true, target: "the local JSON file store" };
+  }
+
+  let host: string;
+  try {
+    // `URL.hostname` returns an IPv6 literal with its brackets — "[::1]", not
+    // "::1" — so a bracketed loopback address would not have matched the set
+    // and a developer on IPv6 would have been refused. Caught by the test.
+    host = new URL(databaseUrl).hostname.replace(/^\[|\]$/g, "");
+  } catch {
+    return {
+      safe: false,
+      reason: "DATABASE_URL is set but could not be parsed, so there is no way to tell what would be destroyed.",
+    };
+  }
+
+  if (LOCAL_HOSTS.has(host)) return { safe: true, target: `the database at ${host}` };
+
+  if (override) {
+    return { safe: true, target: `${host} — overridden explicitly` };
+  }
+
+  return {
+    safe: false,
+    reason: `DATABASE_URL points at ${host}, which is not a local host. Seeding truncates every table, including accounts, the ledger and the audit trail.`,
+  };
+}
+
+/**
+ * Replace the entire contents of the store with fixtures.
+ *
+ * Refuses unless the target is demonstrably local. The override exists because
+ * a shared staging database is a real thing somebody legitimately wants to
+ * reset, and it is spelled the way it is so that nobody types it by accident
+ * or puts it in a CI environment without reading it.
+ */
 export async function seed(): Promise<void> {
+  const safety = seedSafety();
+  if (!safety.safe) {
+    throw new Error(
+      `Refusing to seed. ${safety.reason}\n\n` +
+        "If you are certain, set SEED_I_UNDERSTAND_THIS_DESTROYS_DATA=yes for this one command.\n" +
+        "Take a backup first: npm run backup",
+    );
+  }
+
   // Subscribers are deliberately absent: nobody may be enrolled without their
   // own recorded consent, so there is no such thing as a seeded subscriber.
   await replaceAll({ deals: DEALS, buyBoxes: BUY_BOXES, fundingBoxes: FUNDING_BOXES, subscribers: [], accounts: [], auditEvents: [], blogViews: [], subscriptions: [], creditLots: [], ledgerEntries: [], billingEvents: [], discoveryCandidates: [], outreachMessages: [], suppressions: [], dataRoomGrants: [], agentDecisions: [], dealFees: [], reveals: [], payoutRecipients: [], payouts: [], pendingCharges: [] });
@@ -595,6 +669,21 @@ export const SEED_BUY_BOXES = BUY_BOXES;
 export const SEED_FUNDING_BOXES = FUNDING_BOXES;
 
 if (process.argv[1]?.includes("seed")) {
+  const safety = seedSafety();
+  if (!safety.safe) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `\nRefusing to seed.\n\n${safety.reason}\n\n` +
+        "Seeding truncates every table and replaces it with fixtures. There is no\n" +
+        "undo. If you are certain this is what you want:\n\n" +
+        "  npm run backup\n" +
+        "  SEED_I_UNDERSTAND_THIS_DESTROYS_DATA=yes npm run seed\n",
+    );
+    process.exit(1);
+  }
+
+  // eslint-disable-next-line no-console
+  console.log(`Seeding ${safety.target}.`);
   seed()
     .then(() => {
       // eslint-disable-next-line no-console
