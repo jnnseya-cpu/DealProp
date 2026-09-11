@@ -24,6 +24,7 @@ import { CREDIT_PACKS, PLANS, FREE_PLAN_ID, plan } from "../src/shared/domain/pr
 import { companyIdentity, identityGaps } from "../src/shared/domain/identity";
 import { heldKeys, permissionDefinition, readPermissions } from "../src/shared/domain/permissions";
 import { auditAgainstFloor, SCORE_FLOOR } from "../src/shared/domain/seo";
+import { readKey } from "../src/backend/crypto/fieldCipher";
 import { loadCorpus } from "../src/backend/blog/corpus";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -408,6 +409,50 @@ function checkAssets(): void {
   }
 }
 
+/* ------------------------------------------------------------- encryption */
+
+/**
+ * The key that makes a stolen database useless.
+ *
+ * A blocker rather than a warning. The narrative a seller typed about a
+ * bereavement, the answer to whether they reported a health or capacity
+ * concern, and the evidence of an executor's authority are all in the store,
+ * and without this key they are in it in plaintext. That is special-category
+ * data under Article 9 sitting in whatever backup, snapshot or managed-console
+ * export the database ends up in.
+ *
+ * `encrypt()` deliberately passes plaintext through when no key is set, so a
+ * development machine works without one. That choice is only defensible
+ * because this check refuses to let it reach production.
+ */
+function checkEncryption(): void {
+  const raw = (env.DATA_ENCRYPTION_KEY ?? "").trim();
+
+  if (raw === "") {
+    block(
+      "Encryption",
+      "DATA_ENCRYPTION_KEY is not set, so seller narratives, screening answers and due diligence evidence are stored in plaintext. That is special-category data under Article 9.",
+      "Generate one with `openssl rand -base64 32` and set it. Keep it out of the database and out of the repository — a key stored beside the data it protects protects nothing.",
+    );
+    return;
+  }
+
+  try {
+    const key = readKey(raw);
+    if (key === undefined) {
+      block("Encryption", "DATA_ENCRYPTION_KEY is set but empty.", "Set a real key.");
+      return;
+    }
+    pass("Encryption", "Seller narratives, screening answers and due diligence evidence are encrypted at rest.");
+  } catch (error) {
+    block(
+      "Encryption",
+      `DATA_ENCRYPTION_KEY is not usable: ${error instanceof Error ? error.message : String(error)}`,
+      "Generate one with `openssl rand -base64 32`.",
+    );
+  }
+}
+
 /* ------------------------------------------------------------------- blog */
 
 /**
@@ -690,6 +735,7 @@ async function main(): Promise<void> {
   checkIdentity();
   checkRegulatory();
   checkAssets();
+  checkEncryption();
   await checkBlog();
   checkAnalytics();
   checkBilling();

@@ -5,6 +5,7 @@ import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { AgentDecision } from "@shared/domain/agents";
 import { fileStore } from "@backend/store/fileStore";
+import { sealed } from "@backend/store/sealing";
 import type {
   AllowanceInput,
   AllowanceResult,
@@ -82,9 +83,9 @@ async function store(): Promise<Store> {
   const url = process.env.DATABASE_URL;
   if (url !== undefined && url !== "") {
     const { postgresStore } = await import("@backend/store/postgresStore");
-    selected = postgresStore;
+    selected = sealed(postgresStore);
   } else {
-    selected = fileStore;
+    selected = sealed(fileStore);
     warnAboutTheFileStore();
   }
   return selected;
