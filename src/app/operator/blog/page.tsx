@@ -1,6 +1,6 @@
 import Link from "next/link";
+import { OperatorNav } from "@/app/operator/OperatorNav";
 import { SiteHeader } from "@/app/components/chrome";
-import { SignOutButton } from "@/app/operator/SignOutButton";
 import { requirePermission } from "@/app/operator/guard";
 import { listBlogViews } from "@backend/store/repository";
 import { loadCorpus } from "@backend/blog/corpus";
@@ -62,11 +62,7 @@ export default async function BlogPerformancePage() {
     <main className="min-h-screen pb-24">
       <SiteHeader
         trailing={
-          <nav className="flex items-center gap-6 text-sm text-ink-400">
-            <Link href="/deals" className="transition hover:text-ink-100">Deals</Link>
-            <Link href="/operator/blog" className="text-ink-100">Blog</Link>
-            <SignOutButton />
-          </nav>
+          <OperatorNav current="/operator/blog" />
         }
       />
 

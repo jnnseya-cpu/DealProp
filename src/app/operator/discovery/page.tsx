@@ -1,6 +1,5 @@
-import Link from "next/link";
+import { OperatorNav } from "@/app/operator/OperatorNav";
 import { SiteHeader } from "@/app/components/chrome";
-import { SignOutButton } from "@/app/operator/SignOutButton";
 import { requirePermission } from "@/app/operator/guard";
 import { listDiscoveryCandidates } from "@backend/store/repository";
 import { getSource } from "@shared/domain/sources";
@@ -49,11 +48,7 @@ export default async function DiscoveryPage() {
     <main className="min-h-screen pb-24">
       <SiteHeader
         trailing={
-          <nav className="flex items-center gap-6 text-sm text-ink-400">
-            <Link href="/capital" className="transition hover:text-ink-100">Capital</Link>
-            <Link href="/operator/discovery" className="text-ink-100">Discovery</Link>
-            <SignOutButton />
-          </nav>
+          <OperatorNav current="/operator/discovery" />
         }
       />
 

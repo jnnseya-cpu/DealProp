@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { OperatorNav } from "@/app/operator/OperatorNav";
 import { Panel, SiteHeader } from "@/app/components/chrome";
 import { requireOperator } from "@/app/operator/guard";
 import { PROHIBITIONS } from "@shared/domain/prohibitions";
@@ -24,14 +24,7 @@ export default async function ConductPage() {
       <SiteHeader
         back="/operator"
         trailing={
-          <nav className="flex items-center gap-5 text-[13px] text-ink-400">
-            <Link href="/operator/audit" className="transition-colors hover:text-ink-100">
-              Audit
-            </Link>
-            <Link href="/operator/billing" className="transition-colors hover:text-ink-100">
-              Billing
-            </Link>
-          </nav>
+          <OperatorNav current="/operator/conduct" />
         }
       />
 

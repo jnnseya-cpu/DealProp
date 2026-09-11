@@ -1,6 +1,5 @@
-import Link from "next/link";
+import { OperatorNav } from "@/app/operator/OperatorNav";
 import { SiteHeader } from "@/app/components/chrome";
-import { SignOutButton } from "@/app/operator/SignOutButton";
 import { requireOperator } from "@/app/operator/guard";
 import { certificationStatus, publicAccount, ROLE_LABELS } from "@shared/domain/accounts";
 import { listAccounts } from "@backend/store/repository";
@@ -26,14 +25,7 @@ export default async function AccountsPage() {
     <main className="min-h-screen pb-24">
       <SiteHeader
         trailing={
-          <nav className="flex items-center gap-6 text-sm text-ink-400">
-            <Link href="/deals" className="transition hover:text-ink-100">Deals</Link>
-            <Link href="/operator/accounts" className="text-ink-100">Accounts</Link>
-            <Link href="/operator/audit" className="transition hover:text-ink-100">Audit</Link>
-            <Link href="/operator/conduct" className="transition hover:text-ink-100">Conduct</Link>
-            <Link href="/operator/payouts" className="transition hover:text-ink-100">Payouts</Link>
-            <SignOutButton />
-          </nav>
+          <OperatorNav current="/operator/accounts" />
         }
       />
 

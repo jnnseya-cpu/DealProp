@@ -1,6 +1,5 @@
-import Link from "next/link";
+import { OperatorNav } from "@/app/operator/OperatorNav";
 import { SiteHeader } from "@/app/components/chrome";
-import { SignOutButton } from "@/app/operator/SignOutButton";
 import { requirePermission } from "@/app/operator/guard";
 import {
   listDeals,
@@ -62,11 +61,7 @@ export default async function OutreachPage() {
     <main className="min-h-screen pb-24">
       <SiteHeader
         trailing={
-          <nav className="flex items-center gap-6 text-sm text-ink-400">
-            <Link href="/operator/discovery" className="transition hover:text-ink-100">Discovery</Link>
-            <Link href="/operator/outreach" className="text-ink-100">Outreach</Link>
-            <SignOutButton />
-          </nav>
+          <OperatorNav current="/operator/outreach" />
         }
       />
 

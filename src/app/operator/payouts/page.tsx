@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { OperatorNav } from "@/app/operator/OperatorNav";
 import { Badge, Panel, SiteHeader, Stat } from "@/app/components/chrome";
 import { requirePermission } from "@/app/operator/guard";
 import { listPayoutRecipients, listPayouts } from "@backend/store/repository";
@@ -42,11 +42,7 @@ export default async function PayoutsPage() {
       <SiteHeader
         back="/operator"
         trailing={
-          <nav className="flex items-center gap-5 text-[13px] text-ink-400">
-            <Link href="/operator/billing" className="transition-colors hover:text-ink-100">Billing</Link>
-            <Link href="/operator/audit" className="transition-colors hover:text-ink-100">Audit</Link>
-            <Link href="/operator/conduct" className="transition-colors hover:text-ink-100">Conduct</Link>
-          </nav>
+          <OperatorNav current="/operator/payouts" />
         }
       />
 
