@@ -5,7 +5,7 @@ import { mono, sans, serif } from "./fonts";
 import { ServiceWorker } from "./ServiceWorker";
 import "./globals.css";
 import { companyIdentity } from "@shared/domain/identity";
-import { organizationJsonLd, websiteJsonLd } from "@shared/domain/blog";
+import { jsonLdScript, organizationJsonLd, websiteJsonLd } from "@shared/domain/blog";
 import { siteUrl, SITE_NAME } from "@backend/site";
 
 export const metadata: Metadata = {
@@ -100,7 +100,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         */}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteGraph()) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(siteGraph()) }}
         />
         {children}
         <ServiceWorker />

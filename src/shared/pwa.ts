@@ -77,6 +77,22 @@ export const PWA_ICONS: readonly IconSpec[] = [
   { file: "icons/icon-maskable-512.png", size: 512, maskable: true },
   { file: "icons/apple-touch-icon.png", size: 180 },
   { file: "icons/favicon-32.png", size: 32 },
+  /*
+   * The root fallback, which every browser asks for whether or not the page
+   * declares an icon.
+   *
+   * The HTML pages declare `/icons/favicon-32.png` and are fine. Everything
+   * that is not an HTML document is not — `/llms.txt`, `/robots.txt`,
+   * `/sitemap.xml` and the Markdown mirror of every post have no head to
+   * declare anything, so the browser falls back to `/favicon.ico` and got a
+   * 404 on each one. Caught by loading the pages in a browser rather than by
+   * checking status codes, which is the whole reason `npm run smoke` exists.
+   *
+   * It is PNG data at a `.ico` address. Every browser in use has accepted that
+   * for well over a decade, and generating a real multi-resolution ICO would
+   * mean a second encoder for one file nothing renders at more than 32px.
+   */
+  { file: "favicon.ico", size: 32 },
 ];
 
 export type Orientation = "portrait" | "landscape";

@@ -5,11 +5,39 @@
  * real classes of attack against a site that renders seller screening answers
  * behind a session cookie.
  *
- * There is deliberately no Content-Security-Policy here yet. A CSP that is
- * wrong is worse than none — it either blocks the app's own scripts or is
- * loosened with 'unsafe-inline' until it stops meaning anything. Next's
- * framework and the JSON-LD blocks need a nonce-based policy to be done
- * properly, and that belongs in its own change with its own verification.
+ * The Content-Security-Policy is NOT here. It lives in `src/shared/csp.ts`
+ * and is applied by `src/middleware.ts`, because it needs a per-request nonce
+ * on the pages that carry personal data and a static header cannot mint one.
+ *
+ * It was briefly in both places, and the two immediately disagreed — the
+ * redirect from a gated route served one policy and the page it redirected to
+ * served the other. That is the ordinary fate of a value written down twice,
+ * and it is why the directives have one home.
+ *
+ * The split itself is deliberate.
+ *
+ * A nonce has to be minted per request. A statically prerendered page is one
+ * piece of HTML served to everybody, so it cannot carry one — and reading a
+ * per-request header inside a component is what makes a page dynamic. The
+ * landing page is on a five-minute revalidate precisely because its unbounded
+ * deal scan is only affordable cached; making it dynamic to gain a nonce would
+ * trade a real availability property for a theoretical one.
+ *
+ * So: this baseline applies everywhere and closes the injection primitives
+ * that do not need a nonce — no objects, no base tag rewriting, no framing, no
+ * form posting off-origin, and a default-src of 'self'. `script-src` here has
+ * to tolerate Next's own inline bootstrap, which is the honest cost of static
+ * rendering and is stated rather than hidden.
+ *
+ * `src/middleware.ts` then replaces it with a nonce-based policy on the
+ * operator and account surfaces — the pages that carry seller screening
+ * answers, which are already dynamic, so the nonce costs nothing there. The
+ * pages with the data get the strong policy; the pages without it keep the
+ * caching.
+ *
+ * Our own inline scripts are all `application/ld+json`, which is a data block
+ * rather than executable script and is not governed by `script-src` at all.
+ * They are protected by escaping at the serialiser — see `jsonLdScript()`.
  */
 const securityHeaders = [
   // Stop the browser guessing a content type and executing an upload as script.
@@ -58,6 +86,20 @@ const nextConfig = {
    * deployment the answer is `DATABASE_URL`.
    */
   outputFileTracingExcludes: { "*": [".data/**"] },
+  /**
+   * The image optimiser is off, because nothing uses it.
+   *
+   * `next/image` is imported nowhere in this codebase — the only images are
+   * the PWA icons and splashes, which are pre-generated PNGs served straight
+   * from `public/`. Leaving `/_next/image` enabled therefore bought nothing
+   * and left a request-path endpoint that decodes attacker-supplied images
+   * through libvips and libheif, which is where the critical unauthenticated
+   * RCE in 15.5.23 lived and where the outstanding sharp advisories live now.
+   *
+   * An endpoint that no page calls and every visitor can reach is the cheapest
+   * possible thing to remove.
+   */
+  images: { unoptimized: true },
   reactStrictMode: true,
   // Never leak the framework version to a scanner.
   poweredByHeader: false,

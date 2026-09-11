@@ -6,6 +6,7 @@ import { SiteHeader } from "@/app/components/chrome";
 import { loadCorpus } from "@backend/blog/corpus";
 import { siteUrl, SITE_NAME } from "@backend/site";
 import {
+  jsonLdScript,
   breadcrumbJsonLd,
   canonical,
   GLOSSARY,
@@ -65,7 +66,7 @@ export default async function TopicPage({ params }: { params: Promise<{ topic: s
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(breadcrumbJsonLd(trail, siteUrl())),
+          __html: jsonLdScript(breadcrumbJsonLd(trail, siteUrl())),
         }}
       />
       <SiteHeader

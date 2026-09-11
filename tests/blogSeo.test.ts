@@ -10,6 +10,7 @@ import {
   postMarkdown,
   articleJsonLd,
   definedTermSetJsonLd,
+  jsonLdScript,
   GLOSSARY,
   termsMentioned,
   type BlogPost,
@@ -270,6 +271,60 @@ describe("what a deal post may say about a seller", () => {
       const at = source.indexOf(`key: "${key}"`);
       expect(at, key).toBeGreaterThan(-1);
       expect(source.slice(at, at + 200), key).toContain('subject: "seller"');
+    }
+  });
+});
+
+/**
+ * The `</script>` breakout, closed at the serialiser rather than at the page.
+ *
+ * `JSON.stringify` escapes quotes and backslashes and does not escape `<`. An
+ * HTML parser inside a script element stops at the first `</script` it meets
+ * whatever the JSON context, so one string containing that sequence closes the
+ * element and everything after it is parsed as markup. The path is real: the
+ * agent builds a post's title, description and answer from the deal record, so
+ * it runs from the enquiry form, through the store, into a script element on a
+ * public page.
+ */
+describe("structured data in a script element", () => {
+  it("escapes the sequence that would close the element", () => {
+    const hostile = "</script><img src=x onerror=alert(1)>";
+    const out = jsonLdScript({ "@type": "Article", headline: hostile });
+
+    expect(out).not.toContain("</script");
+    expect(out).not.toContain("<img");
+    expect(out).toContain("\\u003c");
+    // And it is still JSON that parses back to exactly what went in, because a
+    // citation that arrives mangled is a different bug.
+    expect((JSON.parse(out) as { headline: string }).headline).toBe(hostile);
+  });
+
+  it("escapes the separators that are legal JSON and illegal JavaScript", () => {
+    const out = jsonLdScript({ text: "a b c" });
+    expect(out).not.toContain(" ");
+    expect(out).not.toContain(" ");
+    expect((JSON.parse(out) as { text: string }).text).toBe("a b c");
+  });
+
+  it("leaves ordinary content alone", () => {
+    const out = jsonLdScript({ headline: "Deal Score 61: a 3-bed in Erdington" });
+    expect(out).toBe('{"headline":"Deal Score 61: a 3-bed in Erdington"}');
+  });
+
+  it("is what every page actually uses", async () => {
+    // A serialiser nothing calls is not a control. These are the five files
+    // that put a script element on a page.
+    const pages = [
+      "src/app/layout.tsx",
+      "src/app/blog/[slug]/page.tsx",
+      "src/app/blog/topic/[topic]/page.tsx",
+      "src/app/glossary/page.tsx",
+      "src/app/glossary/[slug]/page.tsx",
+    ];
+    for (const page of pages) {
+      const source = readFileSync(path.join(process.cwd(), page), "utf8");
+      expect(source, page).not.toMatch(/__html:\s*JSON\.stringify/);
+      if (source.includes("__html")) expect(source, page).toContain("jsonLdScript");
     }
   });
 });

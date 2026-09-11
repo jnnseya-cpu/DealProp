@@ -660,6 +660,33 @@ export function canonical(baseUrl: string, path: string): string {
 }
 
 /**
+ * JSON, safe to put inside a `<script>` element.
+ *
+ * `JSON.stringify` escapes quotes and backslashes; it does not escape `<`.
+ * An HTML parser reading a script element stops at the first `</script` it
+ * sees regardless of JSON context, so a single string containing that sequence
+ * closes the element early and everything after it is parsed as markup.
+ *
+ * That is not theoretical here. Every structured-data block on a post is built
+ * from the record the agent wrote it from — a locality, a reference, a
+ * seller-supplied narrative — so the path runs from whatever somebody typed
+ * into the enquiry form, through the store, into a script element on a public
+ * page. The content-security policy is the second layer; this is the first,
+ * and it is the one that actually closes it.
+ *
+ * `\u003c` is valid JSON and parses back to `<`, so consumers see exactly the
+ * string that was written. U+2028 and U+2029 are escaped for a different
+ * reason: they are valid in JSON and illegal in a JavaScript string literal,
+ * which breaks any consumer that evaluates rather than parses.
+ */
+export function jsonLdScript(data: Record<string, unknown>): string {
+  return JSON.stringify(data)
+    .replace(/</g, "\\u003c")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
+/**
  * Article structured data.
  *
  * Returned as a plain object for the page to serialise, so this module stays

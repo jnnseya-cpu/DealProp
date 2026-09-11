@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { SiteHeader } from "@/app/components/chrome";
 import { siteUrl, SITE_NAME } from "@backend/site";
 import {
+  jsonLdScript,
   canonical,
   definedTermSetJsonLd,
   GLOSSARY,
@@ -46,7 +47,7 @@ export default function GlossaryIndex() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
+          __html: jsonLdScript(
             definedTermSetJsonLd(siteUrl(), `${SITE_NAME} property glossary`),
           ),
         }}

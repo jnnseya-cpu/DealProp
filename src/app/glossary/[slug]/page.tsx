@@ -7,6 +7,7 @@ import { TrackOnView } from "@/app/components/TrackOnView";
 import { loadCorpus } from "@backend/blog/corpus";
 import { siteUrl, SITE_NAME } from "@backend/site";
 import {
+  jsonLdScript,
   breadcrumbJsonLd,
   canonical,
   definedTermJsonLd,
@@ -67,7 +68,7 @@ export default async function TermPage({ params }: { params: Promise<{ slug: str
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(breadcrumbJsonLd(trail, siteUrl())),
+          __html: jsonLdScript(breadcrumbJsonLd(trail, siteUrl())),
         }}
       />
       {/*
@@ -83,7 +84,7 @@ export default async function TermPage({ params }: { params: Promise<{ slug: str
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(definedTermJsonLd(term, siteUrl())),
+          __html: jsonLdScript(definedTermJsonLd(term, siteUrl())),
         }}
       />
 

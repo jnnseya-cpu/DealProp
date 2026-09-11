@@ -9,6 +9,7 @@ import { RecordBlogView } from "@/app/components/RecordBlogView";
 import { loadCorpus } from "@backend/blog/corpus";
 import { siteUrl, SITE_NAME } from "@backend/site";
 import {
+  jsonLdScript,
   articleJsonLd,
   breadcrumbJsonLd,
   canonical,
@@ -87,17 +88,17 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(articleJsonLd(post, base, SITE_NAME, corpus)),
+          __html: jsonLdScript(articleJsonLd(post, base, SITE_NAME, corpus)),
         }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd(trail, base)) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbJsonLd(trail, base)) }}
       />
       {faq !== undefined && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faq) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(faq) }}
         />
       )}
 
