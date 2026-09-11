@@ -1,5 +1,10 @@
 # Going live
 
+> Before working through this: `docs/PRODUCTION-READINESS.md` is the current
+> go/no-go — what is ready, what is blocked on a credential rather than on
+> code, and the claims that cannot honestly be made. Read it first, because
+> several steps below are unreachable until something in it is resolved.
+
 The order below is the order things must happen in, not a checklist to work
 through in parallel. Several steps exist because doing them later would mean
 having already done something unlawful or untrue.
