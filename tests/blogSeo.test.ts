@@ -33,7 +33,18 @@ describe("the published corpus", () => {
   it("clears the score floor on every post", async () => {
     const audit = auditAgainstFloor(await loadCorpus());
     expect(audit.clears, audit.summary).toBe(true);
-    expect(audit.reports.length).toBeGreaterThan(5);
+    /*
+     * At least the evergreen posts, and no more pinned than that.
+     *
+     * The corpus is the evergreen explainers plus one post per interesting
+     * deal, so its size depends on what the store holds. This was written as
+     * `> 5` against a seeded development store and failed the first time it
+     * ran against an empty one — which is not a broken test environment, it is
+     * what day one in production looks like, and the evergreen posts still
+     * score 100 there. A test that needs fixtures present to pass is testing
+     * the fixtures.
+     */
+    expect(audit.reports.length).toBeGreaterThanOrEqual(5);
   });
 
   it("names what is wrong when a post fails, rather than only that it did", async () => {
