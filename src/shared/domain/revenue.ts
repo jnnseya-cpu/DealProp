@@ -7,7 +7,7 @@ import {
   type PlanAudience,
   type SellerService,
 } from "@shared/domain/pricing";
-import { PLANS } from "@shared/domain/pricing";
+import { PLANS, sourcingFee, type SourcingFeeShape } from "@shared/domain/pricing";
 import { permissionDefinition, type PermissionKey } from "@shared/domain/permissions";
 
 /**
@@ -34,6 +34,7 @@ export type RevenueStream =
   | "deal-success-fee"
   | "funding-introduction"
   | "deal-packaging"
+  | "sourcing-fee"
   | "ai-credits"
   | "lender-membership"
   | "professional-marketplace"
@@ -105,6 +106,17 @@ export const STREAMS: readonly StreamDefinition[] = [
     note: "Preparing the deal pack. Charged whether or not the deal completes, so it must be described accurately at the point of sale.",
   },
   {
+    key: "sourcing-fee",
+    label: "Sourcing fee",
+    payer: "Investor",
+    recurring: false,
+    // Both, because an introduction between a seller and a buyer for a fee is
+    // estate agency work whichever side instructs us — s.1 covers a client who
+    // wishes to acquire as well as one who wishes to dispose.
+    requiresPermissions: ["estate-agency-aml", "redress-scheme"],
+    note: "Paid by the investor on completion of their purchase. We never own the property. Due on completion and at no earlier point, because a fee taken for a deal that then does not happen is this sector's commonest complaint.",
+  },
+  {
     key: "ai-credits",
     label: "AI analysis credits",
     payer: "Buyers and professionals",
@@ -168,6 +180,8 @@ export const FUNDER_TIERS: readonly Tier[] = tiersFor("funder");
 export interface RevenueAssumptions {
   /** Which seller service the modelled sale is on. Decides the banded fee. */
   readonly sellerService: SellerService;
+  /** Which shape of sourcing fee the modelled deal assumes. */
+  readonly sourcingShape: SourcingFeeShape;
   readonly successFeeBps: Bps;
   readonly fundingIntroBps: Bps;
   readonly packagingFee: Money;
@@ -190,6 +204,9 @@ if (MID_TIER === undefined) throw new Error("The mid-tier buyer plan is missing 
 
 export const DEFAULT_ASSUMPTIONS: RevenueAssumptions = {
   sellerService: "standard",
+  // The percentage, because it is the shape that suits most deals and a model
+  // that assumed the fixed fee would understate every large one.
+  sourcingShape: "percentage",
   // The buyer-side rate is a modelling assumption; the seller-side one is a
   // published price and therefore comes from the catalogue.
   successFeeBps: pct(0.75),
@@ -267,6 +284,7 @@ export function dealRevenue(
     successFee(appraisal.inputs.purchasePrice, assumptions.sellerService),
   );
   consider("deal-success-fee", applyBps(appraisal.inputs.purchasePrice, assumptions.successFeeBps));
+  consider("sourcing-fee", sourcingFee(appraisal.inputs.purchasePrice, assumptions.sourcingShape));
   consider("funding-introduction", applyBps(appraisal.funding.seniorDebt, assumptions.fundingIntroBps));
   consider("professional-marketplace", assumptions.professionalServices);
 

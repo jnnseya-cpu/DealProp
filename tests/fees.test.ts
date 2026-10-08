@@ -294,10 +294,16 @@ describe("the position on a deal", () => {
   it("adds up only what may be invoiced now", () => {
     const position = feePosition(context());
     expect(position.fees).toHaveLength(FEE_DEFINITIONS.length);
+    // Written out rather than derived from `position.fees`, which would be
+    // testing the implementation against itself. Adding a fee means adding a
+    // term here, deliberately: the cost of a new revenue line is having to
+    // state, independently, that it is chargeable on a completed, permissioned,
+    // disclosed deal.
     expect(position.chargeableNow).toBe(
       feeAmount("deal-packaging", { appraisal: APPRAISAL }) +
         feeAmount("deal-success-fee", { appraisal: APPRAISAL }) +
         feeAmount("seller-success-fee", { appraisal: APPRAISAL, sellerAgreement: SIGNED }) +
+        feeAmount("sourcing-fee", { appraisal: APPRAISAL }) +
         feeAmount("funding-introduction", { appraisal: APPRAISAL }),
     );
     expect(position.blocked).toBe(ZERO);

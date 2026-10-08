@@ -10,6 +10,7 @@ import {
   PROHIBITIONS,
   prohibition,
   type FunderVerification,
+  type ProhibitionKey,
 } from "@shared/domain/prohibitions";
 import { EFFECT_OWNERS, type ProposalEffect } from "@shared/domain/agents";
 import { FEE_DEFINITIONS } from "@shared/domain/fees";
@@ -127,8 +128,39 @@ const CONFIRMED = {
 };
 
 describe("the catalogue is complete and points at something", () => {
-  it("names all twelve, each with a control behind it", () => {
-    expect(PROHIBITIONS).toHaveLength(12);
+  /**
+   * The twelve the specification named.
+   *
+   * Pinned individually rather than as a count. The register started as §20's
+   * twelve and has since grown — deal sourcing brought two of its own, because
+   * taking a fee before completion and calling agency work something else are
+   * how most of that sector operates unlawfully. A test that pinned the total
+   * would have made adding a prohibition fail, which is precisely the wrong
+   * incentive for a list of things we must not do.
+   */
+  const SPECIFIED: readonly ProhibitionKey[] = [
+    "copy-listings",
+    "fake-instruction",
+    "toll-on-public-information",
+    "unverified-lenders",
+    "autonomous-offers",
+    "rank-by-commission",
+    "hidden-referral-fees",
+    "hold-deposits",
+    "guaranteed-valuation",
+    "publish-seller-distress",
+    "double-charge-seller",
+    "unchecked-buyer-contact",
+  ];
+
+  it("still names every one the specification did", () => {
+    const keys = new Set(PROHIBITIONS.map((p) => p.key));
+    for (const key of SPECIFIED) expect(keys.has(key), `${key} has been dropped`).toBe(true);
+    expect(SPECIFIED).toHaveLength(12);
+  });
+
+  it("gives every prohibition a control behind it", () => {
+    expect(PROHIBITIONS.length).toBeGreaterThanOrEqual(SPECIFIED.length);
     for (const rule of PROHIBITIONS) {
       // A rule with no enforcement is a rule that stops nothing, which is the
       // state most of these are in on most platforms.

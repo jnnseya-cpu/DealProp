@@ -37,6 +37,7 @@ const PUBLIC = [
 /** Behind the gate. Visited with an operator cookie, which is the point. */
 const GATED = [
   "/deals",
+  "/deals/deal-0001/sourcing",
   "/invest",
   "/capital",
   "/opportunities",

@@ -627,6 +627,88 @@ export const SUCCESS_FEE_BANDS: readonly SuccessFeeBand[] = [
   },
 ];
 
+/* ------------------------------------------------------- the sourcing fee */
+
+/**
+ * What an investor pays for a sourced deal.
+ *
+ * The market rate is a fixed fee or one to two per cent of the purchase price.
+ * Both shapes are offered because they suit different deals: on a £90,000
+ * terrace two per cent is not worth the work, and on a £600,000 small
+ * development a fixed fee leaves money on the table for whoever did the
+ * structuring.
+ *
+ * Here rather than in `sourcing.ts` because `pricing.ts` owns every price on
+ * this platform and nothing else may state one. `sourcing.ts` decides whether
+ * a fee may be charged at all; this decides what it is.
+ *
+ * Due on completion. There is no band, rate or helper here for a fee on
+ * exchange, and that absence is the control — see the prohibition register.
+ */
+export type SourcingFeeShape = "fixed" | "percentage";
+
+export interface SourcingFeeBand {
+  readonly shape: SourcingFeeShape;
+  readonly label: string;
+  /** Zero on a fixed fee. */
+  readonly rateBps: Bps;
+  /** The fixed amount, or the floor under the percentage. */
+  readonly minimum: Money;
+  readonly maximum?: Money;
+  readonly suits: string;
+}
+
+export const SOURCING_FEE_BANDS: readonly SourcingFeeBand[] = [
+  {
+    shape: "fixed",
+    label: "Fixed sourcing fee",
+    rateBps: pct(0),
+    minimum: fromMajor(3_000),
+    suits: "A single property under about £150,000, where a percentage does not cover the work.",
+  },
+  {
+    shape: "percentage",
+    label: "Percentage of the purchase price",
+    // The low end of the market band. Starting at the top of a range somebody
+    // else published is how a fee becomes the thing being negotiated instead
+    // of the deal.
+    rateBps: pct(1.5),
+    minimum: fromMajor(3_000),
+    maximum: fromMajor(25_000),
+    suits: "Anything larger, and every deal where we structured the purchase rather than just found it.",
+  },
+];
+
+export function sourcingFeeBand(shape: SourcingFeeShape): SourcingFeeBand {
+  const found = SOURCING_FEE_BANDS.find((b) => b.shape === shape);
+  if (found === undefined) throw new Error(`No sourcing fee band for "${shape}".`);
+  return found;
+}
+
+/**
+ * The sourcing fee on a completed purchase.
+ *
+ * Floor then ceiling, in that order, the same way the seller success fee
+ * applies them — so a small purchase pays the minimum and a large one pays the
+ * cap rather than the percentage.
+ */
+export function sourcingFee(purchasePrice: Money, shape: SourcingFeeShape): Money {
+  const band = sourcingFeeBand(shape);
+  if (band.shape === "fixed") return band.minimum;
+  const percentage = applyBps(purchasePrice, band.rateBps);
+  const floored = percentage < band.minimum ? band.minimum : percentage;
+  if (band.maximum === undefined) return floored;
+  return floored > band.maximum ? band.maximum : floored;
+}
+
+/** The investor's headline, stated from the band so no page restates a rate. */
+export function sourcingFeeHeadline(shape: SourcingFeeShape = "percentage"): string {
+  const band = sourcingFeeBand(shape);
+  if (band.shape === "fixed") return `a fixed ${gbp(band.minimum)}, due on completion`;
+  const cap = band.maximum === undefined ? "" : `, capped at ${gbp(band.maximum)}`;
+  return `${percent(band.rateBps, 2)} of the purchase price, minimum ${gbp(band.minimum)}${cap}, due on completion`;
+}
+
 export function successFeeBand(service: SellerService): SuccessFeeBand {
   const found = SUCCESS_FEE_BANDS.find((b) => b.service === service);
   if (found === undefined) throw new Error(`No success fee band for "${service}".`);

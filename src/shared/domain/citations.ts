@@ -129,6 +129,7 @@ export function authority(key: AuthorityKey): Authority {
 
 export type CitationKey =
   | "estate-agents-act"
+  | "estate-agents-act-s1"
   | "estate-agents-act-s18"
   | "estate-agents-information-regs"
   | "fsma"
@@ -148,6 +149,7 @@ export type CitationKey =
   | "mees-regs"
   | "lbtt-scotland"
   | "ltt-wales"
+  | "finance-act-2003"
   | "stamp-duty"
   | "additional-dwelling-rates"
   | "corporation-tax"
@@ -202,6 +204,13 @@ export const CITATIONS: readonly Citation[] = [
     establishes:
       "What counts as estate agency work: things done on instructions from somebody who wants to sell, for the purpose of introducing a buyer.",
     legislation: EAA,
+  },
+  {
+    key: "estate-agents-act-s1",
+    title: legislationLabel({ ...EAA, section: "1" }),
+    establishes:
+      "What estate agency work is: things done on instructions from a client who wishes to dispose of OR to acquire an interest in land, for the purpose of introducing them to another party. Acting for the buyer is estate agency work too.",
+    legislation: { ...EAA, section: "1" },
   },
   {
     key: "estate-agents-act-s18",
@@ -365,6 +374,17 @@ export const CITATIONS: readonly Citation[] = [
       number: 1,
       title: "Land Transaction Tax and Anti-avoidance of Devolved Taxes (Wales) Act 2017",
     },
+  },
+  {
+    key: "finance-act-2003",
+    // Schedule 2A rather than a section. It was inserted by the Finance Act
+    // 2013 and rewrote the old sub-sale relief in s.45; the schedule number is
+    // part of how it is cited, and the URL points at the Act because a
+    // citation naming the wrong provision is the failure this module prevents.
+    title: "Finance Act 2003, Schedule 2A (pre-completion transactions)",
+    establishes:
+      "How stamp duty applies where the person who contracted to buy is not the person who completes: assignments of rights, free-standing transfers, and the relief the middle party must claim rather than assume.",
+    legislation: { kind: "ukpga", year: 2003, number: 14, title: "Finance Act 2003" },
   },
   {
     key: "stamp-duty",

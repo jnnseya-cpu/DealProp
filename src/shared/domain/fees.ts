@@ -2,7 +2,13 @@ import { add, applyBps, ZERO, type Money } from "@shared/money";
 import { gbp } from "@shared/format";
 import type { DealAppraisal, DealStatus } from "@shared/domain/types";
 import { permissionDefinition, type PermissionKey } from "@shared/domain/permissions";
-import { sellerFeeHeadline, successFee, type SellerService } from "@shared/domain/pricing";
+import {
+  sellerFeeHeadline,
+  sourcingFee,
+  successFee,
+  type SellerService,
+  type SourcingFeeShape,
+} from "@shared/domain/pricing";
 import { DEFAULT_ASSUMPTIONS, type RevenueAssumptions, type RevenueStream } from "@shared/domain/revenue";
 
 /**
@@ -45,6 +51,7 @@ export type FeeKey =
   | "deal-packaging"
   | "deal-success-fee"
   | "seller-success-fee"
+  | "sourcing-fee"
   | "funding-introduction";
 
 /**
@@ -186,6 +193,27 @@ export const FEE_DEFINITIONS: readonly FeeDefinition[] = [
     requiresSellerDisclosure: true,
   },
   {
+    key: "sourcing-fee",
+    stream: "sourcing-fee",
+    label: "Sourcing fee",
+    payer: "buyer",
+    basis:
+      "A fixed fee or a percentage of the purchase price, invoiced to the investor on completion of their purchase. We never own the property.",
+    // Estate agency work, because s.1 covers instructions from a client who
+    // wishes to acquire as well as one who wishes to dispose. "I act for the
+    // buyer" is the most common reason people in this sector believe they are
+    // outside the Act, and it is wrong.
+    requiresPermissions: ["estate-agency-aml", "redress-scheme"],
+    // Completion and nothing earlier. A fee taken from an investor for a deal
+    // that then does not happen is where this sector's complaints and its
+    // prosecutions live, and there is no stage value here that would allow it.
+    dueAt: ["completed"],
+    // The seller is not paying it and is entitled to know who is. An
+    // undisclosed fee from the other side is a misleading omission as well as
+    // being unenforceable under s.18.
+    requiresSellerDisclosure: true,
+  },
+  {
     key: "funding-introduction",
     stream: "funding-introduction",
     label: "Funding introduction",
@@ -272,6 +300,15 @@ export interface FeeAmountContext {
   readonly appraisal: DealAppraisal;
   readonly assumptions?: RevenueAssumptions;
   readonly sellerAgreement?: SellerAgreement;
+  /**
+   * Which shape of sourcing fee was agreed with the investor.
+   *
+   * Optional and defaulting to the percentage, on the same basis as the
+   * seller's service above: a page can show what the fee *would* be before
+   * anything is agreed, while `chargeableFees()` still refuses to raise it
+   * without the disclosure and the permissions.
+   */
+  readonly sourcingShape?: SourcingFeeShape;
 }
 
 export interface FeeContext extends FeeAmountContext {
@@ -304,6 +341,11 @@ export function feeAmount(key: FeeKey, context: FeeAmountContext): Money {
       return successFee(
         context.appraisal.inputs.purchasePrice,
         context.sellerAgreement?.service ?? "standard",
+      );
+    case "sourcing-fee":
+      return sourcingFee(
+        context.appraisal.inputs.purchasePrice,
+        context.sourcingShape ?? "percentage",
       );
     case "funding-introduction":
       return applyBps(context.appraisal.funding.seniorDebt, assumptions.fundingIntroBps);

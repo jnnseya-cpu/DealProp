@@ -30,7 +30,9 @@ export type ProhibitionKey =
   | "guaranteed-valuation"
   | "publish-seller-distress"
   | "double-charge-seller"
-  | "unchecked-buyer-contact";
+  | "unchecked-buyer-contact"
+  | "fee-before-completion"
+  | "agency-work-by-another-name";
 
 export interface Prohibition {
   readonly key: ProhibitionKey;
@@ -157,6 +159,26 @@ export const PROHIBITIONS: readonly Prohibition[] = [
     enforcedBy: [
       "passport.ts mayApproachSeller() — grades C and D do not reach a seller",
       "reveal.ts quoteReveal() — an ungraded or unfunded buyer cannot pay to be introduced",
+    ],
+  },
+  {
+    key: "fee-before-completion",
+    rule: "Never take a sourcing fee before the deal completes.",
+    why: "A fee taken from an investor for a deal that then does not happen is the commonest cause of complaint and prosecution in deal sourcing. The investor has paid for an outcome and received a hope, and no amount of small print makes that a service. It is also the shape every advance-fee fraud in this sector takes, which means an honest business doing it is indistinguishable from a dishonest one.",
+    enforcedBy: [
+      "fees.ts — the sourcing fee's dueAt is [\"completed\"] and there is no earlier stage value",
+      "sourcing.ts routeSourcing() — feeTakenBeforeCompletion is a blocker on every route, not a warning",
+      "pricing.ts — no band, rate or helper expresses a fee on exchange",
+    ],
+  },
+  {
+    key: "agency-work-by-another-name",
+    rule: "Never treat acting for the buyer as an escape from the Estate Agents Act.",
+    why: "Section 1 covers things done on instructions from a client who wishes to dispose of OR to acquire an interest in land. Sourcing for an investor is estate agency work, so it needs HMRC anti-money-laundering registration and redress-scheme membership — and carrying on the business without the first is a criminal offence, not a paperwork failure. This is the single most common reason people in this sector believe the Act does not apply to them.",
+    enforcedBy: [
+      "sourcing.ts — every route declares the same two permissions, and a missing one is a blocker",
+      "revenue.ts — the sourcing-fee stream requires both, so the income is excluded until they are recorded",
+      "fees.ts — requiresPermissions on the sourcing fee, checked by chargeableFees()",
     ],
   },
 ];
