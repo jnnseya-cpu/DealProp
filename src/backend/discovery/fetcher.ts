@@ -104,6 +104,12 @@ const SOURCE_HOSTS: Record<string, readonly string[] | "candidate-domain"> = {
   // usable source, which is worth the two lines it takes to fix.
   "land-registry-ppd": ["landregistry.data.gov.uk", "use-land-property.service.gov.uk"],
   "epc-register": ["epc.opendatacommunities.org"],
+  // The Gazette publishes its official-record API on www.thegazette.co.uk; the
+  // api. host is its documented alias. Both are bound here so a notice link
+  // that resolves to either is read, and nothing else is. No live call has
+  // been made from this environment, so confirm the serving host against one
+  // real request before relying on it.
+  "the-gazette": ["www.thegazette.co.uk", "api.thegazette.co.uk"],
 };
 
 export class Fetcher {

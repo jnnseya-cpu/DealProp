@@ -128,8 +128,9 @@ export const SOURCING_SIGNALS: readonly SourcingSignal[] = [
       "A deceased-estates notice has been published for an estate, which precedes a sale by executors. The open-data route to probate, found at source rather than from a listing tag.",
     availability: "computable",
     source:
-      "The Gazette deceased-estates notices, matched to a title. The deceased are outside UK GDPR; the executors are approached by letter under heightened care.",
+      "The Gazette deceased-estates notices, parsed at source (parseDeceasedEstate via the Gazette adapter). Built. The deceased are outside UK GDPR; the executors are approached by letter under heightened care.",
     heightenedProtection: true,
+    built: true,
   },
   {
     key: "owner-insolvent",
@@ -138,8 +139,9 @@ export const SOURCING_SIGNALS: readonly SourcingSignal[] = [
       "The registered proprietor appears on the Individual Insolvency Register. The root cause behind many repossessions, visible months before a lender lists — and a hard trigger for the vulnerability safeguards.",
     availability: "computable",
     source:
-      "Individual Insolvency Register joined to the title. Internal analysis only, never shown to a buyer; any approach is letter-only under heightened protection.",
+      "The Gazette personal-insolvency notices, parsed at source (parseInsolvencyNotice); the Individual Insolvency Register is the authoritative per-person confirmation (confirmInsolvency). Built. Internal analysis only, never shown to a buyer; any approach is letter-only under heightened protection.",
     heightenedProtection: true,
+    built: true,
   },
   {
     key: "bought-and-flipped",

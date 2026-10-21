@@ -31,7 +31,7 @@ npm install
 npm run setup:env # generates the secrets; lists what only you can supply
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 1,165 tests, 1,223 with a Postgres in TEST_DATABASE_URL
+npm test          # 1,215 tests, 1,273 with a Postgres in TEST_DATABASE_URL
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 npm run backup    # pg_dump, custom format, with the restore command printed
@@ -129,6 +129,8 @@ listed honestly in [Not built yet](#not-built-yet).
 | Sourcing | `src/shared/domain/sourcing.ts` | The routes by which a deal is passed on without ever owning it, and what each needs |
 | Flipping | `src/shared/domain/flipping.ts` | The 70% rule checked against the computed ceiling, and the six-month seasoning trap |
 | Property discovery | `src/backend/discovery/properties.ts` | Price Paid joined to the EPC register: prepared for sale, never sold; flips; negative equity |
+| Gazette adapter | `src/backend/discovery/gazette.ts` | Deceased-estates and personal-insolvency notices at source: probate and insolvency without a portal |
+| Insolvency Register | `src/backend/discovery/insolvencyRegister.ts` | Authoritative per-person confirmation of a current insolvency; internal analysis only |
 | Strategy signals | `src/shared/domain/sourcingSignals.ts` | Every motivated-seller filter, mapped to the licensed source or marked as needing a portal feed |
 | Listing-data seam | `src/shared/domain/listingData.ts` | Port for a licensed listing reseller; fails closed, flips the portal signals live when wired |
 | Company identity | `src/shared/domain/identity.ts` | The statutory disclosures, read from configuration and never invented |
@@ -497,6 +499,8 @@ licences, most of what actually predicts a motivated sale.
 | EPC register | Open, free with registration | **Floor area**, rating, lodgement date |
 | Land Registry corporate ownership | Open, registration | Corporate and overseas landlords |
 | Companies House | Open Government Licence, free | An owner in liquidation or dissolution |
+| The Gazette | Open Government Licence, free API | Deceased-estates notices (probate at source) and personal-insolvency notices |
+| Individual Insolvency Register | Open Government Licence, internal analysis only | Confirms a current bankruptcy, IVA or DRO for one pursued person — never shown to a buyer |
 | Portal listings | **None** | Refused. `assertSourceUsable()` throws. |
 
 `src/shared/domain/sources.ts` is the gate, and it works the way `dealRevenue()` does:
@@ -613,7 +617,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 1,165 tests, Postgres suite skipped
+npm test          # 1,215 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -1047,6 +1051,21 @@ scraped. Both need a key issued against accepted terms, and that acceptance is
 the licence, so without the key nothing is read. A funder's own site is read
 under its own robots.txt and bound to the verified domain, so a link or a
 redirect cannot walk the fetch onto somebody else's site.
+
+The Gazette is read through the same `Fetcher`, under the Open Government
+Licence and with no key — its deceased-estates notices are the lawful route to
+probate at source, and its personal-insolvency notices are the root cause
+behind many "repossessed" listings, in the record months before a lender lists.
+Both are extracted, never inferred: a parser returns a field only where the
+notice states it. The Individual Insolvency Register is the authoritative
+per-person confirmation and is deliberately *not* fetched — it has no open REST
+API, so the adapter parses a record obtained through a data-access arrangement
+and takes it as an argument, exactly as the title reader takes a title. Every
+signal from these registers carries **heightened protection**: a grieving
+executor and a person in insolvency are precisely who Seller Protection exists
+for, so the approach is letter-only and careful, never a faster pursuit, and the
+insolvency data is internal-analysis only — never shown to a buyer or put on a
+card.
 
 **Extraction has no inference path.** The only constructor of a discovered fact
 takes the exact substring found in the document, so `firstname.lastname@domain`
