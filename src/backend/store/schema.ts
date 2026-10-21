@@ -12,6 +12,7 @@ import type {
 } from "@shared/domain/outreach";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
+import type { SellerEnquiryConsent } from "@shared/domain/sellerConsent";
 import type { AgentDecision } from "@shared/domain/agents";
 import type {
   AgentInstruction,
@@ -142,6 +143,15 @@ export interface DealRecord {
    * seems interested enough.
    */
   readonly disclosureConsent?: DisclosureConsent;
+  /**
+   * The seller's own consent at the point of enquiry: that they were shown the
+   * privacy notice (and which version), and that they affirm they may sell.
+   *
+   * Absent on a deal the operator created or discovered rather than one a seller
+   * submitted. Present on every enquiry, because the action refuses to write one
+   * without it — a person's circumstances are not stored with no record of why.
+   */
+  readonly enquiryConsent?: SellerEnquiryConsent;
   readonly borrowerCompletedDeals: number;
   readonly status: DealStatus;
 }

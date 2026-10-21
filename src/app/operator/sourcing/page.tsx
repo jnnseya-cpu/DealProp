@@ -2,7 +2,8 @@ import { OperatorNav } from "@/app/operator/OperatorNav";
 import { SiteHeader } from "@/app/components/chrome";
 import { requirePermission } from "@/app/operator/guard";
 import { getSource } from "@shared/domain/sources";
-import { sourcingReadiness, type ReadinessState } from "@backend/discovery/sourcingRun";
+import { sourcingReadiness } from "@backend/discovery/sourcingRun";
+import type { ReadinessState } from "@shared/domain/sourcedLead";
 import { signalCoverage } from "@shared/domain/sourcingSignals";
 import { SourcingRun } from "./SourcingRun";
 

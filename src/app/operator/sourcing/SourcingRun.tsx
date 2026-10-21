@@ -1,7 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import { runDatasetAction, runRegistersAction, type SourcedLead, type SourcingResult } from "./actions";
+import { runDatasetAction, runRegistersAction, type SourcingResult } from "./actions";
+import type { FlipEvidence, SourcedLead } from "@shared/domain/sourcedLead";
+import { gbp, percent } from "@shared/format";
+import { bps } from "@shared/money";
 
 /**
  * Two run paths, side by side, and the leads they produce.
@@ -107,7 +110,37 @@ export function SourcingRun() {
       </div>
 
       <Leads leads={[...(dataset?.leads ?? []), ...(registers?.leads ?? [])]} />
+      <Flips flips={dataset?.flips ?? []} />
     </>
+  );
+}
+
+function Flips({ flips }: { flips: readonly FlipEvidence[] }) {
+  if (flips.length === 0) return null;
+  return (
+    <section className="mt-10">
+      <h2 className="eyebrow">Finished values nearby — market evidence, not leads</h2>
+      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-400">
+        A refurbishment someone else already completed and sold on. It evidences what the street
+        actually pays for a finished property, from a registered sale rather than an asking price.
+      </p>
+      <ul className="mt-4 space-y-3">
+        {flips.map((flip, i) => (
+          <li
+            key={`${flip.addressKey}-${i}`}
+            className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 rounded-2xl border hairline bg-surface-1 px-5 py-3"
+          >
+            <p className="text-sm text-ink-200 tabular-nums">
+              {flip.postcode} · bought {gbp(flip.boughtFor)} ({flip.boughtAt.slice(0, 7)}) → sold{" "}
+              {gbp(flip.soldFor)} ({flip.soldAt.slice(0, 7)})
+            </p>
+            <p className="font-mono text-xs text-emerald-300 tabular-nums">
+              +{percent(bps(flip.upliftBps))} gross · {flip.monthsHeld}mo
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

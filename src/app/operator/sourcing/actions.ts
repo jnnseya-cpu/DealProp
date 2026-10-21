@@ -2,16 +2,8 @@
 
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
-import {
-  runFromDatasets,
-  runRegisters,
-  type SourcedLead,
-} from "@backend/discovery/sourcingRun";
-
-// Re-exported type-only so the client run component can type its props without
-// importing @backend — the boundary test forbids a client component reaching
-// the backend even for a type, and this re-export is erased at compile time.
-export type { SourcedLead } from "@backend/discovery/sourcingRun";
+import { runFromDatasets, runRegisters } from "@backend/discovery/sourcingRun";
+import type { FlipEvidence, SourcedLead } from "@shared/domain/sourcedLead";
 
 /**
  * Running the register adapters from the operator surface.
@@ -27,6 +19,7 @@ export interface SourcingResult {
   readonly ok: boolean;
   readonly message: string;
   readonly leads: readonly SourcedLead[];
+  readonly flips: readonly FlipEvidence[];
   readonly notes: readonly string[];
 }
 
@@ -43,13 +36,14 @@ export async function runDatasetAction(
   const ppd = String(formData.get("ppd") ?? "");
   const epc = String(formData.get("epc") ?? "");
   if (ppd.trim() === "" || epc.trim() === "") {
-    return { ok: false, message: "Provide both the Price Paid and the EPC data to join them.", leads: [], notes: [] };
+    return { ok: false, message: "Provide both the Price Paid and the EPC data to join them.", leads: [], flips: [], notes: [] };
   }
   if (ppd.length > MAX_CSV_CHARS || epc.length > MAX_CSV_CHARS) {
     return {
       ok: false,
       message: "That is larger than a paste should be — load the bulk file through an ingestion job rather than the browser.",
       leads: [],
+      flips: [],
       notes: [],
     };
   }
@@ -59,7 +53,7 @@ export async function runDatasetAction(
     result = runFromDatasets(ppd, epc);
   } catch (error) {
     // A licence throw or a malformed file: report it rather than a blank page.
-    return { ok: false, message: error instanceof Error ? error.message : "The data could not be read.", leads: [], notes: [] };
+    return { ok: false, message: error instanceof Error ? error.message : "The data could not be read.", leads: [], flips: [], notes: [] };
   }
 
   await audit("mandate-saved", {
@@ -68,7 +62,7 @@ export async function runDatasetAction(
     detail: `Dataset run: ${result.salesConsidered} sales, ${result.epcConsidered} certificates, ${result.leads.length} lead(s).`,
   });
 
-  return { ok: true, message: result.note, leads: result.leads, notes: [] };
+  return { ok: true, message: result.note, leads: result.leads, flips: result.flips, notes: [] };
 }
 
 export async function runRegistersAction(
@@ -96,6 +90,7 @@ export async function runRegistersAction(
         ? `${result.leads.length} lead(s) from the public registers in ${result.requestsMade} request(s).`
         : "No leads. The registers were not reachable from here, or no notice code is configured — see the notes.",
     leads: result.leads,
+    flips: [],
     notes: result.notes,
   };
 }

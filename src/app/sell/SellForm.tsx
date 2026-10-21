@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { submitEnquiry } from "./actions";
 import { track } from "@/app/components/Analytics";
+import { PRIVACY_NOTICE_POINTS } from "@shared/domain/sellerConsent";
 
 /**
  * Seller intake form.
@@ -81,6 +82,18 @@ export function SellForm() {
   const [priorities, setPriorities] = useState<string[]>([]);
   const [tenure, setTenure] = useState("freehold");
   const [submitting, setSubmitting] = useState(false);
+  const [notice, setNotice] = useState<string>();
+
+  // Surface the server's redirect reasons here, so the page itself stays
+  // cacheable rather than turning dynamic just to read a query parameter.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("needs-consent")) {
+      setNotice("Please confirm both boxes at the end before sending — we can't take an enquiry without them.");
+    } else if (params.has("slow-down")) {
+      setNotice("That came through very quickly. Give it a moment and try again.");
+    }
+  }, []);
 
   const canAdvance =
     (step === 0 && situation !== "") || (step === 1 && priorities.length > 0) || step >= 2;
@@ -113,6 +126,12 @@ export function SellForm() {
       className="mx-auto max-w-3xl px-6 pb-32"
     >
       <Progress step={step} />
+
+      {notice !== undefined && (
+        <p className="mb-6 border-l-2 border-lode-400/70 py-1 pl-4 text-sm leading-relaxed text-ink-300" role="status">
+          {notice}
+        </p>
+      )}
 
       {/* Step 1 — the situation, asked before anything about money. */}
       <Panel active={step === 0}>
@@ -358,6 +377,35 @@ export function SellForm() {
             would make on the transaction. Nothing you see is an offer, and you are free to sell on
             the open market instead.
           </p>
+        </div>
+
+        {/* Consent — recorded with the enquiry. Both are required, server-enforced. */}
+        <div className="mt-6 rounded-xl border hairline bg-surface-1 px-5 py-4">
+          <p className="eyebrow">How we use your information</p>
+          <ul className="mt-3 space-y-1.5">
+            {PRIVACY_NOTICE_POINTS.map((point) => (
+              <li key={point} className="border-l-2 border-ink-700 pl-3 text-xs leading-relaxed text-ink-400">
+                {point}
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-5 space-y-3">
+            <label className="flex items-start gap-3 text-sm leading-relaxed text-ink-200">
+              <input type="checkbox" name="ownerAffirmed" value="yes" required className="mt-1 size-4 shrink-0" />
+              <span>I own this property, or I am authorised to explore selling it.</span>
+            </label>
+            <label className="flex items-start gap-3 text-sm leading-relaxed text-ink-200">
+              <input type="checkbox" name="privacyAcknowledged" value="yes" required className="mt-1 size-4 shrink-0" />
+              <span>
+                I have read how Lode uses my information, set out in the{" "}
+                <a href="/legal/privacy" target="_blank" className="text-lode-300 underline underline-offset-2">
+                  privacy notice
+                </a>
+                .
+              </span>
+            </label>
+          </div>
         </div>
       </Panel>
 

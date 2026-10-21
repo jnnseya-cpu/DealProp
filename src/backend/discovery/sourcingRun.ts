@@ -1,10 +1,22 @@
-import { attribute, getSource, type SourceAttribution } from "@shared/domain/sources";
+import { money } from "@shared/money";
+import { attribute, getSource } from "@shared/domain/sources";
+import type {
+  FlipEvidence,
+  LeadSignal,
+  SourceReadiness,
+  SourcedLead,
+} from "@shared/domain/sourcedLead";
 import {
   EPC_SOURCE,
   PPD_SOURCE,
+  addressKey,
   findCandidates,
+  findFlips,
+  medianPricePerSqm,
+  negativeEquity,
   parseEpc,
   parsePricePaid,
+  type EpcRecord,
   type PropertyCandidate,
 } from "@backend/discovery/properties";
 import {
@@ -37,28 +49,6 @@ import { Fetcher } from "@backend/discovery/fetcher";
  * purpose.
  */
 
-export type LeadSignal = "prepared-but-unsold" | "probate-notice" | "owner-insolvent";
-
-export interface SourcedLead {
-  readonly signalKey: LeadSignal;
-  readonly label: string;
-  /** A normalised address key for the property, where one is known. */
-  readonly addressKey?: string;
-  readonly postcode?: string;
-  /** What is known, stated plainly. Never a bare score. */
-  readonly summary: string;
-  readonly strength: "strong" | "worth-a-look";
-  /**
-   * True where the signal is itself a sign of vulnerability. It raises the bar
-   * to contact, never lowers it: a distress lead routes to the heightened-care,
-   * letter-only path, not to a faster pursuit.
-   */
-  readonly heightenedProtection: boolean;
-  readonly provenance: SourceAttribution;
-  /** The lawful next step a named person takes. Never "send". */
-  readonly lawfulNextStep: string;
-}
-
 /** The lawful next step for each signal, in one place rather than per lead. */
 const NEXT_STEP: Record<LeadSignal, string> = {
   "prepared-but-unsold":
@@ -67,18 +57,23 @@ const NEXT_STEP: Record<LeadSignal, string> = {
     "Heightened protection. The executors are approached by letter only, with MPS screening and a recorded legitimate-interests assessment; the notice's own contact for service is the lawful route. A named person decides — nothing is automated.",
   "owner-insolvent":
     "Heightened protection. Confirm a current entry on the Individual Insolvency Register (confirmInsolvency) before anything; approach by letter only under heightened care. Internal analysis only — never shown to a buyer or put on a card.",
+  "negative-equity":
+    "An estimate, not a valuation — the figure comes from the local median price per square metre, which is a proxy. Where the owner may owe more than the property is worth, a lease option or assisted sale is sometimes the only route that works. Confirm the value and the outstanding balance before any approach; letter only.",
 };
 
 const LABEL: Record<LeadSignal, string> = {
   "prepared-but-unsold": "Prepared for sale, never sold",
   "probate-notice": "Probate (deceased estate)",
   "owner-insolvent": "Owner in insolvency",
+  "negative-equity": "Possible negative equity",
 };
 
 export interface SourcingInputs {
   readonly preparedButUnsold?: readonly PropertyCandidate[];
   readonly deceasedEstates?: readonly DeceasedEstateNotice[];
   readonly insolvencies?: readonly InsolvencyNotice[];
+  /** Negative-equity leads, already computed from an estimated value. */
+  readonly negativeEquity?: readonly SourcedLead[];
 }
 
 /**
@@ -142,20 +137,15 @@ export function sourceProperties(inputs: SourcingInputs, now: Date = new Date())
     });
   }
 
+  // Negative-equity leads arrive already computed (they need an estimated value
+  // the caller derives), so they are passed straight through here.
+  for (const lead of inputs.negativeEquity ?? []) leads.push(lead);
+
   // Strong first; a stable order within each tier so a rerun reads the same.
   return leads.sort((a, b) => (a.strength === b.strength ? 0 : a.strength === "strong" ? -1 : 1));
 }
 
 /* ------------------------------------------------------- source readiness */
-
-export type ReadinessState = "ready" | "needs-dataset" | "needs-credential" | "needs-arrangement";
-
-export interface SourceReadiness {
-  readonly sourceKey: string;
-  readonly name: string;
-  readonly state: ReadinessState;
-  readonly detail: string;
-}
 
 /**
  * What each source needs before it can produce a lead — computed cheaply, with
@@ -207,6 +197,8 @@ export function sourcingReadiness(
 
 export interface DatasetRunResult {
   readonly leads: readonly SourcedLead[];
+  /** Completed nearby refurbishments — market evidence, shown apart from leads. */
+  readonly flips: readonly FlipEvidence[];
   readonly epcConsidered: number;
   readonly salesConsidered: number;
   readonly skipped: number;
@@ -214,22 +206,77 @@ export interface DatasetRunResult {
 }
 
 /**
- * Compute prepared-but-unsold leads from datasets the operator already holds.
+ * Everything the two licensed datasets yield: leads and market evidence.
  *
- * The lawful, offline path: the operator downloads the licensed open datasets
+ * The lawful, offline path — the operator downloads the licensed open datasets
  * (both OGL / free-with-registration) and this joins them. No outbound request
  * is made, so it works where egress is blocked and, more importantly, it is the
- * ordinary way these bulk files are obtained — by downloading them, not by
+ * ordinary way these bulk files are obtained: by downloading them, not by
  * hammering an API per address.
+ *
+ * Three of the register signals come out of here. `findCandidates` gives
+ * prepared-but-unsold; `findFlips` gives the finished values nearby; and where a
+ * candidate has a floor area and a prior sale, the local median price per square
+ * metre gives an *estimated* current value, and `negativeEquity` flags the ones
+ * that may be underwater. The negative-equity figure is an estimate and is
+ * labelled as one — it is never presented as a valuation.
  */
 export function runFromDatasets(ppdCsv: string, epcCsv: string, now: Date = new Date()): DatasetRunResult {
   const { records: sales, skipped: ppdSkipped } = parsePricePaid(ppdCsv);
   const { records: epc, skipped: epcSkipped } = parseEpc(epcCsv);
   const found = findCandidates(epc, sales, now);
-  const leads = sourceProperties({ preparedButUnsold: found.candidates }, now);
+
+  // Floor area by address, from the EPC side, for the £/sqm estimate.
+  const floorAreaByAddress = new Map<string, number>();
+  for (const certificate of epc) {
+    if (certificate.floorAreaSqm !== undefined && certificate.floorAreaSqm > 0) {
+      floorAreaByAddress.set(addressKey(certificate), certificate.floorAreaSqm);
+    }
+  }
+  const medianRate = medianPricePerSqm(sales, floorAreaByAddress);
+
+  // Negative equity: a candidate whose estimated value sits below what was last
+  // paid. Only where we have both a prior price and a floor area to estimate on.
+  const negativeEquityLeads: SourcedLead[] = [];
+  if (medianRate !== undefined) {
+    for (const candidate of found.candidates) {
+      const area = floorAreaByAddress.get(candidate.addressKey);
+      if (area === undefined || candidate.lastSoldPrice === undefined) continue;
+      const flag = negativeEquity(candidate.lastSoldPrice, money(Math.round(medianRate * area)));
+      if (flag === undefined) continue;
+      negativeEquityLeads.push({
+        signalKey: "negative-equity",
+        label: LABEL["negative-equity"],
+        addressKey: candidate.addressKey,
+        postcode: candidate.postcode,
+        summary: `Last sold for more than an estimate of today's value (roughly ${Math.round(flag.shortfallBps / 100)}% above). The estimate is the local median price per square metre — a proxy, not a valuation.`,
+        strength: "worth-a-look",
+        heightenedProtection: false,
+        provenance: attribute(PPD_SOURCE, now.toISOString().slice(0, 10)),
+        lawfulNextStep: NEXT_STEP["negative-equity"],
+      });
+    }
+  }
+
+  const leads = sourceProperties(
+    { preparedButUnsold: found.candidates, negativeEquity: negativeEquityLeads },
+    now,
+  );
+
+  const flips: FlipEvidence[] = findFlips(sales).map((flip) => ({
+    addressKey: flip.addressKey,
+    postcode: flip.postcode,
+    boughtAt: flip.boughtAt,
+    boughtFor: flip.boughtFor,
+    soldAt: flip.soldAt,
+    soldFor: flip.soldFor,
+    monthsHeld: flip.monthsHeld,
+    upliftBps: flip.upliftBps,
+  }));
 
   return {
     leads,
+    flips,
     epcConsidered: found.considered,
     salesConsidered: sales.length,
     skipped: ppdSkipped + epcSkipped,

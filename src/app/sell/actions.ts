@@ -10,6 +10,7 @@ import {
   requiredMoney,
 } from "@shared/formFields";
 import { buildIntake, type IntakeAnswers, type PropertyCondition } from "@shared/domain/intake";
+import { ConsentNotGiven, recordEnquiryConsent } from "@shared/domain/sellerConsent";
 import type {
   JurisdictionCode,
   PropertyIssue,
@@ -109,6 +110,20 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
   */
   const gate = consume("intake", callerFrom(await nextHeaders()));
   if (!gate.allowed) redirect("/sell?slow-down=1");
+
+  // Consent before anything is parsed or stored. The form makes both checkboxes
+  // mandatory; this is the server making sure, because a client control is not a
+  // control and we will not hold a person's circumstances with no record of why.
+  let enquiryConsent;
+  try {
+    enquiryConsent = recordEnquiryConsent({
+      ownerAffirmed: formData.get("ownerAffirmed") === "yes",
+      privacyAcknowledged: formData.get("privacyAcknowledged") === "yes",
+    });
+  } catch (error) {
+    if (error instanceof ConsentNotGiven) redirect("/sell?needs-consent=1");
+    throw error;
+  }
 
   const priorities = formData
     .getAll("priorities")
@@ -246,6 +261,9 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
           "Submitted their own property through the public enquiry form, confirming it is theirs to sell.",
       },
     },
+    // Recorded at submission: the privacy-notice version shown and the seller's
+    // affirmation that they may sell. The lawful basis for holding the rest.
+    enquiryConsent,
     status: "new",
   });
 

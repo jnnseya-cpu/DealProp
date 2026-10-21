@@ -124,11 +124,38 @@ describe("running from datasets the operator holds", () => {
 
   it("finds the prepared-but-unsold property by joining the two datasets", () => {
     const result = runFromDatasets(ppd, epc, NOW);
-    expect(result.leads).toHaveLength(1);
-    expect(result.leads[0]?.signalKey).toBe("prepared-but-unsold");
-    expect(result.leads[0]?.postcode).toBe("B29 6AD");
+    expect(result.leads.some((l) => l.signalKey === "prepared-but-unsold" && l.postcode === "B29 6AD")).toBe(true);
     expect(result.salesConsidered).toBe(1);
     expect(result.epcConsidered).toBe(1);
+    expect(result.flips).toEqual([]); // one sale only, so no flip pair
+  });
+
+  it("flags possible negative equity where the estimate sits below the last paid price", () => {
+    // Last paid £400k; floor area 50sqm; the street's only other sale sets a low
+    // median £/sqm, so the estimate lands well under what was paid.
+    const epcNeg = [
+      "LMK_KEY,ADDRESS1,ADDRESS2,POSTCODE,CURRENT_ENERGY_RATING,LODGEMENT_DATE,TOTAL_FLOOR_AREA,CONSTRUCTION_AGE_BAND",
+      "k1,14 Acacia Avenue,,B29 6AD,D,2025-01-01,50,1950-1966",
+      "k2,16 Acacia Avenue,,B29 6AD,D,2010-01-01,50,1950-1966",
+    ].join("\n");
+    const dear = ['"a"', '"400000"', '"2018-01-01 00:00"', '"B29 6AD"', '"T"', '"N"', '"F"', '"14"', '""', '"Acacia Avenue"', '"x"', '"x"', '"x"', '"A"', '"A"', '"A"'].join(",");
+    const cheapComp = ['"b"', '"100000"', '"2017-01-01 00:00"', '"B29 6AD"', '"T"', '"N"', '"F"', '"16"', '""', '"Acacia Avenue"', '"x"', '"x"', '"x"', '"A"', '"A"', '"A"'].join(",");
+    const result = runFromDatasets(`${dear}\n${cheapComp}`, epcNeg, NOW);
+    expect(result.leads.some((l) => l.signalKey === "negative-equity")).toBe(true);
+    const neg = result.leads.find((l) => l.signalKey === "negative-equity");
+    expect(neg?.summary).toMatch(/proxy, not a valuation/);
+  });
+
+  it("surfaces a completed flip as market evidence, not a lead", () => {
+    const bought = ['"a"', '"150000"', '"2023-01-01 00:00"', '"LS1 4DT"', '"T"', '"N"', '"F"', '"9"', '""', '"Elm Road"', '"x"', '"x"', '"x"', '"A"', '"A"', '"A"'].join(",");
+    const sold = ['"b"', '"230000"', '"2024-01-01 00:00"', '"LS1 4DT"', '"T"', '"N"', '"F"', '"9"', '""', '"Elm Road"', '"x"', '"x"', '"x"', '"A"', '"A"', '"A"'].join(",");
+    const emptyEpc = "LMK_KEY,ADDRESS1,ADDRESS2,POSTCODE,CURRENT_ENERGY_RATING,LODGEMENT_DATE,TOTAL_FLOOR_AREA,CONSTRUCTION_AGE_BAND";
+    const result = runFromDatasets(`${bought}\n${sold}`, emptyEpc, NOW);
+    expect(result.flips).toHaveLength(1);
+    expect(result.flips[0]?.postcode).toBe("LS1 4DT");
+    expect(result.flips[0]?.upliftBps).toBeGreaterThanOrEqual(2000);
+    // A flip is evidence, never a motivated-seller lead.
+    expect(result.leads.some((l) => l.signalKey !== "negative-equity")).toBe(false);
   });
 
   it("drops a property that has sold since its certificate", () => {

@@ -31,7 +31,7 @@ npm install
 npm run setup:env # generates the secrets; lists what only you can supply
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 1,228 tests, 1,286 with a Postgres in TEST_DATABASE_URL
+npm test          # 1,234 tests, 1,292 with a Postgres in TEST_DATABASE_URL
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 npm run backup    # pg_dump, custom format, with the restore command printed
@@ -132,7 +132,8 @@ listed honestly in [Not built yet](#not-built-yet).
 | Property discovery | `src/backend/discovery/properties.ts` | Price Paid joined to the EPC register: prepared for sale, never sold; flips; negative equity |
 | Gazette adapter | `src/backend/discovery/gazette.ts` | Deceased-estates and personal-insolvency notices at source: probate and insolvency without a portal |
 | Insolvency Register | `src/backend/discovery/insolvencyRegister.ts` | Authoritative per-person confirmation of a current insolvency; internal analysis only |
-| Sourcing run | `src/backend/discovery/sourcingRun.ts` | Joins the adapters into one ranked list of leads, with the lawful next step on each — surfaced at `/operator/sourcing` |
+| Sourcing run | `src/backend/discovery/sourcingRun.ts` | Joins the adapters into ranked leads (prepared-but-unsold, probate, insolvency, negative-equity) plus flip evidence, each with its lawful next step — surfaced at `/operator/sourcing` |
+| Seller consent | `src/shared/domain/sellerConsent.ts` | The privacy-notice version shown and the ownership affirmation, recorded with every enquiry — the lawful basis for holding the rest |
 | Strategy signals | `src/shared/domain/sourcingSignals.ts` | Every motivated-seller filter, mapped to the licensed source or marked as needing a portal feed |
 | Listing-data seam | `src/shared/domain/listingData.ts` | Port for a licensed listing reseller; fails closed, flips the portal signals live when wired |
 | Company identity | `src/shared/domain/identity.ts` | The statutory disclosures, read from configuration and never invented |
@@ -619,7 +620,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 1,228 tests, Postgres suite skipped
+npm test          # 1,234 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
