@@ -42,6 +42,8 @@ export type SignalKey =
   | "prepared-but-unsold"
   | "long-term-empty"
   | "corporate-owner-distress"
+  | "probate-notice"
+  | "owner-insolvent"
   | "bought-and-flipped"
   | "negative-equity"
   | "needs-work"
@@ -67,6 +69,28 @@ export interface SourcingSignal {
    * it" — a `needs-portal-feed` signal names the licence, not a workaround.
    */
   readonly source: string;
+  /**
+   * True where the signal is itself a sign of vulnerability — a death, a
+   * bankruptcy, a forced disposal.
+   *
+   * It does NOT lower the bar to contact; it raises it. A grieving executor
+   * and a person in insolvency are exactly who Seller Protection exists for,
+   * so a distress signal routes to the vulnerability safeguards and a
+   * letter-only, heightened-care approach rather than to a faster pursuit.
+   * Finding motivation and respecting the person are not in tension; the
+   * platform treats them as the same obligation.
+   */
+  readonly heightenedProtection?: boolean;
+  /**
+   * True only where there is tested code producing this signal today.
+   *
+   * The honest line between "lawfully derivable from data we can get" and
+   * "working". `computable` means the first; `built` means the second. The
+   * same distinction the workflow register draws with `built: false`, and it
+   * exists so a coverage number cannot quietly count an intention as a
+   * capability.
+   */
+  readonly built?: boolean;
 }
 
 export const SOURCING_SIGNALS: readonly SourcingSignal[] = [
@@ -77,6 +101,7 @@ export const SOURCING_SIGNALS: readonly SourcingSignal[] = [
       "An EPC was lodged — the legal precondition of marketing — months ago and no sale has been registered since. The open-data equivalent of 'withdrawn' and 'off market', and the one no portal publishes.",
     availability: "computable",
     source: "EPC register joined to Price Paid Data. Built: findCandidates().",
+    built: true,
   },
   {
     key: "long-term-empty",
@@ -94,6 +119,27 @@ export const SOURCING_SIGNALS: readonly SourcingSignal[] = [
     availability: "computable",
     source:
       "Corporate ownership data joined to Companies House status. Both licensed; built on the registry signal.",
+    heightenedProtection: true,
+  },
+  {
+    key: "probate-notice",
+    label: "Probate (deceased estate)",
+    meaning:
+      "A deceased-estates notice has been published for an estate, which precedes a sale by executors. The open-data route to probate, found at source rather than from a listing tag.",
+    availability: "computable",
+    source:
+      "The Gazette deceased-estates notices, matched to a title. The deceased are outside UK GDPR; the executors are approached by letter under heightened care.",
+    heightenedProtection: true,
+  },
+  {
+    key: "owner-insolvent",
+    label: "Owner in insolvency",
+    meaning:
+      "The registered proprietor appears on the Individual Insolvency Register. The root cause behind many repossessions, visible months before a lender lists — and a hard trigger for the vulnerability safeguards.",
+    availability: "computable",
+    source:
+      "Individual Insolvency Register joined to the title. Internal analysis only, never shown to a buyer; any approach is letter-only under heightened protection.",
+    heightenedProtection: true,
   },
   {
     key: "bought-and-flipped",
@@ -102,6 +148,7 @@ export const SOURCING_SIGNALS: readonly SourcingSignal[] = [
       "Two arm's-length sales close together with a price jump between them — a refurbishment someone else already did, which tells you the street's finished value.",
     availability: "computable",
     source: "Price Paid Data: two category-A sales within the flip window. Built: findFlips().",
+    built: true,
   },
   {
     key: "negative-equity",
@@ -110,6 +157,7 @@ export const SOURCING_SIGNALS: readonly SourcingSignal[] = [
       "The last paid price is above a current estimate of value, so the owner may owe more than it is worth — which is where a lease option or assisted sale is the only route that works.",
     availability: "computable",
     source: "Price Paid Data last sale against an estimated current value.",
+    built: true,
   },
   {
     key: "needs-work",
@@ -212,6 +260,8 @@ export function blockedSignals(): readonly SourcingSignal[] {
 export interface SignalCoverage {
   readonly total: number;
   readonly computable: number;
+  /** Of the computable, how many have tested code today. */
+  readonly built: number;
   readonly needsPortalFeed: number;
   readonly fromSeller: number;
   readonly needsTitle: number;
@@ -224,12 +274,14 @@ export function signalCoverage(): SignalCoverage {
     SOURCING_SIGNALS.filter((s) => s.availability === a).length;
   const computable = by("computable");
   const needsPortalFeed = by("needs-portal-feed");
+  const built = SOURCING_SIGNALS.filter((sig) => sig.built === true).length;
   return {
     total: SOURCING_SIGNALS.length,
     computable,
+    built,
     needsPortalFeed,
     fromSeller: by("from-seller"),
     needsTitle: by("needs-title"),
-    summary: `${computable} of ${SOURCING_SIGNALS.length} strategy filters run on data we are licensed for today. ${needsPortalFeed} need a licensed portal feed — a commercial agreement, not a scraper — and are refused until one exists.`,
+    summary: `${computable} of ${SOURCING_SIGNALS.length} strategy filters are derivable from data we are licensed for — no portal, no reseller — of which ${built} have working code today. ${needsPortalFeed} are facts about a live listing and need a licensed portal feed, a commercial agreement rather than a scraper, and are refused until one exists.`,
   };
 }

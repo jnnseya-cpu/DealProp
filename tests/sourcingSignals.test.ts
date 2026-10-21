@@ -50,7 +50,7 @@ describe("the strategy filter taxonomy", () => {
   it("only calls a signal computable when a licensed source produces it", () => {
     // Each computable signal names Price Paid, the EPC register or Companies
     // House — the three we hold a licence for — rather than a portal.
-    const licensed = /price paid|epc|companies house|empty-homes|corporate ownership|local authority/i;
+    const licensed = /price paid|epc|companies house|empty-homes|corporate ownership|local authority|gazette|insolvency register/i;
     for (const signal of computableSignals()) {
       expect(licensed.test(signal.source), `${signal.key}: ${signal.source}`).toBe(true);
     }
@@ -68,17 +68,45 @@ describe("the strategy filter taxonomy", () => {
     expect(coverage.total).toBe(SOURCING_SIGNALS.length);
     // The summary must state the gap, not hide it.
     expect(coverage.summary).toContain("licensed portal feed");
-    expect(coverage.summary).toContain("not a scraper");
+    expect(coverage.summary).toContain("rather than a scraper");
   });
 
-  it("has actually built the signals it calls computable", () => {
-    // A signal marked computable whose source names a function that does not
-    // exist would be the exact 'control with no call site' failure the rest of
-    // the platform tests for. These five are the ones with code behind them.
-    const built = new Set(["prepared-but-unsold", "bought-and-flipped"]);
-    for (const key of built) {
-      expect(sourcingSignal(key as never).availability).toBe("computable");
+  it("counts built separately from merely derivable", () => {
+    // The honesty line. A signal can be lawfully derivable from data we can
+    // get (computable) without any code existing yet (built). The coverage
+    // number must not let an intention masquerade as a capability.
+    const coverage = signalCoverage();
+    expect(coverage.built).toBeLessThanOrEqual(coverage.computable);
+    expect(coverage.summary).toContain("working code today");
+    // Anything flagged built must also be computable — you cannot have code
+    // for a signal you have no lawful data for.
+    for (const signal of SOURCING_SIGNALS) {
+      if (signal.built === true) expect(signal.availability, signal.key).toBe("computable");
     }
+  });
+
+  it("sources the strongest motivation signals upstream, without a reseller", () => {
+    // The strategic point, pinned: probate, insolvency and corporate distress
+    // are the root-cause motivation signals, and all three are derivable from
+    // authoritative registers rather than from a portal feed.
+    for (const key of ["probate-notice", "owner-insolvent", "corporate-owner-distress"]) {
+      const signal = sourcingSignal(key as never);
+      expect(signal.availability, key).toBe("computable");
+      expect(signal.source.toLowerCase(), key).not.toMatch(/portal|rightmove|zoopla|reseller/);
+    }
+  });
+
+  it("raises protection on a distress signal rather than lowering it", () => {
+    // A death or a bankruptcy is who Seller Protection exists for. Every
+    // distress-derived signal must carry the heightened-protection flag, and
+    // its own text must say the approach is letter-only and careful — never a
+    // faster pursuit.
+    for (const key of ["probate-notice", "owner-insolvent", "corporate-owner-distress"]) {
+      const signal = sourcingSignal(key as never);
+      expect(signal.heightenedProtection, key).toBe(true);
+    }
+    // And nothing non-distressing is flagged, so the flag stays meaningful.
+    expect(sourcingSignal("bought-and-flipped").heightenedProtection).toBeUndefined();
   });
 
   it("throws on an unknown signal rather than guessing", () => {

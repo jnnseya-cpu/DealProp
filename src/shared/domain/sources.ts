@@ -139,6 +139,39 @@ export const DATA_SOURCES: readonly DataSource[] = [
     licence: OGL,
   },
   {
+    key: "the-gazette",
+    name: "The Gazette",
+    publisher: "The Stationery Office, on behalf of HM Government",
+    provides:
+      "The official public record. Deceased-estates notices placed by estates under the Trustee Act 1925 s.27 — a lawful probate signal at source — plus personal and corporate insolvency notices and company strike-offs.",
+    // Crown copyright, published under the OGL, with a free public API. The
+    // notices name a deceased person or an insolvent one; the deceased are
+    // outside UK GDPR, and contacting a living executor or debtor is still
+    // letter-only under PECR, which the outreach spine already enforces.
+    licence: {
+      ...OGL,
+      name: "Open Government Licence v3.0 (The Gazette)",
+      attribution: "Contains public sector information licensed under the Open Government Licence v3.0",
+    },
+  },
+  {
+    key: "insolvency-register",
+    name: "Individual Insolvency Register",
+    publisher: "The Insolvency Service",
+    provides:
+      "Current bankruptcies, individual voluntary arrangements and debt relief orders, with the debtor's name and address. The root cause behind many 'repossessed' listings, available months before a lender lists.",
+    licence: {
+      ...OGL,
+      name: "Open Government Licence v3.0 (Insolvency Service)",
+      // Internal analysis only, not redistribute: this is distress data about
+      // a named, living, vulnerable individual. It may inform a decision to
+      // approach by letter under heightened protection; it is never shown to a
+      // buyer or published on a card.
+      permits: ["internal-analysis"],
+      attribution: "Contains public sector information licensed under the Open Government Licence v3.0",
+    },
+  },
+  {
     key: "seller-intake",
     name: "Seller enquiry",
     publisher: "The seller",
