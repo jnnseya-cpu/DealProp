@@ -3,6 +3,7 @@ import { companyIdentity, identityGaps, registrationLine } from "@shared/domain/
 import { Mark } from "@/app/components/chrome";
 import { sellerFeeStatement } from "@shared/domain/fees";
 import { permissionsHeld } from "@backend/permissions";
+import { FOOTER_COMPANY, FOOTER_LEGAL, FOOTER_PRODUCT, type NavLink } from "@shared/domain/legal";
 
 /**
  * The footer, and specifically the identity block in it.
@@ -26,7 +27,7 @@ export function SiteFooter({ width = "max-w-7xl" }: { width?: string }) {
   return (
     <footer className="border-t hairline bg-surface-1">
       <div className={`mx-auto ${width} px-6 py-10`}>
-        <div className="grid gap-8 sm:grid-cols-[1.4fr_1fr_1fr]">
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1fr]">
           <div>
             <div className="flex items-center gap-2.5">
               <Mark size={18} />
@@ -39,45 +40,9 @@ export function SiteFooter({ width = "max-w-7xl" }: { width?: string }) {
             </p>
           </div>
 
-          <nav aria-label="Product" className="text-[13px]">
-            <p className="eyebrow">Product</p>
-            <ul className="mt-3 space-y-2">
-              <FooterLink href="/appraise">Free appraisal</FooterLink>
-              <FooterLink href="/sell">Selling a property</FooterLink>
-              <FooterLink href="/partners">Agents and professionals</FooterLink>
-              <FooterLink href="/blog">Writing</FooterLink>
-              <FooterLink href="/newsletter">Newsletter</FooterLink>
-            </ul>
-          </nav>
-
-          <div className="text-[13px]">
-            <p className="eyebrow">Contact</p>
-            <ul className="mt-3 space-y-2 text-ink-400">
-              {identity.contactEmail !== undefined && (
-                <li>
-                  <a
-                    href={`mailto:${identity.contactEmail}`}
-                    className="transition-colors hover:text-ink-100"
-                  >
-                    {identity.contactEmail}
-                  </a>
-                </li>
-              )}
-              {identity.contactPhone !== undefined && (
-                <li>
-                  <a
-                    href={`tel:${identity.contactPhone.replace(/\s/g, "")}`}
-                    className="transition-colors hover:text-ink-100"
-                  >
-                    {identity.contactPhone}
-                  </a>
-                </li>
-              )}
-              {identity.registeredOffice !== undefined && (
-                <li className="leading-[1.6]">{identity.registeredOffice}</li>
-              )}
-            </ul>
-          </div>
+          <FooterColumn label="Product" links={FOOTER_PRODUCT} />
+          <FooterColumn label="Company" links={FOOTER_COMPANY} />
+          <FooterColumn label="Legal" links={FOOTER_LEGAL} />
         </div>
 
         <div className="mt-9 border-t hairline pt-6 text-[12px] leading-[1.7] text-ink-500">
@@ -90,6 +55,27 @@ export function SiteFooter({ width = "max-w-7xl" }: { width?: string }) {
               on every page by the Companies Act 2006 s.82, and{" "}
               <code className="font-mono">npm run preflight</code> will not pass while this line is
               showing.
+            </p>
+          )}
+
+          {(identity.contactEmail !== undefined ||
+            identity.contactPhone !== undefined ||
+            identity.registeredOffice !== undefined) && (
+            <p className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+              {identity.contactEmail !== undefined && (
+                <a href={`mailto:${identity.contactEmail}`} className="transition-colors hover:text-ink-200">
+                  {identity.contactEmail}
+                </a>
+              )}
+              {identity.contactPhone !== undefined && (
+                <a
+                  href={`tel:${identity.contactPhone.replace(/\s/g, "")}`}
+                  className="transition-colors hover:text-ink-200"
+                >
+                  {identity.contactPhone}
+                </a>
+              )}
+              {identity.registeredOffice !== undefined && <span>{identity.registeredOffice}</span>}
             </p>
           )}
 
@@ -127,12 +113,19 @@ export function SiteFooter({ width = "max-w-7xl" }: { width?: string }) {
   );
 }
 
-function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
+function FooterColumn({ label, links }: { label: string; links: readonly NavLink[] }) {
   return (
-    <li>
-      <Link href={href} className="text-ink-400 transition-colors hover:text-ink-100">
-        {children}
-      </Link>
-    </li>
+    <nav aria-label={label} className="text-[13px]">
+      <p className="eyebrow">{label}</p>
+      <ul className="mt-3 space-y-2">
+        {links.map((link) => (
+          <li key={link.href}>
+            <Link href={link.href} className="text-ink-400 transition-colors hover:text-ink-100">
+              {link.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
   );
 }

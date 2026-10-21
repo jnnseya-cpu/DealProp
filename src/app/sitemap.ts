@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { loadCorpus } from "@backend/blog/corpus";
 import { siteUrl } from "@backend/site";
 import { canonical, GLOSSARY, TOPICS } from "@shared/domain/blog";
+import { LEGAL_DOCUMENTS } from "@shared/domain/legal";
 
 export const revalidate = 3600;
 
@@ -40,6 +41,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.5,
     },
+    { url: canonical(base, "/about"), lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    {
+      url: canonical(base, "/how-it-works"),
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    ...LEGAL_DOCUMENTS.map((doc) => ({
+      url: canonical(base, `/legal/${doc.slug}`),
+      lastModified: new Date(doc.updated),
+      changeFrequency: "yearly" as const,
+      priority: 0.3,
+    })),
     ...TOPICS.map((topic) => ({
       url: canonical(base, `/blog/topic/${topic}`),
       lastModified: now,

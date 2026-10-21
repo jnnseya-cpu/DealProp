@@ -88,6 +88,8 @@ listed honestly in [Not built yet](#not-built-yet).
 | Topic hub | `/blog/topic/[topic]` | Six hubs, each linking its posts and definitions |
 | Glossary | `/glossary`, `/glossary/[slug]` | Definition pages, linked from every mention |
 | Newsletter | `/newsletter` | Double opt-in signup, confirm and one-click unsubscribe |
+| About / How it works | `/about`, `/how-it-works` | What Lode is, and the four doors into the engine |
+| Policies | `/legal/[slug]` | Privacy, cookies, terms, complaints, outreach — data-driven, no dead links |
 | Buy Boxes | `/invest` | Investor mandates, each shown against the deals it matches |
 | Funding Boxes | `/capital` | Capital mandates, each shown against the deals it funds |
 | Sign in | `/operator` | Named account, or the shared password as bootstrap |
