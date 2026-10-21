@@ -98,6 +98,12 @@ const SOURCE_HOSTS: Record<string, readonly string[] | "candidate-domain"> = {
   "companies-house": ["api.company-information.service.gov.uk"],
   "fca-register": ["register.fca.org.uk"],
   "funder-own-website": "candidate-domain",
+  // The two open-data sources that between them find properties nobody has
+  // listed. Both are licensed in the registry and neither had a host, so both
+  // were refused at this gate — a licence with nowhere to fetch from is not a
+  // usable source, which is worth the two lines it takes to fix.
+  "land-registry-ppd": ["landregistry.data.gov.uk", "use-land-property.service.gov.uk"],
+  "epc-register": ["epc.opendatacommunities.org"],
 };
 
 export class Fetcher {
