@@ -3,9 +3,11 @@ import { SiteHeader } from "@/app/components/chrome";
 import { requirePermission } from "@/app/operator/guard";
 import { getSource } from "@shared/domain/sources";
 import { sourcingReadiness } from "@backend/discovery/sourcingRun";
+import { listSourcedProperties } from "@backend/store/repository";
 import type { ReadinessState } from "@shared/domain/sourcedLead";
 import { signalCoverage } from "@shared/domain/sourcingSignals";
 import { SourcingRun } from "./SourcingRun";
+import { DismissForm } from "./DismissForm";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +49,10 @@ export default async function SourcingPage() {
   const coverage = signalCoverage();
   const refused = getSource("portal-listings");
 
+  const worklist = await listSourcedProperties();
+  const active = worklist.filter((p) => p.dismissed === undefined);
+  const setAside = worklist.length - active.length;
+
   return (
     <main className="min-h-screen pb-24">
       <SiteHeader trailing={<OperatorNav current="/operator/sourcing" />} />
@@ -65,6 +71,48 @@ export default async function SourcingPage() {
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-400">{coverage.summary}</p>
 
         <SourcingRun />
+
+        {active.length > 0 && (
+          <section className="mt-12">
+            <h2 className="eyebrow">
+              Worklist — {active.length} propert{active.length === 1 ? "y" : "ies"} found
+              {setAside > 0 ? `, ${setAside} set aside` : ""}
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-400">
+              Property leads saved from a dataset run, kept so a run is a worklist and not a thing you
+              do once. Only property facts are stored here — the distress signals (probate, insolvency)
+              are shown live and never warehoused.
+            </p>
+            <ul className="mt-4 space-y-4">
+              {active.map((entry) => (
+                <li key={entry.id} className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                    <p className="font-display text-base text-ink-100">{entry.lead.label}</p>
+                    <p className="font-mono text-xs">
+                      <span className={entry.lead.strength === "strong" ? "text-emerald-300" : "text-ink-400"}>
+                        {entry.lead.strength}
+                      </span>
+                      {entry.lead.postcode !== undefined && (
+                        <>
+                          <span className="text-ink-600"> · </span>
+                          <span className="text-ink-300 tabular-nums">{entry.lead.postcode}</span>
+                        </>
+                      )}
+                    </p>
+                  </div>
+                  <p className="mt-3 text-sm leading-relaxed text-ink-300">{entry.lead.summary}</p>
+                  <p className="mt-3 border-l-2 border-ink-700 pl-3 text-sm leading-relaxed text-ink-400">
+                    <span className="text-ink-300">Lawful next step.</span> {entry.lead.lawfulNextStep}
+                  </p>
+                  <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-ink-600">
+                    first seen {entry.firstSeenAt.slice(0, 10)} · last seen {entry.lastSeenAt.slice(0, 10)}
+                  </p>
+                  <DismissForm id={entry.id} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section className="mt-12 rounded-2xl border hairline bg-surface-1 px-5 py-4">
           <h2 className="eyebrow">Source readiness</h2>

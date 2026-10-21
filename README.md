@@ -31,7 +31,7 @@ npm install
 npm run setup:env # generates the secrets; lists what only you can supply
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 1,234 tests, 1,292 with a Postgres in TEST_DATABASE_URL
+npm test          # 1,238 tests, 1,300 with a Postgres in TEST_DATABASE_URL
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 npm run backup    # pg_dump, custom format, with the restore command printed
@@ -75,7 +75,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Payouts | `/operator/payouts` | Who may be paid, what is held, and what has moved out |
 | Portfolio | `/portfolio` | What is held, what it is worth, and when the facility has to be refinanced |
 | Discovery | `/operator/discovery` | Run funder discovery, review candidates, approve or suppress |
-| Sourcing | `/operator/sourcing` | Find motivated sellers from the licensed registers — it finds, it never contacts |
+| Sourcing | `/operator/sourcing` | Find motivated sellers from the licensed registers, kept as a worklist — it finds, it never contacts |
 | Outreach | `/operator/outreach` | Draft, approve, send; suppression list |
 | Opt out | `/outreach/opt-out` | One click, no account, no confirmation step |
 | Data room | `/dataroom/[token]` | One funder's expiring, watermarked view of one deal |
@@ -620,7 +620,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 1,234 tests, Postgres suite skipped
+npm test          # 1,238 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 

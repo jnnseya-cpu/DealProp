@@ -7,6 +7,7 @@ import { availableBalance, standing } from "@shared/domain/ledger";
 import type { BuyBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { DealRecord, Store } from "@backend/store/schema";
+import type { SourcedLead } from "@shared/domain/sourcedLead";
 import { fileStore } from "@backend/store/fileStore";
 
 /**
@@ -885,6 +886,59 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
 
       it("reports nothing for a post nobody has opened", async () => {
         expect(await store.listBlogViews()).toEqual([]);
+      });
+    });
+
+    describe("the sourced-property worklist", () => {
+      const ADDRESS = "B29 6AD|14|ACACIA AVENUE";
+      const lead: SourcedLead = {
+        signalKey: "prepared-but-unsold",
+        label: "Prepared for sale, never sold",
+        addressKey: ADDRESS,
+        postcode: "B29 6AD",
+        summary: "A certificate was lodged and no sale has been registered since.",
+        strength: "strong",
+        heightenedProtection: false,
+        provenance: { sourceKey: "epc-register", asOf: "2025-01-01" },
+        lawfulNextStep: "Confirm the registered owner on the title before any approach.",
+      };
+      const prop = (over: Partial<Parameters<Store["saveSourcedProperty"]>[0]> = {}) => ({
+        id: ADDRESS,
+        lead,
+        firstSeenAt: "2026-10-01T00:00:00.000Z",
+        lastSeenAt: "2026-10-01T00:00:00.000Z",
+        ...over,
+      });
+
+      it("is empty to begin with", async () => {
+        expect(await store.listSourcedProperties()).toEqual([]);
+      });
+
+      it("round-trips a property and lists it", async () => {
+        await store.saveSourcedProperty(prop());
+        const all = await store.listSourcedProperties();
+        expect(all).toHaveLength(1);
+        expect(all[0]?.lead.postcode).toBe("B29 6AD");
+      });
+
+      it("upserts by address, preserving firstSeenAt but refreshing lastSeenAt", async () => {
+        await store.saveSourcedProperty(prop());
+        await store.saveSourcedProperty(prop({ firstSeenAt: "2026-10-20T00:00:00.000Z", lastSeenAt: "2026-10-20T00:00:00.000Z" }));
+        const all = await store.listSourcedProperties();
+        expect(all).toHaveLength(1);
+        expect(all[0]?.firstSeenAt).toBe("2026-10-01T00:00:00.000Z");
+        expect(all[0]?.lastSeenAt).toBe("2026-10-20T00:00:00.000Z");
+      });
+
+      it("keeps a dismissal through a rerun, so a fresh dataset cannot re-surface it", async () => {
+        await store.saveSourcedProperty(prop());
+        await store.saveSourcedProperty(
+          prop({ dismissed: { at: "2026-10-05T00:00:00.000Z", by: "ops@example.com", reason: "sold privately" } }),
+        );
+        // A later run carries no dismissal; it must not clear the one recorded.
+        await store.saveSourcedProperty(prop({ lastSeenAt: "2026-10-25T00:00:00.000Z" }));
+        const all = await store.listSourcedProperties();
+        expect(all[0]?.dismissed?.reason).toBe("sold privately");
       });
     });
   });

@@ -13,6 +13,7 @@ import type {
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { SellerEnquiryConsent } from "@shared/domain/sellerConsent";
+import type { SourcedLead } from "@shared/domain/sourcedLead";
 import type { AgentDecision } from "@shared/domain/agents";
 import type {
   AgentInstruction,
@@ -270,6 +271,11 @@ export interface Database {
   billingEvents: ProcessedEvent[];
   /** Funders found by discovery, quarantined until a person approves them. */
   discoveryCandidates: StoredCandidate[];
+  /**
+   * Property leads found by sourcing — the worklist. Optional so every existing
+   * database literal and fixture stays valid; readers default to empty.
+   */
+  sourcedProperties?: StoredSourcedProperty[];
   outreachMessages: OutreachMessage[];
   dataRoomGrants: DataRoomGrant[];
   pendingCharges: PendingCharge[];
@@ -383,6 +389,31 @@ export interface StoredCandidate {
   /** Set when a person approved it for outreach. Absent means quarantined. */
   readonly approvedAt?: string;
   readonly approvedBy?: string;
+}
+
+/**
+ * A property lead found by sourcing, kept as a worklist.
+ *
+ * Only property-fact leads are warehoused — `prepared-but-unsold`, which is a
+ * postcode, dates and an EPC rating, and identifies nobody. The distress leads
+ * (probate, insolvency, negative equity) are deliberately NOT stored: they
+ * concern a person's death or financial failure, and the platform's stance is
+ * that such data is acted on live by a named person, not accumulated in a
+ * queue. Warehousing a list of the recently bereaved or the insolvent is
+ * exactly the thing data minimisation exists to prevent, so the store cannot
+ * hold one.
+ *
+ * `id` is the address key, so a rerun updates the same row rather than piling
+ * duplicates, and `firstSeenAt` and a dismissal both survive that rerun — a
+ * fresh dataset does not get to forget that somebody already set this aside.
+ */
+export interface StoredSourcedProperty {
+  readonly id: string;
+  readonly lead: SourcedLead;
+  readonly firstSeenAt: string;
+  readonly lastSeenAt: string;
+  /** Set aside by a named person, with a reason. Survives a rerun. */
+  readonly dismissed?: { readonly at: string; readonly by: string; readonly reason: string };
 }
 
 /**
@@ -847,6 +878,11 @@ export interface Store {
   addSuppression(entry: Suppression): Promise<boolean>;
   /** Upsert by candidate id. Approval and suppression are never overwritten. */
   saveDiscoveryCandidate(entry: StoredCandidate): Promise<StoredCandidate>;
+
+  /** The property-lead worklist, most recently seen first. */
+  listSourcedProperties(): Promise<readonly StoredSourcedProperty[]>;
+  /** Upsert by address key. firstSeenAt and a dismissal survive a rerun. */
+  saveSourcedProperty(entry: StoredSourcedProperty): Promise<StoredSourcedProperty>;
 
   /** Count one use of a plan allowance, atomically, against its limit. */
   recordAllowanceUse(input: AllowanceInput): Promise<AllowanceResult>;

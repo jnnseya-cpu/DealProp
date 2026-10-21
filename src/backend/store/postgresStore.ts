@@ -33,6 +33,7 @@ import type {
   OutreachMessage,
   PendingCharge,
   StoredCandidate,
+  StoredSourcedProperty,
   Suppression,
   TopUpInput,
   TopUpResult,
@@ -248,6 +249,11 @@ const SCHEMA = `
     data jsonb NOT NULL,
     discovered_at timestamptz NOT NULL,
     approved_at timestamptz
+  );
+  CREATE TABLE IF NOT EXISTS sourced_properties (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    last_seen_at timestamptz NOT NULL
   );
   -- Append-only enforced by the database, not by convention.
   --
@@ -1041,6 +1047,43 @@ export const postgresStore: Store = {
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, approved_at = EXCLUDED.approved_at`,
         [merged.candidate.id, JSON.stringify(merged), merged.discoveredAt, merged.approvedAt ?? null],
+      );
+      return merged;
+    });
+  },
+
+  async listSourcedProperties(): Promise<readonly StoredSourcedProperty[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: StoredSourcedProperty }>(
+      "SELECT data FROM sourced_properties ORDER BY last_seen_at DESC",
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async saveSourcedProperty(entry: StoredSourcedProperty): Promise<StoredSourcedProperty> {
+    return transaction(async (client) => {
+      // FOR UPDATE on a row that may not exist yet locks nothing, which is fine:
+      // the first writer inserts, a concurrent one waits on the unique id.
+      const { rows } = await client.query<{ data: StoredSourcedProperty }>(
+        "SELECT data FROM sourced_properties WHERE id = $1 FOR UPDATE",
+        [entry.id],
+      );
+      const existing = rows[0]?.data;
+      // firstSeenAt and a dismissal survive a rerun; lastSeenAt is refreshed.
+      const merged: StoredSourcedProperty = {
+        ...entry,
+        firstSeenAt: existing?.firstSeenAt ?? entry.firstSeenAt,
+        ...(existing?.dismissed !== undefined
+          ? { dismissed: existing.dismissed }
+          : entry.dismissed !== undefined
+            ? { dismissed: entry.dismissed }
+            : {}),
+      };
+      await client.query(
+        `INSERT INTO sourced_properties (id, data, last_seen_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, last_seen_at = EXCLUDED.last_seen_at`,
+        [merged.id, JSON.stringify(merged), merged.lastSeenAt],
       );
       return merged;
     });

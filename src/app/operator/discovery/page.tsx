@@ -66,6 +66,14 @@ export default async function DiscoveryPage() {
           page — approval records that this organisation may be written to, and the outreach gate
           still decides whether a particular message to them would be lawful.
         </p>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-400">
+          This is funder discovery. To find <span className="text-ink-200">motivated sellers</span> from
+          the licensed registers — prepared-but-unsold, probate, insolvency — see{" "}
+          <a href="/operator/sourcing" className="text-lode-300 underline underline-offset-2">
+            property sourcing
+          </a>
+          .
+        </p>
 
         <RunForm />
 

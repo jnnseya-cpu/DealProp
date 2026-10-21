@@ -32,6 +32,7 @@ import type {
   OutreachMessage,
   PendingCharge,
   StoredCandidate,
+  StoredSourcedProperty,
   Suppression,
   TopUpInput,
   TopUpResult,
@@ -87,6 +88,7 @@ function emptyDatabase(): Database {
     ledgerEntries: [],
     billingEvents: [],
     discoveryCandidates: [],
+    sourcedProperties: [],
     outreachMessages: [],
     suppressions: [],
     dataRoomGrants: [],
@@ -121,6 +123,8 @@ async function readDatabase(): Promise<Database> {
       ledgerEntries: parsed.ledgerEntries ?? [],
       billingEvents: parsed.billingEvents ?? [],
       discoveryCandidates: parsed.discoveryCandidates ?? [],
+      // Absent in any store written before the sourcing worklist existed.
+      sourcedProperties: parsed.sourcedProperties ?? [],
       outreachMessages: parsed.outreachMessages ?? [],
       suppressions: parsed.suppressions ?? [],
       dataRoomGrants: parsed.dataRoomGrants ?? [],
@@ -643,6 +647,32 @@ async function saveDiscoveryCandidate(entry: StoredCandidate): Promise<StoredCan
   });
 }
 
+async function listSourcedProperties(): Promise<readonly StoredSourcedProperty[]> {
+  const db = await readDatabase();
+  return [...(db.sourcedProperties ?? [])].sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt));
+}
+
+async function saveSourcedProperty(entry: StoredSourcedProperty): Promise<StoredSourcedProperty> {
+  return mutate((db) => {
+    const list = db.sourcedProperties ?? (db.sourcedProperties = []);
+    const index = list.findIndex((p) => p.id === entry.id);
+    if (index < 0) {
+      list.push(entry);
+      return entry;
+    }
+    const existing = list[index];
+    // A rerun refreshes lastSeenAt but must not reset when it was first found,
+    // nor un-dismiss something a person set aside.
+    const merged: StoredSourcedProperty = {
+      ...entry,
+      firstSeenAt: existing?.firstSeenAt ?? entry.firstSeenAt,
+      ...(existing?.dismissed !== undefined ? { dismissed: existing.dismissed } : entry.dismissed !== undefined ? { dismissed: entry.dismissed } : {}),
+    };
+    list[index] = merged;
+    return merged;
+  });
+}
+
 async function listOutreachMessages(): Promise<readonly OutreachMessage[]> {
   const db = await readDatabase();
   return [...db.outreachMessages].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -1015,6 +1045,8 @@ export const fileStore: Store = {
   reverseLotsForPayment,
   listDiscoveryCandidates,
   saveDiscoveryCandidate,
+  listSourcedProperties,
+  saveSourcedProperty,
   listOutreachMessages,
   saveOutreachMessage,
   listSuppressions,

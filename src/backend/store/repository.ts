@@ -23,6 +23,7 @@ import type {
   OutreachMessage,
   PendingCharge,
   StoredCandidate,
+  StoredSourcedProperty,
   Suppression,
   TopUpInput,
   TopUpResult,
@@ -48,6 +49,7 @@ export type {
   OutreachMessage,
   PendingCharge,
   StoredCandidate,
+  StoredSourcedProperty,
   Suppression,
   TopUpInput,
   TopUpResult,
@@ -279,6 +281,14 @@ export async function listDiscoveryCandidates() {
 
 export async function saveDiscoveryCandidate(entry: StoredCandidate) {
   return (await store()).saveDiscoveryCandidate(entry);
+}
+
+export async function listSourcedProperties() {
+  return (await store()).listSourcedProperties();
+}
+
+export async function saveSourcedProperty(entry: StoredSourcedProperty) {
+  return (await store()).saveSourcedProperty(entry);
 }
 
 export async function listOutreachMessages() {
