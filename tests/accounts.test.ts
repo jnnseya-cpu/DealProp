@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   can,
+  canManageMandate,
   certificationStatus,
+  managesAllMandates,
   mayReceiveDealMaterial,
   publicAccount,
   ROLE_LABELS,
@@ -214,5 +216,55 @@ describe("passwords", () => {
     expect(passwordProblem("short")).toBeDefined();
     expect(passwordProblem("all lower case but long enough")).toBeUndefined();
     expect(passwordProblem("x".repeat(600))?.reason).toContain("too long");
+  });
+});
+
+describe("mandate management", () => {
+  it("grants investors and funders the own-scope permission, not the any-scope one", () => {
+    for (const role of ["investor", "funder"] as const) {
+      expect(can(account({ role }), "manage-own-mandates", NOW).allowed).toBe(true);
+      // The any-scope permission also gates discovery and outreach, which draft
+      // letters to owners. A customer must never hold it.
+      expect(can(account({ role }), "manage-mandates", NOW).allowed).toBe(false);
+    }
+  });
+
+  it("lets operators and admins manage any mandate", () => {
+    for (const role of ["operator", "admin"] as const) {
+      expect(can(account({ role }), "manage-mandates", NOW).allowed).toBe(true);
+    }
+  });
+
+  it("lets a customer manage a mandate they own and refuses one they do not", () => {
+    const investor = account({ id: "acc-buyer", role: "investor" });
+    expect(canManageMandate(investor, "acc-buyer", NOW).allowed).toBe(true);
+    const other = canManageMandate(investor, "acc-someone-else", NOW);
+    expect(other.allowed).toBe(false);
+    expect(other.reason).toContain("another account");
+  });
+
+  it("refuses a customer an ownerless mandate rather than letting them claim it", () => {
+    // Operator-created mandates have no owner. A self-service account must not
+    // be able to adopt one by posting its id, which undefined === id prevents.
+    const investor = account({ id: "acc-buyer", role: "investor" });
+    expect(canManageMandate(investor, undefined, NOW).allowed).toBe(false);
+  });
+
+  it("lets an operator manage any mandate, owned or not", () => {
+    const operator = account({ id: "acc-op", role: "operator" });
+    expect(canManageMandate(operator, "acc-someone", NOW).allowed).toBe(true);
+    expect(canManageMandate(operator, undefined, NOW).allowed).toBe(true);
+  });
+
+  it("refuses a disabled account whatever it would otherwise hold", () => {
+    const disabled = account({ id: "acc-buyer", role: "investor", disabledAt: "2026-08-01T00:00:00.000Z" });
+    expect(canManageMandate(disabled, "acc-buyer", NOW).allowed).toBe(false);
+  });
+
+  it("separates who may see all mandates from who may see their own", () => {
+    expect(managesAllMandates(account({ role: "operator" }), NOW)).toBe(true);
+    expect(managesAllMandates(account({ role: "admin" }), NOW)).toBe(true);
+    expect(managesAllMandates(account({ role: "investor" }), NOW)).toBe(false);
+    expect(managesAllMandates(account({ role: "funder" }), NOW)).toBe(false);
   });
 });

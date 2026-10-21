@@ -7,7 +7,7 @@ import { STRUCTURE_LABELS } from "@shared/domain/strategies";
 import { gbp, percent } from "@shared/format";
 import { SiteHeader } from "@/app/components/chrome";
 import { MandateControls } from "@/app/components/mandate";
-import { requireOperator } from "@/app/operator/guard";
+import { requireMandateManagement, viewerAccount, viewerManagesAllMandates } from "@/app/operator/guard";
 import { SignOutButton } from "@/app/operator/SignOutButton";
 import { BuyBoxForm } from "./BuyBoxForm";
 import { removeBuyBox, setBuyBoxActive } from "./actions";
@@ -29,11 +29,18 @@ export const metadata = {
  * run it against the pipeline in front of the person who wrote it.
  */
 export default async function InvestPage() {
-  await requireOperator("/invest");
+  const viewer = await requireMandateManagement("/invest");
   // A bounded page rather than the whole table. Every row here is scored and
   // then matched against every mandate, so an unbounded read is an unbounded
   // amount of blocking CPU on a single-threaded runtime.
-  const [boxes, page] = await Promise.all([listBuyBoxes(), pageDeals(MATCH_HORIZON)]);
+  const [allBoxes, page] = await Promise.all([listBuyBoxes(), pageDeals(MATCH_HORIZON)]);
+  // A customer sees only their own book; an operator administering the platform
+  // sees all. Another buyer's criteria are not theirs to read, and the whole
+  // list would leak the shape of platform demand to anyone on a plan.
+  const owner = viewerAccount(viewer);
+  const boxes = viewerManagesAllMandates(viewer)
+    ? allBoxes
+    : allBoxes.filter((b) => owner !== undefined && b.ownerAccountId === owner.id);
   const records = page.rows;
 
   const scored = records.map((record) => ({

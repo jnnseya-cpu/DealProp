@@ -12,7 +12,7 @@ import { add } from "@shared/money";
 import { gbp, months, percent } from "@shared/format";
 import { SiteHeader } from "@/app/components/chrome";
 import { MandateControls } from "@/app/components/mandate";
-import { requireOperator } from "@/app/operator/guard";
+import { requireMandateManagement, viewerAccount, viewerManagesAllMandates } from "@/app/operator/guard";
 import { SignOutButton } from "@/app/operator/SignOutButton";
 import { FundingBoxForm } from "./FundingBoxForm";
 import { removeFundingBox, setFundingBoxActive } from "./actions";
@@ -33,10 +33,15 @@ export const metadata = {
  * data rather than from a claim.
  */
 export default async function CapitalPage() {
-  await requireOperator("/capital");
+  const viewer = await requireMandateManagement("/capital");
   // Bounded for the same reason as /invest: every row is scored and then run
   // against every mandate, so an unbounded read is unbounded blocking CPU.
-  const [boxes, page] = await Promise.all([listFundingBoxes(), pageDeals(MATCH_HORIZON)]);
+  const [allBoxes, page] = await Promise.all([listFundingBoxes(), pageDeals(MATCH_HORIZON)]);
+  // A funder sees only their own mandates; an operator sees all.
+  const owner = viewerAccount(viewer);
+  const boxes = viewerManagesAllMandates(viewer)
+    ? allBoxes
+    : allBoxes.filter((b) => owner !== undefined && b.ownerAccountId === owner.id);
   const records = page.rows;
 
   const scored = records.map((record) => ({

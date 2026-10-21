@@ -16,7 +16,8 @@ import type { BuyBox } from "@shared/domain/matching";
 import { ALL_STRUCTURES } from "@shared/domain/strategies";
 import type { JurisdictionCode, PropertyType, StructureKind } from "@shared/domain/types";
 import { deleteBuyBox, getBuyBox, listBuyBoxes, saveBuyBox } from "@backend/store/repository";
-import { requirePermission, viewerAccount } from "@/app/operator/guard";
+import { requireMandateManagement, viewerAccount } from "@/app/operator/guard";
+import { canManageMandate } from "@shared/domain/accounts";
 import { entitlementsForAccount } from "@backend/billing/entitlement";
 import { withinLimit } from "@shared/domain/entitlements";
 
@@ -56,7 +57,7 @@ export async function saveBuyBoxAction(
   _previous: BoxFormResult | undefined,
   formData: FormData,
 ): Promise<BoxFormResult> {
-  const viewer = await requirePermission("manage-mandates", "/invest");
+  const viewer = await requireMandateManagement("/invest");
 
   try {
     const minPrice = requiredMoney(formData.get("minPrice"), "Minimum price");
@@ -83,10 +84,13 @@ export async function saveBuyBoxAction(
       }
     }
 
-    if (existing !== undefined && owner !== undefined && existing.ownerAccountId !== owner.id) {
-      // Somebody else's mandate. The id arrives in the form, so without this a
-      // customer can edit any mandate on the platform by guessing one.
-      return { ok: false, message: "That mandate belongs to another account." };
+    // Somebody else's mandate. The id arrives in the form, so without this a
+    // customer could edit any mandate on the platform by guessing an id. The
+    // decision is canManageMandate's, not this action's: an operator account
+    // manages any, a customer only one they own.
+    if (existing !== undefined && owner !== undefined) {
+      const decision = canManageMandate(owner, existing.ownerAccountId);
+      if (!decision.allowed) return { ok: false, message: decision.reason };
     }
 
     const box: BuyBox = {
@@ -153,21 +157,21 @@ export async function saveBuyBoxAction(
 
 /** Stops appearing to sellers without losing the criteria. */
 export async function setBuyBoxActive(id: string, active: boolean): Promise<void> {
-  const viewer = await requirePermission("manage-mandates", "/invest");
+  const viewer = await requireMandateManagement("/invest");
   const box = await getBuyBox(id);
   if (box === undefined) return;
   const owner = viewerAccount(viewer);
-  if (owner !== undefined && box.ownerAccountId !== owner.id) return;
+  if (owner !== undefined && !canManageMandate(owner, box.ownerAccountId).allowed) return;
   await saveBuyBox({ ...box, active });
   revalidatePath("/invest");
 }
 
 export async function removeBuyBox(id: string): Promise<void> {
-  const viewer = await requirePermission("manage-mandates", "/invest");
+  const viewer = await requireMandateManagement("/invest");
   const owner = viewerAccount(viewer);
   if (owner !== undefined) {
     const box = await getBuyBox(id);
-    if (box === undefined || box.ownerAccountId !== owner.id) return;
+    if (box === undefined || !canManageMandate(owner, box.ownerAccountId).allowed) return;
   }
   await deleteBuyBox(id);
   revalidatePath("/invest");

@@ -21,7 +21,8 @@ import {
   listFundingBoxes,
   saveFundingBox,
 } from "@backend/store/repository";
-import { requirePermission, viewerAccount } from "@/app/operator/guard";
+import { requireMandateManagement, viewerAccount } from "@/app/operator/guard";
+import { canManageMandate } from "@shared/domain/accounts";
 import { entitlementsForAccount } from "@backend/billing/entitlement";
 import { withinLimit } from "@shared/domain/entitlements";
 
@@ -65,7 +66,7 @@ export async function saveFundingBoxAction(
   _previous: BoxFormResult | undefined,
   formData: FormData,
 ): Promise<BoxFormResult> {
-  const viewer = await requirePermission("manage-mandates", "/capital");
+  const viewer = await requireMandateManagement("/capital");
 
   try {
     const minTicket = requiredMoney(formData.get("minTicket"), "Minimum ticket");
@@ -106,8 +107,11 @@ export async function saveFundingBoxAction(
       }
     }
 
-    if (existing !== undefined && owner !== undefined && existing.ownerAccountId !== owner.id) {
-      return { ok: false, message: "That mandate belongs to another account." };
+    // Decided by canManageMandate, not here: operator manages any, customer
+    // manages only a mandate they own. The id arrives in the form.
+    if (existing !== undefined && owner !== undefined) {
+      const decision = canManageMandate(owner, existing.ownerAccountId);
+      if (!decision.allowed) return { ok: false, message: decision.reason };
     }
 
     const box: FundingBox = {
@@ -165,21 +169,21 @@ export async function saveFundingBoxAction(
 }
 
 export async function setFundingBoxActive(id: string, active: boolean): Promise<void> {
-  const viewer = await requirePermission("manage-mandates", "/capital");
+  const viewer = await requireMandateManagement("/capital");
   const box = await getFundingBox(id);
   if (box === undefined) return;
   const owner = viewerAccount(viewer);
-  if (owner !== undefined && box.ownerAccountId !== owner.id) return;
+  if (owner !== undefined && !canManageMandate(owner, box.ownerAccountId).allowed) return;
   await saveFundingBox({ ...box, active });
   revalidatePath("/capital");
 }
 
 export async function removeFundingBox(id: string): Promise<void> {
-  const viewer = await requirePermission("manage-mandates", "/capital");
+  const viewer = await requireMandateManagement("/capital");
   const owner = viewerAccount(viewer);
   if (owner !== undefined) {
     const box = await getFundingBox(id);
-    if (box === undefined || box.ownerAccountId !== owner.id) return;
+    if (box === undefined || !canManageMandate(owner, box.ownerAccountId).allowed) return;
   }
   await deleteFundingBox(id);
   revalidatePath("/capital");

@@ -38,8 +38,22 @@ export type Permission =
   | "view-seller-data"
   /** Investment memoranda and deal packs. A financial promotion. */
   | "view-deal-material"
-  /** Create and edit Buy Boxes and Funding Boxes. */
+  /**
+   * Create and edit ANY Buy Box or Funding Box, including those belonging to
+   * other accounts. An operator power: it also gates discovery and outreach,
+   * which draft letters to property owners, so it must never be handed to a
+   * customer. The customer equivalent is `manage-own-mandates`.
+   */
   | "manage-mandates"
+  /**
+   * Create and edit one's own mandates, and no one else's.
+   *
+   * The self-service permission. An investor or funder holds this and reaches
+   * /invest or /capital to run their own Buy Box or Funding Box; the row-level
+   * ownership check in `canManageMandate` is what keeps "own" honest. It
+   * deliberately does NOT carry the operator surfaces `manage-mandates` does.
+   */
+  | "manage-own-mandates"
   | "view-audit-log"
   /**
    * Blog performance: view counts and the SEO audit.
@@ -72,8 +86,8 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "manage-mandates",
     "view-content-performance",
   ],
-  investor: ["view-deal-material"],
-  funder: ["view-deal-material"],
+  investor: ["view-deal-material", "manage-own-mandates"],
+  funder: ["view-deal-material", "manage-own-mandates"],
 };
 
 export interface InvestorCertification {
@@ -258,6 +272,59 @@ export function can(
   return { allowed: true, reason: `Granted by the ${account.role} role.` };
 }
 
+/**
+ * Whether this account may manage one particular mandate.
+ *
+ * The one place the ownership question is decided, so no call site reads a
+ * role or an owner id and invents its own rule. Two ways in, and only two:
+ *
+ *  - `manage-mandates` manages any mandate. Operators and admins hold it; it
+ *    is how a mandate gets created on a customer's behalf.
+ *  - `manage-own-mandates` manages a mandate the account owns, and nothing
+ *    else. Investors and funders hold it.
+ *
+ * A mandate with no owner recorded (every operator-created one today) can be
+ * managed only by `manage-mandates` — a self-service account cannot adopt an
+ * ownerless mandate by claiming it, because `ownerAccountId === account.id`
+ * is false when the first side is undefined.
+ */
+export function canManageMandate(
+  account: Pick<Account, "id" | "role" | "disabledAt" | "certification">,
+  mandateOwnerId: string | undefined,
+  now: Date = new Date(),
+): AccessDecision {
+  const any = can(account, "manage-mandates", now);
+  if (any.allowed) return any;
+
+  const own = can(account, "manage-own-mandates", now);
+  if (!own.allowed) return own;
+
+  if (mandateOwnerId === account.id) {
+    return { allowed: true, reason: "Granted: the account owns this mandate." };
+  }
+  return {
+    allowed: false,
+    reason: "That mandate belongs to another account.",
+  };
+}
+
+/**
+ * Whether this account sees every mandate or only its own.
+ *
+ * The listing counterpart to `canManageMandate`. An operator browsing /invest
+ * is administering the platform and sees all; a customer there is running
+ * their own book and must see only it — both because another buyer's criteria
+ * are not theirs to read, and because the page would otherwise leak the shape
+ * of the platform's demand to anyone who paid for a plan.
+ */
+export function managesAllMandates(
+  account: Pick<Account, "role" | "disabledAt" | "certification">,
+  now: Date = new Date(),
+): boolean {
+  return can(account, "manage-mandates", now).allowed;
+}
+
+
 function article(word: string): string {
   return /^[aeiou]/i.test(word) ? "An" : "A";
 }
@@ -267,7 +334,8 @@ const PERMISSION_LABELS: Record<Permission, string> = {
   "manage-accounts": "manage accounts",
   "view-seller-data": "see seller enquiries, which carry information given to us in confidence",
   "view-deal-material": "be sent deal material",
-  "manage-mandates": "create or edit mandates",
+  "manage-mandates": "create or edit any mandate",
+  "manage-own-mandates": "create or edit their own mandates",
   "view-audit-log": "read the audit trail",
   "view-content-performance": "see how the blog is performing",
 };

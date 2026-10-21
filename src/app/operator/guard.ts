@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { assertOperator, OPERATOR_COOKIE } from "@backend/auth/operator";
 import { readSession, SESSION_COOKIE } from "@backend/auth/session";
-import { can, type Account, type Permission } from "@shared/domain/accounts";
+import { can, managesAllMandates, type Account, type Permission } from "@shared/domain/accounts";
 import { getAccount } from "@backend/store/repository";
 import { audit } from "@backend/audit";
 
@@ -100,4 +100,45 @@ export async function requireOperator(returnTo: string): Promise<Viewer> {
 /** The account behind the viewer, where one is named. */
 export function viewerAccount(viewer: Viewer): Account | undefined {
   return viewer.kind === "account" ? viewer.account : undefined;
+}
+
+/**
+ * Admit anyone allowed to manage a mandate: the shared operator, an operator
+ * or admin account, or a customer managing their own book.
+ *
+ * `requirePermission` takes a single permission and these two surfaces accept
+ * either of two, so they need their own guard rather than being forced
+ * through one that cannot express "either". The row-level decision — which
+ * mandates this viewer may actually touch — is `canManageMandate`; this only
+ * decides whether they may be on the page at all.
+ */
+export async function requireMandateManagement(returnTo: string): Promise<Viewer> {
+  const viewer = await currentViewer();
+  if (viewer === undefined) {
+    redirect(`/operator?next=${encodeURIComponent(returnTo)}`);
+  }
+  if (viewer.kind === "shared-operator") return viewer;
+
+  const any = can(viewer.account, "manage-mandates");
+  const own = can(viewer.account, "manage-own-mandates");
+  if (!any.allowed && !own.allowed) {
+    await audit("access-denied", {
+      account: viewer.account,
+      subject: returnTo,
+      detail: own.reason,
+    });
+    redirect(`/operator/denied?reason=${encodeURIComponent(own.reason)}`);
+  }
+  return viewer;
+}
+
+/**
+ * Whether this viewer sees every mandate or only its own.
+ *
+ * Shared operator and any account holding `manage-mandates` see all; a
+ * self-service customer sees only their own. The scoping is applied by the
+ * page, from this answer.
+ */
+export function viewerManagesAllMandates(viewer: Viewer): boolean {
+  return viewer.kind === "shared-operator" || managesAllMandates(viewer.account);
 }
