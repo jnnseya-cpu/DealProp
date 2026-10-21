@@ -2,6 +2,7 @@ import { SiteFooter } from "@/app/components/SiteFooter";
 import Link from "next/link";
 import { Badge, Button, Panel, SiteHeader, Stat } from "@/app/components/chrome";
 import { appraise, maxViablePrice } from "@shared/domain/economics";
+import { assessEarlyResale, compareToRuleOfThumb } from "@shared/domain/flipping";
 import { borrowingReport } from "@shared/domain/borrowing";
 import { fundingMetrics } from "@shared/domain/fundingMetrics";
 import { runRedTeam } from "@shared/domain/redteam";
@@ -314,6 +315,11 @@ function Result({
   const metrics = fundingMetrics(a);
   const router = routeStrategies(inputs);
   const ceiling = maxViablePrice(inputs, TARGET_MARGIN_BPS);
+  // The heuristic everybody arrives having already applied, and what it leaves out.
+  const rule = compareToRuleOfThumb(inputs, TARGET_MARGIN_BPS);
+  const foldedTotal = add(...rule.foldedIntoTheThirty.map((line) => line.amount));
+  // Only relevant where the modelled exit is a sale, which the function decides.
+  const resale = assessEarlyResale(inputs.holdMonths, inputs.exit);
   const pack = getJurisdiction(inputs.property.jurisdiction);
 
   const headline = a.discountToOmvBps;
@@ -370,6 +376,40 @@ function Result({
         </div>
       </div>
 
+      {/*
+        The date nobody puts in the spreadsheet.
+
+        A large part of the UK lending market declines where the vendor
+        registered title less than six months ago. An appraisal modelling a
+        four-month flip to a mortgaged buyer is modelling a transaction a
+        meaningful share of buyers cannot complete, and the arithmetic above
+        gives no hint of it. Shown only where the modelled exit is a sale,
+        because a refinance, a let and an assignment are not exposed to it.
+      */}
+      {resale.affectsThisExit && resale.risk !== "clear" && (
+        <div className="mt-5 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+          <p className="eyebrow">
+            {resale.risk === "most-lenders-decline"
+              ? "Most lenders would decline your buyer"
+              : "Close to the six-month line"}
+          </p>
+          <p className="mt-2 text-[13px] leading-[1.65] text-ink-300">{resale.consequence}</p>
+          <p className="mt-2 text-[12px] leading-[1.6] text-ink-500">
+            This is lender criteria rather than law, so there is no statute to point at and the
+            lenders that do not apply it are not rare. It is a question to ask, not a rule to
+            assume.
+          </p>
+          <ul className="mt-3 space-y-1.5">
+            {resale.mitigations.map((mitigation) => (
+              <li key={mitigation} className="flex gap-2 text-[13px] leading-[1.6] text-ink-300">
+                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-lode-400" />
+                {mitigation}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* What to do about it. */}
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
         <Panel eyebrow="Walk away above" title={ceiling > ZERO ? gbp(ceiling) : "No price works"}>
@@ -392,6 +432,54 @@ function Result({
               No purchase price produces a {percent(TARGET_MARGIN_BPS, 0)} margin on these figures.
               The problem is not the price — it is the end value, the works, or the cost of the money.
             </p>
+          )}
+        </Panel>
+
+        {/*
+          The rule of thumb, next to the number that replaces it.
+          
+          This is the comparison the page exists to make. Everybody arriving
+          here has done 70% of the end value minus the works in their head, and
+          the whole argument of the platform is that the thirty points left
+          over has to absorb the surcharge, the finance, the holding and the
+          tax — which it sometimes does and sometimes does not. Showing both
+          and itemising the difference is more persuasive than asserting either.
+        */}
+        <Panel
+          eyebrow="The 70% rule, checked"
+          title={rule.ruleOffer > ZERO ? gbp(rule.ruleOffer) : "No offer"}
+        >
+          <p className="text-[13px] leading-[1.65] text-ink-300">{rule.verdict}</p>
+          {rule.ruleOffer > ZERO && (
+            <p className="mt-2 text-[13px] leading-[1.65] text-ink-400">
+              {rule.ruleOverpays ? (
+                <>
+                  It is{" "}
+                  <span className="text-red-300">{gbp(rule.gap)} above</span> the computed ceiling.
+                </>
+              ) : (
+                <>
+                  There is{" "}
+                  <span className="text-emerald-300">{gbp(rule.gap)} of room</span> above it.
+                </>
+              )}
+            </p>
+          )}
+          {rule.foldedIntoTheThirty.length > 0 && (
+            <dl className="mt-4 divide-y divide-ink-800/70 border-t hairline">
+              {rule.foldedIntoTheThirty.map((line) => (
+                <div key={line.label} className="flex items-baseline justify-between gap-4 py-2">
+                  <dt className="text-[13px] text-ink-400">{line.label}</dt>
+                  <dd className="tnum text-[13px] text-ink-200">{gbp(line.amount)}</dd>
+                </div>
+              ))}
+              <div className="flex items-baseline justify-between gap-4 py-2">
+                <dt className="text-[13px] text-ink-200">
+                  What the thirty points has to cover
+                </dt>
+                <dd className="tnum text-[13px] text-ink-100">{gbp(foldedTotal)}</dd>
+              </div>
+            </dl>
           )}
         </Panel>
 
