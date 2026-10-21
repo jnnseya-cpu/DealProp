@@ -128,7 +128,8 @@ listed honestly in [Not built yet](#not-built-yet).
 | Fees | `src/shared/domain/fees.ts` | What may actually be invoiced now, and what is stopping the rest |
 | Sourcing | `src/shared/domain/sourcing.ts` | The routes by which a deal is passed on without ever owning it, and what each needs |
 | Flipping | `src/shared/domain/flipping.ts` | The 70% rule checked against the computed ceiling, and the six-month seasoning trap |
-| Property discovery | `src/backend/discovery/properties.ts` | Price Paid joined to the EPC register: prepared for sale, never sold |
+| Property discovery | `src/backend/discovery/properties.ts` | Price Paid joined to the EPC register: prepared for sale, never sold; flips; negative equity |
+| Strategy signals | `src/shared/domain/sourcingSignals.ts` | Every motivated-seller filter, mapped to the licensed source or marked as needing a portal feed |
 | Company identity | `src/shared/domain/identity.ts` | The statutory disclosures, read from configuration and never invented |
 | Encryption at rest | `src/backend/crypto/fieldCipher.ts` | AES-256-GCM over seller narratives, screening answers and DD evidence |
 | Content-Security-Policy | `src/shared/csp.ts` | Baseline everywhere; a per-request nonce where personal data is |

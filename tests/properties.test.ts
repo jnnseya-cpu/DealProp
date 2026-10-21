@@ -5,6 +5,9 @@ import {
   findCandidates,
   medianPricePerSqm,
   MINIMUM_MONTHS,
+  findFlips,
+  FLIP_MIN_UPLIFT_BPS,
+  negativeEquity,
   parsePricePaid,
   PPD_SOURCE,
   STRONG_MONTHS,
@@ -294,5 +297,76 @@ describe("the local rate", () => {
     // A sale with no floor area cannot produce a rate, and a zero would be
     // worse than an absence.
     expect(medianPricePerSqm(sales, new Map())).toBeUndefined();
+  });
+});
+
+describe("bought and flipped", () => {
+  function sale(input: { price: number; date: string; paon: string; postcode?: string; category?: "A" | "B" }): string {
+    return [
+      "{ID}", String(input.price), `${input.date} 00:00`, input.postcode ?? "B1 1AA",
+      "T", "N", "F", input.paon, "", "A ROAD", "L", "T", "D", "C", input.category ?? "A", "A",
+    ].map((f) => `"${f}"`).join(",");
+  }
+
+  it("finds a pair of sales with a real uplift inside the window", () => {
+    const sales = parsePricePaid(
+      [
+        sale({ price: 150_000, date: "2022-03-01", paon: "14" }),
+        sale({ price: 207_000, date: "2023-05-01", paon: "14" }),
+      ].join("\n"),
+    ).records;
+    const flips = findFlips(sales);
+    expect(flips).toHaveLength(1);
+    expect(flips[0]?.upliftBps).toBeGreaterThanOrEqual(FLIP_MIN_UPLIFT_BPS);
+    expect(flips[0]?.boughtFor).toBe(fromMajor(150_000));
+    expect(flips[0]?.soldFor).toBe(fromMajor(207_000));
+  });
+
+  it("ignores ordinary appreciation below the uplift floor", () => {
+    const sales = parsePricePaid(
+      [
+        sale({ price: 200_000, date: "2022-03-01", paon: "14" }),
+        sale({ price: 210_000, date: "2023-03-01", paon: "14" }),
+      ].join("\n"),
+    ).records;
+    // 5% is a market move, not a refurbishment.
+    expect(findFlips(sales)).toHaveLength(0);
+  });
+
+  it("ignores two sales too far apart to be a flip", () => {
+    const sales = parsePricePaid(
+      [
+        sale({ price: 150_000, date: "2018-03-01", paon: "14" }),
+        sale({ price: 250_000, date: "2024-03-01", paon: "14" }),
+      ].join("\n"),
+    ).records;
+    expect(findFlips(sales)).toHaveLength(0);
+  });
+
+  it("excludes a non-arm's-length purchase from the pair", () => {
+    // A repossession bought cheap and sold on is a different signal, and
+    // counting it would overstate the achievable uplift.
+    const sales = parsePricePaid(
+      [
+        sale({ price: 100_000, date: "2022-03-01", paon: "14", category: "B" }),
+        sale({ price: 200_000, date: "2023-03-01", paon: "14" }),
+      ].join("\n"),
+    ).records;
+    expect(findFlips(sales)).toHaveLength(0);
+  });
+});
+
+describe("negative equity", () => {
+  it("flags a property worth less than it last cost", () => {
+    const flag = negativeEquity(fromMajor(200_000), fromMajor(170_000));
+    expect(flag).toBeDefined();
+    expect(flag?.shortfallBps).toBe(1_500);
+  });
+
+  it("returns nothing where there is equity or a figure is missing", () => {
+    expect(negativeEquity(fromMajor(200_000), fromMajor(240_000))).toBeUndefined();
+    expect(negativeEquity(undefined, fromMajor(170_000))).toBeUndefined();
+    // An absent estimate is not evidence of equity.
+    expect(negativeEquity(fromMajor(200_000), undefined)).toBeUndefined();
   });
 });

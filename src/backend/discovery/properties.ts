@@ -309,6 +309,123 @@ export function findCandidates(
   return { candidates, considered: epc.length, soldSince, tooRecent };
 }
 
+/* ------------------------------------------------- bought and flipped */
+
+/** How close two sales must be to read as a flip rather than a move. */
+export const FLIP_WINDOW_MONTHS = 18;
+/** The uplift that marks a refurbishment rather than ordinary appreciation. */
+export const FLIP_MIN_UPLIFT_BPS = 2_000; // 20%
+
+export interface Flip {
+  readonly addressKey: string;
+  readonly postcode: string;
+  readonly boughtAt: string;
+  readonly boughtFor: Money;
+  readonly soldAt: string;
+  readonly soldFor: Money;
+  readonly monthsHeld: number;
+  /** Basis points of gross uplift, before any costs. */
+  readonly upliftBps: number;
+}
+
+/**
+ * Pairs of arm's-length sales close together with a real jump between them.
+ *
+ * A flip that someone else already did is worth finding for the opposite
+ * reason to a motivated seller: it tells you the finished value the street
+ * will actually pay, evidenced by a completed sale rather than an asking
+ * price. Both sales must be category A — a repossession bought cheap and sold
+ * on is not the same signal and would overstate the achievable uplift.
+ *
+ * Gross uplift, stated as gross. The costs and the tax that turn it into a
+ * margin are `appraise()`'s job, not this function's, and labelling a 30%
+ * gross uplift as "profit" is exactly the mistake the rest of the platform
+ * refuses to make.
+ */
+export function findFlips(
+  sales: readonly PricePaidRecord[],
+  windowMonths: number = FLIP_WINDOW_MONTHS,
+  minUpliftBps: number = FLIP_MIN_UPLIFT_BPS,
+): readonly Flip[] {
+  assertSourceUsable(PPD_SOURCE, "internal-analysis");
+
+  const byAddress = new Map<string, PricePaidRecord[]>();
+  for (const sale of sales) {
+    if (sale.category !== "A") continue;
+    const key = addressKey(sale);
+    const held = byAddress.get(key) ?? [];
+    held.push(sale);
+    byAddress.set(key, held);
+  }
+
+  const flips: Flip[] = [];
+  for (const [key, group] of byAddress) {
+    if (group.length < 2) continue;
+    const ordered = [...group].sort((a, b) => a.soldAt.localeCompare(b.soldAt));
+    for (let i = 1; i < ordered.length; i += 1) {
+      const bought = ordered[i - 1];
+      const sold = ordered[i];
+      if (bought === undefined || sold === undefined) continue;
+
+      const months = Math.round(
+        (Date.parse(sold.soldAt) - Date.parse(bought.soldAt)) / (1000 * 60 * 60 * 24 * 30.44),
+      );
+      if (months <= 0 || months > windowMonths) continue;
+      if (sold.price <= bought.price) continue;
+
+      const upliftBps = Math.round(((sold.price - bought.price) / bought.price) * 10_000);
+      if (upliftBps < minUpliftBps) continue;
+
+      flips.push({
+        addressKey: key,
+        postcode: sold.postcode,
+        boughtAt: bought.soldAt,
+        boughtFor: bought.price,
+        soldAt: sold.soldAt,
+        soldFor: sold.price,
+        monthsHeld: months,
+        upliftBps,
+      });
+    }
+  }
+
+  return flips.sort((a, b) => b.upliftBps - a.upliftBps);
+}
+
+/* ------------------------------------------------------- negative equity */
+
+export interface NegativeEquityFlag {
+  readonly addressKey: string;
+  readonly lastPaid: Money;
+  readonly estimatedValue: Money;
+  /** How far underwater, as basis points of the last paid price. */
+  readonly shortfallBps: number;
+}
+
+/**
+ * Whether the last paid price sits above a current estimate of value.
+ *
+ * The signal behind a lease option or an assisted sale: where an owner may owe
+ * more than the property is worth, a route that needs no cash to change hands
+ * at completion is sometimes the only one that works. Returns undefined rather
+ * than a cheerful zero where either figure is missing — an absent estimate is
+ * not evidence of equity.
+ */
+export function negativeEquity(
+  lastPaid: Money | undefined,
+  estimatedValue: Money | undefined,
+): NegativeEquityFlag | undefined {
+  if (lastPaid === undefined || estimatedValue === undefined) return undefined;
+  if (lastPaid <= 0 || estimatedValue <= 0) return undefined;
+  if (estimatedValue >= lastPaid) return undefined;
+  return {
+    addressKey: "",
+    lastPaid,
+    estimatedValue,
+    shortfallBps: Math.round(((lastPaid - estimatedValue) / lastPaid) * 10_000),
+  };
+}
+
 /**
  * A price per square metre for an area, from arm's-length sales only.
  *
