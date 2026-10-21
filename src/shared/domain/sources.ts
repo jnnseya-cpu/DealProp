@@ -186,6 +186,22 @@ export const DATA_SOURCES: readonly DataSource[] = [
     },
   },
   {
+    key: "listing-import",
+    name: "A listing submitted by its rights-holder",
+    publisher: "The submitter",
+    provides:
+      "The factual details of a property the submitter is entitled to publish — address, price, type, size — read from the page's own structured data. Never the photographs or the marketing text, which belong to whoever created them.",
+    licence: {
+      name: "Submitted for publication by the seller, instructed agent or auctioneer",
+      url: "/legal/terms",
+      // Display is permitted because the submitter is publishing their own
+      // property with us, and warrants they may. It does not extend to a portal:
+      // classifyImportUrl refuses those before any request is made.
+      permits: ["internal-analysis", "display"],
+      requiresRegistration: false,
+    },
+  },
+  {
     key: "portal-listings",
     name: "Property portal listings",
     publisher: "Rightmove, Zoopla, OnTheMarket",

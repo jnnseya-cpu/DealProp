@@ -110,6 +110,10 @@ const SOURCE_HOSTS: Record<string, readonly string[] | "candidate-domain"> = {
   // been made from this environment, so confirm the serving host against one
   // real request before relying on it.
   "the-gazette": ["www.thegazette.co.uk", "api.thegazette.co.uk"],
+  // A rights-holder's own listing page, bound to the domain they submitted —
+  // the same posture as a funder's own site. Portals are refused before the
+  // fetch by classifyImportUrl, so they never reach this gate.
+  "listing-import": "candidate-domain",
 };
 
 export class Fetcher {

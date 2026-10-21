@@ -14,6 +14,7 @@ import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { SellerEnquiryConsent } from "@shared/domain/sellerConsent";
 import type { SourcedLead } from "@shared/domain/sourcedLead";
+import type { ImportedListing, SubmitterRole } from "@shared/domain/listingImport";
 import type { AgentDecision } from "@shared/domain/agents";
 import type {
   AgentInstruction,
@@ -22,7 +23,7 @@ import type {
   FeePayer,
   SellerAgreement,
 } from "@shared/domain/fees";
-import type { InventoryCategory, InventoryItem } from "@shared/domain/inventory";
+import type { InventoryCategory, InventoryItem, ConfirmedBy } from "@shared/domain/inventory";
 import type { MaterialRecord } from "@shared/domain/materialInformation";
 import type { SellerDueDiligence } from "@shared/domain/sellerDueDiligence";
 import type { PayoutRecipient } from "@shared/domain/payouts";
@@ -276,6 +277,8 @@ export interface Database {
    * database literal and fixture stays valid; readers default to empty.
    */
   sourcedProperties?: StoredSourcedProperty[];
+  /** Listings imported from a link by their rights-holder. Optional, as above. */
+  importedListings?: StoredImportedListing[];
   outreachMessages: OutreachMessage[];
   dataRoomGrants: DataRoomGrant[];
   pendingCharges: PendingCharge[];
@@ -414,6 +417,27 @@ export interface StoredSourcedProperty {
   readonly lastSeenAt: string;
   /** Set aside by a named person, with a reason. Survives a rerun. */
   readonly dismissed?: { readonly at: string; readonly by: string; readonly reason: string };
+}
+
+/**
+ * A listing imported from a link by the rights-holder.
+ *
+ * It carries the facts taken from the page, who submitted it and in what
+ * capacity, the inventory category that follows from that, and the named person
+ * who warranted the right to publish it. A draft until the appraisal and the
+ * seller checks the pipeline requires are done — importing facts does not make a
+ * property marketable on its own.
+ */
+export interface StoredImportedListing {
+  readonly id: string;
+  readonly listing: ImportedListing;
+  readonly role: SubmitterRole;
+  readonly category: InventoryCategory;
+  readonly confirmedBy: ConfirmedBy;
+  /** The named person who warranted the right to publish it. */
+  readonly warrantedBy: string;
+  readonly submittedAt: string;
+  readonly status: "draft" | "withdrawn";
 }
 
 /**
@@ -883,6 +907,11 @@ export interface Store {
   listSourcedProperties(): Promise<readonly StoredSourcedProperty[]>;
   /** Upsert by address key. firstSeenAt and a dismissal survive a rerun. */
   saveSourcedProperty(entry: StoredSourcedProperty): Promise<StoredSourcedProperty>;
+
+  /** Listings imported by their rights-holder, most recent first. */
+  listImportedListings(): Promise<readonly StoredImportedListing[]>;
+  /** Upsert by id (the normalised source URL). submittedAt survives a re-import. */
+  saveImportedListing(entry: StoredImportedListing): Promise<StoredImportedListing>;
 
   /** Count one use of a plan allowance, atomically, against its limit. */
   recordAllowanceUse(input: AllowanceInput): Promise<AllowanceResult>;

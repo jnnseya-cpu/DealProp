@@ -941,6 +941,41 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         expect(all[0]?.dismissed?.reason).toBe("sold privately");
       });
     });
+
+    describe("imported listings", () => {
+      const base = {
+        id: "https://www.auctions.co.uk/lot/1",
+        listing: {
+          sourceUrl: "https://www.auctions.co.uk/lot/1",
+          publisherHost: "www.auctions.co.uk",
+          postcode: "B29 6AD",
+          priceGbp: 185000,
+        },
+        role: "auctioneer" as const,
+        category: "agent-authorised" as const,
+        confirmedBy: "instructed-agent" as const,
+        warrantedBy: "ops@example.com",
+        submittedAt: "2026-10-01T00:00:00.000Z",
+        status: "draft" as const,
+      };
+
+      it("round-trips an imported listing", async () => {
+        await store.saveImportedListing(base);
+        const all = await store.listImportedListings();
+        expect(all).toHaveLength(1);
+        expect(all[0]?.listing.postcode).toBe("B29 6AD");
+        expect(all[0]?.category).toBe("agent-authorised");
+      });
+
+      it("upserts by id, keeping when it was first submitted, and can be withdrawn", async () => {
+        await store.saveImportedListing(base);
+        await store.saveImportedListing({ ...base, submittedAt: "2026-10-20T00:00:00.000Z", status: "withdrawn" });
+        const all = await store.listImportedListings();
+        expect(all).toHaveLength(1);
+        expect(all[0]?.submittedAt).toBe("2026-10-01T00:00:00.000Z");
+        expect(all[0]?.status).toBe("withdrawn");
+      });
+    });
   });
 
 }

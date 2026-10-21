@@ -24,6 +24,7 @@ import type {
   PendingCharge,
   StoredCandidate,
   StoredSourcedProperty,
+  StoredImportedListing,
   Suppression,
   TopUpInput,
   TopUpResult,
@@ -50,6 +51,7 @@ export type {
   PendingCharge,
   StoredCandidate,
   StoredSourcedProperty,
+  StoredImportedListing,
   Suppression,
   TopUpInput,
   TopUpResult,
@@ -289,6 +291,14 @@ export async function listSourcedProperties() {
 
 export async function saveSourcedProperty(entry: StoredSourcedProperty) {
   return (await store()).saveSourcedProperty(entry);
+}
+
+export async function listImportedListings() {
+  return (await store()).listImportedListings();
+}
+
+export async function saveImportedListing(entry: StoredImportedListing) {
+  return (await store()).saveImportedListing(entry);
 }
 
 export async function listOutreachMessages() {

@@ -34,6 +34,7 @@ import type {
   PendingCharge,
   StoredCandidate,
   StoredSourcedProperty,
+  StoredImportedListing,
   Suppression,
   TopUpInput,
   TopUpResult,
@@ -254,6 +255,11 @@ const SCHEMA = `
     id text PRIMARY KEY,
     data jsonb NOT NULL,
     last_seen_at timestamptz NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS imported_listings (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    submitted_at timestamptz NOT NULL
   );
   -- Append-only enforced by the database, not by convention.
   --
@@ -1084,6 +1090,35 @@ export const postgresStore: Store = {
          VALUES ($1, $2, $3)
          ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, last_seen_at = EXCLUDED.last_seen_at`,
         [merged.id, JSON.stringify(merged), merged.lastSeenAt],
+      );
+      return merged;
+    });
+  },
+
+  async listImportedListings(): Promise<readonly StoredImportedListing[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: StoredImportedListing }>(
+      "SELECT data FROM imported_listings ORDER BY submitted_at DESC",
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async saveImportedListing(entry: StoredImportedListing): Promise<StoredImportedListing> {
+    return transaction(async (client) => {
+      const { rows } = await client.query<{ data: StoredImportedListing }>(
+        "SELECT data FROM imported_listings WHERE id = $1 FOR UPDATE",
+        [entry.id],
+      );
+      const existing = rows[0]?.data;
+      const merged: StoredImportedListing = {
+        ...entry,
+        submittedAt: existing?.submittedAt ?? entry.submittedAt,
+      };
+      await client.query(
+        `INSERT INTO imported_listings (id, data, submitted_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, submitted_at = EXCLUDED.submitted_at`,
+        [merged.id, JSON.stringify(merged), merged.submittedAt],
       );
       return merged;
     });

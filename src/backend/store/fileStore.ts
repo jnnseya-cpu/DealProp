@@ -33,6 +33,7 @@ import type {
   PendingCharge,
   StoredCandidate,
   StoredSourcedProperty,
+  StoredImportedListing,
   Suppression,
   TopUpInput,
   TopUpResult,
@@ -89,6 +90,7 @@ function emptyDatabase(): Database {
     billingEvents: [],
     discoveryCandidates: [],
     sourcedProperties: [],
+    importedListings: [],
     outreachMessages: [],
     suppressions: [],
     dataRoomGrants: [],
@@ -125,6 +127,7 @@ async function readDatabase(): Promise<Database> {
       discoveryCandidates: parsed.discoveryCandidates ?? [],
       // Absent in any store written before the sourcing worklist existed.
       sourcedProperties: parsed.sourcedProperties ?? [],
+      importedListings: parsed.importedListings ?? [],
       outreachMessages: parsed.outreachMessages ?? [],
       suppressions: parsed.suppressions ?? [],
       dataRoomGrants: parsed.dataRoomGrants ?? [],
@@ -673,6 +676,30 @@ async function saveSourcedProperty(entry: StoredSourcedProperty): Promise<Stored
   });
 }
 
+async function listImportedListings(): Promise<readonly StoredImportedListing[]> {
+  const db = await readDatabase();
+  return [...(db.importedListings ?? [])].sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+}
+
+async function saveImportedListing(entry: StoredImportedListing): Promise<StoredImportedListing> {
+  return mutate((db) => {
+    const list = db.importedListings ?? (db.importedListings = []);
+    const index = list.findIndex((l) => l.id === entry.id);
+    if (index < 0) {
+      list.push(entry);
+      return entry;
+    }
+    const existing = list[index];
+    // A re-import refreshes the facts but keeps when it was first submitted.
+    const merged: StoredImportedListing = {
+      ...entry,
+      submittedAt: existing?.submittedAt ?? entry.submittedAt,
+    };
+    list[index] = merged;
+    return merged;
+  });
+}
+
 async function listOutreachMessages(): Promise<readonly OutreachMessage[]> {
   const db = await readDatabase();
   return [...db.outreachMessages].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -1047,6 +1074,8 @@ export const fileStore: Store = {
   saveDiscoveryCandidate,
   listSourcedProperties,
   saveSourcedProperty,
+  listImportedListings,
+  saveImportedListing,
   listOutreachMessages,
   saveOutreachMessage,
   listSuppressions,
