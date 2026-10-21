@@ -31,7 +31,7 @@ npm install
 npm run setup:env # generates the secrets; lists what only you can supply
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 1,215 tests, 1,273 with a Postgres in TEST_DATABASE_URL
+npm test          # 1,228 tests, 1,286 with a Postgres in TEST_DATABASE_URL
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 npm run backup    # pg_dump, custom format, with the restore command printed
@@ -74,7 +74,8 @@ listed honestly in [Not built yet](#not-built-yet).
 | Conduct | `/operator/conduct` | The twelve prohibitions and the control enforcing each one |
 | Payouts | `/operator/payouts` | Who may be paid, what is held, and what has moved out |
 | Portfolio | `/portfolio` | What is held, what it is worth, and when the facility has to be refinanced |
-| Discovery | `/operator/discovery` | Run discovery, review candidates, approve or suppress |
+| Discovery | `/operator/discovery` | Run funder discovery, review candidates, approve or suppress |
+| Sourcing | `/operator/sourcing` | Find motivated sellers from the licensed registers — it finds, it never contacts |
 | Outreach | `/operator/outreach` | Draft, approve, send; suppression list |
 | Opt out | `/outreach/opt-out` | One click, no account, no confirmation step |
 | Data room | `/dataroom/[token]` | One funder's expiring, watermarked view of one deal |
@@ -131,6 +132,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Property discovery | `src/backend/discovery/properties.ts` | Price Paid joined to the EPC register: prepared for sale, never sold; flips; negative equity |
 | Gazette adapter | `src/backend/discovery/gazette.ts` | Deceased-estates and personal-insolvency notices at source: probate and insolvency without a portal |
 | Insolvency Register | `src/backend/discovery/insolvencyRegister.ts` | Authoritative per-person confirmation of a current insolvency; internal analysis only |
+| Sourcing run | `src/backend/discovery/sourcingRun.ts` | Joins the adapters into one ranked list of leads, with the lawful next step on each — surfaced at `/operator/sourcing` |
 | Strategy signals | `src/shared/domain/sourcingSignals.ts` | Every motivated-seller filter, mapped to the licensed source or marked as needing a portal feed |
 | Listing-data seam | `src/shared/domain/listingData.ts` | Port for a licensed listing reseller; fails closed, flips the portal signals live when wired |
 | Company identity | `src/shared/domain/identity.ts` | The statutory disclosures, read from configuration and never invented |
@@ -617,7 +619,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 1,215 tests, Postgres suite skipped
+npm test          # 1,228 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 

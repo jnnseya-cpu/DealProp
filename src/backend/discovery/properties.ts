@@ -161,6 +161,84 @@ export interface EpcRecord {
   readonly constructionAgeBand?: string;
 }
 
+/**
+ * Parse the EPC bulk file, which — unlike Price Paid — has a header row.
+ *
+ * The published export is a wide CSV and the columns are addressed by name
+ * rather than by position, because the EPC schema adds columns over time and a
+ * positional read would silently take the wrong field after a schema change.
+ * The address arrives as one or two free-text lines rather than split into
+ * house number and street the way Price Paid splits it, so the leading token of
+ * the first line is taken as the addressable object name and the remainder as
+ * the street — best-effort, and the direction to be wrong in is a missed match
+ * (`addressKey` already documents that false negatives are acceptable and false
+ * positives are not).
+ *
+ * Tolerant of a bad row, intolerant of a bad file, exactly as `parsePricePaid`.
+ */
+export function parseEpc(csv: string): { readonly records: readonly EpcRecord[]; readonly skipped: number } {
+  assertSourceUsable(EPC_SOURCE, "internal-analysis");
+
+  const lines = csv.split(/\r?\n/);
+  const headerLine = lines.find((l) => l.trim() !== "");
+  if (headerLine === undefined) return { records: [], skipped: 0 };
+
+  const header = splitRow(headerLine).map((h) => h.replace(/^"|"$/g, "").trim().toUpperCase());
+  const at = (name: string): number => header.indexOf(name);
+  const iPostcode = at("POSTCODE");
+  const iAddr1 = at("ADDRESS1");
+  const iLodged = at("LODGEMENT_DATE");
+  const iRating = at("CURRENT_ENERGY_RATING");
+  // Without these three there is nothing to join on or act on.
+  if (iPostcode < 0 || iAddr1 < 0 || iLodged < 0) {
+    return { records: [], skipped: Math.max(0, lines.filter((l) => l.trim() !== "").length - 1) };
+  }
+  const iAddr2 = at("ADDRESS2");
+  const iArea = at("TOTAL_FLOOR_AREA");
+  const iAge = at("CONSTRUCTION_AGE_BAND");
+
+  const records: EpcRecord[] = [];
+  let skipped = 0;
+  let first = true;
+
+  for (const line of lines) {
+    if (line.trim() === "") continue;
+    if (first) {
+      first = false; // the header itself
+      continue;
+    }
+    const f = splitRow(line).map((v) => v.replace(/^"|"$/g, "").trim());
+    const postcode = (f[iPostcode] ?? "").toUpperCase().replace(/\s+/g, " ").trim();
+    const address1 = f[iAddr1] ?? "";
+    const lodged = (f[iLodged] ?? "").slice(0, 10);
+    if (postcode === "" || address1 === "" || !/^\d{4}-\d{2}-\d{2}$/.test(lodged)) {
+      skipped += 1;
+      continue;
+    }
+
+    // Leading number or unit as the addressable object name, the rest as street.
+    const trimmed = address1.replace(/,/g, " ").replace(/\s+/g, " ").trim();
+    const match = /^(\d+[a-z]?)\s+(.*)$/i.exec(trimmed);
+    const paon = match?.[1] ?? trimmed.split(" ")[0] ?? trimmed;
+    const street = match?.[2] ?? trimmed.slice(paon.length).trim();
+
+    const area = iArea >= 0 ? Number(f[iArea]) : NaN;
+
+    records.push({
+      postcode,
+      paon,
+      saon: iAddr2 >= 0 ? (f[iAddr2] ?? "") : "",
+      street,
+      lodgedAt: lodged,
+      rating: iRating >= 0 ? (f[iRating] ?? "").toUpperCase() : "",
+      ...(Number.isFinite(area) && area > 0 ? { floorAreaSqm: area } : {}),
+      ...(iAge >= 0 && (f[iAge] ?? "").trim() !== "" ? { constructionAgeBand: (f[iAge] ?? "").trim() } : {}),
+    });
+  }
+
+  return { records, skipped };
+}
+
 /* ------------------------------------------------------------- the join */
 
 /**

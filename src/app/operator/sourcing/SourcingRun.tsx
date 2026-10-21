@@ -1,0 +1,156 @@
+"use client";
+
+import { useActionState } from "react";
+import { runDatasetAction, runRegistersAction, type SourcedLead, type SourcingResult } from "./actions";
+
+/**
+ * Two run paths, side by side, and the leads they produce.
+ *
+ * Neither contacts anyone. A lead is something a named person investigates, and
+ * the lawful next step travels with it — confirm the owner on the title, screen,
+ * record the assessment, write by post. There is no "approach" button, because
+ * the automated-outreach version of this is the unlawful one.
+ */
+export function SourcingRun() {
+  const [dataset, runDataset, runningDataset] = useActionState<SourcingResult | undefined, FormData>(
+    runDatasetAction,
+    undefined,
+  );
+  const [registers, runRegisters, runningRegisters] = useActionState<SourcingResult | undefined, FormData>(
+    runRegistersAction,
+    undefined,
+  );
+
+  return (
+    <>
+      <div className="mt-10 grid gap-5 lg:grid-cols-2">
+        <form action={runDataset} className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
+          <h2 className="eyebrow">Compute from a dataset you hold</h2>
+          <p className="mt-3 text-sm leading-relaxed text-ink-400">
+            Paste the Price Paid and EPC bulk data — both open-licensed, downloaded, not scraped. They
+            are joined on the address: a certificate lodged with no sale registered since is a property
+            prepared for sale that never sold, which no portal publishes.
+          </p>
+
+          <label className="mt-4 block text-xs text-ink-500" htmlFor="ppd">
+            Price Paid rows (the published 16-column format)
+          </label>
+          <textarea
+            id="ppd"
+            name="ppd"
+            rows={4}
+            required
+            placeholder={'"{id}","200000","2019-01-01 00:00","B29 6AD","T","N","F","14","","Acacia Avenue",…'}
+            className="mt-1.5 w-full rounded-xl border hairline bg-ink-950 px-3 py-2 font-mono text-[11px] leading-relaxed text-ink-100"
+          />
+
+          <label className="mt-3 block text-xs text-ink-500" htmlFor="epc">
+            EPC rows (with the header row)
+          </label>
+          <textarea
+            id="epc"
+            name="epc"
+            rows={4}
+            required
+            placeholder={"LMK_KEY,ADDRESS1,ADDRESS2,POSTCODE,CURRENT_ENERGY_RATING,LODGEMENT_DATE,…\nabc,14 Acacia Avenue,,B29 6AD,D,2025-01-01,88,…"}
+            className="mt-1.5 w-full rounded-xl border hairline bg-ink-950 px-3 py-2 font-mono text-[11px] leading-relaxed text-ink-100"
+          />
+
+          <button
+            type="submit"
+            disabled={runningDataset}
+            className="mt-4 inline-flex h-9.5 items-center justify-center rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
+          >
+            {runningDataset ? "Joining…" : "Find prepared-but-unsold"}
+          </button>
+
+          {dataset !== undefined && (
+            <p className={`mt-4 text-sm leading-relaxed ${dataset.ok ? "text-emerald-300" : "text-amber-300"}`} role="status">
+              {dataset.message}
+            </p>
+          )}
+        </form>
+
+        <form action={runRegisters} className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
+          <h2 className="eyebrow">Fetch the public registers</h2>
+          <p className="mt-3 text-sm leading-relaxed text-ink-400">
+            The Gazette's deceased-estates and personal-insolvency notices, read through the Fetcher
+            under the Open Government Licence. These are the root-cause motivation signals — probate
+            and insolvency — at source, not a listing tag. Every one carries heightened protection.
+          </p>
+
+          <button
+            type="submit"
+            disabled={runningRegisters}
+            className="mt-4 inline-flex h-9.5 items-center justify-center rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
+          >
+            {runningRegisters ? "Fetching…" : "Fetch register notices"}
+          </button>
+
+          {registers !== undefined && (
+            <>
+              <p className={`mt-4 text-sm leading-relaxed ${registers.ok ? "text-emerald-300" : "text-amber-300"}`} role="status">
+                {registers.message}
+              </p>
+              {registers.notes.length > 0 && (
+                <ul className="mt-3 space-y-1">
+                  {registers.notes.map((note, i) => (
+                    <li key={i} className="font-mono text-[11px] leading-relaxed text-ink-500">
+                      {note}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </form>
+      </div>
+
+      <Leads leads={[...(dataset?.leads ?? []), ...(registers?.leads ?? [])]} />
+    </>
+  );
+}
+
+function Leads({ leads }: { leads: readonly SourcedLead[] }) {
+  if (leads.length === 0) return null;
+  return (
+    <section className="mt-10">
+      <h2 className="eyebrow">{leads.length} lead{leads.length === 1 ? "" : "s"} to investigate</h2>
+      <ul className="mt-4 space-y-4">
+        {leads.map((lead, i) => (
+          <li key={`${lead.signalKey}-${lead.addressKey ?? lead.postcode ?? i}`} className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+              <p className="font-display text-base text-ink-100">{lead.label}</p>
+              <p className="font-mono text-xs">
+                <span className={lead.strength === "strong" ? "text-emerald-300" : "text-ink-400"}>{lead.strength}</span>
+                {lead.postcode !== undefined && (
+                  <>
+                    <span className="text-ink-600"> · </span>
+                    <span className="text-ink-300 tabular-nums">{lead.postcode}</span>
+                  </>
+                )}
+              </p>
+            </div>
+
+            <p className="mt-3 text-sm leading-relaxed text-ink-300">{lead.summary}</p>
+
+            {lead.heightenedProtection && (
+              <p className="mt-3 border-l-2 border-amber-400/70 pl-3 text-sm leading-relaxed text-amber-200">
+                Heightened protection. This is a sign of vulnerability, so it raises the bar to make
+                contact rather than lowering it.
+              </p>
+            )}
+
+            <p className="mt-3 border-l-2 border-ink-700 pl-3 text-sm leading-relaxed text-ink-400">
+              <span className="text-ink-300">Lawful next step.</span> {lead.lawfulNextStep}
+            </p>
+
+            <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-ink-600">
+              {lead.provenance.sourceKey} · as of {lead.provenance.asOf.slice(0, 10)}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
