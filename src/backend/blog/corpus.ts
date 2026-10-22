@@ -7,7 +7,7 @@ import { metaDescription, type BlogPost } from "@shared/domain/blog";
 import type { DealInputs } from "@shared/domain/types";
 import { listDeals } from "@backend/store/repository";
 import type { DealRecord } from "@backend/store/schema";
-import { engineDrafter, writeDealPost, type Drafter } from "@backend/blog/agent";
+import { selectDrafter, writeDealPost, type Drafter } from "@backend/blog/agent";
 import { featurePosts } from "@backend/blog/features";
 
 /**
@@ -778,7 +778,7 @@ function evergreen(): readonly BlogPost[] {
  * under the same house rules as everything else here — no invented figure, every
  * claim cited, nothing about a seller's circumstances.
  */
-export async function loadCorpus(drafter: Drafter = engineDrafter): Promise<readonly BlogPost[]> {
+export async function loadCorpus(drafter: Drafter = selectDrafter()): Promise<readonly BlogPost[]> {
   // The blog is a public page and the evergreen posts need no database at all.
   // A store that is down or unreachable must cost the reader the deal
   // breakdowns, not the whole site — a marketing page that 500s because the

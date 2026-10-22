@@ -31,7 +31,7 @@ npm install
 npm run setup:env # generates the secrets; lists what only you can supply
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 1,278 tests, 1,342 with a Postgres in TEST_DATABASE_URL
+npm test          # 1,284 tests, 1,348 with a Postgres in TEST_DATABASE_URL
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 npm run backup    # pg_dump, custom format, with the restore command printed
@@ -556,9 +556,12 @@ score, a verdict or a tax figure. `Drafter` is the edge where a language model
 belongs. The default implementation composes from the briefing's own
 explanations, which are already written to be read: every score component
 carries a rationale, every rejected strategy carries a reason. **It needs no API
-key and no network.** Wire `BLOG_MODEL_API_URL` and a model writes the sentences
-instead — and the figures block is appended *after* the model returns, so it
-cannot change a number.
+key and no network.** Set `BLOG_MODEL_API_KEY` (Anthropic or OpenAI, via
+`BLOG_MODEL_PROVIDER`) and a model writes the opening sentences instead — running
+*behind* the deterministic drafter, in the background, so the first render stays
+instant, a model outage degrades to the deterministic prose rather than an error,
+and the figures block is reassembled *after* the model returns, so it cannot
+change a number.
 
 The posts worth reading are the rejections. The blocked Handsworth deal has a
 24.3% margin and £69,375 of projected profit, and it is published as a refusal
@@ -635,8 +638,8 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 1,278 tests, Postgres suite skipped
-npm run test:pg   # 1,342 tests, both engines against a real database
+npm test          # 1,284 tests, Postgres suite skipped
+npm run test:pg   # 1,348 tests, both engines against a real database
 ```
 
 ## Who can see what

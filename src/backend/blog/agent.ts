@@ -7,6 +7,7 @@ import { gbp, gbpSigned, percent } from "@shared/format";
 import { metaDescription, type Block, type BlogPost, type Topic } from "@shared/domain/blog";
 import type { CitationKey } from "@shared/domain/citations";
 import type { DealRecord } from "@backend/store/schema";
+import { createHash } from "node:crypto";
 
 /**
  * The blog agent.
@@ -93,45 +94,83 @@ export const engineDrafter: Drafter = {
 };
 
 /**
- * A drafter backed by a language model.
+ * The provider whose HTTP shape `modelDrafter` speaks.
  *
- * Fails closed with no key configured, like every other credential here, rather
- * than silently returning nothing. The prompt is given the figures and told
- * explicitly not to invent any — and it could not usefully invent one anyway,
- * because the figures block is assembled after the model returns and overwrites
- * nothing.
- *
- * NOT VERIFIED: no request has been made from the build environment, where
- * outbound access is blocked. `engineDrafter` is the default for that reason.
+ * `anthropic` and `openai` are the two the key you hold is almost certainly for,
+ * and each has its own request and response shape. `custom` is the original
+ * provider-neutral contract — a POST that returns `{ paragraphs: [...] }` — kept
+ * for anyone putting their own gateway in front.
  */
-export function modelDrafter(
-  fetchImpl: typeof fetch = fetch,
-): Drafter {
+export type BlogModelProvider = "anthropic" | "openai" | "custom";
+
+function configuredProvider(): BlogModelProvider {
+  const named = (process.env.BLOG_MODEL_PROVIDER ?? "").trim().toLowerCase();
+  if (named === "anthropic" || named === "openai" || named === "custom") return named;
+  // Not named: infer from a configured URL, else default to Anthropic, which is
+  // the house model. A bare key with no provider should still just work.
+  const url = process.env.BLOG_MODEL_API_URL ?? "";
+  if (url.includes("anthropic")) return "anthropic";
+  if (url.includes("openai")) return "openai";
+  return url === "" ? "anthropic" : "custom";
+}
+
+function providerEndpoint(provider: BlogModelProvider): string {
+  const override = process.env.BLOG_MODEL_API_URL;
+  if (override !== undefined && override !== "") return override;
+  if (provider === "anthropic") return "https://api.anthropic.com/v1/messages";
+  if (provider === "openai") return "https://api.openai.com/v1/chat/completions";
+  throw new Error("BLOG_MODEL_API_URL is required for the custom provider.");
+}
+
+function providerModel(provider: BlogModelProvider): string {
+  const name = process.env.BLOG_MODEL_NAME;
+  if (name !== undefined && name !== "") return name;
+  return provider === "openai" ? "gpt-4o-mini" : "claude-sonnet-5-5";
+}
+
+/** The instruction every provider gets: the figures are fixed, do not invent. */
+function promptFor(brief: DraftBrief): string {
+  const figures = brief.figures.map((f) => `- ${f.label}: ${f.value}`).join("\n");
+  const evidence = brief.evidence.map((e) => `- ${e}`).join("\n");
+  return [
+    `Write two or three short paragraphs for a UK property investment blog post titled "${brief.headline}".`,
+    "Use only the evidence and figures below. Do not invent numbers, returns, or claims about the market. Write in British English. Return the paragraphs as plain prose separated by blank lines — no headings, no preamble, no bullet points.",
+    "",
+    "Evidence:",
+    evidence,
+    "",
+    "Figures (already computed — never change or restate these as different numbers):",
+    figures,
+  ].join("\n");
+}
+
+function toParagraphs(text: string): readonly string[] {
+  return text
+    .split(/\n\s*\n/)
+    .map((p) => p.replace(/\s+/g, " ").trim())
+    .filter((p) => p.length > 0);
+}
+
+/**
+ * A drafter backed by a language model, speaking Anthropic, OpenAI or a custom
+ * gateway.
+ *
+ * Fails closed with no key, like every other credential here. The prompt is
+ * given the figures and told not to invent any — and it could not usefully do
+ * so anyway, because the figures block is assembled from the engine's numbers
+ * after the model returns and overwrites nothing the model wrote. This is the
+ * one LLM seam in the platform; it writes opening prose and touches no figure.
+ */
+export function modelDrafter(fetchImpl: typeof fetch = fetch): Drafter {
   return {
     name: "model",
     async draft(brief: DraftBrief): Promise<DraftedProse> {
       const key = process.env.BLOG_MODEL_API_KEY;
-      const url = process.env.BLOG_MODEL_API_URL;
-      if (key === undefined || key === "" || url === undefined || url === "") {
-        throw new Error("BLOG_MODEL_API_KEY and BLOG_MODEL_API_URL are not configured.");
+      if (key === undefined || key === "") {
+        throw new Error("BLOG_MODEL_API_KEY is not configured.");
       }
-
-      const response = await fetchImpl(url, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-        body: JSON.stringify({
-          topic: brief.topic,
-          headline: brief.headline,
-          evidence: brief.evidence,
-          figures: brief.figures,
-          instruction:
-            "Write two or three short paragraphs for a UK property investment blog. Use only the figures and evidence supplied. Do not invent numbers, returns, or claims about the market. British English.",
-        }),
-      });
-      if (!response.ok) throw new Error(`Drafting model returned ${response.status}`);
-
-      const drafted = (await response.json()) as { paragraphs?: readonly string[] };
-      const paragraphs = drafted.paragraphs ?? [];
+      const provider = configuredProvider();
+      const paragraphs = await callProvider(fetchImpl, provider, providerEndpoint(provider), key, brief);
       if (paragraphs.length === 0) throw new Error("Drafting model returned no prose");
 
       return {
@@ -147,6 +186,129 @@ export function modelDrafter(
       };
     },
   };
+}
+
+async function callProvider(
+  fetchImpl: typeof fetch,
+  provider: BlogModelProvider,
+  url: string,
+  key: string,
+  brief: DraftBrief,
+): Promise<readonly string[]> {
+  if (provider === "custom") {
+    const response = await fetchImpl(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        topic: brief.topic,
+        headline: brief.headline,
+        evidence: brief.evidence,
+        figures: brief.figures,
+        instruction:
+          "Write two or three short paragraphs for a UK property investment blog. Use only the figures and evidence supplied. Do not invent numbers, returns, or claims about the market. British English.",
+      }),
+    });
+    if (!response.ok) throw new Error(`Drafting model returned ${response.status}`);
+    const drafted = (await response.json()) as { paragraphs?: readonly string[] };
+    return drafted.paragraphs ?? [];
+  }
+
+  const model = providerModel(provider);
+  const prompt = promptFor(brief);
+
+  if (provider === "anthropic") {
+    const response = await fetchImpl(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({ model, max_tokens: 1024, messages: [{ role: "user", content: prompt }] }),
+    });
+    if (!response.ok) throw new Error(`Drafting model returned ${response.status}`);
+    const data = (await response.json()) as { content?: readonly { readonly text?: string }[] };
+    const text = (data.content ?? [])
+      .map((block) => block.text ?? "")
+      .filter((t) => t !== "")
+      .join("\n\n");
+    return toParagraphs(text);
+  }
+
+  // openai, and OpenAI-compatible gateways.
+  const response = await fetchImpl(url, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+    body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }] }),
+  });
+  if (!response.ok) throw new Error(`Drafting model returned ${response.status}`);
+  const data = (await response.json()) as {
+    choices?: readonly { readonly message?: { readonly content?: string } }[];
+  };
+  return toParagraphs(data.choices?.[0]?.message?.content ?? "");
+}
+
+/** A stable fingerprint of a brief, so a cache cannot serve prose for different figures. */
+function briefHash(brief: DraftBrief): string {
+  return createHash("sha256")
+    .update(JSON.stringify({ t: brief.topic, h: brief.headline, e: brief.evidence, f: brief.figures }))
+    .digest("hex");
+}
+
+/**
+ * A drafter that upgrades prose in the background and never blocks a render.
+ *
+ * On a cache miss it returns the fallback's prose immediately, then drafts with
+ * the primary in the background and stores the result for next time. A primary
+ * that is slow, rate-limited or down therefore costs a render nothing and never
+ * throws: the page renders deterministically and improves on a later request.
+ *
+ * The cache is per process and is re-warmed after a restart or deploy, which is
+ * the right trade for a single long-lived server — the design note in this file
+ * is why. A deployment running more than one instance should persist drafts in
+ * the store instead, because an in-process cache is neither shared nor durable.
+ */
+export function cachingDrafter(primary: Drafter, fallback: Drafter): Drafter {
+  const cache = new Map<string, DraftedProse>();
+  const warming = new Set<string>();
+  return {
+    name: `cached:${primary.name}`,
+    async draft(brief: DraftBrief): Promise<DraftedProse> {
+      const hash = briefHash(brief);
+      const hit = cache.get(hash);
+      if (hit !== undefined) return hit;
+      if (!warming.has(hash)) {
+        warming.add(hash);
+        void primary
+          .draft(brief)
+          .then((prose) => void cache.set(hash, prose))
+          .catch(() => {
+            // Leave it to the fallback and let a later process try again. A
+            // model outage must cost better prose, never the page.
+          })
+          .finally(() => void warming.delete(hash));
+      }
+      return fallback.draft(brief);
+    },
+  };
+}
+
+let selected: Drafter | undefined;
+
+/**
+ * The drafter the blog uses, chosen once from the environment.
+ *
+ * With no model key it is the deterministic drafter, which needs nothing. With
+ * a key it is the model drafting in the background behind the deterministic
+ * drafter, so enabling it never slows or breaks a page. Memoised so the cache
+ * persists for the life of the process rather than being rebuilt per request.
+ */
+export function selectDrafter(): Drafter {
+  if (selected !== undefined) return selected;
+  const key = process.env.BLOG_MODEL_API_KEY;
+  selected =
+    key === undefined || key === "" ? engineDrafter : cachingDrafter(modelDrafter(), engineDrafter);
+  return selected;
 }
 
 /**

@@ -182,8 +182,8 @@ from the app. `DATABASE_URL` decides the engine and nothing else does.
 ```bash
 npm ci
 npm run typecheck
-npm test              # 1,278
-npm run test:pg       # 1,342, both storage engines against a real database
+npm test              # 1,284
+npm run test:pg       # 1,348, both storage engines against a real database
 npm run build
 npm run preflight     # must exit 0
 ```

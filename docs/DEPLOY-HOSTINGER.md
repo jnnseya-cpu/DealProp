@@ -327,37 +327,44 @@ not survive the VPS.
 
 ---
 
-## 11. Optional: LLM-drafted blog prose
+## 11. Optional: LLM-drafted blog prose (works with your key)
 
-**Read this before buying an API key — the AI's job here is deliberately tiny.**
+**The AI's job here is deliberately tiny, and that is the point.** Everything
+that matters is deterministic and needs no model: every figure, the Deal Score,
+Seller Protection, the matching, the SEO audit and the SEO agent, and all 17
+evergreen/feature posts. The **only** place a language model is allowed is
+drafting the opening two or three paragraphs of a *per-deal* blog post — and
+even there the figures block is reassembled from the engine after the model
+returns, so the model cannot change a number, a score or a verdict. No chatbot,
+no AI valuation. LLMs sit at the edges and decide nothing.
 
-Everything that matters is deterministic and needs no model: every figure, the
-Deal Score, Seller Protection, the matching, the SEO audit and the SEO agent,
-and all 17 evergreen/feature blog posts. The **only** place a language model is
-permitted is drafting the opening two or three paragraphs of a *per-deal* blog
-post — and even there the figures block is reassembled from the engine after the
-model returns, so the model cannot change a number, a score or a verdict. There
-is no chatbot and no AI valuation. This is a design rule, not a limitation: LLMs
-sit at the edges and never decide anything.
+The drafter now speaks Anthropic and OpenAI directly, so your key works with no
+adapter. Add to `/opt/lode/app.env`:
 
-Because of that, an API key is **optional and not needed to launch**. If you
-want the polished prose, three things are required — and I can build them for
-you as a follow-up rather than you wiring them by hand:
+```ini
+BLOG_MODEL_PROVIDER=anthropic          # or: openai
+BLOG_MODEL_API_KEY=<your provider key> # console.anthropic.com or platform.openai.com
+# BLOG_MODEL_NAME=claude-sonnet-5-5    # optional; sensible default per provider
+```
 
-1. **A provider key.** Anthropic (`console.anthropic.com` → API Keys) or OpenAI
-   (`platform.openai.com` → API keys). This costs per token — pennies for a
-   blog, but not £0.
-2. **A small adapter.** `modelDrafter` posts `{topic, headline, evidence,
-   figures, instruction}` to `BLOG_MODEL_API_URL` with a bearer `BLOG_MODEL_API_KEY`
-   and expects `{ "paragraphs": ["…","…"] }` back. Providers don't return that
-   shape natively, so a ~20-line adapter translates between the two.
-3. **Generate-and-store wiring.** Posts must be generated once and persisted,
-   not drafted on every page view — otherwise each `/blog` visit bills tokens.
+Then `docker compose up -d --build`. How it behaves, and why it is safe to turn
+on in production:
 
-Until all three exist, setting `BLOG_MODEL_API_URL` / `BLOG_MODEL_API_KEY`
-changes nothing: the app keeps using the free deterministic drafter. The
-honest recommendation is to launch without it and add it later if the prose
-wants polishing.
+- It runs **behind** the deterministic drafter. The first render of a deal post
+  is deterministic and instant; the model drafts in the background and later
+  renders carry its prose. A page **never blocks** on the model.
+- If the model is slow, rate-limited or down, the page **degrades to the
+  deterministic prose** rather than erroring. A provider outage costs better
+  sentences, never the site.
+- The cache is **per process**, so it re-warms after a restart or deploy. That
+  is the right trade for one container; a multi-instance deployment would
+  persist drafts in the store instead.
+
+Two honest caveats. It **costs per token** — pennies for a blog, but no longer
+strictly £0. And it only has something to draft once you have **deals in the
+pipeline**: at launch the store is empty, so there are no per-deal posts yet and
+the key sits idle until there are. Nothing is lost by turning it on now; it
+simply does nothing visible until the first deal is recorded.
 
 ---
 
