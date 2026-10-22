@@ -31,7 +31,7 @@ npm install
 npm run setup:env # generates the secrets; lists what only you can supply
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 1,284 tests, 1,348 with a Postgres in TEST_DATABASE_URL
+npm test          # 1,289 tests, 1,353 with a Postgres in TEST_DATABASE_URL
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 npm run backup    # pg_dump, custom format, with the restore command printed
@@ -638,8 +638,8 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 1,284 tests, Postgres suite skipped
-npm run test:pg   # 1,348 tests, both engines against a real database
+npm test          # 1,289 tests, Postgres suite skipped
+npm run test:pg   # 1,353 tests, both engines against a real database
 ```
 
 ## Who can see what

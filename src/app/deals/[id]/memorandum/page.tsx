@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
 import { meter } from "@backend/billing/meter";
+import { narrate, narrationParagraphs } from "@backend/narrate";
 import { getDeal } from "@backend/store/repository";
 import { runDealDirector } from "@shared/domain/director";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
@@ -85,6 +86,29 @@ export default async function MemorandumPage({
   const p = record.property;
   const verdict = VERDICT_TONE[briefing.verdict];
 
+  // The executive summary is live prose over computed figures: the engine's
+  // numbers go in, the model writes the sentences between them, and it is told
+  // it may not change one. With no model key, a slow model or an outage, this
+  // falls back to the engine's own wording — the document is never blocked on
+  // the model, and the figures are the engine's whatever the model returns.
+  const summaryFacts = [
+    { label: "Recommendation", value: verdict.label },
+    { label: "Deal Score", value: `${briefing.scored.breakdown.composite}/100` },
+    { label: "Property", value: `${p.bedrooms}-bed ${p.propertyType}, ${p.tenure}, ${p.locality} ${p.postcodeArea}` },
+    { label: "Margin on GDV", value: percent(a.marginOnGdvBps, 1) },
+    { label: "True discount to value", value: percent(a.trueDiscountBps, 1) },
+    { label: "Profit after tax", value: gbpSigned(a.profit) },
+    { label: "Highest viable price", value: gbp(briefing.maxViablePrice) },
+    { label: "Principal reasons", value: briefing.reasons.join("; ") },
+  ];
+  const summary = await narrate({
+    instruction:
+      "Write a two-paragraph executive summary of this property investment for an investment committee. State the recommendation, the key economics, and the single most important risk or condition. At most 140 words.",
+    facts: summaryFacts,
+    fallback: `${briefing.headline} ${briefing.reasons.slice(0, 2).join(" ")}`.trim(),
+    maxTokens: 400,
+  });
+
   return (
     <main className="memo">
       <nav className="memo-actions" aria-label="Document actions">
@@ -136,6 +160,13 @@ export default async function MemorandumPage({
               <li key={r}>{r}</li>
             ))}
           </ul>
+        </section>
+
+        <section>
+          <h2>Executive summary</h2>
+          {narrationParagraphs(summary.text).map((para, i) => (
+            <p key={i}>{para}</p>
+          ))}
         </section>
 
         {briefing.scored.protection.blocked && (

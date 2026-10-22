@@ -327,44 +327,43 @@ not survive the VPS.
 
 ---
 
-## 11. Optional: LLM-drafted blog prose (works with your key)
+## 11. Optional: live AI prose (works with your key)
 
-**The AI's job here is deliberately tiny, and that is the point.** Everything
-that matters is deterministic and needs no model: every figure, the Deal Score,
-Seller Protection, the matching, the SEO audit and the SEO agent, and all 17
-evergreen/feature posts. The **only** place a language model is allowed is
-drafting the opening two or three paragraphs of a *per-deal* blog post — and
-even there the figures block is reassembled from the engine after the model
-returns, so the model cannot change a number, a score or a verdict. No chatbot,
-no AI valuation. LLMs sit at the edges and decide nothing.
+**The model writes words, never figures — that is the whole design.** Every
+number stays the engine's: the Deal Score, valuations, yields, true discount and
+fees are computed and the model is told they are fixed, so it cannot change or
+invent one. One key powers two live surfaces:
 
-The drafter now speaks Anthropic and OpenAI directly, so your key works with no
-adapter. Add to `/opt/lode/app.env`:
+- **Analysis narration** — the live executive summary on the investment
+  memorandum (`/deals/[id]/funding` and the memorandum export), written from the
+  engine's computed figures each time it is opened.
+- **Blog drafting** — the opening paragraphs of per-deal posts.
+
+Both speak Anthropic and OpenAI directly, so your key works with no adapter. Add
+to `/opt/lode/app.env`:
 
 ```ini
 BLOG_MODEL_PROVIDER=anthropic          # or: openai
 BLOG_MODEL_API_KEY=<your provider key> # console.anthropic.com or platform.openai.com
-# BLOG_MODEL_NAME=claude-sonnet-5-5    # optional; sensible default per provider
+# BLOG_MODEL_NAME=claude-haiku-5-5     # optional; the cheapest, and the default
 ```
 
-Then `docker compose up -d --build`. How it behaves, and why it is safe to turn
-on in production:
+Then `docker compose up -d --build`. Why it is safe to turn on in production:
 
-- It runs **behind** the deterministic drafter. The first render of a deal post
-  is deterministic and instant; the model drafts in the background and later
-  renders carry its prose. A page **never blocks** on the model.
-- If the model is slow, rate-limited or down, the page **degrades to the
-  deterministic prose** rather than erroring. A provider outage costs better
-  sentences, never the site.
-- The cache is **per process**, so it re-warms after a restart or deploy. That
-  is the right trade for one container; a multi-instance deployment would
-  persist drafts in the store instead.
+- **Numbers are never the model's.** They are reassembled from the engine after
+  the model returns, so the sentences can read however the model wrote them and
+  the figures are still the computed ones.
+- **It never breaks a page.** The memorandum summary has a 10-second timeout and
+  falls back to the engine's own wording; the blog drafter runs in the
+  background behind the deterministic drafter. A missing key, a slow model or an
+  outage costs better sentences, never the page — and never a charge for nothing.
+- **It is cheap and self-funding.** `claude-haiku-5-5` is pennies per call, and
+  each analysis is already metered to a credit the customer paid for.
 
-Two honest caveats. It **costs per token** — pennies for a blog, but no longer
-strictly £0. And it only has something to draft once you have **deals in the
-pipeline**: at launch the store is empty, so there are no per-deal posts yet and
-the key sits idle until there are. Nothing is lost by turning it on now; it
-simply does nothing visible until the first deal is recorded.
+Two honest caveats. It **costs per token** — pennies, but no longer strictly £0.
+And it only has something to narrate once there are **deals in the pipeline**: at
+launch the store is empty, so the key sits idle until the first deal is recorded.
+Nothing is lost by turning it on now.
 
 ---
 

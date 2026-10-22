@@ -7,6 +7,7 @@ import { gbp, gbpSigned, percent } from "@shared/format";
 import { metaDescription, type Block, type BlogPost, type Topic } from "@shared/domain/blog";
 import type { CitationKey } from "@shared/domain/citations";
 import type { DealRecord } from "@backend/store/schema";
+import { complete, configuredProvider, providerEndpoint, type LlmProvider } from "@backend/llm";
 import { createHash } from "node:crypto";
 
 /**
@@ -93,41 +94,6 @@ export const engineDrafter: Drafter = {
   },
 };
 
-/**
- * The provider whose HTTP shape `modelDrafter` speaks.
- *
- * `anthropic` and `openai` are the two the key you hold is almost certainly for,
- * and each has its own request and response shape. `custom` is the original
- * provider-neutral contract — a POST that returns `{ paragraphs: [...] }` — kept
- * for anyone putting their own gateway in front.
- */
-export type BlogModelProvider = "anthropic" | "openai" | "custom";
-
-function configuredProvider(): BlogModelProvider {
-  const named = (process.env.BLOG_MODEL_PROVIDER ?? "").trim().toLowerCase();
-  if (named === "anthropic" || named === "openai" || named === "custom") return named;
-  // Not named: infer from a configured URL, else default to Anthropic, which is
-  // the house model. A bare key with no provider should still just work.
-  const url = process.env.BLOG_MODEL_API_URL ?? "";
-  if (url.includes("anthropic")) return "anthropic";
-  if (url.includes("openai")) return "openai";
-  return url === "" ? "anthropic" : "custom";
-}
-
-function providerEndpoint(provider: BlogModelProvider): string {
-  const override = process.env.BLOG_MODEL_API_URL;
-  if (override !== undefined && override !== "") return override;
-  if (provider === "anthropic") return "https://api.anthropic.com/v1/messages";
-  if (provider === "openai") return "https://api.openai.com/v1/chat/completions";
-  throw new Error("BLOG_MODEL_API_URL is required for the custom provider.");
-}
-
-function providerModel(provider: BlogModelProvider): string {
-  const name = process.env.BLOG_MODEL_NAME;
-  if (name !== undefined && name !== "") return name;
-  return provider === "openai" ? "gpt-4o-mini" : "claude-sonnet-5-5";
-}
-
 /** The instruction every provider gets: the figures are fixed, do not invent. */
 function promptFor(brief: DraftBrief): string {
   const figures = brief.figures.map((f) => `- ${f.label}: ${f.value}`).join("\n");
@@ -169,8 +135,7 @@ export function modelDrafter(fetchImpl: typeof fetch = fetch): Drafter {
       if (key === undefined || key === "") {
         throw new Error("BLOG_MODEL_API_KEY is not configured.");
       }
-      const provider = configuredProvider();
-      const paragraphs = await callProvider(fetchImpl, provider, providerEndpoint(provider), key, brief);
+      const paragraphs = await callProvider(fetchImpl, configuredProvider(), brief);
       if (paragraphs.length === 0) throw new Error("Drafting model returned no prose");
 
       return {
@@ -190,13 +155,14 @@ export function modelDrafter(fetchImpl: typeof fetch = fetch): Drafter {
 
 async function callProvider(
   fetchImpl: typeof fetch,
-  provider: BlogModelProvider,
-  url: string,
-  key: string,
+  provider: LlmProvider,
   brief: DraftBrief,
 ): Promise<readonly string[]> {
+  // The custom gateway keeps its own contract: it is sent the brief and returns
+  // { paragraphs: [...] }. The real providers go through the shared client.
   if (provider === "custom") {
-    const response = await fetchImpl(url, {
+    const key = process.env.BLOG_MODEL_API_KEY ?? "";
+    const response = await fetchImpl(providerEndpoint("custom"), {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
       body: JSON.stringify({
@@ -208,44 +174,12 @@ async function callProvider(
           "Write two or three short paragraphs for a UK property investment blog. Use only the figures and evidence supplied. Do not invent numbers, returns, or claims about the market. British English.",
       }),
     });
-    if (!response.ok) throw new Error(`Drafting model returned ${response.status}`);
+    if (!response.ok) throw new Error(`Model returned ${response.status}`);
     const drafted = (await response.json()) as { paragraphs?: readonly string[] };
     return drafted.paragraphs ?? [];
   }
 
-  const model = providerModel(provider);
-  const prompt = promptFor(brief);
-
-  if (provider === "anthropic") {
-    const response = await fetchImpl(url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({ model, max_tokens: 1024, messages: [{ role: "user", content: prompt }] }),
-    });
-    if (!response.ok) throw new Error(`Drafting model returned ${response.status}`);
-    const data = (await response.json()) as { content?: readonly { readonly text?: string }[] };
-    const text = (data.content ?? [])
-      .map((block) => block.text ?? "")
-      .filter((t) => t !== "")
-      .join("\n\n");
-    return toParagraphs(text);
-  }
-
-  // openai, and OpenAI-compatible gateways.
-  const response = await fetchImpl(url, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }] }),
-  });
-  if (!response.ok) throw new Error(`Drafting model returned ${response.status}`);
-  const data = (await response.json()) as {
-    choices?: readonly { readonly message?: { readonly content?: string } }[];
-  };
-  return toParagraphs(data.choices?.[0]?.message?.content ?? "");
+  return toParagraphs(await complete({ prompt: promptFor(brief) }, fetchImpl));
 }
 
 /** A stable fingerprint of a brief, so a cache cannot serve prose for different figures. */
