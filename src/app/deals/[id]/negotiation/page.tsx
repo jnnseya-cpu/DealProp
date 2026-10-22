@@ -5,9 +5,9 @@ import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
 import { getDeal } from "@backend/store/repository";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
-import { contextFor, negotiationBand } from "@shared/domain/negotiation";
+import { contextFor, negotiationBand, respondTo } from "@shared/domain/negotiation";
 import { gbp, percent } from "@shared/format";
-import { ZERO } from "@shared/money";
+import { fromMajor, ZERO, type Money } from "@shared/money";
 
 export const dynamic = "force-dynamic";
 
@@ -40,11 +40,30 @@ const TONE: Record<string, string> = {
   floor: "text-red-300",
 };
 
-export default async function NegotiationPage({ params }: { params: Promise<{ id: string }> }) {
+/** Whole pounds from the query string to Money, or undefined if not a price. */
+function toMoney(raw: string | undefined): Money | undefined {
+  if (raw === undefined) return undefined;
+  const pounds = Number(raw.replace(/[£,\s]/g, ""));
+  return Number.isFinite(pounds) && pounds > 0 ? fromMajor(pounds) : undefined;
+}
+
+export default async function NegotiationPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
   const viewer = await requirePermission("view-seller-data", `/deals/${id}/negotiation`);
   const record = await getDeal(id);
   if (record === undefined) notFound();
+
+  const query = await searchParams;
+  const one = (key: string): string | undefined => {
+    const value = query[key];
+    return Array.isArray(value) ? value[0] : value;
+  };
 
   await audit("viewed-seller-data", {
     ...(viewerAccount(viewer) !== undefined ? { account: viewerAccount(viewer) } : {}),
@@ -55,6 +74,25 @@ export default async function NegotiationPage({ params }: { params: Promise<{ id
   const inputs = toWorkingDeal(record.inputs).inputs;
   const band = negotiationBand(inputs);
   const market = inputs.property.openMarketValue;
+
+  // The renegotiation move for a number the seller has named. The baseline
+  // "current offer" is our opening position; respondTo never counters past the
+  // walk-away ceiling, which is the whole point of computing it rather than
+  // deciding it in the moment.
+  const baselineOffer = band.opening?.price;
+  const sellerAsking = toMoney(one("sellerAsking"));
+  const currentOffer = toMoney(one("currentOffer")) ?? baselineOffer;
+  const response =
+    !band.blocked && sellerAsking !== undefined && currentOffer !== undefined
+      ? respondTo(band, sellerAsking, currentOffer)
+      : undefined;
+
+  const MOVE_TONE: Record<string, string> = {
+    accept: "text-emerald-300",
+    counter: "text-lode-300",
+    hold: "text-ink-200",
+    "walk-away": "text-red-300",
+  };
 
   return (
     <main className="min-h-screen pb-24">
@@ -135,6 +173,53 @@ export default async function NegotiationPage({ params }: { params: Promise<{ id
                 being paid for and decide for themselves whether it is worth the difference. This
                 goes with the offer, not after it.
               </p>
+            </section>
+
+            <section className="mt-6 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+              <h2 className="eyebrow">Respond to a number</h2>
+              <p className="mt-3 text-sm leading-relaxed text-ink-400">
+                Enter what the seller is asking. The move is computed against the{" "}
+                {gbp(band.walkAway?.price ?? ZERO)} ceiling — it never counters past the point where
+                the deal stops working, which is how margin is lost one concession at a time.
+              </p>
+              {/* Stateless, like the free appraisal: the number lives in the address
+                  bar, nothing is written, and a GET re-renders the move. */}
+              <form method="get" className="mt-4 flex flex-wrap items-end gap-3">
+                <div>
+                  <label htmlFor="sellerAsking" className="block text-xs text-ink-500">
+                    Seller is asking
+                  </label>
+                  <input
+                    id="sellerAsking"
+                    name="sellerAsking"
+                    inputMode="numeric"
+                    defaultValue={one("sellerAsking") ?? ""}
+                    placeholder="£195,000"
+                    className="mt-1.5 h-10 w-44 rounded-md border hairline bg-ink-950 px-3 text-sm text-ink-100"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="inline-flex h-10 items-center rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
+                >
+                  What do we do?
+                </button>
+              </form>
+
+              {response !== undefined && (
+                <div className="mt-5 border-l-2 border-ink-700 pl-4">
+                  <p className={`font-display text-xl ${MOVE_TONE[response.move] ?? "text-ink-100"}`}>
+                    {response.move === "counter" && response.counterAt !== undefined
+                      ? `Counter at ${gbp(response.counterAt)}`
+                      : response.move === "accept"
+                        ? "Accept"
+                        : response.move === "walk-away"
+                          ? "Walk away"
+                          : "Hold"}
+                  </p>
+                  <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-300">{response.reason}</p>
+                </div>
+              )}
             </section>
           </>
         )}
