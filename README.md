@@ -636,7 +636,7 @@ passing quietly having tested one engine.
 
 ```bash
 npm test          # 1,278 tests, Postgres suite skipped
-npm run test:pg   # 228 tests, both engines
+npm run test:pg   # 1,342 tests, both engines against a real database
 ```
 
 ## Who can see what
