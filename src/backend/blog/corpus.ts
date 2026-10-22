@@ -8,6 +8,7 @@ import type { DealInputs } from "@shared/domain/types";
 import { listDeals } from "@backend/store/repository";
 import type { DealRecord } from "@backend/store/schema";
 import { engineDrafter, writeDealPost, type Drafter } from "@backend/blog/agent";
+import { featurePosts } from "@backend/blog/features";
 
 /**
  * The corpus.
@@ -769,9 +770,13 @@ function evergreen(): readonly BlogPost[] {
 }
 
 /**
- * The whole corpus: evergreen explainers plus a post per interesting deal.
+ * The whole corpus: evergreen explainers, a feature post per capability, and a
+ * post per interesting deal.
  *
- * Blocked deals come first, because those are the posts nobody else writes.
+ * Blocked deals come first, because those are the posts nobody else writes. The
+ * feature posts (`features.ts`) make the case for each part of the platform
+ * under the same house rules as everything else here — no invented figure, every
+ * claim cited, nothing about a seller's circumstances.
  */
 export async function loadCorpus(drafter: Drafter = engineDrafter): Promise<readonly BlogPost[]> {
   // The blog is a public page and the evergreen posts need no database at all.
@@ -798,7 +803,7 @@ export async function loadCorpus(drafter: Drafter = engineDrafter): Promise<read
   // Deduplicate by slug — two deals in the same locality would otherwise
   // collide and render twice under one URL.
   const bySlug = new Map<string, BlogPost>();
-  for (const post of [...dealPosts, ...evergreen()]) {
+  for (const post of [...dealPosts, ...evergreen(), ...featurePosts()]) {
     if (!bySlug.has(post.slug)) bySlug.set(post.slug, post);
   }
 

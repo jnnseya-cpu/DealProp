@@ -31,7 +31,7 @@ npm install
 npm run setup:env # generates the secrets; lists what only you can supply
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 1,269 tests, 1,333 with a Postgres in TEST_DATABASE_URL
+npm test          # 1,278 tests, 1,342 with a Postgres in TEST_DATABASE_URL
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 npm run backup    # pg_dump, custom format, with the restore command printed
@@ -564,6 +564,18 @@ The posts worth reading are the rejections. The blocked Handsworth deal has a
 24.3% margin and £69,375 of projected profit, and it is published as a refusal
 with the reasoning attached, because anybody can publish a deal that worked.
 
+**The feature posts sell the platform by its discipline.** `src/backend/blog/features.ts`
+is a post per capability — the Deal Score, the Red Team, the exit matrix, net
+advance, the refinance window, the Buyer Readiness Passport, material
+information, the walk-away price, the free appraisal, one-click listing import,
+licensed discovery and Seller Protection — each making the case for the feature
+under the same house rules as everything else. No figure a reader could mistake
+for an offered return: the comparisons are labelled qualitative tables, a
+percentage or currency amount in a figure row is caught by a test, and every
+claim cites primary law. Each one clears the score floor in the full corpus, and
+the Seller Protection post sells the control by what it does to a transaction,
+never by describing a person.
+
 **Links are computed, not typed.** Internal linking is most of what on-page SEO
 is and the part that rots fastest by hand. Every glossary term a body mentions
 is linked to its definition on first use, every post links to the others sharing
@@ -623,7 +635,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 1,269 tests, Postgres suite skipped
+npm test          # 1,278 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
