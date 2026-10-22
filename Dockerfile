@@ -11,7 +11,7 @@
 # the registry.
 
 # --- dependencies ----------------------------------------------------------
-FROM node:22.11-alpine AS deps
+FROM node:22.23.4-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 # `npm ci` against the committed lockfile. Not `npm install`: a build that can
@@ -19,7 +19,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 # --- build -----------------------------------------------------------------
-FROM node:22.11-alpine AS build
+FROM node:22.23.4-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -54,7 +54,7 @@ ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
 RUN npm run build
 
 # --- runtime ---------------------------------------------------------------
-FROM node:22.11-alpine AS runtime
+FROM node:22.23.4-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
