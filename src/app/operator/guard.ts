@@ -2,7 +2,13 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { assertOperator, OPERATOR_COOKIE } from "@backend/auth/operator";
 import { readSession, SESSION_COOKIE } from "@backend/auth/session";
-import { can, managesAllMandates, type Account, type Permission } from "@shared/domain/accounts";
+import {
+  can,
+  managesAllImports,
+  managesAllMandates,
+  type Account,
+  type Permission,
+} from "@shared/domain/accounts";
 import { getAccount } from "@backend/store/repository";
 import { audit } from "@backend/audit";
 
@@ -141,4 +147,41 @@ export async function requireMandateManagement(returnTo: string): Promise<Viewer
  */
 export function viewerManagesAllMandates(viewer: Viewer): boolean {
   return viewer.kind === "shared-operator" || managesAllMandates(viewer.account);
+}
+
+/**
+ * Admit anyone allowed to import a listing: the shared operator, an operator or
+ * admin account, or a verified partner managing their own stock.
+ *
+ * The row-level decision — which listings this viewer may touch — is
+ * `canManageImport`; this only decides whether they may be on the page.
+ */
+export async function requireListingImport(returnTo: string): Promise<Viewer> {
+  const viewer = await currentViewer();
+  if (viewer === undefined) {
+    redirect(`/operator?next=${encodeURIComponent(returnTo)}`);
+  }
+  if (viewer.kind === "shared-operator") return viewer;
+
+  const any = can(viewer.account, "manage-mandates");
+  const own = can(viewer.account, "import-own-listings");
+  if (!any.allowed && !own.allowed) {
+    await audit("access-denied", {
+      account: viewer.account,
+      subject: returnTo,
+      detail: own.reason,
+    });
+    redirect(`/operator/denied?reason=${encodeURIComponent(own.reason)}`);
+  }
+  return viewer;
+}
+
+/** Whether this viewer sees every imported listing or only its own. */
+export function viewerImportsAll(viewer: Viewer): boolean {
+  return viewer.kind === "shared-operator" || managesAllImports(viewer.account);
+}
+
+/** The account id to own an import by, or undefined for the shared operator. */
+export function viewerAccountId(viewer: Viewer): string | undefined {
+  return viewer.kind === "account" ? viewer.account.id : undefined;
 }

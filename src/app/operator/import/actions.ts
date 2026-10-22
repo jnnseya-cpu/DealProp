@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requirePermission, viewerAccount } from "@/app/operator/guard";
+import { requireListingImport, viewerAccount, viewerAccountId } from "@/app/operator/guard";
+import { canManageImport } from "@shared/domain/accounts";
 import { audit } from "@backend/audit";
 import { importListing } from "@backend/discovery/listingImport";
 import { listImportedListings, saveImportedListing } from "@backend/store/repository";
@@ -39,8 +40,9 @@ export async function importListingAction(
   _previous: ImportResult | undefined,
   formData: FormData,
 ): Promise<ImportResult> {
-  const viewer = await requirePermission("manage-mandates", "/operator/import");
+  const viewer = await requireListingImport("/operator/import");
   const author = viewerAccount(viewer);
+  const ownerAccountId = viewerAccountId(viewer);
 
   const url = String(formData.get("url") ?? "").trim();
   const roleRaw = String(formData.get("role") ?? "");
@@ -70,6 +72,7 @@ export async function importListingAction(
     category,
     confirmedBy,
     warrantedBy: author?.email ?? "operator",
+    ...(ownerAccountId !== undefined ? { ownerAccountId } : {}),
     submittedAt: now,
     status: "draft",
   });
@@ -81,6 +84,7 @@ export async function importListingAction(
   });
 
   revalidatePath("/operator/import");
+  revalidatePath("/account/listings");
   return { ok: true, message: result.reason, listing: result.value };
 }
 
@@ -88,13 +92,20 @@ export async function withdrawImportedListingAction(
   _previous: { ok: boolean; message: string } | undefined,
   formData: FormData,
 ): Promise<{ ok: boolean; message: string }> {
-  const viewer = await requirePermission("manage-mandates", "/operator/import");
+  const viewer = await requireListingImport("/operator/import");
   const author = viewerAccount(viewer);
 
   const id = String(formData.get("id") ?? "").trim();
   if (id === "") return { ok: false, message: "No listing identified." };
   const entry = (await listImportedListings()).find((l) => l.id === id);
   if (entry === undefined) return { ok: false, message: "No such imported listing." };
+
+  // Row-level: a partner may withdraw only their own listing. The shared
+  // operator and any account with manage-mandates may withdraw any.
+  if (viewer.kind === "account") {
+    const decision = canManageImport(viewer.account, entry.ownerAccountId);
+    if (!decision.allowed) return { ok: false, message: decision.reason };
+  }
 
   await saveImportedListing({ ...entry, status: "withdrawn" });
   await audit("mandate-deleted", {
@@ -104,5 +115,6 @@ export async function withdrawImportedListingAction(
   });
 
   revalidatePath("/operator/import");
+  revalidatePath("/account/listings");
   return { ok: true, message: "Withdrawn." };
 }

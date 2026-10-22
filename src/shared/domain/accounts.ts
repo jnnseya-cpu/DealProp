@@ -30,7 +30,15 @@ export type Role =
   /** External. Sees deal material only once categorised. */
   | "investor"
   /** External. Sees deal material only once categorised. */
-  | "funder";
+  | "funder"
+  /**
+   * External. An estate agent or auctioneer who lists their own stock here.
+   * Created by an operator, which is the verification: a partner account exists
+   * because somebody with authority decided this firm may publish. They may
+   * import and manage their OWN listings and nothing else — no seller data, no
+   * mandates, no deal material.
+   */
+  | "partner";
 
 export type Permission =
   | "manage-accounts"
@@ -54,6 +62,15 @@ export type Permission =
    * deliberately does NOT carry the operator surfaces `manage-mandates` does.
    */
   | "manage-own-mandates"
+  /**
+   * Import and manage one's OWN listings, and no one else's.
+   *
+   * The partner self-service permission. An estate agent or auctioneer holds it
+   * and reaches `/account/listings` to import their own stock; the row-level
+   * ownership check in `canManageImport` keeps "own" honest. It carries nothing
+   * else — a partner never sees seller data, a mandate or deal material.
+   */
+  | "import-own-listings"
   | "view-audit-log"
   /**
    * Blog performance: view counts and the SEO audit.
@@ -77,6 +94,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "view-seller-data",
     "view-deal-material",
     "manage-mandates",
+    "import-own-listings",
     "view-audit-log",
     "view-content-performance",
   ],
@@ -88,6 +106,9 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   ],
   investor: ["view-deal-material", "manage-own-mandates"],
   funder: ["view-deal-material", "manage-own-mandates"],
+  // A partner lists their own stock and nothing more. No seller data, no
+  // mandates, no deal material — the least privilege that does the job.
+  partner: ["import-own-listings"],
 };
 
 export interface InvestorCertification {
@@ -324,6 +345,39 @@ export function managesAllMandates(
   return can(account, "manage-mandates", now).allowed;
 }
 
+/**
+ * Whether this account may import or manage a particular listing.
+ *
+ * The listing counterpart to `canManageMandate`. An operator (via
+ * `manage-mandates`) manages every import; a partner manages only their own,
+ * and the ownership check is what keeps that honest — a partner must never be
+ * able to withdraw, or even see, a listing another firm submitted.
+ */
+export function canManageImport(
+  account: Pick<Account, "id" | "role" | "disabledAt" | "certification">,
+  listingOwnerId: string | undefined,
+  now: Date = new Date(),
+): AccessDecision {
+  const any = can(account, "manage-mandates", now);
+  if (any.allowed) return any;
+
+  const own = can(account, "import-own-listings", now);
+  if (!own.allowed) return own;
+
+  if (listingOwnerId === account.id) {
+    return { allowed: true, reason: "Granted: the account owns this listing." };
+  }
+  return { allowed: false, reason: "That listing belongs to another account." };
+}
+
+/** Whether this account sees every imported listing or only its own. */
+export function managesAllImports(
+  account: Pick<Account, "role" | "disabledAt" | "certification">,
+  now: Date = new Date(),
+): boolean {
+  return can(account, "manage-mandates", now).allowed;
+}
+
 
 function article(word: string): string {
   return /^[aeiou]/i.test(word) ? "An" : "A";
@@ -336,6 +390,7 @@ const PERMISSION_LABELS: Record<Permission, string> = {
   "view-deal-material": "be sent deal material",
   "manage-mandates": "create or edit any mandate",
   "manage-own-mandates": "create or edit their own mandates",
+  "import-own-listings": "import and manage their own listings",
   "view-audit-log": "read the audit trail",
   "view-content-performance": "see how the blog is performing",
 };
@@ -380,11 +435,12 @@ export function mayStartTrial(
   return { allowed: true, reason: "No trial has been started on this account." };
 }
 
-export const ALL_ROLES: readonly Role[] = ["admin", "operator", "investor", "funder"];
+export const ALL_ROLES: readonly Role[] = ["admin", "operator", "investor", "funder", "partner"];
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Administrator",
   operator: "Operator",
   investor: "Investor",
   funder: "Capital provider",
+  partner: "Partner (agent or auctioneer)",
 };

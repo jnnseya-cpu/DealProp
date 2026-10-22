@@ -31,7 +31,7 @@ npm install
 npm run setup:env # generates the secrets; lists what only you can supply
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 1,258 tests, 1,322 with a Postgres in TEST_DATABASE_URL
+npm test          # 1,263 tests, 1,327 with a Postgres in TEST_DATABASE_URL
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 npm run backup    # pg_dump, custom format, with the restore command printed
@@ -76,7 +76,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Portfolio | `/portfolio` | What is held, what it is worth, and when the facility has to be refinanced |
 | Discovery | `/operator/discovery` | Run funder discovery, review candidates, approve or suppress |
 | Sourcing | `/operator/sourcing` | Find motivated sellers from the licensed registers, kept as a worklist — it finds, it never contacts |
-| Import | `/operator/import` | Rights-holder 1-click listing import — facts from a page's own structured data, portals refused, photos never taken |
+| Import | `/operator/import`, `/account/listings` | Rights-holder 1-click listing import — facts from a page's own structured data, portals refused, photos never taken. Operators see all; verified partners (agents, auctioneers) self-serve their own, with an appraisal hand-off |
 | Outreach | `/operator/outreach` | Draft, approve, send; suppression list |
 | Opt out | `/outreach/opt-out` | One click, no account, no confirmation step |
 | Data room | `/dataroom/[token]` | One funder's expiring, watermarked view of one deal |
@@ -623,7 +623,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 1,258 tests, Postgres suite skipped
+npm test          # 1,263 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 

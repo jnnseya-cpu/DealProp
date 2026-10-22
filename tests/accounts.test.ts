@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  ALL_ROLES,
   can,
+  canManageImport,
   canManageMandate,
   certificationStatus,
+  managesAllImports,
   managesAllMandates,
   mayReceiveDealMaterial,
   publicAccount,
@@ -68,8 +71,8 @@ describe("roles", () => {
     expect(can(disabled, "manage-accounts", NOW).reason).toContain("disabled");
   });
 
-  it("labels every role", () => {
-    expect(Object.keys(ROLE_LABELS)).toHaveLength(4);
+  it("labels every role, and no role that does not exist", () => {
+    expect(Object.keys(ROLE_LABELS).sort()).toEqual([...ALL_ROLES].sort());
   });
 });
 
@@ -266,5 +269,42 @@ describe("mandate management", () => {
     expect(managesAllMandates(account({ role: "admin" }), NOW)).toBe(true);
     expect(managesAllMandates(account({ role: "investor" }), NOW)).toBe(false);
     expect(managesAllMandates(account({ role: "funder" }), NOW)).toBe(false);
+  });
+
+  it("gives a partner the import permission and nothing else", () => {
+    const partner = account({ role: "partner" });
+    expect(can(partner, "import-own-listings", NOW).allowed).toBe(true);
+    // The least privilege that does the job: no seller data, no mandates, no
+    // deal material.
+    for (const p of ["view-seller-data", "manage-mandates", "manage-own-mandates", "view-deal-material"] as const) {
+      expect(can(partner, p, NOW).allowed, p).toBe(false);
+    }
+  });
+
+  it("lets a partner manage their own listing and refuses another firm's", () => {
+    const partner = account({ id: "acc-agent", role: "partner" });
+    expect(canManageImport(partner, "acc-agent", NOW).allowed).toBe(true);
+    const other = canManageImport(partner, "acc-other-agent", NOW);
+    expect(other.allowed).toBe(false);
+    expect(other.reason).toContain("another account");
+    // An operator import has no owner; a partner must not adopt it by id.
+    expect(canManageImport(partner, undefined, NOW).allowed).toBe(false);
+  });
+
+  it("lets an operator manage any imported listing, owned or not", () => {
+    const operator = account({ id: "acc-op", role: "operator" });
+    expect(canManageImport(operator, "acc-agent", NOW).allowed).toBe(true);
+    expect(canManageImport(operator, undefined, NOW).allowed).toBe(true);
+  });
+
+  it("refuses a disabled partner their own listing", () => {
+    const disabled = account({ id: "acc-agent", role: "partner", disabledAt: "2026-08-01T00:00:00.000Z" });
+    expect(canManageImport(disabled, "acc-agent", NOW).allowed).toBe(false);
+  });
+
+  it("separates who sees all imports from who sees their own", () => {
+    expect(managesAllImports(account({ role: "operator" }), NOW)).toBe(true);
+    expect(managesAllImports(account({ role: "admin" }), NOW)).toBe(true);
+    expect(managesAllImports(account({ role: "partner" }), NOW)).toBe(false);
   });
 });

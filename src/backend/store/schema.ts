@@ -436,6 +436,12 @@ export interface StoredImportedListing {
   readonly confirmedBy: ConfirmedBy;
   /** The named person who warranted the right to publish it. */
   readonly warrantedBy: string;
+  /**
+   * The account that owns this listing, where a partner imported it. Absent for
+   * an operator import. A partner sees and may withdraw only listings whose
+   * owner is their own account.
+   */
+  readonly ownerAccountId?: string;
   readonly submittedAt: string;
   readonly status: "draft" | "withdrawn";
 }
