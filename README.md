@@ -31,7 +31,7 @@ npm install
 npm run setup:env # generates the secrets; lists what only you can supply
 npm run seed      # writes the file-backed store to .data/
 npm run dev       # http://localhost:3000
-npm test          # 1,263 tests, 1,327 with a Postgres in TEST_DATABASE_URL
+npm test          # 1,269 tests, 1,333 with a Postgres in TEST_DATABASE_URL
 npm run typecheck
 npm run preflight # is this safe to put in front of the public?
 npm run backup    # pg_dump, custom format, with the restore command printed
@@ -96,7 +96,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Sign in | `/operator` | Named account, or the shared password as bootstrap |
 | Accounts | `/operator/accounts` | Create, disable, see certification status |
 | Audit trail | `/operator/audit` | Append-only: who saw what, and when |
-| Blog performance | `/operator/blog` | Opens per post and the SEO audit, worst first |
+| Blog performance | `/operator/blog` | Opens per post, the SEO audit and the SEO agent's ranked actions, worst first |
 | Billing | `/operator/billing` | Plans, balances, refundable cash, dispute costs, adjustments |
 | Certification | `/account/certify` | Investor self-certification under the FPO |
 | Offline | `/offline` | Service-worker fallback; deliberately shows no figures |
@@ -623,7 +623,7 @@ implementations are held to the same behaviours. It runs Postgres when
 passing quietly having tested one engine.
 
 ```bash
-npm test          # 1,263 tests, Postgres suite skipped
+npm test          # 1,269 tests, Postgres suite skipped
 npm run test:pg   # 228 tests, both engines
 ```
 
@@ -789,6 +789,21 @@ It is **not** a ranking prediction, and nothing in it can see a backlink, a
 competitor or a search volume. It checks what is inside this codebase, which is
 the part that can actually be changed. `/operator/blog` shows it beside the open
 count, worst post first.
+
+### The SEO agent
+
+`src/shared/domain/seoAgent.ts` turns the audit and the open counts into a
+ranked list of what to do next. It is an agent in the §12 sense — a
+deterministic observer over figures the codebase already computes, not a model —
+and it makes exactly three kinds of proposal, each grounded in a number: fix a
+post the audit flags (priority rising with the score gap and with how often the
+post is actually opened), cover a topic hub that has fewer than two posts, and
+refresh a post that has gone twelve months without an update. It proposes; a
+named person decides. It never publishes, never predicts a ranking, and never
+touches a figure — when a person acts on a "write" proposal the drafter helps
+with the prose and the engine fills the numbers. `/operator/blog` shows the queue
+worst first, under a one-line digest that states it is grounded in the audit and
+the open counts, not in any guess about rankings.
 
 ---
 

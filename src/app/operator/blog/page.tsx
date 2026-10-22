@@ -10,6 +10,7 @@ import {
   type SeoCheck,
   type SeoReport,
 } from "@shared/domain/seo";
+import { proposeSeoActions, seoAgentDigest, type SeoProposal } from "@shared/domain/seoAgent";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,14 @@ export default async function BlogPerformancePage() {
   const audit = auditAgainstFloor(corpus);
   const reports = audit.reports;
   const views = new Map(viewRows.map((row) => [row.slug, row]));
+
+  // The SEO agent: a ranked action list from the audit and the open counts.
+  const proposals = proposeSeoActions({
+    corpus,
+    reports,
+    views: new Map(viewRows.map((row) => [row.slug, row.views])),
+  });
+  const digest = seoAgentDigest(proposals);
 
   const totalOpens = viewRows.reduce((sum, row) => sum + row.views, 0);
 
@@ -117,7 +126,26 @@ export default async function BlogPerformancePage() {
               </p>
             )}
 
-            <ol className="mt-10 space-y-5">
+            <section className="mt-10">
+              <div className="flex items-baseline justify-between gap-4">
+                <h2 className="eyebrow">SEO agent — recommended, worst first</h2>
+              </div>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-400">{digest.summary}</p>
+              {proposals.length > 0 && (
+                <ul className="mt-4 space-y-3">
+                  {proposals.map((proposal) => (
+                    <Proposal key={proposal.id} proposal={proposal} />
+                  ))}
+                </ul>
+              )}
+              <p className="mt-4 text-xs leading-relaxed text-ink-500">
+                The agent proposes; a person decides. It never publishes, never predicts a ranking,
+                and never touches a figure — when you act on a &ldquo;write&rdquo; proposal the
+                drafter helps with the prose and the engine fills the numbers.
+              </p>
+            </section>
+
+            <ol className="mt-12 space-y-5">
               {reports.map((report) => {
                 const row = views.get(report.slug);
                 return (
@@ -179,6 +207,30 @@ export default async function BlogPerformancePage() {
         )}
       </div>
     </main>
+  );
+}
+
+function Proposal({ proposal }: { proposal: SeoProposal }) {
+  const KIND_LABEL: Record<SeoProposal["kind"], string> = {
+    "fix-post": "FIX",
+    "cover-topic": "WRITE",
+    refresh: "REFRESH",
+  };
+  const tone = proposal.severity === "problem" ? "text-red-300" : "text-amber-300";
+  return (
+    <li className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+        <Link href={proposal.href} className="font-display text-base text-ink-100 transition-colors hover:text-lode-200">
+          {proposal.action}
+        </Link>
+        <span className="font-mono text-[11px] text-ink-500">
+          <span className={tone}>{KIND_LABEL[proposal.kind]}</span>
+          <span className="text-ink-700"> · </span>
+          priority {proposal.priority}
+        </span>
+      </div>
+      <p className="mt-2 text-sm leading-relaxed text-ink-400">{proposal.reason}</p>
+    </li>
   );
 }
 
