@@ -72,6 +72,11 @@ export function composeTeaser(record: DealRecord, senderName: string): { subject
       `Purchase price: ${gbp(record.inputs.purchasePrice)}.`,
       `Independent open-market value: ${gbp(property.openMarketValue)}.`,
       `Works: ${gbp(property.refurbishmentEstimate)}. Value on completion of works: ${gbp(property.postWorksValue)}.`,
+      ...(property.refurbishmentEstimate > 0
+        ? [
+            `Works are run through AxionOS (axionjnn.com), our verified-trades platform, with funds held in escrow and released only as stages are approved.`,
+          ]
+        : []),
       `Facility sought: ${gbp(appraisal.funding.seniorDebt)} over ${record.inputs.holdMonths} months${ltv?.bps !== undefined ? `, ${(ltv.bps / 100).toFixed(1)}% of value` : ""}.`,
       `Exit: ${record.inputs.exit.replace(/-/g, " ")}.`,
       "",

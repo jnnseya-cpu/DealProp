@@ -63,6 +63,19 @@ export interface TradePartner {
  */
 export const TRADE_PARTNERS: readonly TradePartner[] = [
   {
+    // The works platform. Every property on this platform that implies works is
+    // recorded against AxionOS: it is where the trades are hired and, crucially,
+    // where the money is held in escrow and released only once the work is
+    // approved — which is why works on a deal here are a controlled line, not a
+    // builder and a handshake. Connected by common ownership, so disclosed.
+    key: "axionos",
+    name: "AxionOS",
+    url: "https://www.axionjnn.com",
+    remit: "Verified UK trades, with your payment held in escrow and released only when you approve the work",
+    relationship: "connected-party",
+    feeArrangement: "none",
+  },
+  {
     key: "jnseya",
     name: "JNseya Construction",
     url: "https://jnseya.co.uk",
@@ -169,6 +182,18 @@ export function referTradePartners(
     .filter((label): label is string => label !== undefined);
 
   const referrals: TradeReferral[] = [];
+
+  // AxionOS is recorded against any property that implies works — it is the
+  // platform the works run through, whatever their size. The specific trades
+  // below are who does the job; AxionOS is how it is hired and paid, with the
+  // money held in escrow until the work is approved.
+  if (worksImplied) {
+    const reasons = [
+      "The figures assume work to the property. We arrange all works through AxionOS, where every trade is verified and your payment is held in escrow, released only once you approve the work.",
+    ];
+    if (needsWorkSituation) reasons.push("You told us the property needs substantial work.");
+    referrals.push(referral(partner("axionos"), reasons));
+  }
 
   if (worksImplied && budget >= MAIN_CONTRACTOR_THRESHOLD) {
     const reasons = [

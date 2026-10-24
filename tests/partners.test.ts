@@ -38,32 +38,44 @@ function seller(overrides: Partial<SellerProfile> = {}): SellerProfile {
 }
 
 describe("trade partner referrals", () => {
+  // The specific trades, with AxionOS (the works platform) always recorded first
+  // whenever works are implied. `trades` drops it to test the contractor choice.
+  const trades = (report: { referrals: readonly { partner: { key: string } }[] }) =>
+    report.referrals.map((r) => r.partner.key).filter((k) => k !== "axionos");
+
+  it("records AxionOS as the works platform on any property with works", () => {
+    const report = referTradePartners(property());
+    expect(report.referrals[0]?.partner.key).toBe("axionos");
+    expect(report.referrals[0]?.reasons.join(" ")).toContain("escrow");
+    expect(report.worksImplied).toBe(true);
+  });
+
   it("sends a full refurbishment programme to the renovation contractor", () => {
     const report = referTradePartners(property());
-    expect(report.referrals.map((r) => r.partner.key)).toEqual(["jnseya"]);
+    expect(report.referrals.map((r) => r.partner.key)).toEqual(["axionos", "jnseya"]);
     expect(report.worksImplied).toBe(true);
   });
 
   it("sends a small job to individual trades instead", () => {
     const report = referTradePartners(property({ refurbishmentEstimate: fromMajor(6_000) }));
-    expect(report.referrals.map((r) => r.partner.key)).toEqual(["evandeli"]);
+    expect(report.referrals.map((r) => r.partner.key)).toEqual(["axionos", "evandeli"]);
   });
 
   it("treats the threshold as inclusive of the main contractor", () => {
     const at = referTradePartners(property({ refurbishmentEstimate: MAIN_CONTRACTOR_THRESHOLD }));
-    expect(at.referrals[0]?.partner.key).toBe("jnseya");
+    expect(trades(at)[0]).toBe("jnseya");
     const below = referTradePartners(
       property({ refurbishmentEstimate: money(MAIN_CONTRACTOR_THRESHOLD - 1) }),
     );
-    expect(below.referrals[0]?.partner.key).toBe("evandeli");
+    expect(trades(below)[0]).toBe("evandeli");
   });
 
   it("refers a specialist alongside the main contractor for a named defect", () => {
     const issues: PropertyIssue[] = ["damp", "structural"];
     const report = referTradePartners(property({ knownIssues: issues }));
-    expect(report.referrals.map((r) => r.partner.key)).toEqual(["jnseya", "evandeli"]);
+    expect(report.referrals.map((r) => r.partner.key)).toEqual(["axionos", "jnseya", "evandeli"]);
     // Two defects are joined into one grammatical sentence, not a comma list.
-    expect(report.referrals[1]?.reasons.join(" ")).toContain(
+    expect(report.referrals.find((r) => r.partner.key === "evandeli")?.reasons.join(" ")).toContain(
       "Damp and structural movement need specialist reports",
     );
   });
@@ -83,12 +95,14 @@ describe("trade partner referrals", () => {
       seller({ situation: "needs-major-works" }),
     );
     expect(report.worksImplied).toBe(true);
-    expect(report.referrals.map((r) => r.partner.key)).toEqual(["evandeli"]);
+    expect(report.referrals.map((r) => r.partner.key)).toEqual(["axionos", "evandeli"]);
   });
 
   it("uses the singular for one defect", () => {
     const report = referTradePartners(property({ knownIssues: ["damp"] }));
-    expect(report.referrals[1]?.reasons.join(" ")).toContain("Damp needs a specialist report");
+    expect(report.referrals.find((r) => r.partner.key === "evandeli")?.reasons.join(" ")).toContain(
+      "Damp needs a specialist report",
+    );
   });
 
   it("never returns a referral without a reason", () => {
