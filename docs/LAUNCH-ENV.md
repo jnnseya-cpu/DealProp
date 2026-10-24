@@ -43,9 +43,13 @@ BLOG_MODEL_PROVIDER=anthropic
 BLOG_MODEL_API_KEY=<sk-ant-...>
 # BLOG_MODEL_NAME=claude-haiku-5-5
 
-# ---- LIVE DATA (EPC free key; Land Registry needs none) ----
+# ---- LIVE DATA / OFF-MARKET DISCOVERY (all free; powers /operator/sourcing) ----
+# Land Registry Price Paid needs no key. EPC is free (registration). The Gazette
+# is a free API — set the two notice codes for probate + insolvency discovery.
 EPC_API_EMAIL=<your EPC account email>
 EPC_API_KEY=<your EPC api key>
+GAZETTE_DECEASED_CODE=<Gazette deceased-estates notice code>
+GAZETTE_INSOLVENCY_CODE=<Gazette insolvency notice code>
 
 # ---- SCHEDULED WORK + EMAIL ----
 CRON_SECRET=<from step 1>

@@ -21,7 +21,9 @@ feature dark.
 - A **Stripe** account (or create it at step 11).
 - Your **Anthropic API key** (`sk-ant-...`).
 - Your **EPC** account email + key (free — register at
-  epc.opendatacommunities.org if you haven't).
+  epc.opendatacommunities.org if you haven't), and the two **Gazette** notice
+  codes (free API) — these three turn on off-market discovery
+  (`/operator/sourcing`). Price Paid needs no key.
 - A strong **database password** you choose now (any 20+ random characters).
 
 ---
@@ -136,9 +138,15 @@ COMPANY_TRADING_NAME=Lode
 BLOG_MODEL_PROVIDER=anthropic
 BLOG_MODEL_API_KEY=<sk-ant-...>
 
-# ---- LIVE DATA ----
+# ---- LIVE DATA / OFF-MARKET DISCOVERY (all free) ----
+# Land Registry Price Paid needs no key. EPC is free (register at
+# epc.opendatacommunities.org). The Gazette is a free API — set the two notice
+# codes to turn on probate + insolvency discovery (confirm the codes against the
+# live API first). With these set, /operator/sourcing works from day one.
 EPC_API_EMAIL=<your EPC email>
 EPC_API_KEY=<your EPC key>
+GAZETTE_DECEASED_CODE=<Gazette deceased-estates notice code>
+GAZETTE_INSOLVENCY_CODE=<Gazette insolvency notice code>
 
 # ---- EMAIL + CRON ----
 CRON_SECRET=<from step 6>
