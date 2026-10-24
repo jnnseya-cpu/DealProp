@@ -40,6 +40,7 @@ const DESTINATIONS: readonly Destination[] = [
   { href: "/operator/blog", label: "Blog" },
   { href: "/operator/audit", label: "Audit" },
   { href: "/operator/conduct", label: "Conduct" },
+  { href: "/operator/settings", label: "Config" },
 ];
 
 export function OperatorNav({ current }: { current?: string }) {

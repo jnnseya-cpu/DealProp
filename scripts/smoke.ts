@@ -57,6 +57,7 @@ const GATED = [
   "/account/billing",
   "/operator/blog",
   "/operator/conduct",
+  "/operator/settings",
   "/operator/billing",
   "/operator/payouts",
   "/operator/accounts",
