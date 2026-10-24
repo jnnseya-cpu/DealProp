@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { submitEnquiry } from "./actions";
 import { track } from "@/app/components/Analytics";
 import { PRIVACY_NOTICE_POINTS } from "@shared/domain/sellerConsent";
+import { loadDraft, pickDraftValues, saveDraft } from "./draft";
 
 /**
  * Seller intake form.
@@ -77,12 +78,19 @@ const ISSUES: readonly Option[] = [
 const STEPS = ["Situation", "Priorities", "Property", "Value", "About you"] as const;
 
 export function SellForm() {
-  const [step, setStep] = useState(0);
-  const [situation, setSituation] = useState("");
-  const [priorities, setPriorities] = useState<string[]>([]);
-  const [tenure, setTenure] = useState("freehold");
+  // A draft from an earlier attempt in this browser session, if any. Loaded
+  // once; the controlled fields initialise straight from it so the right step
+  // and the tenure-dependent fields render correctly on the first paint.
+  const draft = useMemo(() => loadDraft(), []);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const [step, setStep] = useState(() => clampStep(draft?.step));
+  const [situation, setSituation] = useState(() => asString(draft?.values.situation));
+  const [priorities, setPriorities] = useState<string[]>(() => asArray(draft?.values.priorities));
+  const [tenure, setTenure] = useState(() => asString(draft?.values.tenure) || "freehold");
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string>();
+  const [restored, setRestored] = useState(false);
 
   // Surface the server's redirect reasons here, so the page itself stays
   // cacheable rather than turning dynamic just to read a query parameter.
@@ -94,6 +102,38 @@ export function SellForm() {
       setNotice("That came through very quickly. Give it a moment and try again.");
     }
   }, []);
+
+  // Restore the uncontrolled fields (property, value, condition, issues) from
+  // the draft. The controlled ones are already set above. Runs after the first
+  // render, so tenure-dependent fields exist to be written into.
+  useEffect(() => {
+    if (draft === undefined) return;
+    const form = formRef.current;
+    if (form === null) return;
+    restoreInto(form, draft.values);
+    if (Object.keys(draft.values).length > 0 || (draft.step ?? 0) > 0) setRestored(true);
+  }, [draft]);
+
+  /**
+   * Save the non-sensitive answers to this browser session. `pickDraftValues`
+   * is the allowlist — the screening answers and the narrative never reach it.
+   * Called on every change and whenever the step moves.
+   */
+  function persist(): void {
+    const form = formRef.current;
+    if (form === null) return;
+    const entries = Array.from(new FormData(form).entries(), ([k, v]) => [k, typeof v === "string" ? v : ""] as const);
+    const values = pickDraftValues(entries);
+    if (Object.keys(values).length === 0 && step === 0) return;
+    saveDraft({ v: 1, step, values }, undefined);
+  }
+
+  // Persist on step changes too — the Continue/Back buttons are not form input
+  // events, so `onChange` alone would miss them.
+  useEffect(() => {
+    persist();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   const canAdvance =
     (step === 0 && situation !== "") || (step === 1 && priorities.length > 0) || step >= 2;
@@ -117,7 +157,9 @@ export function SellForm() {
 
   return (
     <form
+      ref={formRef}
       action={submitEnquiry}
+      onChange={persist}
       onSubmit={() => {
         setSubmitting(true);
         // The conversion. No answers travel with it — only that one happened.
@@ -126,6 +168,14 @@ export function SellForm() {
       className="mx-auto max-w-3xl px-6 pb-32"
     >
       <Progress step={step} />
+
+      {restored && (
+        <p className="mb-6 border-l-2 border-lode-400/70 py-1 pl-4 text-sm leading-relaxed text-ink-300" role="status">
+          We&rsquo;ve brought back what you&rsquo;d started. For your privacy, the
+          questions about your situation and your note aren&rsquo;t kept on this
+          device — please add those again.
+        </p>
+      )}
 
       {notice !== undefined && (
         <p className="mb-6 border-l-2 border-lode-400/70 py-1 pl-4 text-sm leading-relaxed text-ink-300" role="status">
@@ -419,6 +469,56 @@ export function SellForm() {
       />
     </form>
   );
+}
+
+/** Clamp a restored step into range; default to the start. */
+function clampStep(n: number | undefined): number {
+  if (typeof n !== "number" || !Number.isFinite(n)) return 0;
+  return Math.min(STEPS.length - 1, Math.max(0, Math.trunc(n)));
+}
+
+function asString(v: string | string[] | undefined): string {
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) return v[0] ?? "";
+  return "";
+}
+
+function asArray(v: string | string[] | undefined): string[] {
+  if (Array.isArray(v)) return v;
+  if (typeof v === "string") return [v];
+  return [];
+}
+
+/**
+ * Write the draft's uncontrolled fields back into the rendered form. The
+ * controlled fields (situation, priorities, tenure) are restored through React
+ * state and skipped here, so the two never fight over the same input.
+ */
+function restoreInto(form: HTMLFormElement, values: Record<string, string | string[]>): void {
+  for (const [name, value] of Object.entries(values)) {
+    if (name === "situation" || name === "priorities" || name === "tenure") continue;
+    const found = form.elements.namedItem(name);
+    if (found === null) continue;
+    const list = Array.isArray(value) ? value : [value];
+    const nodes = found instanceof RadioNodeList ? Array.from(found) : [found];
+    const first = nodes[0];
+    const isChoice =
+      nodes.length > 1 ||
+      (first instanceof HTMLInputElement && (first.type === "radio" || first.type === "checkbox"));
+    if (isChoice) {
+      for (const node of nodes) {
+        if (node instanceof HTMLInputElement && (node.type === "radio" || node.type === "checkbox")) {
+          node.checked = list.includes(node.value);
+        }
+      }
+    } else if (
+      first instanceof HTMLInputElement ||
+      first instanceof HTMLSelectElement ||
+      first instanceof HTMLTextAreaElement
+    ) {
+      first.value = list[0] ?? "";
+    }
+  }
 }
 
 function Progress({ step }: { step: number }) {

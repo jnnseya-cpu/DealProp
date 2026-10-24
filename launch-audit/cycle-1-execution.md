@@ -23,7 +23,8 @@ This cycle is the *executable* half of the audit — standing the platform up an
 | E10 | Blog-view counter | curl POST, valid/unknown/oversized/XSS slug | **PASS** — valid→204, unknown→400 (anti-enumeration), oversized→400, `<script>`→400 **not reflected** |
 | E11 | Secret leakage to client bundle | grep `.next/static` | **PASS** — no server-secret env names; only the two `NEXT_PUBLIC_` analytics IDs (public by design) |
 | E12 | **Novice appraise journey** | real Chromium, 360px, **throttled slow-3G**, messy input | **PASS** — see below |
-| E13 | Full `/sell` wizard E2E | real Chromium, stepped drive | **PARTIAL** — see below |
+| E13 | Full `/sell` wizard E2E | real Chromium, stepped drive | **PASS (Cycle 2)** — wizard → server action → **AES-GCM-encrypted** write to Postgres → **capability URL** `/sell/{csprng}` → Seller-Protection options render. Narrative confirmed **not** stored as plaintext. |
+| E14 | **Draft-save privacy** | unit + real-browser reload | **PASS (Cycle 2)** — non-sensitive answers restore after reload; narrative + health/finance answers **never** written to the device (proven in sessionStorage); cleared on success |
 
 Screenshots retained (redacted, local): `novice_appraise.png` (full appraise result), plus the authenticated route renders.
 
@@ -41,7 +42,9 @@ Mind-2 observations (non-blocking): the advanced finance fields (hold/LTV/rate) 
 
 `/sell` is a 5-step accessible wizard (situation → priorities → property → price → screening + consent) using `sr-only` native inputs behind styled labels and client-gated step advancement. Headless brute-force driving did **not** complete the wizard within budget (a mechanics limitation of automating an sr-only multi-step form — **not** a product fault). No seller record was created by my attempts (deal count stayed at 4), consistent with the submit never reaching the final consent step.
 
-Recorded as **PARTIAL**, not PASS. Independent evidence that the write path is sound: encryption-at-rest proven (E4), store writes proven (E3), `/sell` renders cleanly (E6), and the intake→creation→consent→cipher logic is covered by the passing suite (`intake`, `submitEnquiry`, `sellerConsent`, `fieldCipher`). A genuine **Mind-2 finding (P3)**: the wizard has no visible draft-save, so a novice who loses connection mid-wizard loses progress — worth an autosave or "resume" before scale.
+**Cycle 2 update — now PASS.** The wizard was driven correctly (all five steps are mounted at once; fill each while active, advance, submit). Result: redirect to a capability URL `/sell/enq-…` (CSPRNG id, not derived from the property — §13), a real row written to Postgres (deal count 4→5→6 across runs), the row's sensitive fields stored as `enc.v1.` ciphertext, the typed narrative **absent** from the DB in plaintext, and the options page correctly **paused the deal for human review** (Seller Protection, §3) because the inputs were probate + no legal advice + no valuation.
+
+**Cycle 2 — the Mind-2 draft-save finding was fixed (E14).** A session-scoped draft now restores the intake after a refresh, Back, or the server's needs-consent / slow-down redirect. It is built as an **allowlist** (`src/app/sell/draft.ts`): only situation, priorities, property facts and valuation figures are written — the screening answers (health, financial distress, capacity) and the free-text narrative are **never** persisted, to any storage, in either direction. `sessionStorage` not `localStorage`, so nothing survives the tab closing or reaches another device; cleared outright on success. Proven by `tests/sellDraft.test.ts` (the allowlist and a tamper-reload case) and by a real-browser reload showing the private note never entered storage. This is the first use of browser storage in the codebase, kept deliberately narrow.
 
 ---
 

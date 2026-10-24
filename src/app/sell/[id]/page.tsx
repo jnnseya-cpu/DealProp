@@ -1,5 +1,6 @@
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { notFound } from "next/navigation";
+import { ClearSellDraft } from "../ClearSellDraft";
 import { getDeal } from "@backend/store/repository";
 import { coveredBuyBoxes } from "@backend/billing/mandates";
 import { buildSellerRoutes, investorProfitOnRoute, type SellerRoute } from "@shared/domain/sellerRoutes";
@@ -56,6 +57,8 @@ export default async function SellerOptionsPage({
 
   return (
     <main className="min-h-screen">
+      {/* The enquiry is saved; drop any session draft so a fresh one starts clean. */}
+      <ClearSellDraft />
       <SiteHeader
         width="max-w-4xl"
         trailing={<span className="font-mono text-xs text-ink-500">{record.reference}</span>}
