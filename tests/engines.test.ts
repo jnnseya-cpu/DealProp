@@ -466,6 +466,27 @@ describe("close report", () => {
     expect(later.criticalPathDays).toBeLessThan(early.criticalPathDays);
   });
 
+  it("does not flag an ordinary deal as breaching the 60-day cap", () => {
+    const report = buildCloseReport(build({}));
+    expect(report.criticalPathDays).toBeLessThanOrEqual(60);
+    expect(report.breachesCompletionCap).toBe(false);
+  });
+
+  it("flags a deal whose critical path runs past 60 days to be dropped", () => {
+    // Inflate one on-path item so the remaining work cannot finish in the window.
+    const slow = STANDARD_MILESTONES.map((m) => ({
+      ...m,
+      status: "not-started" as MilestoneStatus,
+      typicalDays: m.key === "searches" ? 90 : m.typicalDays,
+    }));
+    const report = buildCloseReport(slow);
+    expect(report.criticalPathDays).toBeGreaterThan(60);
+    expect(report.breachesCompletionCap).toBe(true);
+    const cap = report.blockers.find((b) => /60-day cap/.test(b.message));
+    expect(cap?.severity).toBe("red");
+    expect(cap?.action).toMatch(/Drop it/);
+  });
+
   it("terminates on a cyclic milestone graph", () => {
     const cyclic: Milestone[] = [
       { key: "a", label: "A", owner: "buyer", status: "not-started", weight: 1, blocks: ["b"], typicalDays: 1 },

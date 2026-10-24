@@ -98,11 +98,14 @@ describe("intake", () => {
 });
 
 describe("seller routes", () => {
-  it("offers fast cash below the structured price", () => {
+  it("prices fast cash below the structured route", () => {
     const { property, seller } = buildIntake(baseAnswers);
     const report = buildSellerRoutes(property, seller);
-    const fast = report.routes.find((r) => r.key === "fast-cash");
-    const structured = report.routes.find((r) => r.key === "structured");
+    // The structured route completes in up to 90 days, so the 60-day cap keeps
+    // it off the offer — but its figure is still computed, and still higher.
+    const all = [...report.routes, ...report.unavailable];
+    const fast = all.find((r) => r.key === "fast-cash");
+    const structured = all.find((r) => r.key === "structured");
     expect(fast).toBeDefined();
     expect(structured).toBeDefined();
     // Speed and certainty are paid for out of the price. If this inverts, the
@@ -135,20 +138,40 @@ describe("seller routes", () => {
   it("marks structures it cannot model precisely as indicative", () => {
     const { property, seller } = buildIntake(baseAnswers);
     const report = buildSellerRoutes(property, seller);
-    const assisted = report.routes.find((r) => r.key === "assisted-sale");
+    // The assisted sale completes past the 60-day cap, so it lives in
+    // `unavailable` now — but it is still computed, and still indicative.
+    const all = [...report.routes, ...report.unavailable];
+    const assisted = all.find((r) => r.key === "assisted-sale");
     expect(assisted?.fidelity).toBe("indicative");
-    const fast = report.routes.find((r) => r.key === "fast-cash");
+    const fast = all.find((r) => r.key === "fast-cash");
     expect(fast?.fidelity).toBe("modelled");
   });
 
-  it("pays more on the assisted sale than on any ownership route", () => {
-    // This is the route's entire reason to exist: the seller whose minimum
-    // exceeds what anyone can pay to own the asset.
+  it("still computes a higher assisted-sale figure, though the cap keeps it off the offer", () => {
+    // The assisted sale pays most for the seller whose minimum exceeds what
+    // anyone can pay to own the asset — but it completes in 150+ days, so the
+    // 60-day completion cap moves it to unavailable rather than offering it.
     const { property, seller } = buildIntake({ ...baseAnswers, condition: "needs-modernising" });
     const report = buildSellerRoutes(property, seller);
-    const assisted = report.routes.find((r) => r.key === "assisted-sale");
-    const fast = report.routes.find((r) => r.key === "fast-cash");
+    const all = [...report.routes, ...report.unavailable];
+    const assisted = all.find((r) => r.key === "assisted-sale");
+    const fast = all.find((r) => r.key === "fast-cash");
     expect(assisted?.totalToSeller ?? 0).toBeGreaterThan(fast?.totalToSeller ?? 0);
+    expect(report.routes.find((r) => r.key === "assisted-sale")).toBeUndefined();
+    expect(assisted?.unavailable).toBe(true);
+  });
+
+  it("drops any route that completes beyond the 60-day cap, with the reason", () => {
+    const { property, seller } = buildIntake(baseAnswers);
+    const report = buildSellerRoutes(property, seller);
+    // Nothing offered can run past the cap.
+    for (const route of report.routes) expect(route.completionDaysMax).toBeLessThanOrEqual(60);
+    // The slow routes are present but unavailable, each with the completion reason.
+    const slow = report.unavailable.filter((r) => r.completionDaysMax > 60);
+    expect(slow.length).toBeGreaterThan(0);
+    for (const route of slow) expect(route.unavailableReason ?? "").toMatch(/60 days/);
+    // Fast cash still stands.
+    expect(report.routes.some((r) => r.key === "fast-cash")).toBe(true);
   });
 
   it("reports no viable route rather than inventing one", () => {

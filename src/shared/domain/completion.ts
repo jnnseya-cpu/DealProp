@@ -57,6 +57,16 @@ export const STANDARD_MILESTONES: readonly Omit<Milestone, "status" | "expiresIn
   { key: "completion", label: "Completion", owner: "buyer-solicitor", weight: 15, blocks: [], typicalDays: 1 },
 ];
 
+/**
+ * The hard completion cap. The platform will not carry a sale that cannot
+ * complete within this many days: the motivated-seller value proposition is
+ * speed and certainty, and a transaction that drags past this ties up capital
+ * and loses the advantage it was bought for. A route that could run longer is
+ * not offered (see `sellerRoutes.ts`), and a live deal whose critical path
+ * exceeds it is flagged to be dropped or restructured rather than nursed along.
+ */
+export const MAX_COMPLETION_DAYS = 60;
+
 export interface CloseScoreSection {
   readonly label: string;
   readonly percent: number;
@@ -77,6 +87,12 @@ export interface CloseReport {
   readonly sections: readonly CloseScoreSection[];
   readonly blockers: readonly Blocker[];
   readonly criticalPathDays: number;
+  /**
+   * True where the critical path runs past `MAX_COMPLETION_DAYS`. A deal in this
+   * state is to be dropped or restructured, not carried: the pipeline reads this
+   * to flag it rather than silently deleting a record.
+   */
+  readonly breachesCompletionCap: boolean;
   readonly nextActions: readonly string[];
   readonly summary: string;
 }
@@ -142,6 +158,11 @@ function criticalPath(milestones: readonly Milestone[], byKey: Map<string, Miles
 export function buildCloseReport(milestones: readonly Milestone[]): CloseReport {
   const byKey = new Map(milestones.map((m) => [m.key, m]));
 
+  // Computed up front because the completion cap depends on it and the cap's
+  // blocker must be counted toward the completion probability below.
+  const criticalPathDays = criticalPath(milestones, byKey);
+  const breachesCompletionCap = criticalPathDays > MAX_COMPLETION_DAYS;
+
   const totalWeight = milestones.reduce((t, m) => t + m.weight, 0);
   const earned = milestones.reduce((t, m) => t + m.weight * STATUS_CREDIT[m.status], 0);
   const closeScore = totalWeight === 0 ? 0 : Math.round((earned / totalWeight) * 100);
@@ -178,6 +199,23 @@ export function buildCloseReport(milestones: readonly Milestone[]): CloseReport 
       });
     }
   }
+
+  // The completion cap. A deal that cannot close within the window is not a
+  // slow-but-fine deal; it is one to drop. Raised as the hardest blocker so it
+  // ranks first and counts against the completion probability like any red.
+  if (breachesCompletionCap) {
+    const anchor = byKey.get("completion") ?? milestones[milestones.length - 1];
+    if (anchor !== undefined) {
+      blockers.push({
+        severity: "red",
+        milestone: anchor,
+        message: `Projected completion is ${criticalPathDays} working days — past the ${MAX_COMPLETION_DAYS}-day cap this platform will carry.`,
+        action: `This cannot complete within ${MAX_COMPLETION_DAYS} days on the current critical path. Drop it or restructure to a faster route.`,
+        downstreamCount: 0,
+      });
+    }
+  }
+
   blockers.sort((a, b) => {
     if (a.severity !== b.severity) return a.severity === "red" ? -1 : 1;
     return b.downstreamCount - a.downstreamCount;
@@ -211,7 +249,8 @@ export function buildCloseReport(milestones: readonly Milestone[]): CloseReport 
     completionProbability,
     sections,
     blockers,
-    criticalPathDays: criticalPath(milestones, byKey),
+    criticalPathDays,
+    breachesCompletionCap,
     nextActions,
     summary:
       blockers.length === 0

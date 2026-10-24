@@ -2,6 +2,7 @@ import { add, applyBps, bps, fromMajor, money, pct, sub, ZERO, type Money } from
 import { appraise, maxViablePrice } from "@shared/domain/economics";
 import { getJurisdiction } from "@shared/domain/jurisdictions";
 import { diagnoseSeller, type SellerDiagnostics } from "@shared/domain/motivation";
+import { MAX_COMPLETION_DAYS } from "@shared/domain/completion";
 import type {
   DealInputs,
   FinanceTerms,
@@ -311,8 +312,22 @@ export function buildSellerRoutes(
     });
   }
 
-  const available = routes.filter((r) => !r.unavailable);
-  const unavailable = routes.filter((r) => r.unavailable);
+  // The completion cap. A route whose completion could run past the cap is not
+  // offered, however well it pays — the platform only carries sales that
+  // complete within the window. Dropped into `unavailable` with the reason, not
+  // deleted, so the seller sees why it is not on offer.
+  const capped: SellerRoute[] = routes.map((r) =>
+    r.completionDaysMax > MAX_COMPLETION_DAYS && !r.unavailable
+      ? {
+          ...r,
+          unavailable: true,
+          unavailableReason: `Completion could take up to ${r.completionDaysMax} days. We only carry sales that complete within ${MAX_COMPLETION_DAYS} days, so this route is not offered.`,
+        }
+      : r,
+  );
+
+  const available = capped.filter((r) => !r.unavailable);
+  const unavailable = capped.filter((r) => r.unavailable);
 
   // Rank by fit against what the seller said they wanted, not by price. A
   // seller who needs completion in three weeks is not served by the biggest
