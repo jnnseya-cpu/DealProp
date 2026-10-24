@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bps, fromMajor, pct } from "@shared/money";
+import { MIN_FUNDER_REQUIRED_RETURN_BPS, meetsReturnFloor } from "@shared/domain/matching";
 import { appraise } from "@shared/domain/economics";
 import type { DealInputs, FinanceTerms, PropertyFacts, SellerProfile } from "@shared/domain/types";
 import { borrowingCost, compareOffers, looksMispriced, netAdvance } from "@shared/domain/borrowing";
@@ -502,5 +503,26 @@ describe("comparing the offers received", () => {
   it("keeps each offer's confidence, because indicative is not binding", () => {
     const report = compareRecordedOffers(deal(), [offer({ confidence: "binding" })]);
     expect(report.offers[0]?.confidence).toBe("binding");
+  });
+});
+
+/**
+ * The capital section does not list mandates priced below 8%.
+ *
+ * A business floor on the funder's own required return, enforced where a
+ * mandate is saved. Held as one constant so the form and the validator cannot
+ * drift apart.
+ */
+describe("the funder return floor", () => {
+  it("is 8%", () => {
+    expect(MIN_FUNDER_REQUIRED_RETURN_BPS).toBe(pct(8));
+    expect(MIN_FUNDER_REQUIRED_RETURN_BPS).toBe(800);
+  });
+
+  it("accepts a mandate at or above the floor and refuses one below it", () => {
+    expect(meetsReturnFloor(pct(8))).toBe(true);
+    expect(meetsReturnFloor(pct(12))).toBe(true);
+    expect(meetsReturnFloor(bps(799))).toBe(false);
+    expect(meetsReturnFloor(pct(7.9))).toBe(false);
   });
 });

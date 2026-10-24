@@ -13,7 +13,7 @@ import {
   requiredText,
   textList,
 } from "@shared/formFields";
-import type { FunderKind, FundingBox } from "@shared/domain/matching";
+import { MIN_FUNDER_REQUIRED_RETURN_BPS, meetsReturnFloor, type FunderKind, type FundingBox } from "@shared/domain/matching";
 import type { JurisdictionCode, PropertyType } from "@shared/domain/types";
 import {
   deleteFundingBox,
@@ -94,6 +94,16 @@ export async function saveFundingBoxAction(
       throw new Error("Maximum term must be at or above the minimum term");
     }
 
+    const requiredReturnBps = requiredPercent(formData.get("requiredReturn"), "Required return");
+    if (!meetsReturnFloor(requiredReturnBps)) {
+      // The platform does not list capital below its return floor. The funder's
+      // own hurdle, not a promise we make — but below it the mandate is refused
+      // rather than stored where it would quietly match nothing worth matching.
+      throw new Error(
+        `Required return must be at least ${MIN_FUNDER_REQUIRED_RETURN_BPS / 100}%`,
+      );
+    }
+
     const id = idFrom(formData.get("id"));
     const existing = id !== undefined ? await getFundingBox(id) : undefined;
     const owner = viewerAccount(viewer);
@@ -149,7 +159,7 @@ export async function saveFundingBoxAction(
         "Minimum completed deals",
         { min: 0, max: 100 },
       ),
-      requiredReturnBps: requiredPercent(formData.get("requiredReturn"), "Required return"),
+      requiredReturnBps,
       personalGuaranteeRequired: checkbox(formData.get("personalGuaranteeRequired")),
       active: checkbox(formData.get("active")),
     };

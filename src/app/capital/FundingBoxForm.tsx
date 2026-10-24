@@ -1,6 +1,6 @@
 "use client";
 
-import { FUNDER_KIND_LABELS, type FundingBox } from "@shared/domain/matching";
+import { FUNDER_KIND_LABELS, MIN_FUNDER_REQUIRED_RETURN_BPS, type FundingBox } from "@shared/domain/matching";
 import { toMajor } from "@shared/money";
 import {
   CheckGroup,
@@ -126,12 +126,15 @@ export function FundingBoxForm({ box }: { box?: FundingBox }) {
             defaultValue={box === undefined ? 70 : box.maxLtvBps / 100}
           />
         </Field>
-        <Field label="Required return %" hint="Annual. Equity uses profit share.">
+        <Field
+          label="Required return %"
+          hint={`Annual. Equity uses profit share. Minimum ${MIN_FUNDER_REQUIRED_RETURN_BPS / 100}%.`}
+        >
           <TextInput
             name="requiredReturn"
             type="number"
             step="0.1"
-            min={0}
+            min={MIN_FUNDER_REQUIRED_RETURN_BPS / 100}
             max={100}
             required
             defaultValue={box === undefined ? 9.6 : box.requiredReturnBps / 100}

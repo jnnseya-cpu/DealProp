@@ -79,6 +79,22 @@ export type FunderKind =
   | "jv-equity-partner"
   | "development-lender";
 
+/**
+ * The minimum annual required return a funding mandate may carry.
+ *
+ * A business decision, not a regulatory one: the capital section does not list
+ * mandates priced below 8%. It is the funder's own hurdle rate — not a return
+ * the platform promises anyone — and it is enforced where a mandate is saved,
+ * so a mandate below the floor is refused rather than stored and silently
+ * unmatched. Held here as the single source, because a threshold written into
+ * a form and a validator separately eventually disagree.
+ */
+export const MIN_FUNDER_REQUIRED_RETURN_BPS: Bps = pct(8);
+
+export function meetsReturnFloor(requiredReturnBps: Bps): boolean {
+  return requiredReturnBps >= MIN_FUNDER_REQUIRED_RETURN_BPS;
+}
+
 export interface FundingBox {
   readonly id: string;
   /** As on `BuyBox`: whose mandate this is, for the plan limit to count. */

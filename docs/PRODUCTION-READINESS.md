@@ -17,7 +17,7 @@ than code.
 | | |
 |---|---|
 | Typecheck | clean |
-| Tests | 1,362 passing, both store engines, with and without an encryption key |
+| Tests | 1,364 passing, both store engines, with and without an encryption key |
 | Production build | clean |
 | Browser smoke test | 25 pages, no console errors, no policy violations, no failed requests |
 | Responsive | no horizontal overflow at 375, 393, 768 or 1280px |
@@ -217,7 +217,7 @@ wrapping only if push becomes the reason.
 
 ```bash
 npm run typecheck
-npm test                      # 1,298; 1,362 with TEST_DATABASE_URL set
+npm test                      # 1,300; 1,364 with TEST_DATABASE_URL set
 npm run build
 npm run preflight             # the gate; exits non-zero on blockers
 npm run smoke -- <baseUrl>    # loads every page in Chromium, needs a running server
