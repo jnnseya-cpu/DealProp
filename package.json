@@ -24,10 +24,14 @@
     "instruction": "tsx scripts/instruction.ts"
   },
   "dependencies": {
-    "next": "16.3.4",
+    "next": "16.4.3",
     "pg": "^8.23.0",
     "react": "19.0.0",
     "react-dom": "19.0.0"
+  },
+  "overrides": {
+    "sharp": "^0.35.5",
+    "source-map-js": "^1.2.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
