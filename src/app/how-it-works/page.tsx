@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { SiteHeader } from "@/app/components/chrome";
 import { SiteFooter } from "@/app/components/SiteFooter";
+import { CoverageMap } from "@/app/components/CoverageMap";
 import { siteUrl, SITE_NAME } from "@backend/site";
 import { canonical } from "@shared/domain/blog";
 
@@ -132,6 +133,8 @@ export default function HowItWorksPage() {
             </Link>
           </div>
         </section>
+
+        <CoverageMap />
       </div>
 
       <SiteFooter width="max-w-4xl" />
