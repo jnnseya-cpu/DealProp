@@ -249,7 +249,20 @@ curl -s http://127.0.0.1:3000/api/health
 
 ---
 
-## 10 · Put lodeprop.com in front of it (use your case from step 4)
+## 10 · Put lodeprop.com in front of it
+
+**Easiest — let the script tell you the exact commands for your server:**
+
+```bash
+bash /opt/lode/scripts/proxy-setup.sh lodeprop.com 3000
+```
+
+It detects nginx / Apache / OpenLiteSpeed and prints a copy-paste block for
+*your* box (it changes nothing itself). Run what it prints, then jump to the
+"whichever case" check at the end of this step.
+
+The three cases are written out below too, for reference — use the one matching
+step 4.
 
 ### 10a · nginx
 
