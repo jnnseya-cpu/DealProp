@@ -4,9 +4,15 @@ import { ALL_ROLES, ROLE_LABELS } from "@shared/domain/accounts";
 import { Field, MandateForm, Select, TextInput } from "@/app/components/mandate";
 import { createAccount } from "./actions";
 
-const ROLE_OPTIONS = ALL_ROLES.map((r) => ({ value: r, label: ROLE_LABELS[r] }));
+export function NewAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
+  // Administrator is offered only to someone who may actually grant it. The
+  // server enforces this regardless; hiding it keeps the form from presenting
+  // a choice it would then refuse.
+  const roleOptions = ALL_ROLES.filter((r) => r !== "admin" || canCreateAdmin).map((r) => ({
+    value: r,
+    label: ROLE_LABELS[r],
+  }));
 
-export function NewAccountForm() {
   return (
     <MandateForm
       action={createAccount}
@@ -23,7 +29,7 @@ export function NewAccountForm() {
       </div>
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label="Role">
-          <Select name="role" options={ROLE_OPTIONS} defaultValue="investor" />
+          <Select name="role" options={roleOptions} defaultValue="investor" />
         </Field>
         <Field label="Password" hint="At least 12 characters. Length beats symbols.">
           <TextInput name="password" type="password" required autoComplete="new-password" />

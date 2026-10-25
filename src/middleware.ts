@@ -63,8 +63,15 @@ export async function middleware(request: NextRequest) {
     return response;
   };
 
+  // Every staff surface under /operator/ is gated here too — the second layer
+  // §13 requires, so a new operator page is protected by existing rather than
+  // by someone remembering to call the guard. The sign-in page is `/operator`
+  // exactly (no trailing slash) and must stay public, or the redirect below
+  // would bounce it to itself; `startsWith("/operator/")` excludes it.
+  const operatorSurface = path.startsWith("/operator/");
+
   // Everything not behind the gate still gets a policy, and nothing else.
-  if (!GATED.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))) {
+  if (!operatorSurface && !GATED.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))) {
     return withCsp();
   }
 

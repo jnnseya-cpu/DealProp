@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireOneOf, requiredText, type BoxFormResult } from "@shared/formFields";
 import { hashPassword, passwordProblem } from "@backend/auth/password";
 import { ALL_ROLES, type Account, type Role } from "@shared/domain/accounts";
-import { findAccountByEmail, getAccount, saveAccount } from "@backend/store/repository";
+import { findAccountByEmail, getAccount, listAccounts, saveAccount } from "@backend/store/repository";
 import { currentViewer, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
 import { emit } from "@backend/notifications/engine";
@@ -47,12 +47,32 @@ export async function createAccount(
     const problem = passwordProblem(password);
     if (problem !== undefined) return { ok: false, message: problem.reason };
 
+    const role = requireOneOf<Role>(formData.get("role"), ROLES, "role");
+
+    // Creating an administrator is the one role that grants account management
+    // itself, so it is the one creation a shared credential must not make once
+    // there is a real administrator to be accountable for it. A named admin may
+    // create another admin; the shared operator password may mint the *first*
+    // one to bootstrap the platform, and only while none exists.
+    if (role === "admin" && !(viewer.kind === "account" && viewer.account.role === "admin")) {
+      const activeAdmin = (await listAccounts()).some(
+        (a) => a.role === "admin" && a.disabledAt === undefined,
+      );
+      if (activeAdmin) {
+        return {
+          ok: false,
+          message:
+            "An administrator already exists. Sign in as an administrator to create another — the shared password cannot, because there is nobody behind it to be accountable.",
+        };
+      }
+    }
+
     const { hash, salt } = await hashPassword(password);
     const account: Account = {
       id: `acc-${randomUUID()}`,
       email,
       name: requiredText(formData.get("name"), "Name"),
-      role: requireOneOf<Role>(formData.get("role"), ROLES, "role"),
+      role,
       passwordHash: hash,
       passwordSalt: salt,
       createdAt: new Date().toISOString(),

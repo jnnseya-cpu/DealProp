@@ -21,6 +21,13 @@ export default async function AccountsPage() {
   const viewer = await requireOperator("/operator/accounts");
   const accounts = (await listAccounts()).map(publicAccount);
 
+  // A named admin may create another admin; the shared operator password may
+  // only bootstrap the first, and only while no active admin exists. Mirrors
+  // the server gate in createAccount so the form offers what it will accept.
+  const activeAdmins = accounts.filter((a) => a.role === "admin" && !a.disabled).length;
+  const canCreateAdmin =
+    viewer.kind === "account" ? viewer.account.role === "admin" : activeAdmins === 0;
+
   return (
     <main className="min-h-screen pb-24">
       <SiteHeader
@@ -46,7 +53,7 @@ export default async function AccountsPage() {
         )}
 
         <div className="mt-10">
-          <NewAccountForm />
+          <NewAccountForm canCreateAdmin={canCreateAdmin} />
         </div>
 
         {accounts.length > 0 && (
