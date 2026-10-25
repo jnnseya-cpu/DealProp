@@ -56,9 +56,12 @@ describe("trade partner referrals", () => {
     expect(report.worksImplied).toBe(true);
   });
 
-  it("sends a small job to individual trades instead", () => {
+  it("folds a small job into the AxionOS referral rather than a duplicate card", () => {
     const report = referTradePartners(property({ refurbishmentEstimate: fromMajor(6_000) }));
-    expect(report.referrals.map((r) => r.partner.key)).toEqual(["axionos", "evandeli"]);
+    expect(report.referrals.map((r) => r.partner.key)).toEqual(["axionos"]);
+    expect(report.referrals[0]?.reasons.join(" ")).toContain(
+      "small enough to be handled by individual trades",
+    );
   });
 
   it("treats the threshold as inclusive of the main contractor", () => {
@@ -67,15 +70,18 @@ describe("trade partner referrals", () => {
     const below = referTradePartners(
       property({ refurbishmentEstimate: money(MAIN_CONTRACTOR_THRESHOLD - 1) }),
     );
-    expect(trades(below)[0]).toBe("evandeli");
+    // Below the threshold there is no separate trade: the small job goes
+    // through AxionOS, which is the only referral.
+    expect(trades(below)).toHaveLength(0);
+    expect(below.referrals.map((r) => r.partner.key)).toEqual(["axionos"]);
   });
 
-  it("refers a specialist alongside the main contractor for a named defect", () => {
+  it("folds a specialist report into AxionOS alongside the main contractor", () => {
     const issues: PropertyIssue[] = ["damp", "structural"];
     const report = referTradePartners(property({ knownIssues: issues }));
-    expect(report.referrals.map((r) => r.partner.key)).toEqual(["axionos", "jnseya", "evandeli"]);
+    expect(report.referrals.map((r) => r.partner.key)).toEqual(["axionos", "jnseya"]);
     // Two defects are joined into one grammatical sentence, not a comma list.
-    expect(report.referrals.find((r) => r.partner.key === "evandeli")?.reasons.join(" ")).toContain(
+    expect(report.referrals.find((r) => r.partner.key === "axionos")?.reasons.join(" ")).toContain(
       "Damp and structural movement need specialist reports",
     );
   });
@@ -95,12 +101,12 @@ describe("trade partner referrals", () => {
       seller({ situation: "needs-major-works" }),
     );
     expect(report.worksImplied).toBe(true);
-    expect(report.referrals.map((r) => r.partner.key)).toEqual(["axionos", "evandeli"]);
+    expect(report.referrals.map((r) => r.partner.key)).toEqual(["axionos"]);
   });
 
   it("uses the singular for one defect", () => {
     const report = referTradePartners(property({ knownIssues: ["damp"] }));
-    expect(report.referrals.find((r) => r.partner.key === "evandeli")?.reasons.join(" ")).toContain(
+    expect(report.referrals.find((r) => r.partner.key === "axionos")?.reasons.join(" ")).toContain(
       "Damp needs a specialist report",
     );
   });

@@ -83,17 +83,6 @@ export const TRADE_PARTNERS: readonly TradePartner[] = [
     relationship: "connected-party",
     feeArrangement: "none",
   },
-  {
-    key: "evandeli",
-    name: "Evandeli",
-    url: "https://www.evandeli.com",
-    remit: "Tradespeople for individual jobs and specialist work",
-    // Declared connected by the operator. Where an interest is uncertain the
-    // safe error is to declare one: understating it misleads a consumer about
-    // whose advice they are taking, and overstating it costs nothing.
-    relationship: "connected-party",
-    feeArrangement: "none",
-  },
 ];
 
 function partner(key: string): TradePartner {
@@ -184,14 +173,31 @@ export function referTradePartners(
   const referrals: TradeReferral[] = [];
 
   // AxionOS is recorded against any property that implies works — it is the
-  // platform the works run through, whatever their size. The specific trades
-  // below are who does the job; AxionOS is how it is hired and paid, with the
-  // money held in escrow until the work is approved.
-  if (worksImplied) {
-    const reasons = [
-      "The figures assume work to the property. We arrange all works through AxionOS, where every trade is verified and your payment is held in escrow, released only once you approve the work.",
-    ];
-    if (needsWorkSituation) reasons.push("You told us the property needs substantial work.");
+  // platform the works run through, whatever their size, and it is where the
+  // money is held in escrow until the work is approved. Small jobs and the need
+  // for a specialist report are folded into this one referral rather than a
+  // second, duplicate one: the works all go through the same platform, so a
+  // separate card for "individual trades" said the same thing twice.
+  if (worksImplied || specialists.length > 0) {
+    const reasons: string[] = [];
+    if (worksImplied) {
+      reasons.push(
+        "The figures assume work to the property. We arrange all works through AxionOS, where every trade is verified and your payment is held in escrow, released only once you approve the work.",
+      );
+      if (needsWorkSituation) reasons.push("You told us the property needs substantial work.");
+      if (budget > 0 && budget < MAIN_CONTRACTOR_THRESHOLD) {
+        reasons.push("The works assumed here are small enough to be handled by individual trades.");
+      }
+    } else {
+      reasons.push(
+        "We arrange trades through AxionOS, where every trade is verified and your payment is held in escrow, released only once you approve the work.",
+      );
+    }
+    if (specialists.length > 0) {
+      const subject = sentenceCase(listWords(specialists));
+      const verb = specialists.length === 1 ? "needs a specialist report" : "need specialist reports";
+      reasons.push(`${subject} ${verb} before any estimate is reliable.`);
+    }
     referrals.push(referral(partner("axionos"), reasons));
   }
 
@@ -203,20 +209,6 @@ export function referTradePartners(
       reasons.push("You told us the property needs substantial work.");
     }
     referrals.push(referral(partner("jnseya"), reasons));
-  }
-
-  const smallJob = worksImplied && budget < MAIN_CONTRACTOR_THRESHOLD;
-  if (smallJob || specialists.length > 0) {
-    const reasons: string[] = [];
-    if (smallJob) {
-      reasons.push("The works assumed here are small enough to be handled by individual trades.");
-    }
-    if (specialists.length > 0) {
-      const subject = sentenceCase(listWords(specialists));
-      const verb = specialists.length === 1 ? "needs a specialist report" : "need specialist reports";
-      reasons.push(`${subject} ${verb} before any estimate is reliable.`);
-    }
-    referrals.push(referral(partner("evandeli"), reasons));
   }
 
   return { referrals, worksImplied, worksBudget: budget };
