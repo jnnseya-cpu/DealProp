@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { OperatorNav } from "@/app/operator/OperatorNav";
+import { AccountNav } from "@/app/account/AccountNav";
 import { Panel, SiteHeader, Stat } from "@/app/components/chrome";
 import { Meter } from "@/app/components/charts";
 import { currentViewer } from "@/app/operator/guard";
+import { can } from "@shared/domain/accounts";
 import {
   getAccountImage,
   getSubscription,
@@ -63,6 +65,9 @@ export default async function ProfilePage() {
   }
 
   const account = viewer.account;
+  // Admins see the operator nav; everyone else sees the account nav. This is
+  // what makes the admin area and a normal account look like different products.
+  const isStaff = can(account, "view-seller-data").allowed;
   const now = new Date();
   const [avatar, cover, subscription, lots, entries, reveals] = await Promise.all([
     getAccountImage(account.id, "avatar"),
@@ -90,7 +95,15 @@ export default async function ProfilePage() {
 
   return (
     <main className="min-h-screen pb-24">
-      <SiteHeader trailing={<OperatorNav current="/account/profile" />} />
+      <SiteHeader
+        trailing={
+          isStaff ? (
+            <OperatorNav current="/account/profile" />
+          ) : (
+            <AccountNav current="/account/profile" />
+          )
+        }
+      />
 
       <div className="mx-auto max-w-3xl px-6 py-10">
         <span className="eyebrow">Profile</span>

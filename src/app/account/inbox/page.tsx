@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { OperatorNav } from "@/app/operator/OperatorNav";
+import { AccountNav } from "@/app/account/AccountNav";
 import { SiteHeader } from "@/app/components/chrome";
 import { currentViewer } from "@/app/operator/guard";
+import { can } from "@shared/domain/accounts";
 import { listNotificationsForAccount } from "@backend/store/repository";
 import type { Severity } from "@shared/domain/notifications";
 
@@ -32,13 +34,22 @@ export default async function InboxPage() {
     redirect("/account/profile");
   }
 
+  const isStaff = can(viewer.account, "view-seller-data").allowed;
   const all = await listNotificationsForAccount(viewer.account.id);
   // The inbox is the in-app channel; email/sms rows are delivery logs, not inbox items.
   const items = all.filter((n) => n.channel === "inapp");
 
   return (
     <main className="min-h-screen pb-24">
-      <SiteHeader trailing={<OperatorNav current="/account/inbox" />} />
+      <SiteHeader
+        trailing={
+          isStaff ? (
+            <OperatorNav current="/account/inbox" />
+          ) : (
+            <AccountNav current="/account/inbox" />
+          )
+        }
+      />
 
       <div className="mx-auto max-w-2xl px-6 py-10">
         <span className="eyebrow">Inbox</span>
