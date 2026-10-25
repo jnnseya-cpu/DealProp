@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Badge, Panel, SiteHeader, scoreTone } from "@/app/components/chrome";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { offersFor } from "@backend/billing/reveal";
-import { pageDeals } from "@backend/store/repository";
+import { listDealImages, pageDeals } from "@backend/store/repository";
 import { gbp, titleCase } from "@shared/format";
 import { REVEAL_GUARANTEE } from "@shared/domain/reveal";
 
@@ -44,6 +44,17 @@ export default async function OpportunitiesPage() {
   // nothing at four deals and 1.6 seconds of blocking CPU at ten thousand.
   const page = await pageDeals(BROWSE_SIZE);
   const offers = account === undefined ? [] : await offersFor(page.rows, account);
+
+  // Whether each shown opportunity has a photo, so the card can lead with one.
+  // A set of ids with at least one photo; the bytes are fetched by the browser
+  // from the serving route, which re-checks permission.
+  const withPhoto = new Set<string>(
+    (
+      await Promise.all(
+        offers.map(async (o) => ((await listDealImages(o.record.id)).length > 0 ? o.record.id : "")),
+      )
+    ).filter((id) => id !== ""),
+  );
 
   const openable = offers.filter((o) => o.quote.chargeable || o.opened !== undefined);
   const unconfirmed = offers.filter((o) => !o.quote.chargeable && o.opened === undefined);
@@ -100,8 +111,17 @@ export default async function OpportunitiesPage() {
               <Link
                 key={record.id}
                 href={`/opportunities/${encodeURIComponent(record.id)}`}
-                className="block rounded-r-lg border-y border-r border-l-2 hairline bg-surface-1 px-5 py-4 transition-colors hover:border-ink-600"
+                className="block overflow-hidden rounded-r-lg border-y border-r border-l-2 hairline bg-surface-1 transition-colors hover:border-ink-600"
               >
+                {withPhoto.has(record.id) && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/api/deal-image/${encodeURIComponent(record.id)}/0`}
+                    alt=""
+                    className="aspect-[3/1] w-full border-b hairline object-cover"
+                  />
+                )}
+                <div className="px-5 py-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-3">
                   <h2 className="font-display text-[17px] leading-tight text-ink-100">
                     {card.bedrooms > 0 ? `${card.bedrooms}-bed ` : ""}
@@ -131,6 +151,7 @@ export default async function OpportunitiesPage() {
                   ) : (
                     <span className="text-[13px] text-ink-500">Not available to open</span>
                   )}
+                </div>
                 </div>
               </Link>
             ))}

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Badge, Panel, SiteHeader, Stat, scoreTone } from "@/app/components/chrome";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { quoteRevealForDeal } from "@backend/billing/reveal";
+import { listDealImages } from "@backend/store/repository";
 import { gbp, titleCase } from "@shared/format";
 import { REVEAL_GUARANTEE, SELLER_RESPONSE_DAYS } from "@shared/domain/reveal";
 import { OpenForm, RefundForm } from "./Forms";
@@ -32,6 +33,7 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
   if (offer === undefined) notFound();
 
   const { card, quote, opened, passport, score, material } = offer;
+  const photos = await listDealImages(id);
 
   return (
     <main className="min-h-screen pb-24">
@@ -64,6 +66,22 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
         >
           {card.disclosure}
         </p>
+
+        {photos.length > 0 && (
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {photos.map((p) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={p.position}
+                src={`/api/deal-image/${encodeURIComponent(id)}/${p.position}`}
+                alt={`Property photo ${p.position + 1}`}
+                className={`w-full rounded-lg border hairline object-cover ${
+                  photos.length === 1 ? "aspect-[2/1] sm:col-span-2" : "aspect-[3/2]"
+                }`}
+              />
+            ))}
+          </div>
+        )}
 
         <div className="mt-8 grid grid-cols-2 gap-6 border-y hairline py-6 sm:grid-cols-4">
           <Stat

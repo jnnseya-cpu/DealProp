@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireOperator, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
-import { getDeal, listFundingBoxes, listBuyBoxes } from "@backend/store/repository";
+import { getDeal, listDealImages, listFundingBoxes, listBuyBoxes } from "@backend/store/repository";
+import { PropertyPhotos } from "./PropertyPhotos";
 import { positionOf } from "@backend/workflow";
 import { registryFor } from "@backend/registry";
 import { runDealDirector } from "@shared/domain/director";
@@ -50,11 +51,12 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
   const { scored, stack, exits, recycle, strategies, diagnostics } = briefing;
   const a = scored.appraisal;
 
-  const [fundingBoxes, buyBoxes, position, registry] = await Promise.all([
+  const [fundingBoxes, buyBoxes, position, registry, photos] = await Promise.all([
     listFundingBoxes(),
     listBuyBoxes(),
     positionOf(record),
     registryFor(record),
+    listDealImages(id),
   ]);
   const funders = rankMatches(
     fundingBoxes.map((b) => matchFundingBox(b, scored, record.borrowerCompletedDeals)),
@@ -626,6 +628,15 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
           heading="Who does the works"
           intro="The refurbishment line above is an assumption until somebody prices it. These are the contractors we would put on it, and the estimate is what the appraisal should be re-run against."
         />
+
+        {/* --- Property photos ----------------------------------------------- */}
+        <Panel
+          eyebrow="Property photos"
+          title="What a buyer sees"
+          className="mt-5"
+        >
+          <PropertyPhotos dealId={record.id} positions={photos.map((p) => p.position)} />
+        </Panel>
 
         {/* --- Platform economics -------------------------------------------- */}
         <Panel eyebrow="Platform revenue" title="If this completes" className="mt-5">
