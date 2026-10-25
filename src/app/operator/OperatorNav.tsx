@@ -28,6 +28,7 @@ interface Destination {
  * than alphabetically — the pipeline first, the registers last.
  */
 const DESTINATIONS: readonly Destination[] = [
+  { href: "/operator/dashboard", label: "Overview" },
   { href: "/deals", label: "Deals" },
   { href: "/capital", label: "Capital" },
   { href: "/operator/billing", label: "Billing" },
