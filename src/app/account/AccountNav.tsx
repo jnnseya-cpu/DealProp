@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { SignOutButton } from "@/app/operator/SignOutButton";
+import { NavBar, type NavItem } from "@/app/components/NavBar";
 
 /**
  * The navigation a normal account sees.
@@ -12,12 +11,7 @@ import { SignOutButton } from "@/app/operator/SignOutButton";
  * instead, which is what makes the two areas look and feel different.
  */
 
-interface Destination {
-  readonly href: string;
-  readonly label: string;
-}
-
-const DESTINATIONS: readonly Destination[] = [
+const DESTINATIONS: readonly NavItem[] = [
   { href: "/opportunities", label: "Opportunities" },
   { href: "/account/passport", label: "Readiness" },
   { href: "/account/billing", label: "Billing" },
@@ -26,25 +20,5 @@ const DESTINATIONS: readonly Destination[] = [
 ];
 
 export function AccountNav({ current }: { current?: string }) {
-  return (
-    <nav
-      aria-label="Account"
-      className="flex flex-wrap items-center justify-end gap-x-5 gap-y-2 text-sm text-ink-400"
-    >
-      {DESTINATIONS.map((destination) => {
-        const here = destination.href === current;
-        return (
-          <Link
-            key={destination.href}
-            href={destination.href}
-            aria-current={here ? "page" : undefined}
-            className={here ? "text-ink-100" : "transition-colors hover:text-ink-100"}
-          >
-            {destination.label}
-          </Link>
-        );
-      })}
-      <SignOutButton />
-    </nav>
-  );
+  return <NavBar items={DESTINATIONS} current={current} label="Account" />;
 }

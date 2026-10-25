@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { SignOutButton } from "@/app/operator/SignOutButton";
+import { NavBar, type NavItem } from "@/app/components/NavBar";
 
 /**
  * The operator navigation, in one place.
@@ -18,16 +17,11 @@ import { SignOutButton } from "@/app/operator/SignOutButton";
  * user can answer.
  */
 
-interface Destination {
-  readonly href: string;
-  readonly label: string;
-}
-
 /**
  * Everything an operator can reach. Ordered by how often it is wanted rather
  * than alphabetically — the pipeline first, the registers last.
  */
-const DESTINATIONS: readonly Destination[] = [
+const DESTINATIONS: readonly NavItem[] = [
   { href: "/operator/dashboard", label: "Overview" },
   { href: "/deals", label: "Deals" },
   { href: "/capital", label: "Capital" },
@@ -46,25 +40,5 @@ const DESTINATIONS: readonly Destination[] = [
 ];
 
 export function OperatorNav({ current }: { current?: string }) {
-  return (
-    <nav
-      aria-label="Operator"
-      className="flex flex-wrap items-center justify-end gap-x-5 gap-y-2 text-sm text-ink-400"
-    >
-      {DESTINATIONS.map((destination) => {
-        const here = destination.href === current;
-        return (
-          <Link
-            key={destination.href}
-            href={destination.href}
-            aria-current={here ? "page" : undefined}
-            className={here ? "text-ink-100" : "transition-colors hover:text-ink-100"}
-          >
-            {destination.label}
-          </Link>
-        );
-      })}
-      <SignOutButton />
-    </nav>
-  );
+  return <NavBar items={DESTINATIONS} current={current} label="Operator" />;
 }
