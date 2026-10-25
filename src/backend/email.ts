@@ -1,3 +1,5 @@
+import nodemailer from "nodemailer";
+
 /**
  * Email transport.
  *
@@ -5,6 +7,10 @@
  * and no credentials exist in it — the transport is resolved from environment
  * variables at call time, and the default is a logging transport that does not
  * send anything.
+ *
+ * Three shapes are supported, tried in this order: a normal SMTP server
+ * (SMTP_HOST/SMTP_USER/SMTP_PASSWORD — what most people already have), an HTTP
+ * JSON provider (EMAIL_API_URL/EMAIL_API_KEY), and the console sandbox.
  *
  * That default is deliberate, not a placeholder: an unconfigured deployment
  * must fail closed. Silently doing nothing is the wrong failure for a payment,
@@ -128,7 +134,58 @@ export function httpTransport(config: {
  * can pass exactly what is relevant, and so the set of variables the transport
  * depends on is visible in one place.
  */
+/**
+ * SMTP transport — a normal mail server, the kind most people already have.
+ *
+ *   SMTP_HOST, SMTP_PORT (default 587), SMTP_USER, SMTP_PASSWORD
+ *   SMTP_SECURE          "true" for implicit TLS on 465; otherwise STARTTLS
+ *   EMAIL_FROM           "Name <address>"
+ */
+export function smtpTransport(config: {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+  secure: boolean;
+  from: string;
+}): EmailTransport {
+  const transporter = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: { user: config.user, pass: config.pass },
+  });
+  return {
+    name: "smtp",
+    async send(message) {
+      try {
+        const info = await transporter.sendMail({
+          from: config.from,
+          to: message.to,
+          subject: message.subject,
+          html: message.html,
+          text: message.text,
+          headers: {
+            "List-Unsubscribe": `<${message.unsubscribeUrl}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
+        });
+        return { ok: true, providerId: info.messageId };
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "unknown error";
+        // SMTP failures (auth, connection, greylisting) are generally transient.
+        return { ok: false, error: reason, retryable: true };
+      }
+    },
+  };
+}
+
 export interface EmailEnv {
+  readonly SMTP_HOST?: string | undefined;
+  readonly SMTP_PORT?: string | undefined;
+  readonly SMTP_USER?: string | undefined;
+  readonly SMTP_PASSWORD?: string | undefined;
+  readonly SMTP_SECURE?: string | undefined;
   readonly EMAIL_API_URL?: string | undefined;
   readonly EMAIL_API_KEY?: string | undefined;
   readonly EMAIL_FROM?: string | undefined;
@@ -138,16 +195,29 @@ export interface EmailEnv {
 
 /** Resolve the transport from the environment. Never throws. */
 export function resolveTransport(env: EmailEnv = process.env): EmailTransport {
-  const url = env.EMAIL_API_URL;
-  const apiKey = env.EMAIL_API_KEY;
   const from = env.EMAIL_FROM;
-  if (
-    url !== undefined && url !== "" &&
-    apiKey !== undefined && apiKey !== "" &&
-    from !== undefined && from !== ""
-  ) {
-    return httpTransport({ url, apiKey, from });
+  const has = (v: string | undefined): v is string => v !== undefined && v !== "";
+
+  // SMTP first — a normal mail server is what most deployments already have.
+  if (has(env.SMTP_HOST) && has(env.SMTP_USER) && has(env.SMTP_PASSWORD) && has(from)) {
+    const port = Number(env.SMTP_PORT) || 587;
+    const secure = (env.SMTP_SECURE ?? "").toLowerCase() === "true" || port === 465;
+    return smtpTransport({
+      host: env.SMTP_HOST,
+      port,
+      user: env.SMTP_USER,
+      pass: env.SMTP_PASSWORD,
+      secure,
+      from,
+    });
   }
+
+  // Then an HTTP JSON provider.
+  if (has(env.EMAIL_API_URL) && has(env.EMAIL_API_KEY) && has(from)) {
+    return httpTransport({ url: env.EMAIL_API_URL, apiKey: env.EMAIL_API_KEY, from });
+  }
+
+  // Otherwise the sandbox, which logs and sends nothing.
   return consoleTransport;
 }
 

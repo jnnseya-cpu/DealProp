@@ -71,7 +71,12 @@ export const REQUIRED_KEYS: readonly KeySpec[] = [
   { key: "BLOG_MODEL_API_KEY", label: "AI API key", group: "AI", secret: true, blocksLaunch: false, managedBy: "env-runtime", purpose: "Without it, the AI features fall back to deterministic output." },
 
   // --- Email & outreach ---------------------------------------------------
-  { key: "EMAIL_API_URL", label: "Email send endpoint", group: "Email & outreach", secret: false, blocksLaunch: false, managedBy: "env-runtime", purpose: "The transport the newsletter and outreach send through." },
+  { key: "SMTP_HOST", label: "SMTP host", group: "Email & outreach", secret: false, blocksLaunch: false, managedBy: "env-runtime", purpose: "Your mail server. Set the SMTP_* group to send through normal email rather than an HTTP provider." },
+  { key: "SMTP_PORT", label: "SMTP port", group: "Email & outreach", secret: false, blocksLaunch: false, managedBy: "env-runtime", purpose: "587 for STARTTLS (default), 465 for implicit TLS." },
+  { key: "SMTP_USER", label: "SMTP username", group: "Email & outreach", secret: false, blocksLaunch: false, managedBy: "env-runtime", purpose: "The mailbox or API user to authenticate as." },
+  { key: "SMTP_PASSWORD", label: "SMTP password", group: "Email & outreach", secret: true, blocksLaunch: false, managedBy: "env-runtime", purpose: "The SMTP password. Until a transport is set, email is written to the log, not sent." },
+  { key: "SMTP_SECURE", label: "SMTP implicit TLS", group: "Email & outreach", secret: false, blocksLaunch: false, managedBy: "env-runtime", purpose: "\"true\" on port 465; otherwise STARTTLS is used." },
+  { key: "EMAIL_API_URL", label: "Email send endpoint (HTTP alt.)", group: "Email & outreach", secret: false, blocksLaunch: false, managedBy: "env-runtime", purpose: "Alternative to SMTP: an HTTP provider the newsletter and outreach send through." },
   { key: "EMAIL_API_KEY", label: "Email API key", group: "Email & outreach", secret: true, blocksLaunch: false, managedBy: "env-runtime", purpose: "Until set, approved outreach writes to the log, not the recipient." },
   { key: "EMAIL_FROM", label: "From address", group: "Email & outreach", secret: false, blocksLaunch: false, managedBy: "env-runtime", purpose: "The sender address on outbound email." },
   { key: "NEWSLETTER_SENDER_NAME", label: "Sender name", group: "Email & outreach", secret: false, blocksLaunch: false, managedBy: "env-runtime", purpose: "The sender identity required in marketing email." },
