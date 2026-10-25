@@ -1,9 +1,32 @@
 import { redirect } from "next/navigation";
 import { OperatorNav } from "@/app/operator/OperatorNav";
-import { Panel, SiteHeader } from "@/app/components/chrome";
+import { Panel, SiteHeader, Stat } from "@/app/components/chrome";
+import { Meter } from "@/app/components/charts";
 import { currentViewer } from "@/app/operator/guard";
-import { getAccountImage } from "@backend/store/repository";
+import {
+  getAccountImage,
+  getSubscription,
+  listCreditLots,
+  listLedgerEntries,
+  listRevealsForAccount,
+} from "@backend/store/repository";
+import { entitlementsFor } from "@shared/domain/entitlements";
+import { standing } from "@shared/domain/ledger";
+import { plan } from "@shared/domain/pricing";
+import { buyerPassport, type PassportGrade } from "@shared/domain/passport";
+import { fromMajor } from "@shared/money";
+import { gbpPrecise } from "@shared/format";
 import { ImageUploader } from "./ProfileImageForms";
+
+/** The reference price a passport is graded against with no property in mind. */
+const REFERENCE_PRICE = fromMajor(200_000);
+
+const GRADE_TONE: Record<PassportGrade, string> = {
+  A: "text-emerald-300",
+  B: "text-amber-300",
+  C: "text-orange-300",
+  D: "text-red-300",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -40,10 +63,25 @@ export default async function ProfilePage() {
   }
 
   const account = viewer.account;
-  const [avatar, cover] = await Promise.all([
+  const now = new Date();
+  const [avatar, cover, subscription, lots, entries, reveals] = await Promise.all([
     getAccountImage(account.id, "avatar"),
     getAccountImage(account.id, "cover"),
+    getSubscription(account.id),
+    listCreditLots(account.id),
+    listLedgerEntries(account.id),
+    listRevealsForAccount(account.id),
   ]);
+  const entitlements = entitlementsFor(subscription, now);
+  const position = standing(lots, entries, now);
+  // Graded against a reference price, because a passport with no property in
+  // mind is graded against nothing; each opportunity re-grades on its own price.
+  const passport =
+    account.passportEvidence !== undefined
+      ? buyerPassport(account.passportEvidence, REFERENCE_PRICE, now)
+      : undefined;
+  const checksHeld = passport?.checks.filter((c) => c.held).length ?? 0;
+  const checksTotal = passport?.checks.length ?? 0;
   // Cache-bust so a just-replaced image shows immediately rather than the
   // browser's held copy.
   const src = (kind: "avatar" | "cover", at?: string) =>
@@ -113,6 +151,65 @@ export default async function ProfilePage() {
           <Panel eyebrow="Image" title="Cover">
             <ImageUploader kind="cover" label="Cover image" hasImage={cover !== undefined} />
           </Panel>
+        </div>
+
+        {/* Your position — real figures for this account, from the engines. */}
+        <div className="mt-10">
+          <span className="eyebrow">Your position</span>
+          <div className="mt-4 grid gap-5 lg:grid-cols-3">
+            <Panel eyebrow="Account" title="Plan">
+              <div className="space-y-4">
+                <Stat label="Plan" value={plan(entitlements.planId)?.name ?? entitlements.planId} size="sm" />
+                <Stat label="Status" value={entitlements.status} size="sm" />
+                <Stat
+                  label="Balance available"
+                  value={gbpPrecise(position.available)}
+                  size="sm"
+                  tone={position.maySpend ? undefined : "text-red-300"}
+                />
+              </div>
+            </Panel>
+
+            {passport !== undefined ? (
+              <Panel eyebrow="Readiness" title="Buyer passport">
+                <Stat label="Grade" value={passport.grade} size="lg" tone={GRADE_TONE[passport.grade]} />
+                <div className="mt-4">
+                  <div className="flex items-baseline justify-between text-[12px] text-ink-400">
+                    <span>Checks evidenced</span>
+                    <span className="tnum text-ink-100">
+                      {checksHeld} / {checksTotal}
+                    </span>
+                  </div>
+                  <div className="mt-1.5">
+                    <Meter value={checksHeld} max={checksTotal} />
+                  </div>
+                </div>
+                <p className="mt-3 text-[12px] leading-snug text-ink-400">
+                  {passport.mayApproachSeller
+                    ? "Ready to be introduced to a seller."
+                    : "Not yet ready for a seller introduction."}
+                </p>
+              </Panel>
+            ) : (
+              <Panel eyebrow="Readiness" title="Buyer passport">
+                <p className="text-[13px] leading-relaxed text-ink-300">
+                  No readiness evidence recorded yet — identity, funds and source of funds.
+                </p>
+                <p className="mt-3 text-[13px]">
+                  <a href="/account/passport" className="text-lode-200 underline underline-offset-2">
+                    Complete your passport
+                  </a>
+                </p>
+              </Panel>
+            )}
+
+            <Panel eyebrow="Activity" title="Reveals">
+              <Stat label="Opportunities revealed" value={String(reveals.length)} />
+              <p className="mt-3 text-[12px] leading-snug text-ink-500">
+                Paid reveals on your account. Each is a sale confirmed before anything was charged.
+              </p>
+            </Panel>
+          </div>
         </div>
       </div>
     </main>
