@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { saveAccount } from "@backend/store/repository";
 import { currentViewer } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
+import { emit } from "@backend/notifications/engine";
 import { fromMajor } from "@shared/money";
 import type { FundingKind, PassportEvidence, ProofOfFunds } from "@shared/domain/passport";
 
@@ -61,7 +62,12 @@ async function update(
   }
 
   const evidence = change(viewer.account.passportEvidence ?? {});
-  await saveAccount({ ...viewer.account, passportEvidence: evidence });
+  const updated = { ...viewer.account, passportEvidence: evidence };
+  await saveAccount(updated);
+  // Best-effort, once per account: their readiness has been assessed.
+  await emit("buyer.passport.graded", { account: updated, dedupe: `passport:${updated.id}` }).catch(
+    () => undefined,
+  );
   await audit("passport-evidence-recorded", {
     account: viewer.account,
     subject: viewer.account.id,

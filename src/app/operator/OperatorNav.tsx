@@ -38,6 +38,7 @@ const DESTINATIONS: readonly Destination[] = [
   { href: "/operator/import", label: "Import" },
   { href: "/operator/outreach", label: "Outreach" },
   { href: "/operator/accounts", label: "Accounts" },
+  { href: "/operator/notifications", label: "Comms" },
   { href: "/operator/blog", label: "Blog" },
   { href: "/operator/audit", label: "Audit" },
   { href: "/operator/conduct", label: "Conduct" },

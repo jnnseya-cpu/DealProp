@@ -23,6 +23,7 @@ import {
 } from "@backend/billing/stripe";
 import { mayStartTrial } from "@shared/domain/accounts";
 import { callerFrom, consume } from "@backend/rateLimit";
+import { emit } from "@backend/notifications/engine";
 import { messageOf, report } from "@backend/report";
 import { openOpportunity, quoteRevealForDeal } from "@backend/billing/reveal";
 import {
@@ -386,6 +387,14 @@ async function handlePayment(event: BillingEvent, at: string): Promise<NextRespo
     reason: `Top-up ${pack.id}`,
   });
 
+  if (!result.duplicate) {
+    // Best-effort: a notification failure must never fail the money path. Keyed
+    // on the payment reference so a redelivered confirmation notifies once.
+    const account = await getAccount(event.accountId);
+    if (account !== undefined) {
+      await emit("payment.successful", { account, dedupe: paymentReference }).catch(() => undefined);
+    }
+  }
   return ok(result.duplicate ? "Already applied." : "Balance added.");
 }
 
