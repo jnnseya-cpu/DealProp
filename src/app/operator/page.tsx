@@ -21,8 +21,11 @@ export default async function OperatorPage({
   const mode = rawMode === "operator" ? "operator" : "account";
   const configured = (process.env.OPERATOR_SECRET ?? "") !== "";
   // Only same-origin paths survive; an absolute URL would make this an open
-  // redirect once signed in.
-  const target = next !== undefined && next.startsWith("/") && !next.startsWith("//") ? next : "/deals";
+  // redirect once signed in. Operators land on the cockpit (which carries the
+  // full operator nav); a normal account lands on the pipeline.
+  const fallback = mode === "operator" ? "/operator/dashboard" : "/deals";
+  const target =
+    next !== undefined && next.startsWith("/") && !next.startsWith("//") ? next : fallback;
 
   return (
     <main className="min-h-screen">

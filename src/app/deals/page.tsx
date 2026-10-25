@@ -51,6 +51,7 @@ export default async function DealsPage() {
       <SiteHeader
         trailing={
           <nav className="flex items-center gap-5 text-[13px] text-ink-400">
+            <Link href="/operator/dashboard" className="text-lode-300 transition hover:text-lode-200">Admin</Link>
             <Link href="/deals" className="text-ink-100">Deals</Link>
             <Link href="/portfolio" className="transition hover:text-ink-100">Portfolio</Link>
             <Link href="/invest" className="transition-colors hover:text-ink-100">Buy</Link>
