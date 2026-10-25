@@ -36,6 +36,7 @@ import type {
   StoredCandidate,
   StoredSourcedProperty,
   StoredImportedListing,
+  StoredNotification,
   Suppression,
   TopUpInput,
   TopUpResult,
@@ -85,6 +86,7 @@ function emptyDatabase(): Database {
     subscribers: [],
     accounts: [],
     accountImages: [],
+    notifications: [],
     auditEvents: [],
     blogViews: [],
     subscriptions: [],
@@ -119,6 +121,7 @@ async function readDatabase(): Promise<Database> {
       subscribers: parsed.subscribers ?? [],
       accounts: parsed.accounts ?? [],
       accountImages: parsed.accountImages ?? [],
+      notifications: parsed.notifications ?? [],
       auditEvents: parsed.auditEvents ?? [],
       // Absent in any store written before view counting existed. Defaulted
       // rather than migrated: an unread post and a post nobody has counted yet
@@ -409,6 +412,36 @@ async function deleteAccountImage(accountId: string, kind: ImageKind): Promise<b
     const before = images.length;
     db.accountImages = images.filter((i) => i.id !== id);
     return db.accountImages.length < before;
+  });
+}
+
+async function recordNotification(
+  notification: StoredNotification,
+): Promise<{ created: boolean }> {
+  return mutate((db) => {
+    const rows = (db.notifications ??= []);
+    if (rows.some((n) => n.id === notification.id)) return { created: false };
+    rows.push(notification);
+    return { created: true };
+  });
+}
+
+async function listNotificationsForAccount(
+  accountId: string,
+): Promise<readonly StoredNotification[]> {
+  const db = await readDatabase();
+  return (db.notifications ?? [])
+    .filter((n) => n.recipientAccountId === accountId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+async function markNotificationRead(id: string): Promise<boolean> {
+  return mutate((db) => {
+    const rows = (db.notifications ??= []);
+    const index = rows.findIndex((n) => n.id === id);
+    if (index < 0 || rows[index]!.readAt !== undefined) return false;
+    rows[index] = { ...rows[index]!, readAt: new Date().toISOString() };
+    return true;
   });
 }
 
@@ -1094,6 +1127,9 @@ export const fileStore: Store = {
   getAccountImage,
   saveAccountImage,
   deleteAccountImage,
+  recordNotification,
+  listNotificationsForAccount,
+  markNotificationRead,
   recordBlogView,
   listBlogViews,
   getSubscription,

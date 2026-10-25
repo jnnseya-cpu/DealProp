@@ -36,6 +36,7 @@ import type {
   StoredCandidate,
   StoredSourcedProperty,
   StoredImportedListing,
+  StoredNotification,
   Suppression,
   TopUpInput,
   TopUpResult,
@@ -105,6 +106,16 @@ const SCHEMA = `
     data jsonb NOT NULL,
     updated_at timestamptz NOT NULL DEFAULT now()
   );
+  -- One row per (event, recipient, channel). The primary key is the dedupe
+  -- defence: a retried emit with the same id fails to insert and is skipped,
+  -- the same shape as the billing replay guard. Additive, no migration.
+  CREATE TABLE IF NOT EXISTS notifications (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS notifications_recipient
+    ON notifications ((data->>'recipientAccountId'));
   -- Append-only by construction as well as by convention: no UPDATE or DELETE
   -- statement against this table exists anywhere in the codebase.
   CREATE TABLE IF NOT EXISTS audit_events (
@@ -736,6 +747,36 @@ export const postgresStore: Store = {
     const { rowCount } = await getPool().query(
       "DELETE FROM account_images WHERE id = $1",
       [`${accountId}:${kind}`],
+    );
+    return (rowCount ?? 0) > 0;
+  },
+
+  async recordNotification(notification): Promise<{ created: boolean }> {
+    await ensureSchema();
+    const { rowCount } = await getPool().query(
+      `INSERT INTO notifications (id, data) VALUES ($1, $2)
+       ON CONFLICT (id) DO NOTHING`,
+      [notification.id, JSON.stringify(notification)],
+    );
+    return { created: (rowCount ?? 0) > 0 };
+  },
+  async listNotificationsForAccount(accountId): Promise<readonly StoredNotification[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: StoredNotification }>(
+      `SELECT data FROM notifications
+        WHERE data->>'recipientAccountId' = $1
+        ORDER BY data->>'createdAt' DESC`,
+      [accountId],
+    );
+    return rows.map((r) => r.data);
+  },
+  async markNotificationRead(id): Promise<boolean> {
+    await ensureSchema();
+    const { rowCount } = await getPool().query(
+      `UPDATE notifications
+          SET data = jsonb_set(data, '{readAt}', to_jsonb($2::text)), updated_at = now()
+        WHERE id = $1 AND data->>'readAt' IS NULL`,
+      [id, new Date().toISOString()],
     );
     return (rowCount ?? 0) > 0;
   },

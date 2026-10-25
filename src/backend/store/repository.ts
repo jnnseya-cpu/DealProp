@@ -27,6 +27,7 @@ import type {
   StoredCandidate,
   StoredSourcedProperty,
   StoredImportedListing,
+  StoredNotification,
   Suppression,
   TopUpInput,
   TopUpResult,
@@ -253,6 +254,18 @@ export async function saveAccountImage(image: AccountImage): Promise<AccountImag
 
 export async function deleteAccountImage(accountId: string, kind: ImageKind): Promise<boolean> {
   return (await store()).deleteAccountImage(accountId, kind);
+}
+
+export async function recordNotification(notification: StoredNotification) {
+  return (await store()).recordNotification(notification);
+}
+
+export async function listNotificationsForAccount(accountId: string) {
+  return (await store()).listNotificationsForAccount(accountId);
+}
+
+export async function markNotificationRead(id: string): Promise<boolean> {
+  return (await store()).markNotificationRead(id);
 }
 
 /** Append only. There is deliberately no update or delete. */

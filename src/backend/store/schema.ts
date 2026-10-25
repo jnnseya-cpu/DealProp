@@ -12,6 +12,7 @@ import type {
 } from "@shared/domain/outreach";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
+import type { Channel, LawfulBasis, Severity } from "@shared/domain/notifications";
 import type { SellerEnquiryConsent } from "@shared/domain/sellerConsent";
 import type { SourcedLead } from "@shared/domain/sourcedLead";
 import type { ImportedListing, SubmitterRole } from "@shared/domain/listingImport";
@@ -288,6 +289,28 @@ export interface AccountImage {
   readonly createdAt: string;
 }
 
+/**
+ * One delivery of one event on one channel.
+ *
+ * Append-mostly: a row is written once per (event, recipient, channel) and only
+ * ever gains a `readAt` when the recipient opens the in-app copy. The `id` is
+ * the dedupe key the caller supplies, held unique by the store, so a retried
+ * emit cannot double-send — the §24 money discipline applied to messages.
+ */
+export interface StoredNotification {
+  readonly id: string;
+  readonly eventKey: string;
+  readonly recipientAccountId: string;
+  readonly channel: Channel;
+  readonly lawfulBasis: LawfulBasis;
+  readonly severity: Severity;
+  readonly status: "sent" | "logged" | "sandbox" | "failed" | "suppressed";
+  readonly subject: string;
+  readonly createdAt: string;
+  /** Set when the in-app copy is read. Meaningful only for the inapp channel. */
+  readonly readAt?: string;
+}
+
 export interface Database {
   deals: DealRecord[];
   buyBoxes: BuyBox[];
@@ -300,6 +323,8 @@ export interface Database {
    * empty.
    */
   accountImages?: AccountImage[];
+  /** Notification deliveries and the in-app inbox. Optional, as above. */
+  notifications?: StoredNotification[];
   auditEvents: AuditEvent[];
   blogViews: BlogViewCount[];
   subscriptions: Subscription[];
@@ -826,6 +851,16 @@ export interface Store {
   saveAccountImage(image: AccountImage): Promise<AccountImage>;
   /** Returns whether anything was removed. */
   deleteAccountImage(accountId: string, kind: ImageKind): Promise<boolean>;
+
+  /**
+   * Record one notification delivery, once. `created` is false if this id was
+   * already written — the replay defence, so a retried emit cannot double-send.
+   */
+  recordNotification(notification: StoredNotification): Promise<{ created: boolean }>;
+  /** This account's notifications, newest first (the in-app inbox reads these). */
+  listNotificationsForAccount(accountId: string): Promise<readonly StoredNotification[]>;
+  /** Mark one in-app notification read. Returns whether it changed. */
+  markNotificationRead(id: string): Promise<boolean>;
 
   /**
    * Increment one post's counter and return the new total.

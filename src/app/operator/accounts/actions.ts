@@ -8,6 +8,7 @@ import { ALL_ROLES, type Account, type Role } from "@shared/domain/accounts";
 import { findAccountByEmail, getAccount, saveAccount } from "@backend/store/repository";
 import { currentViewer, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
+import { emit } from "@backend/notifications/engine";
 
 /**
  * Account management.
@@ -63,6 +64,9 @@ export async function createAccount(
       subject: account.id,
       detail: `${account.email} as ${account.role}`,
     });
+    // Welcome the new account. Idempotent on its id, and best-effort — a
+    // notification failure must never fail account creation.
+    await emit("account.registration.received", { account, dedupe: account.id }).catch(() => undefined);
     revalidatePath("/operator/accounts");
 
     return {

@@ -99,6 +99,11 @@ export default async function ProfilePage() {
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-300">
           How you appear across Lode. Both images are optional and only staff and you can see them.
+          Your notices are in your{" "}
+          <a href="/account/inbox" className="text-lode-200 underline underline-offset-2">
+            inbox
+          </a>
+          .
         </p>
 
         {/* The banner, exactly as it renders elsewhere: cover behind, avatar in front. */}
