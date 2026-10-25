@@ -183,6 +183,7 @@ function Nav() {
           <span className="font-display text-[17px] tracking-[-0.01em] text-ink-100">Lode</span>
         </div>
         <div className="hidden items-center gap-7 text-[13px] text-ink-400 lg:flex">
+          <Link href="/browse" className="transition-colors hover:text-ink-100">Properties</Link>
           <Link href="/appraise" className="transition-colors hover:text-ink-100">Free appraisal</Link>
           <Link href="/sell" className="transition-colors hover:text-ink-100">Selling</Link>
           <Link href="/partners" className="transition-colors hover:text-ink-100">Agents</Link>
