@@ -594,6 +594,125 @@ routes verified to render (§Test-what-you-change).
   Phase 1's BitriPay adapter is the recommended first move: highest commercial
   value, cleanest existing seam, fully testable against the contract suite.
 
+---
+
+## 18. Communication event architecture
+
+One event engine fans every notification out across channels — the pattern a
+sibling product (VERYX) already proves. Lode adopts the shape and **rejects two
+of its defaults**, because Lode contacts consumers and individual property
+owners, not signed-in enterprise staff, and the law is different for that
+audience.
+
+### 18.1 The two rules that make it lawful
+
+1. **Lawful basis per event, not a "mandatory" flag.** VERYX marks 27 notices
+   as bypassing opt-outs. For Lode that is replaced by a required
+   `lawfulBasis` on every catalogue event:
+
+   | Class | Lawful basis | Opt-out behaviour | Examples |
+   |---|---|---|---|
+   | **Service / transactional** | Contract / legitimate interest; PECR permits to the person who transacted | Sent regardless of *marketing* preference; still stops on erasure | payment receipt, reveal confirmation, completion milestone, document request |
+   | **Security / legal** | Legal obligation / vital account interest | Always delivered to the account holder; cannot be marketing-suppressed | password changed, new-device sign-in, account locked, consent request, data-export ready |
+   | **Marketing** | **Recorded consent only (double opt-in, §10)** | Honours every opt-out and suppression; carries unsubscribe + sender identity | newsletter, new-opportunity digest, re-engagement |
+
+   There is no fourth class and nothing "bypasses opt-out" — a security message
+   is lawful because of its basis, not because a flag overrides the person's
+   wishes. The type carries the basis, so a marketing event **cannot** be
+   emitted on a service pretext (mirrors the closed-effect-set discipline of
+   §12).
+
+2. **A complaint or opt-out always wins (§44).** Suppression precedence is
+   absolute for marketing and respected everywhere else: `suppressions`
+   (keyed by address/mailbox, already built for outreach) is checked at the
+   moment of send, after rendering, every time. A "this is spam" reply
+   suppresses immediately, no threshold, no review.
+
+### 18.2 Channel legality — this is where products get fined
+
+| Channel | Who | Lawful without consent? | Lode disposition |
+|---|---|---|---|
+| **In-app inbox** | any signed-in user | yes (pull surface, not a send) | **Phase 1** — every event lands here |
+| **Email** | transacting party | service/security yes; marketing needs consent | **Phase 1** — reuse newsletter/outreach transport |
+| **SMS** | individual | **PECR reg. 22 — generally no** | **Phase 2, transactional-only** to the account holder's own verified number (OTP, security, payment-failed). Never marketing to an individual. |
+| **Push** | device opted-in | device permission is the consent | **Phase 2** |
+| **WhatsApp** | individual | opt-in + approved templates only | **Phase 3**, service templates only |
+
+The engine refuses to place a marketing event on SMS/WhatsApp to an individual
+— the same `channelFor()` / PECR logic that already governs seller outreach
+(`owners.ts`, `outreach.ts`). Business recipients and consented contacts are a
+separate, wider path.
+
+### 18.3 The engine
+
+```
+domain action (deterministic engine or named decision)
+   └─ emit(event, subjectRef)                      // never from an LLM; §50
+        └─ resolve recipients  ── consents + suppressions per channel (18.1/18.2)
+             └─ render template ── branded from identity.ts (§56); figures from engines (§59)
+                  └─ dispatch   ── provider adapter (email/SMS/push), ports+adapters (§8)
+                       └─ record ── delivery event → append-only audit (§17)
+                            └─ in-app inbox read model (per §8 intelligence layer)
+```
+
+- **Frequency caps + quiet hours** reuse `campaign.ts` (business-hours window,
+  frequency caps) so a user is never flooded and nothing marketing-class sends
+  outside permitted hours.
+- **Deterministic routing.** The engine decides *which channels are lawful and
+  wired*; it never decides a score or clears a flag. An LLM may *draft* a
+  template's prose (a §50 edge) but never sends and never alters a figure.
+- **Sandbox when no provider key** (mirrors `screening.ts` §80 and billing):
+  with no email/SMS provider configured, the event is recorded as
+  `sandbox`/`logged`, so the whole flow is testable before keys exist —
+  exactly VERYX's "recorded in sandbox so the flow is always testable".
+- **Template QA**: preview the branded render and fire any event to yourself
+  across its lawful channels, from an operator surface.
+
+### 18.4 Lode's event catalogue (not VERYX's 177)
+
+Grounded in Lode's real lifecycle and seams. Categories, with class in
+brackets:
+
+| Category | Representative events | Class |
+|---|---|---|
+| Identity & account | registration requested/received, email/mobile verification, verified, locked/unlocked | service / security |
+| Login & security | new-device, suspicious login, password changed/reset, MFA enabled/disabled, session revoked | security (always delivered) |
+| Seller journey | intake received, position ready, route selected, seller-due-diligence docs requested, material-information gap | service |
+| Buyer journey | passport graded, reveal available/confirmed, opportunity matched, certification lapsing | service + (digest = marketing) |
+| Funding | readiness scored, mandate matched, introduction made (regulatory-cleared), offer comparison ready | service |
+| Outreach | neutral enquiry sent, reply classified, suppression added, stage-two/three consent needed | service (governed by §43/§44) |
+| Billing | payment pending/successful/failed, refund processed, invoice/receipt, card expiring, chargeback opened | service (payment-failed → SMS allowed) |
+| Payouts | payout held (14-day), recipient verification needed/lapsed, payout sent/failed | service / security |
+| Screening & compliance | check inconclusive (no provider §80), manual check recorded, sanctions/PEP hit → operator | security / operator |
+| Platform & legal | maintenance/outage, consent request, data-export ready, account-deletion requested/completed | security / legal |
+| Agents (§12) | proposal raised, decision recorded, dormancy finding, human intervention required | service / operator |
+| Marketing | newsletter, opportunity digest, re-engagement | **marketing (double opt-in only)** |
+
+Each event declares: `key`, human title, `lawfulBasis`, default channels (from
+the legality matrix), severity, and a template id. Mandatory service/security
+events are delivered to the account holder; **nothing marketing-class is ever
+auto-enrolled or sent against an opt-out** — the single rule a sibling
+enterprise tool does not need and Lode cannot live without.
+
+### 18.5 Schema delta
+
+```
+notification_events   (code catalogue — static, versioned; not a table that users write)
+notifications         id, event_key, recipient_ref, channel, lawful_basis,
+                      template_id, status(queued|sent|logged|sandbox|failed|suppressed),
+                      dedupe_key (unique), rendered_subject, created_at, delivered_at
+                      idx: unique(dedupe_key), (recipient_ref, created_at)
+consents              (extend §10) recipient_ref, channel, scope(marketing|…), granted_at, source
+suppressions          (EXISTS) address/mailbox keyed; checked at send (§44)
+inbox_items           id, recipient_ref, notification_id→, read_at, created_at (read model)
+```
+
+Every send carries a `dedupe_key` the store holds unique, so a retried emit
+cannot double-send (the §24 money discipline, applied to messages). Delivery
+rows are append-only audit; the in-app inbox is a read model built from them.
+
+---
+
 *Every figure and example in this document is illustrative of mechanism. The
 running platform computes its numbers from the engines, under audit, with their
 reasoning — which is the whole point.*
