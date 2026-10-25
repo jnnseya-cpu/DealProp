@@ -19,10 +19,12 @@ import {
 } from "@shared/domain/ledger";
 import type { Subscription } from "@shared/domain/entitlements";
 import type {
+  AccountImage,
   AllowanceInput,
   AllowanceResult,
   AuditEvent,
   BlogViewCount,
+  ImageKind,
   NoteInput,
   ReversalInput,
   ReversalResult,
@@ -82,6 +84,7 @@ function emptyDatabase(): Database {
     fundingBoxes: [],
     subscribers: [],
     accounts: [],
+    accountImages: [],
     auditEvents: [],
     blogViews: [],
     subscriptions: [],
@@ -115,6 +118,7 @@ async function readDatabase(): Promise<Database> {
       fundingBoxes: parsed.fundingBoxes ?? [],
       subscribers: parsed.subscribers ?? [],
       accounts: parsed.accounts ?? [],
+      accountImages: parsed.accountImages ?? [],
       auditEvents: parsed.auditEvents ?? [],
       // Absent in any store written before view counting existed. Defaulted
       // rather than migrated: an unread post and a post nobody has counted yet
@@ -377,6 +381,34 @@ async function saveAccount(account: Account): Promise<Account> {
     if (index >= 0) db.accounts[index] = account;
     else db.accounts.push(account);
     return account;
+  });
+}
+
+async function getAccountImage(
+  accountId: string,
+  kind: ImageKind,
+): Promise<AccountImage | undefined> {
+  const db = await readDatabase();
+  return (db.accountImages ?? []).find((i) => i.id === `${accountId}:${kind}`);
+}
+
+async function saveAccountImage(image: AccountImage): Promise<AccountImage> {
+  return mutate((db) => {
+    const images = (db.accountImages ??= []);
+    const index = images.findIndex((i) => i.id === image.id);
+    if (index >= 0) images[index] = image;
+    else images.push(image);
+    return image;
+  });
+}
+
+async function deleteAccountImage(accountId: string, kind: ImageKind): Promise<boolean> {
+  return mutate((db) => {
+    const images = (db.accountImages ??= []);
+    const id = `${accountId}:${kind}`;
+    const before = images.length;
+    db.accountImages = images.filter((i) => i.id !== id);
+    return db.accountImages.length < before;
   });
 }
 
@@ -1059,6 +1091,9 @@ export const fileStore: Store = {
   getAccount,
   findAccountByEmail,
   saveAccount,
+  getAccountImage,
+  saveAccountImage,
+  deleteAccountImage,
   recordBlogView,
   listBlogViews,
   getSubscription,

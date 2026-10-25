@@ -257,12 +257,49 @@ export interface PendingCharge {
   readonly settledAt?: string;
 }
 
+/** The profile images an account may set: one avatar, one cover. */
+export const IMAGE_KINDS = ["avatar", "cover"] as const;
+export type ImageKind = (typeof IMAGE_KINDS)[number];
+
+/**
+ * A stored profile image.
+ *
+ * Held in its own record rather than on the account, because the account is
+ * read on every authenticated request (the guard loads it to check the
+ * session) and an image on it would ship tens of kilobytes of base64 through
+ * every one of those reads. The bytes are re-encoded on upload — resized to a
+ * fixed box and written as WebP, which drops EXIF and any GPS a phone camera
+ * embedded — so what is stored is never the original file.
+ *
+ * The id is `${accountId}:${kind}`, so a second upload of the same kind
+ * replaces the first rather than accumulating.
+ */
+export interface AccountImage {
+  readonly id: string;
+  readonly accountId: string;
+  readonly kind: ImageKind;
+  /** Always an image/* type we produced, never the uploaded file's claim. */
+  readonly contentType: string;
+  /** Re-encoded, EXIF-stripped bytes, base64. */
+  readonly dataBase64: string;
+  readonly width: number;
+  readonly height: number;
+  readonly byteLength: number;
+  readonly createdAt: string;
+}
+
 export interface Database {
   deals: DealRecord[];
   buyBoxes: BuyBox[];
   fundingBoxes: FundingBox[];
   subscribers: Subscriber[];
   accounts: Account[];
+  /**
+   * Profile images, keyed `${accountId}:${kind}`. Optional so every database
+   * literal and fixture written before this stays valid; readers default to
+   * empty.
+   */
+  accountImages?: AccountImage[];
   auditEvents: AuditEvent[];
   blogViews: BlogViewCount[];
   subscriptions: Subscription[];
@@ -782,6 +819,13 @@ export interface Store {
   getAccount(id: string): Promise<Account | undefined>;
   findAccountByEmail(email: string): Promise<Account | undefined>;
   saveAccount(account: Account): Promise<Account>;
+
+  /** One profile image, or undefined. Keyed by account and kind. */
+  getAccountImage(accountId: string, kind: ImageKind): Promise<AccountImage | undefined>;
+  /** Upsert: a second upload of the same kind replaces the first. */
+  saveAccountImage(image: AccountImage): Promise<AccountImage>;
+  /** Returns whether anything was removed. */
+  deleteAccountImage(accountId: string, kind: ImageKind): Promise<boolean>;
 
   /**
    * Increment one post's counter and return the new total.

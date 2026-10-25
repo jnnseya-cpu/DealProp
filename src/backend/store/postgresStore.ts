@@ -20,6 +20,7 @@ import {
 } from "@shared/domain/ledger";
 import type { Subscription } from "@shared/domain/entitlements";
 import type {
+  AccountImage,
   AllowanceInput,
   AllowanceResult,
   AuditEvent,
@@ -92,6 +93,15 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS accounts (
     id text PRIMARY KEY,
     email text NOT NULL UNIQUE,
+    data jsonb NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+  );
+  -- Profile images, id = '<accountId>:<kind>'. The bytes live in the JSON
+  -- record as base64; they are already re-encoded and small, and this keeps
+  -- the engine symmetric with the file store rather than introducing bytea for
+  -- one table. Additive: CREATE TABLE IF NOT EXISTS needs no migration.
+  CREATE TABLE IF NOT EXISTS account_images (
+    id text PRIMARY KEY,
     data jsonb NOT NULL,
     updated_at timestamptz NOT NULL DEFAULT now()
   );
@@ -716,6 +726,18 @@ export const postgresStore: Store = {
       [account.id, account.email, JSON.stringify(account)],
     );
     return account;
+  },
+
+  getAccountImage: (accountId, kind) =>
+    one<AccountImage>("account_images", `${accountId}:${kind}`),
+  saveAccountImage: (image) => upsert("account_images", image),
+  async deleteAccountImage(accountId, kind): Promise<boolean> {
+    await ensureSchema();
+    const { rowCount } = await getPool().query(
+      "DELETE FROM account_images WHERE id = $1",
+      [`${accountId}:${kind}`],
+    );
+    return (rowCount ?? 0) > 0;
   },
 
   /**

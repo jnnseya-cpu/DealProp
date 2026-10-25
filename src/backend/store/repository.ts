@@ -7,10 +7,12 @@ import type { AgentDecision } from "@shared/domain/agents";
 import { fileStore } from "@backend/store/fileStore";
 import { sealed } from "@backend/store/sealing";
 import type {
+  AccountImage,
   AllowanceInput,
   AllowanceResult,
   AuditEvent,
   BlogViewCount,
+  ImageKind,
   NoteInput,
   ReversalInput,
   ReversalResult,
@@ -236,6 +238,21 @@ export async function findAccountByEmail(email: string): Promise<Account | undef
 
 export async function saveAccount(account: Account): Promise<Account> {
   return (await store()).saveAccount(account);
+}
+
+export async function getAccountImage(
+  accountId: string,
+  kind: ImageKind,
+): Promise<AccountImage | undefined> {
+  return (await store()).getAccountImage(accountId, kind);
+}
+
+export async function saveAccountImage(image: AccountImage): Promise<AccountImage> {
+  return (await store()).saveAccountImage(image);
+}
+
+export async function deleteAccountImage(accountId: string, kind: ImageKind): Promise<boolean> {
+  return (await store()).deleteAccountImage(accountId, kind);
 }
 
 /** Append only. There is deliberately no update or delete. */
