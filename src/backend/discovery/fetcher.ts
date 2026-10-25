@@ -9,10 +9,19 @@ import {
 } from "@backend/discovery/robots";
 
 /**
- * The only way this platform makes an outbound request for discovery.
+ * The outbound path for unauthenticated discovery crawling.
  *
- * Everything a connector fetches goes through here, so the rules live in one
- * place and a new connector cannot quietly skip them. Six gates, in order, and
+ * Everything a connector CRAWLS — public pages read without a key — goes
+ * through here, so the rules live in one place and a new connector cannot
+ * quietly skip them. There is one other outbound path, and only one: an
+ * authenticated call to a licensed API we hold a key for (the EPC register,
+ * `backend/sources/epc.ts`). That is deliberately not routed through here,
+ * because robots.txt governs crawlers of public pages, not an API client with
+ * a licence and a credential — it enforces its own appropriate controls (the
+ * licence gate, the credential, a timeout, and no credential-carrying
+ * redirect). Any NEW unauthenticated fetch must go through this class.
+ *
+ * Six gates, in order, and
  * the order matters — the cheapest refusals come first so a prohibited source
  * never generates traffic at all:
  *

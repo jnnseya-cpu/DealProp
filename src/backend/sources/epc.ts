@@ -21,6 +21,14 @@ import type { EpcRating } from "@shared/domain/jurisdictions/types";
  * Access requires a free account; the API key is a basic-auth credential and
  * must come from the environment, never the repository.
  *
+ * This is a second outbound path, separate from the discovery `Fetcher`. That
+ * one crawls unauthenticated public pages and so consults robots.txt; this is
+ * an authenticated call to a licensed API we hold a key for, where robots.txt
+ * does not apply and crawl rate-limiting is not the right control for a single
+ * per-postcode lookup. The controls that DO apply are enforced below: the
+ * licence gate, the credential, a bounded timeout, and a refusal to follow a
+ * redirect that could carry the credential off the licensed host.
+ *
  * NOTE ON VERIFICATION: parsing is covered by fixture tests built from the
  * published field list, but no live request has been made from this
  * environment — outbound access is blocked here. Verify `fetchCertificates()`
@@ -29,6 +37,8 @@ import type { EpcRating } from "@shared/domain/jurisdictions/types";
 
 const SOURCE = "epc-register";
 const API = "https://epc.opendatacommunities.org/api/v1/domestic/search";
+/** How long a single EPC lookup may take before it is abandoned. */
+const TIMEOUT_MS = 15_000;
 
 const RATINGS = new Set(["A", "B", "C", "D", "E", "F", "G"]);
 
@@ -159,6 +169,13 @@ export async function fetchCertificates(
       accept: "application/json",
       authorization: `Basic ${Buffer.from(`${email}:${key}`).toString("base64")}`,
     },
+    // Bounded, and never follow a redirect: this request carries a Basic-auth
+    // credential, and a redirect to another host would hand it to somewhere we
+    // did not licence. `redirect: "error"` is this path's equivalent of the
+    // discovery Fetcher's host allowlist; the timeout is its equivalent of the
+    // per-run budget.
+    redirect: "error",
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`EPC register returned ${response.status} for ${postcode}`);
