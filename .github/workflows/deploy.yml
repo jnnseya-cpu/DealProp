@@ -84,7 +84,7 @@ jobs:
           # statutory identity and every secret are read at runtime from the
           # VPS's app.env, never baked into a layer.
           build-args: |
-            NEXT_PUBLIC_SITE_URL=https://lodeprop.com
+            NEXT_PUBLIC_SITE_URL=https://www.lodeprop.com
           tags: |
             ghcr.io/jnnseya-cpu/dealprop:latest
             ghcr.io/jnnseya-cpu/dealprop:${{ github.sha }}
