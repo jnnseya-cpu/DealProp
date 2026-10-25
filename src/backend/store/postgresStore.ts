@@ -25,6 +25,7 @@ import type {
   AllowanceResult,
   AuditEvent,
   BlogViewCount,
+  DealImage,
   NoteInput,
   ReversalInput,
   ReversalResult,
@@ -106,6 +107,16 @@ const SCHEMA = `
     data jsonb NOT NULL,
     updated_at timestamptz NOT NULL DEFAULT now()
   );
+  -- Property photos, id = '<dealId>:<position>'. Same base64-in-JSON shape as
+  -- account_images: already re-encoded and modest in size, and it keeps the
+  -- engine symmetric with the file store. Additive, no migration.
+  CREATE TABLE IF NOT EXISTS deal_images (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS deal_images_deal
+    ON deal_images ((data->>'dealId'));
   -- One row per (event, recipient, channel). The primary key is the dedupe
   -- defence: a retried emit with the same id fails to insert and is skipped,
   -- the same shape as the billing replay guard. Additive, no migration.
@@ -747,6 +758,28 @@ export const postgresStore: Store = {
     const { rowCount } = await getPool().query(
       "DELETE FROM account_images WHERE id = $1",
       [`${accountId}:${kind}`],
+    );
+    return (rowCount ?? 0) > 0;
+  },
+
+  getDealImage: (dealId, position) =>
+    one<DealImage>("deal_images", `${dealId}:${position}`),
+  async listDealImages(dealId): Promise<readonly DealImage[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: DealImage }>(
+      `SELECT data FROM deal_images
+        WHERE data->>'dealId' = $1
+        ORDER BY (data->>'position')::int ASC`,
+      [dealId],
+    );
+    return rows.map((r) => r.data);
+  },
+  saveDealImage: (image) => upsert("deal_images", image),
+  async deleteDealImage(dealId, position): Promise<boolean> {
+    await ensureSchema();
+    const { rowCount } = await getPool().query(
+      "DELETE FROM deal_images WHERE id = $1",
+      [`${dealId}:${position}`],
     );
     return (rowCount ?? 0) > 0;
   },

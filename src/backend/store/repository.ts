@@ -12,6 +12,7 @@ import type {
   AllowanceResult,
   AuditEvent,
   BlogViewCount,
+  DealImage,
   ImageKind,
   NoteInput,
   ReversalInput,
@@ -254,6 +255,25 @@ export async function saveAccountImage(image: AccountImage): Promise<AccountImag
 
 export async function deleteAccountImage(accountId: string, kind: ImageKind): Promise<boolean> {
   return (await store()).deleteAccountImage(accountId, kind);
+}
+
+export async function getDealImage(
+  dealId: string,
+  position: number,
+): Promise<DealImage | undefined> {
+  return (await store()).getDealImage(dealId, position);
+}
+
+export async function listDealImages(dealId: string): Promise<readonly DealImage[]> {
+  return (await store()).listDealImages(dealId);
+}
+
+export async function saveDealImage(image: DealImage): Promise<DealImage> {
+  return (await store()).saveDealImage(image);
+}
+
+export async function deleteDealImage(dealId: string, position: number): Promise<boolean> {
+  return (await store()).deleteDealImage(dealId, position);
 }
 
 export async function recordNotification(notification: StoredNotification) {

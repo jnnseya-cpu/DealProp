@@ -289,6 +289,39 @@ export interface AccountImage {
   readonly createdAt: string;
 }
 
+/** The most photos one property may carry. A listing, not an album. */
+export const MAX_DEAL_IMAGES = 8;
+
+/**
+ * One photo of a property.
+ *
+ * Held in its own record for the same reason as {@link AccountImage}: the deal
+ * is read and scored constantly, and tens of kilobytes of base64 on it would
+ * ride along through every appraisal. The bytes are re-encoded on upload —
+ * resized and written as WebP, which drops EXIF and any GPS a phone camera
+ * embedded, so a photo can never leak the address the reveal model exists to
+ * protect. What is stored is a new file we produced, not the uploaded one.
+ *
+ * The id is `${dealId}:${position}`, where position is a 0-based slot, so a
+ * re-upload to the same slot replaces rather than accumulates.
+ */
+export interface DealImage {
+  readonly id: string;
+  readonly dealId: string;
+  /** 0-based display order. */
+  readonly position: number;
+  /** Always an image/* type we produced, never the uploaded file's claim. */
+  readonly contentType: string;
+  /** Re-encoded, EXIF-stripped bytes, base64. */
+  readonly dataBase64: string;
+  readonly width: number;
+  readonly height: number;
+  readonly byteLength: number;
+  /** A short operator-written caption, never the address. */
+  readonly caption?: string;
+  readonly createdAt: string;
+}
+
 /**
  * One delivery of one event on one channel.
  *
@@ -323,6 +356,8 @@ export interface Database {
    * empty.
    */
   accountImages?: AccountImage[];
+  /** Property photos, keyed `${dealId}:${position}`. Optional, as above. */
+  dealImages?: DealImage[];
   /** Notification deliveries and the in-app inbox. Optional, as above. */
   notifications?: StoredNotification[];
   auditEvents: AuditEvent[];
@@ -852,6 +887,15 @@ export interface Store {
   saveAccountImage(image: AccountImage): Promise<AccountImage>;
   /** Returns whether anything was removed. */
   deleteAccountImage(accountId: string, kind: ImageKind): Promise<boolean>;
+
+  /** One property photo, or undefined. Keyed by deal and position. */
+  getDealImage(dealId: string, position: number): Promise<DealImage | undefined>;
+  /** Every photo for a deal, ordered by position. */
+  listDealImages(dealId: string): Promise<readonly DealImage[]>;
+  /** Upsert: a re-upload to the same position replaces it. */
+  saveDealImage(image: DealImage): Promise<DealImage>;
+  /** Returns whether anything was removed. */
+  deleteDealImage(dealId: string, position: number): Promise<boolean>;
 
   /**
    * Record one notification delivery, once. `created` is false if this id was

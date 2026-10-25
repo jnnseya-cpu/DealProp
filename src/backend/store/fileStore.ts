@@ -23,6 +23,7 @@ import type {
   AllowanceInput,
   AllowanceResult,
   AuditEvent,
+  DealImage,
   BlogViewCount,
   ImageKind,
   NoteInput,
@@ -86,6 +87,7 @@ function emptyDatabase(): Database {
     subscribers: [],
     accounts: [],
     accountImages: [],
+    dealImages: [],
     notifications: [],
     auditEvents: [],
     blogViews: [],
@@ -121,6 +123,7 @@ async function readDatabase(): Promise<Database> {
       subscribers: parsed.subscribers ?? [],
       accounts: parsed.accounts ?? [],
       accountImages: parsed.accountImages ?? [],
+      dealImages: parsed.dealImages ?? [],
       notifications: parsed.notifications ?? [],
       auditEvents: parsed.auditEvents ?? [],
       // Absent in any store written before view counting existed. Defaulted
@@ -412,6 +415,38 @@ async function deleteAccountImage(accountId: string, kind: ImageKind): Promise<b
     const before = images.length;
     db.accountImages = images.filter((i) => i.id !== id);
     return db.accountImages.length < before;
+  });
+}
+
+async function getDealImage(dealId: string, position: number): Promise<DealImage | undefined> {
+  const db = await readDatabase();
+  return (db.dealImages ?? []).find((i) => i.id === `${dealId}:${position}`);
+}
+
+async function listDealImages(dealId: string): Promise<readonly DealImage[]> {
+  const db = await readDatabase();
+  return (db.dealImages ?? [])
+    .filter((i) => i.dealId === dealId)
+    .sort((a, b) => a.position - b.position);
+}
+
+async function saveDealImage(image: DealImage): Promise<DealImage> {
+  return mutate((db) => {
+    const images = (db.dealImages ??= []);
+    const index = images.findIndex((i) => i.id === image.id);
+    if (index >= 0) images[index] = image;
+    else images.push(image);
+    return image;
+  });
+}
+
+async function deleteDealImage(dealId: string, position: number): Promise<boolean> {
+  return mutate((db) => {
+    const images = (db.dealImages ??= []);
+    const id = `${dealId}:${position}`;
+    const before = images.length;
+    db.dealImages = images.filter((i) => i.id !== id);
+    return db.dealImages.length < before;
   });
 }
 
@@ -1127,6 +1162,10 @@ export const fileStore: Store = {
   getAccountImage,
   saveAccountImage,
   deleteAccountImage,
+  getDealImage,
+  listDealImages,
+  saveDealImage,
+  deleteDealImage,
   recordNotification,
   listNotificationsForAccount,
   markNotificationRead,
