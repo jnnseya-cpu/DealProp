@@ -273,17 +273,22 @@ function RouteCard({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t hairline bg-ink-950/40 px-6 py-4">
-        <p className="text-xs text-ink-400">
-          A buyer would expect to make roughly{" "}
-          <span className="tnum text-ink-200">{gbp(investorProfit)}</span> on this, before their own
-          tax. We show you this because you are entitled to know it.
+      <div className="border-t hairline bg-ink-950/40 px-6 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-ink-400">
+            A buyer would expect to make roughly{" "}
+            <span className="tnum text-ink-200">{gbp(investorProfit)}</span> on this, before their own
+            tax. We show you this because you are entitled to know it.
+          </p>
+          {route.fidelity === "indicative" && (
+            <span className="rounded-md border hairline px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] text-ink-400">
+              Indicative figures
+            </span>
+          )}
+        </div>
+        <p className="mt-2 border-l-2 border-lode-400/50 pl-3 text-xs leading-relaxed text-ink-400">
+          {route.agentComparison}
         </p>
-        {route.fidelity === "indicative" && (
-          <span className="rounded-md border hairline px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] text-ink-400">
-            Indicative figures
-          </span>
-        )}
       </div>
 
       {route.requires.length > 0 && (

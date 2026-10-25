@@ -87,6 +87,13 @@ export interface SellerRoute {
   readonly summary: string;
   /** What the seller gives up to get this. Never empty. */
   readonly tradeOffs: readonly string[];
+  /**
+   * The §47 disclosure: how this compares to selling through an agent. Never
+   * empty, and derived centrally rather than written per route, so the engine
+   * cannot emit a below-market route without telling the seller an agent would
+   * likely get them more.
+   */
+  readonly agentComparison: string;
   /** Safeguards required before this route can proceed. */
   readonly requires: readonly string[];
   /** 0-100, how well this fits the priorities the seller stated. */
@@ -133,7 +140,9 @@ export function buildSellerRoutes(
 ): SellerRoutesReport {
   const pack = getJurisdiction(property.jurisdiction);
   const diagnostics = diagnoseSeller(seller, property);
-  const routes: SellerRoute[] = [];
+  // Built without the §47 disclosure, which is added for every route in one
+  // place below so none can be emitted without it.
+  const routes: Omit<SellerRoute, "agentComparison">[] = [];
 
   // --- Route A: fast cash -------------------------------------------------
   // A cash buyer carries no lender, so completion is limited by searches and
@@ -316,7 +325,16 @@ export function buildSellerRoutes(
   // offered, however well it pays — the platform only carries sales that
   // complete within the window. Dropped into `unavailable` with the reason, not
   // deleted, so the seller sees why it is not on offer.
-  const capped: SellerRoute[] = routes.map((r) =>
+  //
+  // §47 first: every route ships with the agent comparison, derived from what
+  // it pays against the open-market value, so a below-market offer can never be
+  // presented without telling the seller an agent would likely get them more.
+  const withDisclosure: SellerRoute[] = routes.map((r) => ({
+    ...r,
+    agentComparison: agentComparisonFor(r.totalToSeller, property.openMarketValue),
+  }));
+
+  const capped: SellerRoute[] = withDisclosure.map((r) =>
     r.completionDaysMax > MAX_COMPLETION_DAYS && !r.unavailable
       ? {
           ...r,
@@ -355,6 +373,22 @@ export function buildSellerRoutes(
  * named no priorities gets a neutral score, so the ranking falls back to the
  * order the routes were generated in rather than inventing a preference.
  */
+/**
+ * The §47 disclosure for a route, derived from what it pays.
+ *
+ * A route paying below the open-market value is a below-market offer, and the
+ * seller must be told plainly that an agent would likely get them more and that
+ * they can take advice and go to the open market instead. A route paying at or
+ * around market value is not trading price for speed, and says so. Derived
+ * centrally so it is on every route without anyone remembering to write it.
+ */
+function agentComparisonFor(totalToSeller: Money, openMarketValue: Money): string {
+  if (totalToSeller < openMarketValue) {
+    return "Selling through a high-street agent would very likely get you more money, though it takes longer and is less certain to complete. You are entitled to take independent advice before accepting an offer below market value, and to sell on the open market instead.";
+  }
+  return "This route sells at or around open-market value rather than below it, so you are not accepting less for speed here — but it takes longer and completion is less certain than a cash sale.";
+}
+
 function scoreFit(
   profile: Record<string, number>,
   seller: SellerProfile,

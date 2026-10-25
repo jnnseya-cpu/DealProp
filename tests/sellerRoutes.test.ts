@@ -135,6 +135,24 @@ describe("seller routes", () => {
     }
   });
 
+  it("ships every below-market route with the §47 agent comparison (structurally, not by habit)", () => {
+    const { property, seller } = buildIntake(baseAnswers);
+    const report = buildSellerRoutes(property, seller);
+    const all = [...report.routes, ...report.unavailable];
+    for (const route of all) {
+      // Required field: never empty on any route.
+      expect(route.agentComparison.length).toBeGreaterThan(0);
+      // A below-market offer must say an agent would likely get them more and
+      // that they can go to the open market instead.
+      if (route.totalToSeller < property.openMarketValue) {
+        const text = route.agentComparison.toLowerCase();
+        expect(text).toContain("agent");
+        expect(text).toMatch(/more money|get you more|get them more|achieve more/);
+        expect(text).toContain("open market");
+      }
+    }
+  });
+
   it("marks structures it cannot model precisely as indicative", () => {
     const { property, seller } = buildIntake(baseAnswers);
     const report = buildSellerRoutes(property, seller);

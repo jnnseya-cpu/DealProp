@@ -134,10 +134,20 @@ describe("seller protection — vulnerability blocks", () => {
     expect(o.blocked).toBe(true);
   });
 
-  it("blocks an 80-plus seller ONLY once the discount is substantial (the documented gate)", () => {
-    const low = assessSellerProtection(deal({ purchase: 200_000, screening: { ageBand: "80-plus" } }));
-    expect(keys(low)).not.toContain("age-and-discount");
+  it("blocks an 80-plus seller on a substantial discount OR whenever the value is unverified", () => {
+    // Low discount AND an independent valuation: no abuse signal.
+    const safe = assessSellerProtection(deal({ purchase: 200_000, screening: { ageBand: "80-plus" } }));
+    expect(keys(safe)).not.toContain("age-and-discount");
 
+    // Small apparent discount but NO independent valuation: the real discount is
+    // unknowable, so the safeguard fires — the blind-spot fix.
+    const unverified = assessSellerProtection(
+      deal({ purchase: 205_000, screening: { ageBand: "80-plus", hasReceivedIndependentValuation: false } }),
+    );
+    expect(flag(unverified, "age-and-discount")?.severity).toBe("block");
+    expect(unverified.blocked).toBe(true);
+
+    // Substantial discount blocks even with a valuation.
     const high = assessSellerProtection(deal({ purchase: 150_000, screening: { ageBand: "80-plus" } }));
     expect(flag(high, "age-and-discount")?.severity).toBe("block");
     expect(flag(high, "age-and-discount")?.subject).toBe("seller");
@@ -152,9 +162,16 @@ describe("seller protection — cautions", () => {
     expect(o.blocked).toBe(false);
   });
 
-  it("cautions on financial distress ONLY with a substantial discount (the documented gate)", () => {
-    const low = assessSellerProtection(deal({ purchase: 200_000, screening: { reportsFinancialDistress: true } }));
-    expect(keys(low)).not.toContain("distress-and-discount");
+  it("cautions on financial distress at a substantial discount OR when the value is unverified", () => {
+    // Low discount with an independent valuation: no flag.
+    const safe = assessSellerProtection(deal({ purchase: 200_000, screening: { reportsFinancialDistress: true } }));
+    expect(keys(safe)).not.toContain("distress-and-discount");
+    // Small apparent discount but no valuation: fires (blind-spot fix).
+    const unverified = assessSellerProtection(
+      deal({ purchase: 205_000, screening: { reportsFinancialDistress: true, hasReceivedIndependentValuation: false } }),
+    );
+    expect(flag(unverified, "distress-and-discount")?.severity).toBe("caution");
+    // Substantial discount fires even with a valuation.
     const high = assessSellerProtection(deal({ purchase: 150_000, screening: { reportsFinancialDistress: true } }));
     expect(flag(high, "distress-and-discount")?.severity).toBe("caution");
   });
@@ -168,7 +185,9 @@ describe("seller protection — cautions", () => {
 });
 
 describe("seller protection — missing safeguards escalate with discount", () => {
-  it("makes missing legal advice a caution at low discount and a block at high", () => {
+  it("makes missing legal advice a caution at low discount and a block at a substantial one", () => {
+    // Transaction safeguard — gated on the discount itself, not widened by the
+    // unverified-value rule (that would block every early deal).
     const low = assessSellerProtection(deal({ purchase: 200_000, screening: { hasIndependentLegalAdvice: false } }));
     expect(flag(low, "no-independent-advice")?.severity).toBe("caution");
     expect(low.blocked).toBe(false);

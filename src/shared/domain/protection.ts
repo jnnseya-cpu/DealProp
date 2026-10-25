@@ -123,6 +123,26 @@ export function assessSellerProtection(
 
   const screening = inputs.seller.screening ?? {};
 
+  // An unverified value makes the discount itself unknowable. A vulnerable
+  // seller who understates what their property is worth shows a smaller apparent
+  // discount and would otherwise slip under the discount-gated VULNERABILITY
+  // safeguards below (the elderly-seller block, the distress caution). So for
+  // those two, the absence of an independent valuation counts the same as a
+  // substantial discount — we cannot rule out that the real discount is large —
+  // but only where the seller is actually being asked to sell below their stated
+  // value. The remedy is to obtain the valuation, which establishes the true
+  // discount and resolves the flag.
+  //
+  // This deliberately does NOT widen the transaction safeguards (missing legal
+  // advice, missing valuation). Those already fire regardless, and the broader
+  // risk of an unverified value is carried by the confidence cap in
+  // `opportunityScore` (§65) — widening them here would block every early-stage
+  // deal before a seller has instructed a solicitor, and collapse the
+  // confidence ordering that lets an evidenced deal outrank an unevidenced one.
+  const valuationUnverified = screening.hasReceivedIndependentValuation !== true;
+  const discountMatters =
+    discountBps >= HIGH_DISCOUNT_BPS || (valuationUnverified && discountBps > 0);
+
   // --- Discount severity -------------------------------------------------
   if (discountBps >= EXTREME_DISCOUNT_BPS) {
     flags.push({
@@ -169,14 +189,14 @@ export function assessSellerProtection(
     });
   }
 
-  if (screening.ageBand === "80-plus" && discountBps >= HIGH_DISCOUNT_BPS) {
+  if (screening.ageBand === "80-plus" && discountMatters) {
     flags.push({
       key: "age-and-discount",
       subject: "seller",
       severity: "block",
       label: "Elderly seller combined with a substantial discount",
       detail:
-        "A large discount agreed by a seller aged 80 or over is a recognised indicator of potential financial abuse.",
+        "A seller aged 80 or over selling below market value is a recognised indicator of potential financial abuse — here the discount is either substantial or measured against a value that has not been independently verified.",
       remedy: "Human review plus evidenced independent legal advice and, where appropriate, family or advocate involvement.",
     });
   }
@@ -204,7 +224,7 @@ export function assessSellerProtection(
     });
   }
 
-  if (screening.reportsFinancialDistress === true && discountBps >= HIGH_DISCOUNT_BPS) {
+  if (screening.reportsFinancialDistress === true && discountMatters) {
     flags.push({
       key: "distress-and-discount",
       subject: "seller",
