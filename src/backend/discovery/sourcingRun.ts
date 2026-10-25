@@ -341,20 +341,39 @@ export async function runRegisters(
       notes.push(`${kind}: ${feed.reason}`);
       return;
     }
-    notes.push(`${kind}: ${feed.value.length} notice(s) listed.`);
+    // Counted so a run that lists notices but yields no leads says WHERE it
+    // dropped them: no link on the entry, a body that would not fetch, or a
+    // body the parser could not read (the live format differing from the
+    // fixture). Without this the surface only says "0 leads", which is the
+    // least actionable thing it could say.
+    let withUrl = 0;
+    let fetched = 0;
+    let parsed = 0;
 
     for (const notice of feed.value.slice(0, cap)) {
       if (notice.noticeUrl === undefined) continue;
+      withUrl += 1;
       const body = await fetchNotice(fetcher, notice.noticeUrl);
       if (!body.ok) continue;
+      fetched += 1;
       if (kind === "deceased") {
-        const parsed = parseDeceasedEstate(body.value);
-        if (parsed !== undefined) deceased.push(parsed);
+        const record = parseDeceasedEstate(body.value);
+        if (record !== undefined) {
+          deceased.push(record);
+          parsed += 1;
+        }
       } else {
-        const parsed = parseInsolvencyNotice(body.value);
-        if (parsed !== undefined) insolvencies.push(parsed);
+        const record = parseInsolvencyNotice(body.value);
+        if (record !== undefined) {
+          insolvencies.push(record);
+          parsed += 1;
+        }
       }
     }
+
+    notes.push(
+      `${kind}: ${feed.value.length} listed → ${withUrl} with a notice link → ${fetched} fetched → ${parsed} parsed into leads.`,
+    );
   };
 
   await sweep(config.deceasedCode, "deceased");
