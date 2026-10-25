@@ -16,6 +16,28 @@ import { audit } from "@backend/audit";
 import { callerFrom, consume } from "@backend/rateLimit";
 
 /**
+ * The cookie's domain, so one session spans the apex and `www`.
+ *
+ * Without this a cookie set on `www.lodeprop.com` is not sent to `lodeprop.com`
+ * (and vice versa), so the apex→www redirect silently logs a signed-in person
+ * out the moment they navigate. Derived from the configured site URL and
+ * stripped of a leading `www.`, so the domain is the registrable one and covers
+ * both. Returns nothing for localhost or a bare IP, which cannot take a domain
+ * cookie — there the host-only cookie is correct.
+ */
+function cookieScope(): { readonly domain?: string } {
+  const raw = process.env.NEXT_PUBLIC_SITE_URL;
+  if (raw === undefined || raw === "") return {};
+  try {
+    const host = new URL(raw).hostname;
+    if (host === "localhost" || /^[0-9.]+$/.test(host)) return {};
+    return { domain: host.replace(/^www\./, "") };
+  } catch {
+    return {};
+  }
+}
+
+/**
  * Operator sign-in.
  *
  * The failure message never distinguishes "not configured" from "wrong
@@ -92,6 +114,7 @@ export async function signIn(
       sameSite: "lax",
       path: "/",
       maxAge: SESSION_SECONDS,
+      ...cookieScope(),
     });
     await audit("sign-in", { account });
     revalidatePath("/", "layout");
@@ -113,6 +136,8 @@ export async function signIn(
     sameSite: "lax",
     path: "/",
     maxAge: OPERATOR_SESSION_SECONDS,
+    // So the session spans the apex and www rather than one host.
+    ...cookieScope(),
   });
 
   // Signing in changes what every operator route returns, and the router may
@@ -127,8 +152,10 @@ export async function signIn(
 
 export async function signOut(): Promise<void> {
   const jar = await cookies();
-  jar.delete(OPERATOR_COOKIE);
-  jar.delete(SESSION_COOKIE);
+  // Must carry the same domain/path the cookie was set with, or a domain-scoped
+  // cookie is not cleared and the sign-out does not take.
+  jar.delete({ name: OPERATOR_COOKIE, path: "/", ...cookieScope() });
+  jar.delete({ name: SESSION_COOKIE, path: "/", ...cookieScope() });
   await audit("sign-out");
   // The mirror of sign-in: the router must not keep serving pages it cached
   // while the session was valid.

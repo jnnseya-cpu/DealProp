@@ -384,7 +384,7 @@ function OSConsole({
           {/* position — number, band and a rule, never a ring */}
           <div className="flex items-start justify-between gap-4">
             <div className="max-w-[20rem]">
-              <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink-500">Deal position</p>
+              <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink-500">Deal position · Worked example</p>
               <p className="mt-1 text-[13px] leading-[1.5] text-ink-300">
                 Four routes, ranked against what this seller said mattered — not against which pays us most.
               </p>
@@ -429,9 +429,9 @@ function OSConsole({
           </div>
 
           <p className="text-[11px] leading-[1.5] text-ink-500">
-            Worked example — every figure is computed by the engine at the moment you loaded this
-            page; the property is an illustration. Each route also shows what the seller gives up,
-            because the engine refuses a below-market route without it.
+            A worked example, not a live listing — every figure is computed by the engine at the
+            moment you loaded this page; the property is an illustration. Each route also shows what
+            the seller gives up, because the engine refuses a below-market route without it.
           </p>
         </div>
       </div>
