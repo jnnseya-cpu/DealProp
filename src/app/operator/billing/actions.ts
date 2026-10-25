@@ -4,9 +4,16 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { money, type Money } from "@shared/money";
 import { expiryFrom } from "@shared/domain/ledger";
-import { GRANTED_CREDIT_MONTHS } from "@shared/domain/pricing";
+import { GRANTED_CREDIT_MONTHS, PLANS, plan, type PlanId } from "@shared/domain/pricing";
+import type { Subscription } from "@shared/domain/entitlements";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
-import { applyTopUp, getAccount, recordNote } from "@backend/store/repository";
+import {
+  applyTopUp,
+  getAccount,
+  getSubscription,
+  recordNote,
+  saveSubscription,
+} from "@backend/store/repository";
 import { audit } from "@backend/audit";
 
 /**
@@ -179,4 +186,74 @@ export async function writeOffDebtAction(
 
   revalidatePath("/operator/billing");
   return { ok: true, message: `£${(amount / 100).toFixed(2)} written off against your name.` };
+}
+
+/**
+ * Comp an account onto a plan — full access, no charge.
+ *
+ * A comped subscription is still a subscription: the entitlement is derived
+ * from it exactly as for a paying customer (§26), so there is no second access
+ * path and no `isPro` flag to leave stale. It is simply a subscription that was
+ * granted rather than bought — `status: "active"` with a period far enough out
+ * that it never lapses — and like every grant it carries a named author and a
+ * reason in the audit trail.
+ *
+ * The shared operator password is allowed here, unlike a balance grant: this
+ * moves no money and can be reversed by cancelling, and it is the only way to
+ * stand up the very first administrator before any named account exists. The
+ * author is recorded either way.
+ */
+export async function compPlanAction(
+  _previous: AdjustmentResult | undefined,
+  formData: FormData,
+): Promise<AdjustmentResult> {
+  const viewer = await requirePermission("view-audit-log", "/operator/billing");
+  const author = viewerAccount(viewer);
+
+  const accountId = String(formData.get("accountId") ?? "").trim();
+  const planId = String(formData.get("planId") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  if (accountId === "") return { ok: false, message: "Choose an account." };
+  if (!PLANS.some((p) => p.id === planId)) return { ok: false, message: "Choose a plan." };
+  if (reason.length < MIN_REASON) {
+    return { ok: false, message: `Give a reason of at least ${MIN_REASON} characters.` };
+  }
+
+  const target = await getAccount(accountId);
+  if (target === undefined) return { ok: false, message: "No such account." };
+
+  const now = new Date();
+  // A hundred years out: a comp does not lapse, but it is still a dated period
+  // the entitlement engine checks, not a flag that lives forever by its absence.
+  const end = new Date(now);
+  end.setFullYear(end.getFullYear() + 100);
+
+  const existing = await getSubscription(accountId);
+  const subscription: Subscription = {
+    id: existing?.id ?? `sub-comp-${randomUUID()}`,
+    accountId,
+    planId: planId as PlanId,
+    status: "active",
+    currentPeriodStart: now.toISOString(),
+    currentPeriodEnd: end.toISOString(),
+    lastEventAt: now.toISOString(),
+    lastEventId: `comp-${randomUUID()}`,
+  };
+  await saveSubscription(subscription);
+
+  const by = author?.email ?? "the shared operator password";
+  await audit("subscription-comped", {
+    ...(author !== undefined ? { account: author } : {}),
+    subject: accountId,
+    detail: `Comped ${target.email} to ${planId} (free). By ${by}: ${reason}`,
+  });
+
+  revalidatePath("/operator/billing");
+  return {
+    ok: true,
+    message: `${target.email} comped to ${plan(planId as PlanId)?.name ?? planId} — full access, no charge.${
+      author === undefined ? " Granted via the shared password; record who authorised it." : ""
+    }`,
+  };
 }

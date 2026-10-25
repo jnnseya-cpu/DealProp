@@ -3,6 +3,8 @@ import { OperatorNav } from "@/app/operator/OperatorNav";
 import { SiteHeader } from "@/app/components/chrome";
 import { requirePermission } from "@/app/operator/guard";
 import { AdjustmentForm } from "./AdjustmentForm";
+import { CompPlanForm } from "./CompPlanForm";
+import { PLANS } from "@shared/domain/pricing";
 import { listAccounts, listCreditLots, listLedgerEntries, listSubscriptions } from "@backend/store/repository";
 import { coolingOff, entitlementsFor } from "@shared/domain/entitlements";
 import { quoteRefund, standing } from "@shared/domain/ledger";
@@ -135,6 +137,11 @@ export default async function BillingPage() {
         )}
 
         <AdjustmentForm accounts={accounts.map((a) => ({ id: a.id, email: a.email }))} />
+
+        <CompPlanForm
+          accounts={accounts.map((a) => ({ id: a.id, email: a.email }))}
+          plans={PLANS.map((p) => ({ id: p.id, name: p.name }))}
+        />
 
         {rows.length === 0 ? (
           <p className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-6 text-sm text-ink-400">

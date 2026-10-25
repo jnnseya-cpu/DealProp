@@ -777,7 +777,8 @@ export type AuditAction =
   | "payout-made"
   | "payout-failed"
   | "holding-recorded"
-  | "sale-confirmation-recorded";
+  | "sale-confirmation-recorded"
+  | "subscription-comped";
 
 export type SubscriberTokenField = "confirmToken" | "unsubscribeToken";
 
