@@ -20,6 +20,7 @@ import { buildSellerRoutes, type SellerRoutesReport } from "@shared/domain/selle
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { gbp, gbpSigned, percent } from "@shared/format";
 import { Button, Mark, scoreBg, scoreTone, VERDICT_TONE } from "@/app/components/chrome";
+import { Meter, StackedBar, type StackSegment } from "@/app/components/charts";
 import { BUYER_TIERS } from "@shared/domain/revenue";
 import { sellerFeeStatement, type SellerFeeStatement } from "@shared/domain/fees";
 import { mayPublishReturns, type PromotionDecision } from "@shared/domain/prohibitions";
@@ -138,6 +139,8 @@ export default async function Home() {
         supply={supply}
         subject={subject}
         strategiesTested={strategies.tested}
+        score={scored.breakdown.composite}
+        stack={stack}
       />
       <Doors />
       <SupplySection supply={supply} promotion={promotion} />
@@ -210,45 +213,52 @@ function Hero({
   subject,
   strategiesTested,
   sellerFee,
+  score,
+  stack,
 }: {
   routes: SellerRoutesReport;
   supply: SupplyPosition;
   subject: string;
   strategiesTested: number;
   sellerFee: SellerFeeStatement;
+  score: number;
+  stack: ReturnType<typeof runDealDirector>["stack"];
 }) {
   return (
-    <section className="grain relative border-b hairline">
-      <div className="relative mx-auto grid max-w-7xl items-start gap-14 px-6 py-14 lg:grid-cols-[1fr_480px] lg:py-18">
-        <div className="max-w-[40rem]">
-          <p className="eyebrow">For motivated sellers</p>
+    <section className="grain relative overflow-hidden border-b hairline">
+      {/*
+        Cinematic light — a low, warm sun raking across a dark field, plus a
+        cold fill from the far side. Static and CSS-only: no animation to
+        distract from the console, and nothing that pins a slow landing page to
+        a repaint. This is the one place the page earns its atmosphere.
+      */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background:
+            "radial-gradient(60% 55% at 82% 8%, rgba(201,164,78,0.16), transparent 60%), radial-gradient(85% 70% at 6% 0%, rgba(96,116,150,0.09), transparent 55%)",
+        }}
+      />
+      <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-6 py-16 lg:grid-cols-[0.92fr_1.08fr] lg:py-24">
+        <div className="min-w-0 max-w-[40rem]">
+          <p className="eyebrow">The operating system for property deals</p>
 
           {/*
-            No coloured word in the middle of the sentence. Highlighting one
+            No coloured word in the middle of the sentence — highlighting one
             word in the accent is the single most recognisable template move
-            there is, and the sentence is strong enough without it.
+            there is, and the sentence carries itself.
           */}
-          <h1 className="mt-5 font-display text-[33px] font-normal leading-[1.08] tracking-[-0.02em] text-ink-100 sm:text-[44px] lg:text-[52px] lg:tracking-[-0.025em]">
+          <h1 className="mt-5 font-display text-[38px] font-normal leading-[1.02] tracking-[-0.025em] text-ink-100 sm:text-[52px] lg:text-[62px] lg:tracking-[-0.03em]">
             Don&apos;t list your property.
             <br />
             Solve your property problem.
           </h1>
 
-          <p className="mt-6 max-w-[33rem] text-[16px] leading-[1.6] text-ink-300">
-            Lode is not a portal. It is a deal engine. Sellers bring a situation, dealmakers bring
-            the opportunity, funders bring the capital — and the OS structures a transaction that
-            survives tax, stress testing and completion.
-          </p>
-          {/*
-            The positioning line, once, in the position where somebody who read
-            nothing else would still know what this is. Not repeated further
-            down: a sentence that appears three times reads as a slogan rather
-            than as a description.
-          */}
-          <p className="mt-4 max-w-[33rem] border-l-2 border-lode-400/70 py-1 pl-4 text-[14px] leading-[1.6] text-ink-400">
-            The AI marketplace for motivated property sales — connecting verified sellers,
-            acquisition-ready buyers, finance and professional services in one
-            completion-controlled transaction.
+          <p className="mt-6 max-w-[34rem] text-[16px] leading-[1.6] text-ink-300">
+            Lode is not a portal. It is a deal engine. A seller brings a situation; the OS computes
+            one coherent position — the score, the routes, the capital and the law — and carries the
+            transaction through to completion inside sixty days.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-2.5">
@@ -256,22 +266,20 @@ function Hero({
             <Button href="/appraise">Appraise a deal instead</Button>
           </div>
           {/*
-            The fee sentence is computed rather than typed. A percentage
-            published on a landing page is only true while the permissions
-            behind it are recorded, and the footer of this very site asserted
-            the opposite of this paragraph on every page.
+            Computed, never typed. A percentage is only true while the
+            permissions behind it are recorded, so it is read from the fee
+            engine rather than written into the markup.
           */}
           <p className="mt-3 text-[13px] text-ink-500">
-            {sellerFee.statement} Nobody phones you unless you ask. Buying rather than selling? The
-            appraisal needs no account.
+            {sellerFee.statement} Nobody phones you unless you ask.
           </p>
 
           {/*
-            Read from the platform, not from the seed constants these used to
-            come from. A visitor reads these as "how big is this", so a fixture
-            in this position is the first thing they would find out was untrue.
+            Read from the platform, not from seed constants. A visitor reads
+            these as "how big is this", so a fixture here is the first thing
+            they would find out was untrue.
           */}
-          <dl className="mt-12 grid max-w-lg grid-cols-3 gap-8 border-t hairline pt-7">
+          <dl className="mt-11 grid max-w-lg grid-cols-3 gap-8 border-t hairline pt-7">
             <HeroStat
               label="Open opportunities"
               value={String(supply.open)}
@@ -288,12 +296,6 @@ function Hero({
               value={String(supply.fundingMandates)}
               sub={`${supply.buyMandates} buying mandate${supply.buyMandates === 1 ? "" : "s"} alongside`}
             />
-            {/*
-              Read from the router rather than typed. "14" was correct on the
-              day it was written and would have gone on saying 14 the day a
-              fifteenth structure was added — a wrong number on the most
-              prominent line of the site, and nobody would have known.
-            */}
             <HeroStat
               label="Strategies tested"
               value={String(strategiesTested)}
@@ -302,7 +304,7 @@ function Hero({
           </dl>
         </div>
 
-        <SellerRoutesCard report={routes} subject={subject} />
+        <OSConsole routes={routes} subject={subject} score={score} stack={stack} />
       </div>
     </section>
   );
@@ -319,95 +321,119 @@ function HeroStat({ label, value, sub }: { label: string; value: string; sub: st
 }
 
 /**
- * The hero's product surface.
+ * The hero's product surface — the operating console.
  *
- * Deliberately a real screen rather than an illustration of one: the same
- * figures the Deal Room shows, in the same order, at the same density. A
- * marketing card that summarises a product in three words tells a visitor
- * nothing about whether they want it; a screen tells them immediately.
+ * A real screen rather than an illustration of one: the same figures the Deal
+ * Room shows, framed as the application they live in. Two house rules survive
+ * the restyle and must not be undone:
  *
- * The score used to be drawn as a ring around a number, which is the shape
- * every dashboard template ships with and which encodes one value in a
- * hundred-odd pixels. It is now the number, its band, and a rule — legible at
- * a glance and honest about being one figure.
+ *  - The score is the number, its band and a rule — never a ring. A ring is the
+ *    shape every dashboard template ships with and encodes one value in a
+ *    hundred pixels; `scoreBg`/`scoreTone` colour it from the same thresholds as
+ *    the verdict, so the number and its bar cannot disagree.
+ *  - The routes are the *seller's* view — what each pays, how fast, what it
+ *    costs them. The capital stack shown below is the deal's funding structure
+ *    (who provides each pound), not the buyer's profit: the margin a stranger
+ *    makes stays out of a cold landing page, where it reads as a deterrent.
+ *
+ * Every figure is computed by the engine at render from the seeded example;
+ * change the inputs and the console changes.
  */
-/**
- * The hero's product surface.
- *
- * It used to show the buyer's cost stack and the profit on the deal, which is
- * the wrong thing to put in front of the audience the headline is addressing.
- * A homeowner in probate, two screens into the page, was being shown what a
- * stranger would make out of their mother's house before they had said a word.
- * Transparency about the buyer's margin is right, and it is right *in the
- * seller's own results*, where it sits beside what they gain for it. On a cold
- * landing page with no context it is a deterrent.
- *
- * So this is the seller's view: what each route pays, how fast, and what it
- * costs them. The buyer's arithmetic is a click away at /appraise, where the
- * audience for it is the audience that asked.
- */
-function SellerRoutesCard({ report, subject }: { report: SellerRoutesReport; subject: string }) {
-  const routes = report.routes.filter((r) => !r.unavailable).slice(0, 3);
-  const best = report.best;
+function OSConsole({
+  routes,
+  subject,
+  score,
+  stack,
+}: {
+  routes: SellerRoutesReport;
+  subject: string;
+  score: number;
+  stack: ReturnType<typeof runDealDirector>["stack"];
+}) {
+  const top = routes.routes.filter((r) => !r.unavailable).slice(0, 3);
+  const best = routes.best;
+  const band = score >= 78 ? "Strong" : score >= 60 ? "Workable" : score >= 40 ? "Marginal" : "Below floor";
+
+  // The capital stack as parts of a whole — shades of the one accent, each
+  // named directly in the legend so identity never rests on colour alone.
+  const shades = ["bg-lode-500", "bg-lode-500/55", "bg-lode-400/35", "bg-surface-3"];
+  const segments: StackSegment[] = stack.layers.map((l, i) => ({
+    label: l.label,
+    value: Math.max(Number(l.amount), 0),
+    display: gbp(l.amount),
+    fill: shades[i % shades.length]!,
+  }));
 
   return (
-    <div className="overflow-hidden rounded-xl border hairline bg-surface-1">
-      <div className="flex items-center justify-between border-b hairline bg-surface-2 px-4 py-2.5">
-        {/*
-          Derived from the same fixture the routes below are computed from.
-          It read "empty 412 days" — a figure that is in no record anywhere,
-          on a card whose own text promises every number is computed. An
-          invented day count is the one thing on this card a reader could
-          check, and it was the one thing that was made up.
-        */}
-        <span className="font-mono text-[11px] tracking-[0.04em] text-ink-300">
-          {subject}
-        </span>
-        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-500">
-          Worked example
-        </span>
-      </div>
+    <div className="relative min-w-0">
+      <div className="overflow-hidden rounded-2xl border hairline bg-surface-1 shadow-[0_50px_120px_-55px_rgba(0,0,0,0.9)]">
+        {/* application chrome */}
+        <div className="flex items-center justify-between gap-3 border-b hairline bg-ink-950/60 px-4 py-2.5">
+          <div className="flex min-w-0 items-center gap-2.5 text-[12px] text-ink-400">
+            <Mark size={15} />
+            <span className="text-ink-200">Pipeline</span>
+            <span className="text-ink-600">/</span>
+            <span className="truncate font-mono text-[11px] text-ink-300">{subject}</span>
+          </div>
+          <span className="shrink-0 rounded-full border border-emerald-600/40 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-emerald-300">
+            Live
+          </span>
+        </div>
 
-      <div className="px-5 py-4">
-        <p className="text-[13px] leading-[1.6] text-ink-300">
-          Four routes, ranked against what this seller said mattered — not against which one pays
-          us most. This is what each one puts in their hand.
-        </p>
-        <p className="mt-2 text-[12px] leading-[1.6] text-ink-500">
-          A worked example, not a live listing. The figures are computed by the same engine at the
-          moment you loaded this page — change the inputs and every number below changes — but the
-          property is an illustration.
-        </p>
-      </div>
+        <div className="space-y-4 p-5">
+          {/* position — number, band and a rule, never a ring */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="max-w-[20rem]">
+              <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink-500">Deal position</p>
+              <p className="mt-1 text-[13px] leading-[1.5] text-ink-300">
+                Four routes, ranked against what this seller said mattered — not against which pays us most.
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <span className={`tnum font-display text-[42px] leading-none ${scoreTone(score)}`}>{score}</span>
+              <p className="mt-1 text-[11px] text-ink-400">{band}, after tax</p>
+            </div>
+          </div>
+          <Meter value={score} fill={scoreBg(score)} />
 
-      <ul className="border-t hairline">
-        {routes.map((route) => (
-          <li key={route.key} className="border-b hairline px-5 py-3.5 last:border-0">
-            <div className="flex items-baseline justify-between gap-4">
-              <span className="text-[14px] text-ink-100">{route.label}</span>
-              <span className="tnum shrink-0 text-[15px] text-lode-300">
-                {gbp(route.totalToSeller)}
+          {/* seller routes — real */}
+          <ul className="rounded-xl border hairline bg-surface-2">
+            {top.map((route) => (
+              <li key={route.key} className="border-b hairline px-4 py-3 last:border-0">
+                <div className="flex items-baseline justify-between gap-4">
+                  <span className="text-[14px] text-ink-100">{route.label}</span>
+                  <span className="tnum shrink-0 text-[15px] text-lode-300">{gbp(route.totalToSeller)}</span>
+                </div>
+                <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 text-[12px] text-ink-500">
+                  <span>
+                    {route.completionDaysMin}–{route.completionDaysMax} days
+                    {best !== undefined && best.key === route.key && (
+                      <span className="ml-2 text-lode-400">best fit</span>
+                    )}
+                  </span>
+                  <span className="tnum">{route.certainty} certainty</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {/* capital stack — the funding structure, real */}
+          <div className="rounded-xl border hairline bg-surface-2 px-4 py-3.5">
+            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+              <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink-500">Capital stack</span>
+              <span className="text-[11px] text-ink-400">
+                Originator cash <span className="tnum text-ink-200">{gbp(stack.originatorCash)}</span>
               </span>
             </div>
-            <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 text-[12px] text-ink-500">
-              <span>
-                {route.completionDaysMin}–{route.completionDaysMax} days
-                {best !== undefined && best.key === route.key && (
-                  <span className="ml-2 text-lode-400">best fit for what they told us</span>
-                )}
-              </span>
-              <span className="tnum">{route.certainty} certainty</span>
-            </div>
-          </li>
-        ))}
-      </ul>
+            <StackedBar segments={segments} />
+          </div>
 
-      <div className="border-t hairline bg-surface-2 px-5 py-3.5">
-        <p className="text-[12px] leading-[1.6] text-ink-400">
-          Every route also shows what the seller gives up for it, including that an agent would
-          probably get them more. That is not a disclaimer we add — the engine refuses to produce a
-          below-market route without it.
-        </p>
+          <p className="text-[11px] leading-[1.5] text-ink-500">
+            Worked example — every figure is computed by the engine at the moment you loaded this
+            page; the property is an illustration. Each route also shows what the seller gives up,
+            because the engine refuses a below-market route without it.
+          </p>
+        </div>
       </div>
     </div>
   );
