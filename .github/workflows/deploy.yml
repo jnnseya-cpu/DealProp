@@ -1,0 +1,104 @@
+# Auto-deploy.
+#
+# The gate is the point: nothing reaches the VPS unless the same suite CI runs
+# has passed here first, against a real Postgres. A red build stops at `verify`
+# and the `deploy` job never starts, so a broken commit cannot go live.
+#
+# Two jobs, in order:
+#   verify — types + the full suite against Postgres (production's engine).
+#   deploy — build the image, push it to GHCR, and tell the VPS to pull it.
+#
+# The VPS side is pull-based: the server logs in to GHCR once and runs
+# `docker compose pull && up -d`. Nothing in this file touches the engines or
+# the money path; it ships the image the Dockerfile already produces.
+#
+# One-time setup lives in docs/DEPLOY-AUTO.md (secrets + the compose change).
+
+name: Deploy
+
+on:
+  push:
+    branches:
+      - claude/property-deal-os-a4bclq
+      - main
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: lode
+          POSTGRES_PASSWORD: lode
+          POSTGRES_DB: lode_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Types
+        run: npm run typecheck
+      - name: Tests, both storage engines
+        run: npm run test:pg
+        env:
+          TEST_DATABASE_URL: postgres://lode:lode@127.0.0.1:5432/lode_test
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # The public site URL is the only build arg the image needs; the
+          # statutory identity and every secret are read at runtime from the
+          # VPS's app.env, never baked into a layer.
+          build-args: |
+            NEXT_PUBLIC_SITE_URL=https://lodeprop.com
+          tags: |
+            ghcr.io/jnnseya-cpu/dealprop:latest
+            ghcr.io/jnnseya-cpu/dealprop:${{ github.sha }}
+
+      - name: Deploy on the VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            set -e
+            cd "${{ secrets.VPS_PATH }}"
+            docker compose pull app
+            docker compose up -d app
+            docker image prune -f
