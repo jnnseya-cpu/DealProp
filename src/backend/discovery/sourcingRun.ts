@@ -348,17 +348,24 @@ export async function runRegisters(
     let parsed = 0;
     let located = 0;
 
+    // The feed can list the same notice twice — an amendment, or a repeat
+    // across a page boundary — and a worklist that shows the same person twice
+    // is noise on exactly the leads that demand care. Deduped by notice id.
+    const seen = new Set<string>();
+
     for (const notice of feed.value.slice(0, cap)) {
       if (kind === "deceased") {
         const record = parseDeceasedEstate(notice);
-        if (record !== undefined) {
+        if (record !== undefined && !seen.has(record.noticeId)) {
+          seen.add(record.noticeId);
           deceased.push(record);
           parsed += 1;
           if (record.postcode !== undefined) located += 1;
         }
       } else {
         const record = parseInsolvencyNotice(notice);
-        if (record !== undefined) {
+        if (record !== undefined && !seen.has(record.noticeId)) {
+          seen.add(record.noticeId);
           insolvencies.push(record);
           parsed += 1;
           if (record.postcode !== undefined) located += 1;
