@@ -338,6 +338,10 @@ export interface GazetteQuery {
   readonly start?: string;
   /** Results end date, ISO-8601. */
   readonly end?: string;
+  /** How many notices one request returns. The feed's default is small (~10). */
+  readonly pageSize?: number;
+  /** 1-based page number, for reading beyond the first page. */
+  readonly page?: number;
 }
 
 const FEED_PATH = "/all-notices/notice/data.json";
@@ -347,6 +351,8 @@ function feedUrl(host: string, query: GazetteQuery): string {
   url.searchParams.set("noticetypes", query.noticeCode);
   if (query.start !== undefined) url.searchParams.set("start-publish-date", query.start);
   if (query.end !== undefined) url.searchParams.set("end-publish-date", query.end);
+  if (query.pageSize !== undefined) url.searchParams.set("results-page-size", String(query.pageSize));
+  if (query.page !== undefined) url.searchParams.set("results-page", String(query.page));
   return url.toString();
 }
 
@@ -354,9 +360,9 @@ function feedUrl(host: string, query: GazetteQuery): string {
  * Fetch one page of notices of a given type from the all-notices feed.
  *
  * Licence-gated by the Fetcher like every other outbound read, and parsed into
- * the lightweight feed shape. The per-notice structured fields (name, address)
- * are read by `fetchNotice()` against the notice's own URL, because the feed
- * lists notices and the structured body lives on the notice itself.
+ * the lightweight feed shape. The name and address for each notice are read
+ * from the entry's own title and inlined content, so a page of the feed is all
+ * the data a run needs — there is no second request per notice.
  */
 export async function fetchNotices(
   fetcher: Fetcher,

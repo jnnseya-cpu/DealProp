@@ -293,7 +293,7 @@ export interface RegisterRunConfig {
   readonly insolvencyCode?: string;
   readonly start?: string;
   readonly end?: string;
-  /** Cap on per-notice body reads, kept well inside the Fetcher's run budget. */
+  /** How many leads to gather per kind, paging the feed as needed. */
   readonly maxNotices?: number;
 }
 
@@ -321,7 +321,9 @@ export async function runRegisters(
   const notes: string[] = [];
   const deceased: DeceasedEstateNotice[] = [];
   const insolvencies: InsolvencyNotice[] = [];
-  const cap = config.maxNotices ?? 20;
+  const cap = config.maxNotices ?? 50;
+  // The feed's own page-size ceiling; one request returns this many at most.
+  const pageSize = Math.min(Math.max(cap, 1), 50);
 
   const sweep = async (
     code: string | undefined,
@@ -331,50 +333,61 @@ export async function runRegisters(
       notes.push(`${kind}: no notice code configured, so nothing was fetched.`);
       return;
     }
-    const feed = await fetchNotices(fetcher, {
-      noticeCode: code,
-      ...(config.start !== undefined ? { start: config.start } : {}),
-      ...(config.end !== undefined ? { end: config.end } : {}),
-    });
-    if (!feed.ok || feed.value === undefined) {
-      notes.push(`${kind}: ${feed.reason}`);
-      return;
-    }
-    // The feed entry carries the name and the address, so each notice is read
-    // straight from the listing — no second request per notice. Counted so a
-    // run that lists notices but yields no leads still says WHERE it dropped
-    // them: parsed is how many became a record, located how many carried a
-    // postcode. "0 listed" is the feed; "listed but 0 parsed" is the parser.
+
     let parsed = 0;
     let located = 0;
-
+    let listed = 0;
     // The feed can list the same notice twice — an amendment, or a repeat
     // across a page boundary — and a worklist that shows the same person twice
     // is noise on exactly the leads that demand care. Deduped by notice id.
     const seen = new Set<string>();
 
-    for (const notice of feed.value.slice(0, cap)) {
-      if (kind === "deceased") {
-        const record = parseDeceasedEstate(notice);
-        if (record !== undefined && !seen.has(record.noticeId)) {
-          seen.add(record.noticeId);
-          deceased.push(record);
-          parsed += 1;
-          if (record.postcode !== undefined) located += 1;
-        }
-      } else {
-        const record = parseInsolvencyNotice(notice);
-        if (record !== undefined && !seen.has(record.noticeId)) {
-          seen.add(record.noticeId);
-          insolvencies.push(record);
-          parsed += 1;
-          if (record.postcode !== undefined) located += 1;
+    // Page through the feed until we have the requested number of leads, the
+    // feed runs out, or a hard bound on requests is reached. The entry carries
+    // the name and address, so no per-notice request is made — only the page
+    // reads, each gated by the Fetcher.
+    for (let page = 1; parsed < cap && page <= 20; page += 1) {
+      const feed = await fetchNotices(fetcher, {
+        noticeCode: code,
+        pageSize,
+        page,
+        ...(config.start !== undefined ? { start: config.start } : {}),
+        ...(config.end !== undefined ? { end: config.end } : {}),
+      });
+      if (!feed.ok || feed.value === undefined) {
+        if (page === 1) notes.push(`${kind}: ${feed.reason}`);
+        break;
+      }
+      if (feed.value.length === 0) break;
+      listed += feed.value.length;
+
+      for (const notice of feed.value) {
+        if (parsed >= cap) break;
+        if (kind === "deceased") {
+          const record = parseDeceasedEstate(notice);
+          if (record !== undefined && !seen.has(record.noticeId)) {
+            seen.add(record.noticeId);
+            deceased.push(record);
+            parsed += 1;
+            if (record.postcode !== undefined) located += 1;
+          }
+        } else {
+          const record = parseInsolvencyNotice(notice);
+          if (record !== undefined && !seen.has(record.noticeId)) {
+            seen.add(record.noticeId);
+            insolvencies.push(record);
+            parsed += 1;
+            if (record.postcode !== undefined) located += 1;
+          }
         }
       }
+
+      // A short page is the last page.
+      if (feed.value.length < pageSize) break;
     }
 
     notes.push(
-      `${kind}: ${feed.value.length} listed → ${parsed} parsed into leads → ${located} with a postcode.`,
+      `${kind}: ${listed} listed → ${parsed} parsed into leads → ${located} with a postcode.`,
     );
   };
 

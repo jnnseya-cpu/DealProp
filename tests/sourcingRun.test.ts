@@ -186,7 +186,7 @@ describe("running the public registers through the Fetcher", () => {
     });
     const { fetcher } = fetcherWith({
       "https://www.thegazette.co.uk/robots.txt": { status: 404 },
-      "https://www.thegazette.co.uk/all-notices/notice/data.json?noticetypes=DEC": { body: feed },
+      "https://www.thegazette.co.uk/all-notices/notice/data.json?noticetypes=DEC&results-page-size=50&results-page=1": { body: feed },
     });
     const result = await runRegisters({ deceasedCode: "DEC" }, { fetcher, now: NOW });
     expect(result.leads).toHaveLength(1);
