@@ -176,14 +176,7 @@ function Leads({ leads }: { leads: readonly SourcedLead[] }) {
               </p>
             )}
 
-            {lead.contactForService !== undefined && (
-              <p className="mt-3 border-l-2 border-emerald-500/70 pl-3 text-sm leading-relaxed text-ink-200">
-                <span className="text-ink-300">Contact for service.</span> {lead.contactForService}{" "}
-                <span className="text-ink-500">— the lawful address to write to.</span>
-              </p>
-            )}
-
-            {lead.letterDraft !== undefined && <PrintLetter letter={lead.letterDraft} />}
+            {lead.letterDraft !== undefined && <PrintLetter lead={lead} />}
 
             {lead.signalKey === "probate-notice" && lead.postcode !== undefined && (
               <StartDealForm lead={lead} />

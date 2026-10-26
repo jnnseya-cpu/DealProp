@@ -23,7 +23,6 @@ import {
 } from "@backend/discovery/properties";
 import {
   GAZETTE_SOURCE,
-  fetchNoticeDetail,
   fetchNotices,
   parseDeceasedEstate,
   parseInsolvencyNotice,
@@ -313,8 +312,6 @@ export interface RegisterRunConfig {
   readonly end?: string;
   /** How many leads to gather per kind, paging the feed as needed. */
   readonly maxNotices?: number;
-  /** How many probate leads to look up a contact for service for. */
-  readonly maxContacts?: number;
 }
 
 export interface RegisterRunResult {
@@ -414,40 +411,13 @@ export async function runRegisters(
   await sweep(config.deceasedCode, "deceased");
   await sweep(config.insolvencyCode, "insolvency");
 
-  // Enrich a bounded number of probate leads with the contact for service, so
-  // the operator has who to lawfully write to inside Lode rather than leaving
-  // to read the notice. Each is a fetch of the notice's own page, so it is
-  // capped; the rest still carry the notice link.
-  const contactCap = config.maxContacts ?? 20;
-  const enrichedDeceased: DeceasedEstateNotice[] = [];
-  let contactsFetched = 0;
-  let contactsFound = 0;
-  for (const record of deceased) {
-    if (contactsFetched < contactCap && record.noticeUrl !== undefined) {
-      contactsFetched += 1;
-      const detail = await fetchNoticeDetail(fetcher, record.noticeUrl);
-      if (detail.ok && detail.value !== undefined) {
-        if (detail.value.contactForService !== undefined) contactsFound += 1;
-        enrichedDeceased.push({
-          ...record,
-          ...(detail.value.contactForService !== undefined
-            ? { contactForService: detail.value.contactForService }
-            : {}),
-          ...(detail.value.claimDeadline !== undefined
-            ? { claimDeadline: detail.value.claimDeadline }
-            : {}),
-        });
-        continue;
-      }
-    }
-    enrichedDeceased.push(record);
-  }
-  if (contactsFetched > 0) {
-    notes.push(`contacts: ${contactsFound} of ${contactsFetched} probate notice(s) named a contact for service.`);
-  }
-
+  // The contact for service is resolved on demand — one fetch when the operator
+  // opens a lead's letter — rather than in bulk here. That keeps the run to the
+  // feed pages (fast, even at a hundred leads) and means every lead can resolve
+  // its contact, not just a capped first slice. See resolveLetter in the
+  // sourcing actions.
   return {
-    leads: sourceProperties({ deceasedEstates: enrichedDeceased, insolvencies }, now),
+    leads: sourceProperties({ deceasedEstates: deceased, insolvencies }, now),
     notes,
     requestsMade: fetcher.requestsMade,
   };

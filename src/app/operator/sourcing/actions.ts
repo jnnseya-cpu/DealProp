@@ -10,6 +10,10 @@ import { listSourcedProperties, saveDeal, saveSourcedProperty } from "@backend/s
 import { buildIntake, type IntakeAnswers } from "@shared/domain/intake";
 import { bps, fromMajor, ZERO } from "@shared/money";
 import { newToken } from "@backend/auth/tokens";
+import { fetchNoticeDetail } from "@backend/discovery/gazette";
+import { Fetcher } from "@backend/discovery/fetcher";
+import { companyIdentity } from "@shared/domain/identity";
+import { draftProbateLetter } from "@shared/domain/probateLetter";
 import type { FlipEvidence, SourcedLead } from "@shared/domain/sourcedLead";
 import type { JurisdictionCode, PropertyType } from "@shared/domain/types";
 
@@ -136,6 +140,65 @@ export async function dismissSourcedPropertyAction(
 
   revalidatePath("/operator/sourcing");
   return { ok: true, message: "Set aside." };
+}
+
+export interface ResolvedLetter {
+  readonly ok: boolean;
+  /** The contact for service read from the notice, where it named one. */
+  readonly contactForService?: string;
+  /** The letter redrawn with whatever contact and deadline the notice gave. */
+  readonly letter: string;
+  readonly message?: string;
+}
+
+/**
+ * Resolve a probate lead's contact for service on demand, and redraw its letter.
+ *
+ * Called when the operator opens a lead's letter, so every lead can have the
+ * executor's address filled in — not just a capped first slice — without the
+ * run fetching every notice up front. One notice fetch, gated by the Fetcher
+ * like every Gazette read. A named person is on the surface that triggers it,
+ * and the action checks its own permission (§29).
+ */
+export async function resolveLetter(input: {
+  readonly noticeUrl: string;
+  readonly deceasedName: string;
+  readonly propertyAddress: string;
+}): Promise<ResolvedLetter> {
+  await requirePermission("manage-mandates", "/operator/sourcing");
+
+  const sender = companyIdentity(process.env);
+  const today = new Date().toISOString().slice(0, 10);
+
+  let contactForService: string | undefined;
+  let claimDeadline: string | undefined;
+  let note: string | undefined;
+
+  if (input.noticeUrl !== "") {
+    const detail = await fetchNoticeDetail(new Fetcher(), input.noticeUrl);
+    if (detail.ok && detail.value !== undefined) {
+      contactForService = detail.value.contactForService;
+      claimDeadline = detail.value.claimDeadline;
+    } else {
+      note = "The notice could not be read just now — open it directly for the contact.";
+    }
+  }
+
+  const letter = draftProbateLetter({
+    sender,
+    ...(contactForService !== undefined ? { recipientContact: contactForService } : {}),
+    deceasedName: input.deceasedName,
+    ...(input.propertyAddress !== "" ? { propertyAddress: input.propertyAddress } : {}),
+    ...(claimDeadline !== undefined ? { claimDeadline } : {}),
+    today,
+  });
+
+  return {
+    ok: contactForService !== undefined,
+    ...(contactForService !== undefined ? { contactForService } : {}),
+    letter,
+    ...(note !== undefined ? { message: note } : {}),
+  };
 }
 
 /**

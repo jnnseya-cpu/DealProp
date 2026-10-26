@@ -1,14 +1,49 @@
 "use client";
 
+import { useState } from "react";
+import { resolveLetter } from "./actions";
+import type { SourcedLead } from "@shared/domain/sourcedLead";
+
 /**
- * Review and print the drafted letter to a deceased estate's representatives.
+ * Review and print the letter to a deceased estate's representatives.
  *
- * The letter is drafted on the server and shown here in full, so the operator
- * reads exactly what will go out — inside Lode — then prints it to post. It is
- * never sent from here: a letter to the bereaved is printed and posted by a
- * named person, which is the whole point of the probate route.
+ * When opened, the component resolves the contact for service from the notice
+ * on demand — one fetch — and redraws the letter with the executor's address in
+ * the recipient block, so the letter is ready to post without leaving Lode.
+ * Until it resolves (or if the notice names none), it shows the drafted letter
+ * with the notice link, so there is always something in hand. Never sent from
+ * here: a letter to the bereaved is printed and posted by a named person.
  */
-export function PrintLetter({ letter }: { letter: string }) {
+export function PrintLetter({ lead }: { lead: SourcedLead }) {
+  const [letter, setLetter] = useState(lead.letterDraft ?? "");
+  const [contact, setContact] = useState<string | undefined>(lead.contactForService);
+  const [loading, setLoading] = useState(false);
+  const [tried, setTried] = useState(false);
+  const [note, setNote] = useState<string | undefined>(undefined);
+
+  async function onOpen() {
+    if (tried || contact !== undefined || lead.sourceUrl === undefined) return;
+    setTried(true);
+    setLoading(true);
+    try {
+      const r = await resolveLetter({
+        noticeUrl: lead.sourceUrl,
+        deceasedName: lead.subjectName ?? "",
+        propertyAddress: lead.propertyAddress ?? "",
+      });
+      setLetter(r.letter);
+      if (r.contactForService !== undefined) setContact(r.contactForService);
+      if (r.message !== undefined) setNote(r.message);
+      else if (r.contactForService === undefined) {
+        setNote("This notice named no contact for service — open the notice to read who to write to.");
+      }
+    } catch {
+      setNote("Could not reach the notice just now. Open it directly for the contact.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function print() {
     const w = window.open("", "_blank", "width=820,height=1000");
     if (w === null) return;
@@ -28,11 +63,32 @@ export function PrintLetter({ letter }: { letter: string }) {
   }
 
   return (
-    <details className="mt-3 rounded-lg border hairline bg-surface-2">
+    <details
+      className="mt-3 rounded-lg border hairline bg-surface-2"
+      onToggle={(e) => {
+        if (e.currentTarget.open) void onOpen();
+      }}
+    >
       <summary className="cursor-pointer px-4 py-2.5 text-sm text-ink-200">
         Letter to the executors — review &amp; print
       </summary>
       <div className="border-t hairline px-4 py-3">
+        {loading && <p className="mb-2 text-[12px] text-ink-400">Finding the contact for service in the notice…</p>}
+        {contact !== undefined && (
+          <p className="mb-2 border-l-2 border-emerald-500/70 pl-3 text-[13px] leading-relaxed text-ink-200">
+            <span className="text-ink-300">Posting to:</span> {contact}
+          </p>
+        )}
+        {note !== undefined && (
+          <p className="mb-2 text-[12px] leading-relaxed text-amber-300/90">
+            {note}{" "}
+            {lead.sourceUrl !== undefined && (
+              <a href={lead.sourceUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                Open the notice →
+              </a>
+            )}
+          </p>
+        )}
         <pre className="max-h-80 overflow-auto whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-ink-300">
           {letter}
         </pre>
@@ -44,8 +100,8 @@ export function PrintLetter({ letter }: { letter: string }) {
           Print this letter →
         </button>
         <p className="mt-2 text-[11px] leading-snug text-ink-500">
-          Check every bracketed placeholder is filled before posting. Post it yourself — nothing is
-          sent from here.
+          Check the address and any bracketed placeholder before posting. Post it yourself — nothing
+          is sent from here.
         </p>
       </div>
     </details>
