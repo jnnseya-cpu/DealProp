@@ -20,6 +20,7 @@ import { buildSellerRoutes, type SellerRoutesReport } from "@shared/domain/selle
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { gbp, gbpSigned, percent } from "@shared/format";
 import { Button, Mark, scoreBg, scoreTone, VERDICT_TONE } from "@/app/components/chrome";
+import { LandingNav } from "@/app/components/LandingNav";
 import { Meter, StackedBar, type StackSegment } from "@/app/components/charts";
 import { BUYER_TIERS } from "@shared/domain/revenue";
 import { sellerFeeStatement, type SellerFeeStatement } from "@shared/domain/fees";
@@ -182,21 +183,11 @@ function Nav() {
           <Mark size={19} />
           <span className="font-display text-[17px] tracking-[-0.01em] text-ink-100">Lode</span>
         </div>
-        <div className="hidden items-center gap-7 text-[13px] text-ink-400 lg:flex">
-          <Link href="/browse" className="transition-colors hover:text-ink-100">Properties</Link>
-          <Link href="/appraise" className="transition-colors hover:text-ink-100">Free appraisal</Link>
-          <Link href="/sell" className="transition-colors hover:text-ink-100">Selling</Link>
-          <Link href="/partners" className="transition-colors hover:text-ink-100">Agents</Link>
-          <a href="#engine" className="transition-colors hover:text-ink-100">Deal Engine</a>
-          <a href="#stack" className="transition-colors hover:text-ink-100">Capital</a>
-          <a href="#goldmine" className="transition-colors hover:text-ink-100">GoldMine</a>
-          <a href="#close" className="transition-colors hover:text-ink-100">Close</a>
-          <a href="#pricing" className="transition-colors hover:text-ink-100">Pricing</a>
-        </div>
+        <LandingNav />
         <div className="flex items-center gap-2">
           <Link
             href="/operator"
-            className="hidden px-2 text-[13px] text-ink-400 transition-colors hover:text-ink-100 sm:block"
+            className="hidden px-2 text-[13px] text-ink-400 transition-colors hover:text-ink-100 lg:block"
           >
             Sign in
           </Link>

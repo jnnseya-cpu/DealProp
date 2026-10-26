@@ -14,12 +14,22 @@ import { PWA_COLOURS, PWA_ICONS } from "@shared/pwa";
  * document head instead. Both paths are covered.
  */
 export default function manifest(): MetadataRoute.Manifest {
+  // Pin the app to the canonical host. Without this, a PWA installed from the
+  // apex stays apex-scoped and then fights the apex→www redirect on every
+  // navigation — which drops the session cookie and makes the installed app
+  // demand a fresh sign-in each time. An absolute, canonical start_url and
+  // scope keep the installed app on one host for good.
+  const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/+$/, "");
+  const canonical = base !== "" ? `${base}/` : "/";
+
   return {
     name: "Lode — Property Deal OS",
     short_name: "Lode",
     description:
       "Problems become deals. Deals find capital. Capital closes property. An AI deal engine for motivated sellers, dealmakers and funders.",
-    start_url: "/",
+    id: canonical,
+    start_url: canonical,
+    ...(base !== "" ? { scope: `${base}/` } : {}),
     // `standalone` is what makes the OS show a splash at all: a browser-tab
     // launch has nothing to cover, so it never shows one.
     display: "standalone",
