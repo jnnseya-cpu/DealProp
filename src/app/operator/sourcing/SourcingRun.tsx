@@ -174,12 +174,31 @@ function Leads({ leads }: { leads: readonly SourcedLead[] }) {
               </p>
             )}
 
+            {lead.contactForService !== undefined && (
+              <p className="mt-3 border-l-2 border-emerald-500/70 pl-3 text-sm leading-relaxed text-ink-200">
+                <span className="text-ink-300">Contact for service.</span> {lead.contactForService}{" "}
+                <span className="text-ink-500">— the lawful address to write to.</span>
+              </p>
+            )}
+
             <p className="mt-3 border-l-2 border-ink-700 pl-3 text-sm leading-relaxed text-ink-400">
               <span className="text-ink-300">Lawful next step.</span> {lead.lawfulNextStep}
             </p>
 
-            <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-ink-600">
-              {lead.provenance.sourceKey} · as of {lead.provenance.asOf.slice(0, 10)}
+            <p className="mt-3 flex flex-wrap items-center gap-x-3 font-mono text-[10px] uppercase tracking-wider text-ink-600">
+              <span>
+                {lead.provenance.sourceKey} · as of {lead.provenance.asOf.slice(0, 10)}
+              </span>
+              {lead.sourceUrl !== undefined && (
+                <a
+                  href={lead.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-lode-300 underline-offset-2 hover:underline"
+                >
+                  Open the notice →
+                </a>
+              )}
             </p>
           </li>
         ))}

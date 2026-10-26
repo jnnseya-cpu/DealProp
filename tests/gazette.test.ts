@@ -7,6 +7,7 @@ import {
   parseDeceasedEstate,
   parseGazetteFeed,
   parseInsolvencyNotice,
+  parseNoticeDetail,
   postcodeIn,
 } from "@backend/discovery/gazette";
 import { sourcePermits } from "@shared/domain/sources";
@@ -156,6 +157,53 @@ describe("a personal-insolvency notice is extracted, never inferred", () => {
   it("returns undefined where no debtor is named", () => {
     expect(parseInsolvencyNotice({ id: "1", title: "", publishedAt: "x" })).toBeUndefined();
     expect(parseInsolvencyNotice({ id: "", title: "A", publishedAt: "x" })).toBeUndefined();
+  });
+});
+
+/* ------------------------------------------------- contact for service */
+
+describe("a notice's contact for service is read from its JSON-LD", () => {
+  it("resolves the personal representative and the claim deadline", () => {
+    // The shape confirmed from a live notice: the notice node references its
+    // representative and carries the claim deadline directly.
+    const detail = parseNoticeDetail({
+      "@graph": [
+        {
+          "@id": "https://www.thegazette.co.uk/id/notice/5237386",
+          hasClaimDeadline: "2026-12-27",
+          hasPersonalRepresentative:
+            "https://www.thegazette.co.uk/id/notice/5237386#estateExecutor-1",
+        },
+        {
+          "@id": "https://www.thegazette.co.uk/id/notice/5237386#estateExecutor-1",
+          name: "Messrs Example & Co Solicitors",
+          address: "1 High Street, Nottingham, NG1 1AA",
+        },
+      ],
+    });
+    expect(detail.claimDeadline).toBe("2026-12-27");
+    expect(detail.contactForService).toContain("Example & Co");
+    expect(detail.contactForService).toContain("High Street");
+  });
+
+  it("resolves an address referenced by id", () => {
+    const detail = parseNoticeDetail({
+      "@graph": [
+        { "@id": "n", hasPersonalRepresentative: "exec" },
+        { "@id": "exec", name: "Jane Solicitor", hasAddress: "addr" },
+        { "@id": "addr", streetAddress: "2 Market Square", locality: "Leeds", postalCode: "LS1 1AA" },
+      ],
+    });
+    expect(detail.contactForService).toContain("Jane Solicitor");
+    expect(detail.contactForService).toContain("Market Square");
+    expect(detail.contactForService).toContain("LS1 1AA");
+  });
+
+  it("returns nothing it cannot find rather than inventing it", () => {
+    expect(
+      parseNoticeDetail({ "@graph": [{ "@id": "n", hasClaimDeadline: "2026-01-01" }] }).contactForService,
+    ).toBeUndefined();
+    expect(parseNoticeDetail("nope")).toEqual({});
   });
 });
 

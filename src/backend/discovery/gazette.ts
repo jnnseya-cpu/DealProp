@@ -198,6 +198,10 @@ export interface DeceasedEstateNotice {
   readonly dateOfDeath?: string;
   /** The person or firm the notice names to receive claims — the lawful route. */
   readonly contactForService?: string;
+  /** ISO-8601 deadline for claims against the estate, where stated. */
+  readonly claimDeadline?: string;
+  /** The notice's public page, for opening the source from inside Lode. */
+  readonly noticeUrl?: string;
 }
 
 /**
@@ -256,7 +260,145 @@ export function parseDeceasedEstate(notice: GazetteNotice): DeceasedEstateNotice
     deceasedName,
     ...(lastAddress !== undefined ? { lastAddress } : {}),
     ...(postcode !== undefined ? { postcode } : {}),
+    ...(notice.noticeUrl !== undefined ? { noticeUrl: notice.noticeUrl } : {}),
   };
+}
+
+/* ----------------------------------------------- notice contact for service */
+
+/** What a notice's own page adds beyond the feed listing. */
+export interface NoticeDetail {
+  /** The executor/solicitor named to receive claims — who to lawfully write to. */
+  readonly contactForService?: string;
+  /** ISO-8601 claim deadline, where the notice states one. */
+  readonly claimDeadline?: string;
+}
+
+/** The nodes of a JSON-LD document, whether it is a @graph or a single node. */
+function graphOf(json: unknown): readonly Record<string, unknown>[] {
+  if (typeof json !== "object" || json === null) return [];
+  const body = json as Record<string, unknown>;
+  const graph = body["@graph"];
+  if (Array.isArray(graph)) {
+    return graph.filter((n): n is Record<string, unknown> => typeof n === "object" && n !== null);
+  }
+  return [body];
+}
+
+/** The first string value under any of the given keys, Atom-wrapped or bare. */
+function firstString(node: Record<string, unknown>, keys: readonly string[]): string | undefined {
+  for (const key of keys) {
+    const value = node[key];
+    if (typeof value === "string" && value.trim() !== "") return value.trim();
+    const t = text(value);
+    if (t !== undefined) return t;
+  }
+  return undefined;
+}
+
+/**
+ * The contact for service and claim deadline from a notice's JSON-LD.
+ *
+ * The notice node names its personal representative (the executor — the lawful
+ * contact) by reference, and carries the claim deadline directly. The executor
+ * node is resolved from the graph and its name and address read tolerantly:
+ * the exact key names are not guessed at one by one, so a representation that
+ * labels them differently still yields what it has rather than nothing.
+ */
+export function parseNoticeDetail(json: unknown): NoticeDetail {
+  const graph = graphOf(json);
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const node of graph) {
+    const id = node["@id"];
+    if (typeof id === "string") byId.set(id, node);
+  }
+
+  let claimDeadline: string | undefined;
+  let repId: string | undefined;
+  for (const node of graph) {
+    if (claimDeadline === undefined) claimDeadline = firstString(node, ["hasClaimDeadline"]);
+    if (repId === undefined) {
+      const rep = node["hasPersonalRepresentative"];
+      if (typeof rep === "string") repId = rep;
+    }
+  }
+
+  const contactForService =
+    repId !== undefined ? contactFromNode(byId.get(repId), byId) : undefined;
+
+  return {
+    ...(contactForService !== undefined ? { contactForService } : {}),
+    ...(claimDeadline !== undefined ? { claimDeadline } : {}),
+  };
+}
+
+/** Name + address out of a representative node, resolving a referenced address. */
+function contactFromNode(
+  node: Record<string, unknown> | undefined,
+  byId: Map<string, Record<string, unknown>>,
+): string | undefined {
+  if (node === undefined) return undefined;
+
+  const name = firstString(node, ["name", "hasName", "label", "title", "fullName"]);
+
+  // The address may be a reference to an address node, or a string on the node.
+  // Resolve a reference first, because the reference value is itself a string
+  // (the @id) and would otherwise be mistaken for the address.
+  let address: string | undefined;
+  const ref = node["hasAddress"] ?? node["address"] ?? node["postalAddress"];
+  if (typeof ref === "string" && byId.has(ref)) {
+    const addrNode = byId.get(ref);
+    if (addrNode !== undefined) {
+      const composed = [
+        firstString(addrNode, ["streetAddress", "address", "paon", "saon", "street"]),
+        firstString(addrNode, ["locality", "town", "addressLocality"]),
+        firstString(addrNode, ["postalCode", "postcode", "label"]),
+      ]
+        .filter((p): p is string => p !== undefined && p !== "")
+        .join(", ");
+      if (composed !== "") address = composed;
+    }
+  }
+  if (address === undefined) {
+    address = firstString(node, ["streetAddress", "address", "hasAddress", "postalAddress"]);
+  }
+
+  const parts = [name, address].filter((p): p is string => p !== undefined && p !== "");
+  return parts.length > 0 ? parts.join(" — ") : undefined;
+}
+
+/**
+ * Read one notice's own page for the contact for service and claim deadline.
+ *
+ * Licence- and host-gated by the Fetcher like every Gazette read. Used to
+ * enrich a probate lead with the lawful contact, so the operator never leaves
+ * Lode to find who to write to. Only called for a bounded number of leads.
+ */
+export async function fetchNoticeDetail(
+  fetcher: Fetcher,
+  noticeUrl: string,
+): Promise<ConnectorResult<NoticeDetail>> {
+  assertSourceUsable(GAZETTE_SOURCE, "internal-analysis");
+
+  const url = noticeUrl.endsWith("/data.jsonld")
+    ? noticeUrl
+    : `${noticeUrl.replace(/\/$/, "")}/data.jsonld`;
+
+  const result = await fetcher.get(GAZETTE_SOURCE, url, {
+    headers: { accept: "application/ld+json, application/json" },
+  });
+  if (!result.ok || result.body === undefined) return { ok: false, reason: result.reason };
+
+  try {
+    return {
+      ok: true,
+      value: parseNoticeDetail(JSON.parse(result.body)),
+      reason: "ok",
+      provenance: provenanceOf(result),
+    };
+  } catch {
+    return { ok: false, reason: "The notice detail could not be read as JSON." };
+  }
 }
 
 /* ----------------------------------------------------------- insolvency */
@@ -283,6 +425,8 @@ export interface InsolvencyNotice {
   readonly noticeType: InsolvencyNoticeType;
   /** ISO-8601, as stated. */
   readonly noticeDate?: string;
+  /** The notice's public page, for opening the source from inside Lode. */
+  readonly noticeUrl?: string;
 }
 
 /** Classify from the stated notice code or title text. Never a guess beyond it. */
@@ -317,6 +461,7 @@ export function parseInsolvencyNotice(notice: GazetteNotice): InsolvencyNotice |
     ...(postcode !== undefined ? { postcode } : {}),
     noticeType: insolvencyType(stated),
     ...(notice.publishedAt !== "" ? { noticeDate: notice.publishedAt } : {}),
+    ...(notice.noticeUrl !== undefined ? { noticeUrl: notice.noticeUrl } : {}),
   };
 }
 

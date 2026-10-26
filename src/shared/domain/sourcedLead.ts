@@ -37,6 +37,14 @@ export interface SourcedLead {
   readonly provenance: SourceAttribution;
   /** The lawful next step a named person takes. Never "send". */
   readonly lawfulNextStep: string;
+  /**
+   * The contact for service named in the notice — the executor or solicitor to
+   * write to. Read from the notice itself, where it is published; absent where
+   * it was not fetched or the notice does not carry one.
+   */
+  readonly contactForService?: string;
+  /** The notice's own public page, so the source opens from inside Lode. */
+  readonly sourceUrl?: string;
 }
 
 /**
