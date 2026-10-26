@@ -51,6 +51,10 @@ export interface SourcedLead {
    * probate leads only.
    */
   readonly letterDraft?: string;
+  /** The property address as stated, for starting a deal from the lead. */
+  readonly propertyAddress?: string;
+  /** The deceased or debtor named, recorded on the deal this lead becomes. */
+  readonly subjectName?: string;
 }
 
 /**

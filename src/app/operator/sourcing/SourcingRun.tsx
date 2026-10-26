@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { runDatasetAction, runRegistersAction, type SourcingResult } from "./actions";
 import { PrintLetter } from "./PrintLetter";
+import { StartDealForm } from "./StartDealForm";
 import type { FlipEvidence, SourcedLead } from "@shared/domain/sourcedLead";
 import { gbp, percent } from "@shared/format";
 import { bps } from "@shared/money";
@@ -183,6 +184,10 @@ function Leads({ leads }: { leads: readonly SourcedLead[] }) {
             )}
 
             {lead.letterDraft !== undefined && <PrintLetter letter={lead.letterDraft} />}
+
+            {lead.signalKey === "probate-notice" && lead.postcode !== undefined && (
+              <StartDealForm lead={lead} />
+            )}
 
             <p className="mt-3 border-l-2 border-ink-700 pl-3 text-sm leading-relaxed text-ink-400">
               <span className="text-ink-300">Lawful next step.</span> {lead.lawfulNextStep}

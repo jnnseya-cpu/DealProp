@@ -124,6 +124,8 @@ export function sourceProperties(inputs: SourcingInputs, now: Date = new Date())
       lawfulNextStep: NEXT_STEP["probate-notice"],
       ...(notice.contactForService !== undefined ? { contactForService: notice.contactForService } : {}),
       ...(notice.noticeUrl !== undefined ? { sourceUrl: notice.noticeUrl } : {}),
+      ...(notice.lastAddress !== undefined ? { propertyAddress: notice.lastAddress } : {}),
+      subjectName: notice.deceasedName,
       letterDraft: draftProbateLetter({
         sender,
         ...(notice.contactForService !== undefined ? { recipientContact: notice.contactForService } : {}),
