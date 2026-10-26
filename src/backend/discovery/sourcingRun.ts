@@ -1,5 +1,7 @@
 import { money } from "@shared/money";
 import { attribute, getSource } from "@shared/domain/sources";
+import { companyIdentity } from "@shared/domain/identity";
+import { draftProbateLetter } from "@shared/domain/probateLetter";
 import type {
   FlipEvidence,
   LeadSignal,
@@ -88,6 +90,8 @@ export interface SourcingInputs {
 export function sourceProperties(inputs: SourcingInputs, now: Date = new Date()): readonly SourcedLead[] {
   const observedAt = now.toISOString().slice(0, 10);
   const leads: SourcedLead[] = [];
+  // The sender particulars for any probate letter drafted below. Read once.
+  const sender = companyIdentity(process.env);
 
   for (const candidate of inputs.preparedButUnsold ?? []) {
     leads.push({
@@ -120,6 +124,14 @@ export function sourceProperties(inputs: SourcingInputs, now: Date = new Date())
       lawfulNextStep: NEXT_STEP["probate-notice"],
       ...(notice.contactForService !== undefined ? { contactForService: notice.contactForService } : {}),
       ...(notice.noticeUrl !== undefined ? { sourceUrl: notice.noticeUrl } : {}),
+      letterDraft: draftProbateLetter({
+        sender,
+        ...(notice.contactForService !== undefined ? { recipientContact: notice.contactForService } : {}),
+        deceasedName: notice.deceasedName,
+        ...(notice.lastAddress !== undefined ? { propertyAddress: notice.lastAddress } : {}),
+        ...(notice.claimDeadline !== undefined ? { claimDeadline: notice.claimDeadline } : {}),
+        today: observedAt,
+      }),
     });
   }
 

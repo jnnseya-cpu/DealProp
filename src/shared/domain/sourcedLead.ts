@@ -45,6 +45,12 @@ export interface SourcedLead {
   readonly contactForService?: string;
   /** The notice's own public page, so the source opens from inside Lode. */
   readonly sourceUrl?: string;
+  /**
+   * A print-ready letter to the estate's personal representatives, drafted for
+   * a named person to print and post — never sent automatically. Present on
+   * probate leads only.
+   */
+  readonly letterDraft?: string;
 }
 
 /**
