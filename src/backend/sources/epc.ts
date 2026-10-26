@@ -45,6 +45,12 @@ const RATINGS = new Set(["A", "B", "C", "D", "E", "F", "G"]);
 export interface EpcCertificate {
   readonly lmkKey: string;
   readonly address: string;
+  /**
+   * The first address line on its own ("14 Acacia Avenue"), without the town.
+   * The combined `address` carries the locality too, which would never match
+   * Price Paid's street; this is what the address key is built from.
+   */
+  readonly addressLine1: string;
   readonly postcode: string;
   readonly rating?: EpcRating;
   /** Rating the assessor says is achievable after improvements. */
@@ -102,6 +108,7 @@ export function parseCertificates(body: unknown): readonly EpcCertificate[] {
     const lodged = (row["lodgement-date"] ?? row["inspection-date"] ?? "").slice(0, 10);
     if (lodged === "") continue;
 
+    const addressLine1 = (row.address1 ?? "").trim();
     const address =
       row.address ??
       [row.address1, row.address2].filter((p) => p !== undefined && p !== "").join(", ");
@@ -109,6 +116,7 @@ export function parseCertificates(body: unknown): readonly EpcCertificate[] {
     certificates.push({
       lmkKey: row["lmk-key"] ?? "",
       address: address.trim(),
+      addressLine1: addressLine1 !== "" ? addressLine1 : address.trim(),
       postcode: (row.postcode ?? "").toUpperCase(),
       ...(rating(row["current-energy-rating"]) !== undefined
         ? { rating: rating(row["current-energy-rating"]) }

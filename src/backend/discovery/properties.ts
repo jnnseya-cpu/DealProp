@@ -148,6 +148,24 @@ export function parsePricePaid(csv: string): {
 
 /* ----------------------------------------------------------- the EPC half */
 
+/**
+ * Split a free-text first address line into an addressable object name and a
+ * street, the way both the EPC bulk file and the EPC API present it.
+ *
+ * The leading number (with an optional letter, e.g. "14A") is the paon and the
+ * remainder is the street; where there is no leading number, the first token is
+ * taken as the name. Best-effort by design: the direction to be wrong in is a
+ * missed match, which `addressKey` documents as acceptable. Exported so the
+ * live API path produces exactly the same key as the bulk-file path.
+ */
+export function splitAddressLine(address1: string): { readonly paon: string; readonly street: string } {
+  const trimmed = address1.replace(/,/g, " ").replace(/\s+/g, " ").trim();
+  const match = /^(\d+[a-z]?)\s+(.*)$/i.exec(trimmed);
+  const paon = match?.[1] ?? trimmed.split(" ")[0] ?? trimmed;
+  const street = match?.[2] ?? trimmed.slice(paon.length).trim();
+  return { paon, street };
+}
+
 /** One lodged certificate, reduced to what matters. */
 export interface EpcRecord {
   readonly postcode: string;
@@ -216,11 +234,7 @@ export function parseEpc(csv: string): { readonly records: readonly EpcRecord[];
       continue;
     }
 
-    // Leading number or unit as the addressable object name, the rest as street.
-    const trimmed = address1.replace(/,/g, " ").replace(/\s+/g, " ").trim();
-    const match = /^(\d+[a-z]?)\s+(.*)$/i.exec(trimmed);
-    const paon = match?.[1] ?? trimmed.split(" ")[0] ?? trimmed;
-    const street = match?.[2] ?? trimmed.slice(paon.length).trim();
+    const { paon, street } = splitAddressLine(address1);
 
     const area = iArea >= 0 ? Number(f[iArea]) : NaN;
 
