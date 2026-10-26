@@ -63,6 +63,7 @@ describe("parsing the all-notices feed", () => {
           published: "2026-09-01T00:00:00Z",
           link: [{ "@rel": "alternate", "@href": "https://www.thegazette.co.uk/notice/2345-6789" }],
           "f:notice-code": "G205010000",
+          content: "<div><dl><dt>Address of Deceased</dt><dd>14 Acacia Avenue, B29 6AD</dd></dl></div>",
         },
         // A malformed entry with no id is skipped, not fatal.
         { title: "no id here", published: "2026-09-02T00:00:00Z" },
@@ -70,12 +71,15 @@ describe("parsing the all-notices feed", () => {
     },
   };
 
-  it("lists the notices, verbatim title, with the notice URL", () => {
+  it("lists the notices, verbatim title, URL and inlined content", () => {
     const notices = parseGazetteFeed(feed);
     expect(notices).toHaveLength(1);
     expect(notices[0]?.title).toBe("WILFRED JOHN SMITH (deceased)");
     expect(notices[0]?.noticeUrl).toBe("https://www.thegazette.co.uk/notice/2345-6789");
     expect(notices[0]?.noticeCode).toBe("G205010000");
+    // The content block is kept, because the address is read from it rather
+    // than from a second request per notice.
+    expect(notices[0]?.content).toContain("Acacia Avenue");
   });
 
   it("yields an empty list on a body that is not a feed, rather than throwing", () => {
@@ -88,70 +92,70 @@ describe("parsing the all-notices feed", () => {
 /* -------------------------------------------------------- deceased estates */
 
 describe("a deceased-estates notice is extracted, never inferred", () => {
-  it("reads the deceased, their address, the postcode and the contact for service", () => {
+  // The real all-notices feed, verbatim: the deceased's name is the entry
+  // title and the address is in the content <dl>. Confirmed against a live
+  // notice (noticetypes=2903), which is the format this must read.
+  it("reads the deceased and their address from the feed entry", () => {
     const record = parseDeceasedEstate({
-      id: "2345-6789",
-      deceased: {
-        DeceasedName: "Wilfred John Smith",
-        DeceasedAddress: "14 Acacia Avenue, Birmingham B29 6AD",
-        DeceasedDateOfDeath: "2026-06-12",
-      },
-      ClaimsTo: "Messrs Example & Co, Solicitors, Birmingham",
+      id: "https://www.thegazette.co.uk/id/notice/5237386",
+      title: "Kevin Drew",
+      publishedAt: "2026-10-26T15:30:10Z",
+      content:
+        '<div><dl><dt>Address of Deceased</dt><dd>29 Coach Drive, NOTTINGHAM, NG16 3DR</dd><dt>Date of Claim Deadline</dt><dd><time datetime="2026-12-27"></time></dd></dl></div>',
     });
-    expect(record?.deceasedName).toBe("Wilfred John Smith");
-    expect(record?.lastAddress).toContain("Acacia Avenue");
-    expect(record?.postcode).toBe("B29 6AD");
-    expect(record?.dateOfDeath).toBe("2026-06-12");
-    expect(record?.contactForService).toContain("Example & Co");
+    expect(record?.deceasedName).toBe("Kevin Drew");
+    expect(record?.lastAddress).toContain("Coach Drive");
+    expect(record?.postcode).toBe("NG16 3DR");
   });
 
-  it("composes a name from forenames and surname where the whole is not given", () => {
+  it("strips a trailing (deceased) marker from the title", () => {
     const record = parseDeceasedEstate({
       id: "1",
-      DeceasedForenames: "Wilfred John",
-      DeceasedSurname: "Smith",
+      title: "WILFRED JOHN SMITH (deceased)",
+      publishedAt: "2026-09-01T00:00:00Z",
     });
-    expect(record?.deceasedName).toBe("Wilfred John Smith");
+    expect(record?.deceasedName).toBe("WILFRED JOHN SMITH");
   });
 
   it("returns undefined where no deceased is named — the essential field", () => {
-    expect(parseDeceasedEstate({ id: "1", deceased: { DeceasedAddress: "somewhere" } })).toBeUndefined();
-    expect(parseDeceasedEstate({ deceased: { DeceasedName: "X" } })).toBeUndefined(); // no id
-    expect(parseDeceasedEstate(null)).toBeUndefined();
+    expect(parseDeceasedEstate({ id: "1", title: "", publishedAt: "x" })).toBeUndefined();
+    expect(parseDeceasedEstate({ id: "", title: "A", publishedAt: "x" })).toBeUndefined();
   });
 });
 
 /* ------------------------------------------------------------ insolvency */
 
 describe("a personal-insolvency notice is extracted, never inferred", () => {
-  it("reads the debtor, address and classifies the order from the stated type", () => {
+  it("reads the debtor and address, and classifies the order from the content", () => {
     const record = parseInsolvencyNotice({
       id: "9",
-      noticeType: "Bankruptcy order",
-      debtor: {
-        DebtorName: "Jane Doe",
-        DebtorAddress: "9 Example Road, Leeds LS1 4DT",
-      },
-      noticeDate: "2026-08-20",
+      title: "Jane Doe",
+      publishedAt: "2026-08-20T00:00:00Z",
+      content:
+        "<div><dl><dt>Notice Type</dt><dd>Bankruptcy order</dd><dt>Address of Debtor</dt><dd>9 Example Road, Leeds LS1 4DT</dd></dl></div>",
     });
     expect(record?.debtorName).toBe("Jane Doe");
     expect(record?.postcode).toBe("LS1 4DT");
     expect(record?.noticeType).toBe("bankruptcy-order");
-    expect(record?.noticeDate).toBe("2026-08-20");
+    expect(record?.noticeDate).toBe("2026-08-20T00:00:00Z");
   });
 
   it("classifies IVAs and debt relief orders, and falls back to other", () => {
-    expect(parseInsolvencyNotice({ id: "1", title: "Individual Voluntary Arrangement", debtor: { name: "A" } })?.noticeType)
-      .toBe("individual-voluntary-arrangement");
-    expect(parseInsolvencyNotice({ id: "2", title: "Debt Relief Order", debtor: { name: "B" } })?.noticeType)
-      .toBe("debt-relief-order");
-    expect(parseInsolvencyNotice({ id: "3", title: "Some other notice", debtor: { name: "C" } })?.noticeType)
-      .toBe("other");
+    expect(
+      parseInsolvencyNotice({ id: "1", title: "A", publishedAt: "x", content: "Individual Voluntary Arrangement" })
+        ?.noticeType,
+    ).toBe("individual-voluntary-arrangement");
+    expect(
+      parseInsolvencyNotice({ id: "2", title: "B", publishedAt: "x", content: "Debt Relief Order" })?.noticeType,
+    ).toBe("debt-relief-order");
+    expect(
+      parseInsolvencyNotice({ id: "3", title: "C", publishedAt: "x", content: "Some other notice" })?.noticeType,
+    ).toBe("other");
   });
 
   it("returns undefined where no debtor is named", () => {
-    expect(parseInsolvencyNotice({ id: "1", debtor: { DebtorAddress: "x" } })).toBeUndefined();
-    expect(parseInsolvencyNotice(null)).toBeUndefined();
+    expect(parseInsolvencyNotice({ id: "1", title: "", publishedAt: "x" })).toBeUndefined();
+    expect(parseInsolvencyNotice({ id: "", title: "A", publishedAt: "x" })).toBeUndefined();
   });
 });
 

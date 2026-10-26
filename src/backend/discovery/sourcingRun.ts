@@ -21,7 +21,6 @@ import {
 } from "@backend/discovery/properties";
 import {
   GAZETTE_SOURCE,
-  fetchNotice,
   fetchNotices,
   parseDeceasedEstate,
   parseInsolvencyNotice,
@@ -341,38 +340,34 @@ export async function runRegisters(
       notes.push(`${kind}: ${feed.reason}`);
       return;
     }
-    // Counted so a run that lists notices but yields no leads says WHERE it
-    // dropped them: no link on the entry, a body that would not fetch, or a
-    // body the parser could not read (the live format differing from the
-    // fixture). Without this the surface only says "0 leads", which is the
-    // least actionable thing it could say.
-    let withUrl = 0;
-    let fetched = 0;
+    // The feed entry carries the name and the address, so each notice is read
+    // straight from the listing — no second request per notice. Counted so a
+    // run that lists notices but yields no leads still says WHERE it dropped
+    // them: parsed is how many became a record, located how many carried a
+    // postcode. "0 listed" is the feed; "listed but 0 parsed" is the parser.
     let parsed = 0;
+    let located = 0;
 
     for (const notice of feed.value.slice(0, cap)) {
-      if (notice.noticeUrl === undefined) continue;
-      withUrl += 1;
-      const body = await fetchNotice(fetcher, notice.noticeUrl);
-      if (!body.ok) continue;
-      fetched += 1;
       if (kind === "deceased") {
-        const record = parseDeceasedEstate(body.value);
+        const record = parseDeceasedEstate(notice);
         if (record !== undefined) {
           deceased.push(record);
           parsed += 1;
+          if (record.postcode !== undefined) located += 1;
         }
       } else {
-        const record = parseInsolvencyNotice(body.value);
+        const record = parseInsolvencyNotice(notice);
         if (record !== undefined) {
           insolvencies.push(record);
           parsed += 1;
+          if (record.postcode !== undefined) located += 1;
         }
       }
     }
 
     notes.push(
-      `${kind}: ${feed.value.length} listed → ${withUrl} with a notice link → ${fetched} fetched → ${parsed} parsed into leads.`,
+      `${kind}: ${feed.value.length} listed → ${parsed} parsed into leads → ${located} with a postcode.`,
     );
   };
 

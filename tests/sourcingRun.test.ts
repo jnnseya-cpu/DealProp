@@ -169,26 +169,24 @@ describe("running from datasets the operator holds", () => {
 
 describe("running the public registers through the Fetcher", () => {
   it("turns fetched notices into leads", async () => {
+    // The feed carries the name (title) and the address (content) on the entry
+    // itself, so no per-notice request is made — the shape of the live feed.
     const feed = JSON.stringify({
       feed: {
         entry: [
           {
             id: "2345-6789",
-            title: "WILFRED SMITH (deceased)",
+            title: "WILFRED SMITH",
             published: "2026-09-01T00:00:00Z",
             link: [{ "@rel": "alternate", "@href": "https://www.thegazette.co.uk/notice/2345-6789" }],
+            content: "<div><dl><dt>Address of Deceased</dt><dd>9 Elm Road, Leeds LS1 4DT</dd></dl></div>",
           },
         ],
       },
     });
-    const body = JSON.stringify({
-      id: "2345-6789",
-      deceased: { DeceasedName: "Wilfred Smith", DeceasedAddress: "9 Elm Road, Leeds LS1 4DT", DeceasedDateOfDeath: "2026-06-12" },
-    });
     const { fetcher } = fetcherWith({
       "https://www.thegazette.co.uk/robots.txt": { status: 404 },
       "https://www.thegazette.co.uk/all-notices/notice/data.json?noticetypes=DEC": { body: feed },
-      "https://www.thegazette.co.uk/notice/2345-6789/data.json": { body },
     });
     const result = await runRegisters({ deceasedCode: "DEC" }, { fetcher, now: NOW });
     expect(result.leads).toHaveLength(1);

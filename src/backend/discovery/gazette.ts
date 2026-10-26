@@ -96,10 +96,18 @@ export interface GazetteNotice {
   readonly title: string;
   /** ISO-8601 publication date, as stated. */
   readonly publishedAt: string;
-  /** The canonical URL of the notice itself, for the per-notice read. */
+  /** The canonical URL of the notice itself. */
   readonly noticeUrl?: string;
   /** The Gazette notice-type code, where the entry carries one. */
   readonly noticeCode?: string;
+  /**
+   * The notice's HTML content block, verbatim, where the feed carries one.
+   *
+   * The all-notices feed inlines the structured body as a small HTML `<dl>` on
+   * the entry itself — the deceased's or debtor's address lives here — so the
+   * record can be read from the feed without a second request per notice.
+   */
+  readonly content?: string;
 }
 
 /** A link that may be a single object or an array of them. */
@@ -156,6 +164,7 @@ export function parseGazetteFeed(json: unknown): readonly GazetteNotice[] {
 
     const noticeUrl = href(record["link"]);
     const noticeCode = field(record, ["f:notice-code", "notice-code", "f:notice-type"]);
+    const content = field(record, ["content", "summary", "f:content"]);
 
     notices.push({
       id,
@@ -163,6 +172,7 @@ export function parseGazetteFeed(json: unknown): readonly GazetteNotice[] {
       publishedAt,
       ...(noticeUrl !== undefined ? { noticeUrl } : {}),
       ...(noticeCode !== undefined ? { noticeCode } : {}),
+      ...(content !== undefined ? { content } : {}),
     });
   }
   return notices;
@@ -190,49 +200,62 @@ export interface DeceasedEstateNotice {
   readonly contactForService?: string;
 }
 
-function nameFrom(record: Record<string, unknown>): string | undefined {
-  const whole = field(record, ["DeceasedName", "deceasedName", "name", "fullName"]);
-  if (whole !== undefined) return whole;
-  const forenames = field(record, ["DeceasedForenames", "forenames", "firstName"]);
-  const surname = field(record, ["DeceasedSurname", "surname", "lastName"]);
-  if (surname === undefined) return undefined;
-  return forenames === undefined ? surname : `${forenames} ${surname}`;
+/**
+ * The address a notice prints inside its HTML content block.
+ *
+ * The feed inlines the structured body as a small definition list, and the
+ * address sits in the `<dd>` that follows a `<dt>` naming it ("Address of
+ * Deceased", "Address of Debtor", "Address"). Extraction, not inference: it
+ * returns the line the notice printed, with its tags stripped, or nothing.
+ */
+function addressFromContent(content: string | undefined): string | undefined {
+  if (content === undefined) return undefined;
+  const match = /<dt>[^<]*address[^<]*<\/dt>\s*<dd>([\s\S]*?)<\/dd>/i.exec(content);
+  const raw = match?.[1];
+  if (raw === undefined) return undefined;
+  const value = raw
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+  return value === "" ? undefined : value;
 }
 
-/** The structured body of one deceased-estates notice. Undefined on bad input. */
-export function parseDeceasedEstate(json: unknown): DeceasedEstateNotice | undefined {
-  if (typeof json !== "object" || json === null) return undefined;
-  const outer = json as Record<string, unknown>;
-  // The structured fields may be nested under a notice/deceased object.
-  const record =
-    typeof outer["deceased"] === "object" && outer["deceased"] !== null
-      ? (outer["deceased"] as Record<string, unknown>)
-      : typeof outer["notice"] === "object" && outer["notice"] !== null
-        ? (outer["notice"] as Record<string, unknown>)
-        : outer;
+/**
+ * The name a notice carries as its title, with a trailing status marker
+ * removed where the Gazette appends one ("(deceased)", "(in bankruptcy)").
+ */
+function cleanName(title: string | undefined): string | undefined {
+  const value = text(title);
+  if (value === undefined) return undefined;
+  const stripped = value
+    .replace(/\s*\((?:deceased|in bankruptcy|in liquidation|in administration)\)\s*$/i, "")
+    .trim();
+  return stripped === "" ? undefined : stripped;
+}
 
-  const deceasedName = nameFrom(record);
-  const noticeId = field(outer, ["id", "noticeId", "f:id"]) ?? field(record, ["id", "noticeId"]);
-  // A notice with no deceased named is not a deceased-estates record we can use.
-  if (deceasedName === undefined || noticeId === undefined) return undefined;
+/**
+ * Read one deceased-estates notice from its feed entry. Undefined on bad input.
+ *
+ * Everything needed is on the entry: the deceased's name is the title, the
+ * address is in the content `<dl>`. There is deliberately no second request
+ * per notice — fetching the per-notice representation and looking there for
+ * structured fields it does not carry is exactly what produced a list of
+ * notices and no leads against the live feed.
+ */
+export function parseDeceasedEstate(notice: GazetteNotice): DeceasedEstateNotice | undefined {
+  const deceasedName = cleanName(notice.title);
+  if (deceasedName === undefined || notice.id === "") return undefined;
 
-  const lastAddress = field(record, [
-    "DeceasedAddress", "deceasedAddress", "address", "lastKnownAddress", "residence",
-  ]);
-  const dateOfDeath = field(record, ["DeceasedDateOfDeath", "dateOfDeath", "deathDate"]);
-  const contactForService = field(outer, [
-    "contactForService", "ClaimsTo", "claimsTo", "executorContact",
-  ]) ?? field(record, ["contactForService", "ClaimsTo", "claimsTo"]);
+  const lastAddress = addressFromContent(notice.content);
+  const postcode =
+    lastAddress !== undefined ? postcodeIn(lastAddress) : postcodeIn(notice.content ?? "");
 
   return {
-    noticeId,
+    noticeId: notice.id,
     deceasedName,
     ...(lastAddress !== undefined ? { lastAddress } : {}),
-    ...(lastAddress !== undefined && postcodeIn(lastAddress) !== undefined
-      ? { postcode: postcodeIn(lastAddress) }
-      : {}),
-    ...(dateOfDeath !== undefined ? { dateOfDeath } : {}),
-    ...(contactForService !== undefined ? { contactForService } : {}),
+    ...(postcode !== undefined ? { postcode } : {}),
   };
 }
 
@@ -272,38 +295,28 @@ function insolvencyType(stated: string | undefined): InsolvencyNoticeType {
   return "other";
 }
 
-/** The structured body of one personal-insolvency notice. Undefined on bad input. */
-export function parseInsolvencyNotice(json: unknown): InsolvencyNotice | undefined {
-  if (typeof json !== "object" || json === null) return undefined;
-  const outer = json as Record<string, unknown>;
-  const record =
-    typeof outer["debtor"] === "object" && outer["debtor"] !== null
-      ? (outer["debtor"] as Record<string, unknown>)
-      : typeof outer["notice"] === "object" && outer["notice"] !== null
-        ? (outer["notice"] as Record<string, unknown>)
-        : outer;
+/**
+ * Read one personal-insolvency notice from its feed entry. Undefined on bad
+ * input. Same shape as the deceased parser: the debtor is the title, the
+ * address is in the content, and the order type is classified from whatever
+ * the content and title state rather than guessed from the debtor's name.
+ */
+export function parseInsolvencyNotice(notice: GazetteNotice): InsolvencyNotice | undefined {
+  const debtorName = cleanName(notice.title);
+  if (debtorName === undefined || notice.id === "") return undefined;
 
-  const debtorName = field(record, [
-    "DebtorName", "debtorName", "name", "fullName", "individualName",
-  ]);
-  const noticeId = field(outer, ["id", "noticeId", "f:id"]) ?? field(record, ["id", "noticeId"]);
-  if (debtorName === undefined || noticeId === undefined) return undefined;
-
-  const lastAddress = field(record, [
-    "DebtorAddress", "debtorAddress", "address", "lastKnownAddress", "residence",
-  ]);
-  const noticeDate = field(outer, ["noticeDate", "orderDate", "published"]) ?? field(record, ["noticeDate", "orderDate"]);
-  const stated = field(outer, ["noticeType", "f:notice-type", "NoticeType"]) ?? field(outer, ["title"]);
+  const lastAddress = addressFromContent(notice.content);
+  const postcode =
+    lastAddress !== undefined ? postcodeIn(lastAddress) : postcodeIn(notice.content ?? "");
+  const stated = [notice.content, notice.title].filter((s): s is string => s !== undefined).join(" ");
 
   return {
-    noticeId,
+    noticeId: notice.id,
     debtorName,
     ...(lastAddress !== undefined ? { lastAddress } : {}),
-    ...(lastAddress !== undefined && postcodeIn(lastAddress) !== undefined
-      ? { postcode: postcodeIn(lastAddress) }
-      : {}),
+    ...(postcode !== undefined ? { postcode } : {}),
     noticeType: insolvencyType(stated),
-    ...(noticeDate !== undefined ? { noticeDate } : {}),
+    ...(notice.publishedAt !== "" ? { noticeDate: notice.publishedAt } : {}),
   };
 }
 
