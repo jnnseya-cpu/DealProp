@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { runDatasetAction, runRegistersAction, type SourcingResult } from "./actions";
+import { runAreaAction, runRegistersAction, type SourcingResult } from "./actions";
 import { PrintLetter } from "./PrintLetter";
 import { StartDealForm } from "./StartDealForm";
 import type { FlipEvidence, SourcedLead } from "@shared/domain/sourcedLead";
@@ -17,8 +17,8 @@ import { bps } from "@shared/money";
  * the automated-outreach version of this is the unlawful one.
  */
 export function SourcingRun() {
-  const [dataset, runDataset, runningDataset] = useActionState<SourcingResult | undefined, FormData>(
-    runDatasetAction,
+  const [area, runArea, runningArea] = useActionState<SourcingResult | undefined, FormData>(
+    runAreaAction,
     undefined,
   );
   const [registers, runRegisters, runningRegisters] = useActionState<SourcingResult | undefined, FormData>(
@@ -29,50 +29,51 @@ export function SourcingRun() {
   return (
     <>
       <div className="mt-10 grid gap-5 lg:grid-cols-2">
-        <form action={runDataset} className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
-          <h2 className="eyebrow">Compute from a dataset you hold</h2>
+        <form action={runArea} className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
+          <h2 className="eyebrow">Search an area for prepared-but-unsold</h2>
           <p className="mt-3 text-sm leading-relaxed text-ink-400">
-            Paste the Price Paid and EPC bulk data — both open-licensed, downloaded, not scraped. They
-            are joined on the address: a certificate lodged with no sale registered since is a property
-            prepared for sale that never sold, which no portal publishes.
+            Enter a postcode. The EPC register and Land Registry Price Paid are queried for it and
+            joined on the address: a certificate lodged with no sale registered since is a property
+            prepared for sale that never sold — which no portal publishes. Open data, no bulk file to
+            download.
           </p>
 
-          <label className="mt-4 block text-xs text-ink-500" htmlFor="ppd">
-            Price Paid rows (the published 16-column format)
+          <label className="mt-4 block text-xs text-ink-500" htmlFor="postcode">
+            Postcode
           </label>
-          <textarea
-            id="ppd"
-            name="ppd"
-            rows={4}
+          <input
+            id="postcode"
+            name="postcode"
             required
-            placeholder={'"{id}","200000","2019-01-01 00:00","B29 6AD","T","N","F","14","","Acacia Avenue",…'}
-            className="mt-1.5 w-full rounded-xl border hairline bg-ink-950 px-3 py-2 font-mono text-[11px] leading-relaxed text-ink-100"
-          />
-
-          <label className="mt-3 block text-xs text-ink-500" htmlFor="epc">
-            EPC rows (with the header row)
-          </label>
-          <textarea
-            id="epc"
-            name="epc"
-            rows={4}
-            required
-            placeholder={"LMK_KEY,ADDRESS1,ADDRESS2,POSTCODE,CURRENT_ENERGY_RATING,LODGEMENT_DATE,…\nabc,14 Acacia Avenue,,B29 6AD,D,2025-01-01,88,…"}
-            className="mt-1.5 w-full rounded-xl border hairline bg-ink-950 px-3 py-2 font-mono text-[11px] leading-relaxed text-ink-100"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="B29 6AD"
+            className="mt-1.5 w-full rounded-xl border hairline bg-ink-950 px-3 py-2 font-mono text-sm uppercase tracking-wide text-ink-100"
           />
 
           <button
             type="submit"
-            disabled={runningDataset}
+            disabled={runningArea}
             className="mt-4 inline-flex h-9.5 items-center justify-center rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
           >
-            {runningDataset ? "Joining…" : "Find prepared-but-unsold"}
+            {runningArea ? "Searching…" : "Search this postcode"}
           </button>
 
-          {dataset !== undefined && (
-            <p className={`mt-4 text-sm leading-relaxed ${dataset.ok ? "text-emerald-300" : "text-amber-300"}`} role="status">
-              {dataset.message}
-            </p>
+          {area !== undefined && (
+            <>
+              <p className={`mt-4 text-sm leading-relaxed ${area.ok ? "text-emerald-300" : "text-amber-300"}`} role="status">
+                {area.message}
+              </p>
+              {area.notes.length > 0 && (
+                <ul className="mt-3 space-y-1">
+                  {area.notes.map((note, i) => (
+                    <li key={i} className="font-mono text-[11px] leading-relaxed text-ink-500">
+                      {note}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </form>
 
@@ -111,8 +112,8 @@ export function SourcingRun() {
         </form>
       </div>
 
-      <Leads leads={[...(dataset?.leads ?? []), ...(registers?.leads ?? [])]} />
-      <Flips flips={dataset?.flips ?? []} />
+      <Leads leads={[...(area?.leads ?? []), ...(registers?.leads ?? [])]} />
+      <Flips flips={area?.flips ?? []} />
     </>
   );
 }

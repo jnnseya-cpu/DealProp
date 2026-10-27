@@ -5,16 +5,21 @@ import { resolveLetter } from "./actions";
 import type { SourcedLead } from "@shared/domain/sourcedLead";
 
 /**
- * Review and print the letter to a deceased estate's representatives.
+ * Review and print the letter to a lead's office-holder.
  *
- * When opened, the component resolves the contact for service from the notice
- * on demand — one fetch — and redraws the letter with the executor's address in
- * the recipient block, so the letter is ready to post without leaving Lode.
- * Until it resolves (or if the notice names none), it shows the drafted letter
- * with the notice link, so there is always something in hand. Never sent from
- * here: a letter to the bereaved is printed and posted by a named person.
+ * Kind-aware: a probate lead's letter goes to the estate's representatives (the
+ * executor), a bankruptcy lead's to the trustee in bankruptcy / Official
+ * Receiver — never to the bereaved or the bankrupt. When opened, the component
+ * resolves the office-holder from the notice on demand — one fetch — and redraws
+ * the letter with their address in the recipient block, so it is ready to post
+ * without leaving Lode. Until it resolves (or if the notice names none), it
+ * shows the drafted letter with the notice link, so there is always something in
+ * hand. Never sent from here: it is printed and posted by a named person.
  */
 export function PrintLetter({ lead }: { lead: SourcedLead }) {
+  const insolvency = lead.signalKey === "owner-insolvent";
+  const recipientWord = insolvency ? "trustee / Official Receiver" : "executors";
+
   const [letter, setLetter] = useState(lead.letterDraft ?? "");
   const [contact, setContact] = useState<string | undefined>(lead.contactForService);
   const [loading, setLoading] = useState(false);
@@ -27,15 +32,18 @@ export function PrintLetter({ lead }: { lead: SourcedLead }) {
     setLoading(true);
     try {
       const r = await resolveLetter({
+        kind: lead.signalKey,
         noticeUrl: lead.sourceUrl,
-        deceasedName: lead.subjectName ?? "",
+        subjectName: lead.subjectName ?? "",
         propertyAddress: lead.propertyAddress ?? "",
       });
       setLetter(r.letter);
       if (r.contactForService !== undefined) setContact(r.contactForService);
       if (r.message !== undefined) setNote(r.message);
       else if (r.contactForService === undefined) {
-        setNote("This notice named no contact for service — open the notice to read who to write to.");
+        setNote(
+          `This notice named no ${insolvency ? "trustee" : "contact for service"} — open the notice to read who to write to.`,
+        );
       }
     } catch {
       setNote("Could not reach the notice just now. Open it directly for the contact.");
@@ -70,10 +78,14 @@ export function PrintLetter({ lead }: { lead: SourcedLead }) {
       }}
     >
       <summary className="cursor-pointer px-4 py-2.5 text-sm text-ink-200">
-        Letter to the executors — review &amp; print
+        Letter to the {recipientWord} — review &amp; print
       </summary>
       <div className="border-t hairline px-4 py-3">
-        {loading && <p className="mb-2 text-[12px] text-ink-400">Finding the contact for service in the notice…</p>}
+        {loading && (
+          <p className="mb-2 text-[12px] text-ink-400">
+            Finding the {insolvency ? "trustee" : "contact for service"} in the notice…
+          </p>
+        )}
         {contact !== undefined && (
           <p className="mb-2 border-l-2 border-emerald-500/70 pl-3 text-[13px] leading-relaxed text-ink-200">
             <span className="text-ink-300">Posting to:</span> {contact}

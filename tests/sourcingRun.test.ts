@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 import { Fetcher } from "@backend/discovery/fetcher";
 import { parseEpc } from "@backend/discovery/properties";
 import {
+  runFromArea,
   runFromDatasets,
   runRegisters,
   sourceProperties,
   sourcingReadiness,
   type SourcingInputs,
 } from "@backend/discovery/sourcingRun";
+import type { EpcCertificate } from "@backend/sources/epc";
+import type { PricePaidRecord } from "@backend/discovery/properties";
+import { attribute } from "@shared/domain/sources";
+import { fromMajor } from "@shared/money";
 
 const NOW = new Date("2026-10-21T00:00:00.000Z");
 
@@ -109,6 +114,77 @@ describe("the adapters join into one ranked list of leads", () => {
     const leads = sourceProperties(weak, NOW);
     expect(leads[0]?.strength).toBe("strong");
     expect(leads[leads.length - 1]?.strength).toBe("worth-a-look");
+  });
+
+  it("drafts a trustee letter for a bankruptcy order, never addressed to the debtor", () => {
+    const leads = sourceProperties(inputs, NOW);
+    const insolvency = leads.find((l) => l.signalKey === "owner-insolvent");
+    expect(insolvency?.letterDraft).toBeDefined();
+    const letter = insolvency?.letterDraft ?? "";
+    expect(letter).toContain("The Trustee in Bankruptcy / Official Receiver");
+    // The debtor is named as the subject of the matter, never as the recipient.
+    expect(letter).toContain("writing to the office-holder, not to the bankrupt");
+    expect(insolvency?.subjectName).toBe("Jane Doe");
+  });
+
+  it("drafts no letter for an IVA or DRO — the home does not vest in anyone", () => {
+    const leads = sourceProperties(
+      { insolvencies: [{ noticeId: "9", debtorName: "Iva Case", noticeType: "individual-voluntary-arrangement", postcode: "M1 2AB" }] },
+      NOW,
+    );
+    expect(leads[0]?.letterDraft).toBeUndefined();
+  });
+});
+
+/* ------------------------------------------------------------ runFromArea */
+
+describe("running an area from the open APIs", () => {
+  const cert: EpcCertificate = {
+    lmkKey: "abc",
+    address: "14 Acacia Avenue, Birmingham",
+    addressLine1: "14 Acacia Avenue",
+    postcode: "B29 6AD",
+    lodgedAt: "2025-01-01",
+    propertyType: "House",
+    floorAreaSqm: 88,
+    source: attribute("epc-register", "2025-01-01"),
+  };
+  const sale: PricePaidRecord = {
+    price: fromMajor(200_000),
+    soldAt: "2019-01-01",
+    postcode: "B29 6AD",
+    propertyType: "T",
+    newBuild: false,
+    tenure: "F",
+    paon: "14",
+    saon: "",
+    street: "Acacia Avenue",
+    category: "A",
+  };
+
+  it("joins EPC and Price Paid for the postcode into a prepared-but-unsold lead", async () => {
+    const result = await runFromArea("B29 6AD", {
+      epc: async () => [cert],
+      sales: async () => [sale],
+      now: NOW,
+    });
+    expect(result.certificates).toBe(1);
+    expect(result.sales).toBe(1);
+    expect(result.leads.some((l) => l.signalKey === "prepared-but-unsold" && l.postcode === "B29 6AD")).toBe(true);
+  });
+
+  it("degrades to a note and no leads when a source throws, never a crash", async () => {
+    const result = await runFromArea("B29 6AD", {
+      epc: async () => {
+        throw new Error("EPC_API_EMAIL and EPC_API_KEY are not configured; refusing to query.");
+      },
+      sales: async () => [sale],
+      now: NOW,
+    });
+    expect(result.certificates).toBe(0);
+    expect(result.leads).toHaveLength(0);
+    expect(result.notes.join(" ")).toContain("EPC register:");
+    expect(result.notes.join(" ")).toContain("not configured");
   });
 });
 
@@ -215,7 +291,8 @@ describe("running the public registers through the Fetcher", () => {
 describe("source readiness is stated without a run", () => {
   it("reports what each source still needs", () => {
     const states = Object.fromEntries(sourcingReadiness().map((s) => [s.sourceKey, s.state]));
-    expect(states["land-registry-ppd"]).toBe("needs-dataset");
+    // Price Paid is an open, keyless endpoint queried per postcode — ready.
+    expect(states["land-registry-ppd"]).toBe("ready");
     expect(states["epc-register"]).toBe("needs-credential");
     expect(states["insolvency-register"]).toBe("needs-arrangement");
   });

@@ -46,9 +46,13 @@ export interface SourcedLead {
   /** The notice's own public page, so the source opens from inside Lode. */
   readonly sourceUrl?: string;
   /**
-   * A print-ready letter to the estate's personal representatives, drafted for
-   * a named person to print and post — never sent automatically. Present on
-   * probate leads only.
+   * A print-ready letter to the office-holder — the estate's personal
+   * representatives on a probate lead, the trustee in bankruptcy / Official
+   * Receiver on a bankruptcy-order lead. Drafted for a named person to print and
+   * post, never sent automatically, and never addressed to the bereaved or the
+   * bankrupt. Absent on signals that have no lawful letter recipient (an IVA or
+   * DRO does not vest the home in anyone, so there is no office-holder to write
+   * to).
    */
   readonly letterDraft?: string;
   /** The property address as stated, for starting a deal from the lead. */

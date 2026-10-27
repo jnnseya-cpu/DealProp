@@ -313,13 +313,35 @@ export function parseNoticeDetail(json: unknown): NoticeDetail {
     if (typeof id === "string") byId.set(id, node);
   }
 
+  // The office-holder to write to, by notice type: a personal representative
+  // (probate), or a trustee / liquidator / administrator / receiver / official
+  // receiver (insolvency). Any of these predicates references the node that
+  // names the professional and their address.
+  const OFFICE_HOLDER = [
+    "hasPersonalRepresentative",
+    "hasInsolvencyPractitioner",
+    "hasOfficeHolder",
+    "hasTrustee",
+    "hasAdministrator",
+    "hasLiquidator",
+    "hasReceiver",
+    "hasOfficialReceiver",
+    "hasInsolvencyIntermediary",
+    "hasInsolvencyServicesOfficeHolder",
+  ];
+
   let claimDeadline: string | undefined;
   let repId: string | undefined;
   for (const node of graph) {
     if (claimDeadline === undefined) claimDeadline = firstString(node, ["hasClaimDeadline"]);
     if (repId === undefined) {
-      const rep = node["hasPersonalRepresentative"];
-      if (typeof rep === "string") repId = rep;
+      for (const predicate of OFFICE_HOLDER) {
+        const rep = node[predicate];
+        if (typeof rep === "string") {
+          repId = rep;
+          break;
+        }
+      }
     }
   }
 

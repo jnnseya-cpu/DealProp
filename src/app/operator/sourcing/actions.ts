@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
 import { revalidatePath } from "next/cache";
-import { runFromDatasets, runRegisters } from "@backend/discovery/sourcingRun";
+import { runFromArea, runRegisters } from "@backend/discovery/sourcingRun";
 import { listSourcedProperties, saveDeal, saveSourcedProperty } from "@backend/store/repository";
 import { buildIntake, type IntakeAnswers } from "@shared/domain/intake";
 import { bps, fromMajor, ZERO } from "@shared/money";
@@ -14,8 +14,9 @@ import { fetchNoticeDetail } from "@backend/discovery/gazette";
 import { Fetcher } from "@backend/discovery/fetcher";
 import { companyIdentity } from "@shared/domain/identity";
 import { draftProbateLetter } from "@shared/domain/probateLetter";
+import { draftInsolvencyLetter } from "@shared/domain/insolvencyLetter";
 import { enrichAddress } from "@backend/discovery/enrich";
-import type { FlipEvidence, SourcedLead } from "@shared/domain/sourcedLead";
+import type { FlipEvidence, LeadSignal, SourcedLead } from "@shared/domain/sourcedLead";
 import type { JurisdictionCode, PropertyType, Tenure } from "@shared/domain/types";
 
 const TENURES = new Set<Tenure>(["freehold", "leasehold", "share-of-freehold", "unknown"]);
@@ -36,11 +37,12 @@ function dealReference(): string {
 /**
  * Running the register adapters from the operator surface.
  *
- * Two lawful paths and no third. A dataset the operator already holds (the
- * licensed open bulk files), joined offline; or the Gazette's public notices,
- * fetched through the Fetcher under its licence. Neither contacts anyone: a run
- * produces leads for a named person to work, and the lawful next step travels
- * with each one. There is deliberately no "approach" action here.
+ * Two lawful paths and no third. An area search — the EPC register and Land
+ * Registry Price Paid queried for one postcode and joined on the address; or the
+ * Gazette's public notices, fetched through the Fetcher under its licence.
+ * Neither contacts anyone: a run produces leads for a named person to work, and
+ * the lawful next step travels with each one. There is deliberately no
+ * "approach" action here.
  */
 
 export interface SourcingResult {
@@ -51,43 +53,40 @@ export interface SourcingResult {
   readonly notes: readonly string[];
 }
 
-/** A paste of a licensed dataset cannot be unbounded; a CSV this big is a file. */
-const MAX_CSV_CHARS = 2_000_000;
+/** Only a well-formed UK postcode is sent to the two open APIs. */
+const UK_POSTCODE = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i;
 
-export async function runDatasetAction(
+/**
+ * Find prepared-but-unsold candidates for a postcode, from the live open APIs.
+ *
+ * This replaced the dataset paste box, which never worked: the Price Paid bulk
+ * file is gigabytes and cannot be pasted into a browser, so the join it promised
+ * was unreachable. Here the operator types a postcode and the server queries the
+ * EPC register and the Land Registry endpoint for it and runs the identical
+ * join. A server action is its own POST endpoint, so it checks its own
+ * permission (§29).
+ */
+export async function runAreaAction(
   _previous: SourcingResult | undefined,
   formData: FormData,
 ): Promise<SourcingResult> {
   const viewer = await requirePermission("manage-mandates", "/operator/sourcing");
   const author = viewerAccount(viewer);
 
-  const ppd = String(formData.get("ppd") ?? "");
-  const epc = String(formData.get("epc") ?? "");
-  if (ppd.trim() === "" || epc.trim() === "") {
-    return { ok: false, message: "Provide both the Price Paid and the EPC data to join them.", leads: [], flips: [], notes: [] };
+  const postcode = String(formData.get("postcode") ?? "").toUpperCase().trim();
+  if (postcode === "") {
+    return { ok: false, message: "Enter a postcode to search.", leads: [], flips: [], notes: [] };
   }
-  if (ppd.length > MAX_CSV_CHARS || epc.length > MAX_CSV_CHARS) {
-    return {
-      ok: false,
-      message: "That is larger than a paste should be — load the bulk file through an ingestion job rather than the browser.",
-      leads: [],
-      flips: [],
-      notes: [],
-    };
+  if (!UK_POSTCODE.test(postcode)) {
+    return { ok: false, message: "That is not a recognisable UK postcode.", leads: [], flips: [], notes: [] };
   }
 
-  let result;
-  try {
-    result = runFromDatasets(ppd, epc);
-  } catch (error) {
-    // A licence throw or a malformed file: report it rather than a blank page.
-    return { ok: false, message: error instanceof Error ? error.message : "The data could not be read.", leads: [], flips: [], notes: [] };
-  }
+  const result = await runFromArea(postcode);
 
   // Persist the worklist — but ONLY the property-fact leads. The distress leads
-  // (probate, insolvency, negative equity) are shown live and never warehoused:
-  // a list of the recently bereaved or the insolvent is exactly what data
-  // minimisation exists to prevent, so the store will not hold one.
+  // (negative equity here) are shown live and never warehoused: a list of the
+  // possibly-underwater is exactly what data minimisation exists to prevent, so
+  // the store will not hold one.
   const now = new Date().toISOString();
   let saved = 0;
   for (const lead of result.leads) {
@@ -98,12 +97,18 @@ export async function runDatasetAction(
 
   await audit("mandate-saved", {
     ...(author !== undefined ? { account: author } : {}),
-    subject: "sourcing-run-dataset",
-    detail: `Dataset run: ${result.salesConsidered} sales, ${result.epcConsidered} certificates, ${result.leads.length} lead(s), ${saved} saved to the worklist.`,
+    subject: "sourcing-run-area",
+    detail: `Area run for ${postcode}: ${result.certificates} certificate(s), ${result.sales} sale(s), ${result.leads.length} lead(s), ${saved} saved to the worklist.`,
   });
 
   if (saved > 0) revalidatePath("/operator/sourcing");
-  return { ok: true, message: result.note, leads: result.leads, flips: result.flips, notes: [] };
+  return {
+    ok: result.leads.length > 0,
+    message: result.note,
+    leads: result.leads,
+    flips: result.flips,
+    notes: result.notes,
+  };
 }
 
 /**
@@ -147,7 +152,11 @@ export async function dismissSourcedPropertyAction(
 
 export interface ResolvedLetter {
   readonly ok: boolean;
-  /** The contact for service read from the notice, where it named one. */
+  /**
+   * The office-holder read from the notice, where it named one — the executor
+   * (probate) or the trustee / Official Receiver (bankruptcy). This is who the
+   * letter is posted to, never the bereaved or the bankrupt.
+   */
   readonly contactForService?: string;
   /** The letter redrawn with whatever contact and deadline the notice gave. */
   readonly letter: string;
@@ -155,17 +164,20 @@ export interface ResolvedLetter {
 }
 
 /**
- * Resolve a probate lead's contact for service on demand, and redraw its letter.
+ * Resolve a lead's office-holder on demand, and redraw its letter.
  *
  * Called when the operator opens a lead's letter, so every lead can have the
- * executor's address filled in — not just a capped first slice — without the
- * run fetching every notice up front. One notice fetch, gated by the Fetcher
- * like every Gazette read. A named person is on the surface that triggers it,
- * and the action checks its own permission (§29).
+ * recipient filled in — not just a capped first slice — without the run fetching
+ * every notice up front. One notice fetch, gated by the Fetcher like every
+ * Gazette read. Kind-aware: a probate notice yields the executor and a probate
+ * letter; a bankruptcy notice yields the trustee / Official Receiver and the
+ * insolvency letter — never a letter to the debtor. A named person is on the
+ * surface that triggers it, and the action checks its own permission (§29).
  */
 export async function resolveLetter(input: {
+  readonly kind: LeadSignal;
   readonly noticeUrl: string;
-  readonly deceasedName: string;
+  readonly subjectName: string;
   readonly propertyAddress: string;
 }): Promise<ResolvedLetter> {
   await requirePermission("manage-mandates", "/operator/sourcing");
@@ -187,14 +199,23 @@ export async function resolveLetter(input: {
     }
   }
 
-  const letter = draftProbateLetter({
-    sender,
-    ...(contactForService !== undefined ? { recipientContact: contactForService } : {}),
-    deceasedName: input.deceasedName,
-    ...(input.propertyAddress !== "" ? { propertyAddress: input.propertyAddress } : {}),
-    ...(claimDeadline !== undefined ? { claimDeadline } : {}),
-    today,
-  });
+  const letter =
+    input.kind === "owner-insolvent"
+      ? draftInsolvencyLetter({
+          sender,
+          ...(contactForService !== undefined ? { officeHolder: contactForService } : {}),
+          debtorName: input.subjectName,
+          ...(input.propertyAddress !== "" ? { propertyAddress: input.propertyAddress } : {}),
+          today,
+        })
+      : draftProbateLetter({
+          sender,
+          ...(contactForService !== undefined ? { recipientContact: contactForService } : {}),
+          deceasedName: input.subjectName,
+          ...(input.propertyAddress !== "" ? { propertyAddress: input.propertyAddress } : {}),
+          ...(claimDeadline !== undefined ? { claimDeadline } : {}),
+          today,
+        });
 
   return {
     ok: contactForService !== undefined,

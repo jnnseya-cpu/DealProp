@@ -2,6 +2,8 @@ import { money } from "@shared/money";
 import { attribute, getSource } from "@shared/domain/sources";
 import { companyIdentity } from "@shared/domain/identity";
 import { draftProbateLetter } from "@shared/domain/probateLetter";
+import { draftInsolvencyLetter } from "@shared/domain/insolvencyLetter";
+import { messageOf } from "@backend/report";
 import type {
   FlipEvidence,
   LeadSignal,
@@ -18,9 +20,14 @@ import {
   negativeEquity,
   parseEpc,
   parsePricePaid,
+  splitAddressLine,
+  type CandidateSearch,
   type EpcRecord,
+  type PricePaidRecord,
   type PropertyCandidate,
 } from "@backend/discovery/properties";
+import { fetchCertificates, type EpcCertificate } from "@backend/sources/epc";
+import { fetchSales } from "@backend/sources/pricePaid";
 import {
   GAZETTE_SOURCE,
   fetchNotices,
@@ -138,6 +145,13 @@ export function sourceProperties(inputs: SourcingInputs, now: Date = new Date())
 
   for (const notice of inputs.insolvencies ?? []) {
     const located = notice.postcode !== undefined;
+    // Only a bankruptcy order vests the debtor's home in a trustee (the Official
+    // Receiver until one is appointed), who alone may sell it — so only then is
+    // there a lawful office-holder to write to. An IVA or DRO leaves the debtor
+    // owning the property, so there is no letter: the recipient would be the
+    // vulnerable individual the protections exist for, which is exactly what we
+    // refuse to do.
+    const writesToTrustee = notice.noticeType === "bankruptcy-order";
     leads.push({
       signalKey: "owner-insolvent",
       label: LABEL["owner-insolvent"],
@@ -150,6 +164,18 @@ export function sourceProperties(inputs: SourcingInputs, now: Date = new Date())
       provenance: attribute(INSOLVENCY_SOURCE, observedAt),
       lawfulNextStep: NEXT_STEP["owner-insolvent"],
       ...(notice.noticeUrl !== undefined ? { sourceUrl: notice.noticeUrl } : {}),
+      ...(notice.lastAddress !== undefined ? { propertyAddress: notice.lastAddress } : {}),
+      subjectName: notice.debtorName,
+      ...(writesToTrustee
+        ? {
+            letterDraft: draftInsolvencyLetter({
+              sender,
+              debtorName: notice.debtorName,
+              ...(notice.lastAddress !== undefined ? { propertyAddress: notice.lastAddress } : {}),
+              today: observedAt,
+            }),
+          }
+        : {}),
     });
   }
 
@@ -178,9 +204,9 @@ export function sourcingReadiness(
     {
       sourceKey: PPD_SOURCE,
       name: named(PPD_SOURCE),
-      state: "needs-dataset",
+      state: "ready",
       detail:
-        "Open Government Licence, free. Provide the Price Paid CSV (the monthly bulk file) to compute prepared-but-unsold and flips. Parsed by parsePricePaid; joined by findCandidates.",
+        "Open Government Licence, free, no key. Queried per postcode over the Land Registry linked-data endpoint (fetchSales) and joined to the EPC register by findCandidates — no bulk file to download.",
     },
     {
       sourceKey: EPC_SOURCE,
@@ -188,8 +214,8 @@ export function sourcingReadiness(
       state: (env.epcKey ?? "") === "" ? "needs-credential" : "ready",
       detail:
         (env.epcKey ?? "") === ""
-          ? "Free with registration. Provide the EPC bulk CSV, or set EPC_API_EMAIL/EPC_API_KEY for a live pull. Parsed by parseEpc."
-          : "Credential present. The EPC bulk CSV is parsed by parseEpc and joined to Price Paid by findCandidates.",
+          ? "Free with registration. Set EPC_API_EMAIL and EPC_API_KEY for the per-postcode live pull (fetchCertificates). Until then the area search returns the Price Paid half only."
+          : "Credential present. Certificates are pulled per postcode (fetchCertificates) and joined to Price Paid by findCandidates.",
     },
     {
       sourceKey: GAZETTE_SOURCE,
@@ -240,6 +266,34 @@ export interface DatasetRunResult {
 export function runFromDatasets(ppdCsv: string, epcCsv: string, now: Date = new Date()): DatasetRunResult {
   const { records: sales, skipped: ppdSkipped } = parsePricePaid(ppdCsv);
   const { records: epc, skipped: epcSkipped } = parseEpc(epcCsv);
+  const { leads, flips, found } = joinToLeads(epc, sales, now);
+
+  return {
+    leads,
+    flips,
+    epcConsidered: found.considered,
+    salesConsidered: sales.length,
+    skipped: ppdSkipped + epcSkipped,
+    note:
+      found.candidates.length === 0
+        ? `No prepared-but-unsold candidates. ${found.soldSince} sold since their certificate, ${found.tooRecent} too recent to mean anything yet.`
+        : `${found.candidates.length} candidate(s): a certificate lodged, no sale registered since. ${found.soldSince} sold since, ${found.tooRecent} too recent.`,
+  };
+}
+
+/**
+ * The join itself, independent of where the two datasets came from.
+ *
+ * Shared by the bulk-file path (runFromDatasets) and the area path
+ * (runFromArea) so the prepared-but-unsold, negative-equity and flip logic is
+ * defined once and reads the same whether the records arrived as a pasted CSV
+ * or from a per-postcode API call. Pure: records in, leads out.
+ */
+function joinToLeads(
+  epc: readonly EpcRecord[],
+  sales: readonly PricePaidRecord[],
+  now: Date,
+): { readonly leads: readonly SourcedLead[]; readonly flips: readonly FlipEvidence[]; readonly found: CandidateSearch } {
   const found = findCandidates(epc, sales, now);
 
   // Floor area by address, from the EPC side, for the £/sqm estimate.
@@ -290,16 +344,93 @@ export function runFromDatasets(ppdCsv: string, epcCsv: string, now: Date = new 
     upliftBps: flip.upliftBps,
   }));
 
+  return { leads, flips, found };
+}
+
+/* ----------------------------------------- run: an area, from the APIs */
+
+export interface AreaRunResult {
+  readonly leads: readonly SourcedLead[];
+  readonly flips: readonly FlipEvidence[];
+  readonly certificates: number;
+  readonly sales: number;
+  readonly notes: readonly string[];
+  readonly note: string;
+}
+
+/** One EPC certificate from the API, reduced to the join's record shape. */
+function toEpcRecord(c: EpcCertificate): EpcRecord {
+  const { paon, street } = splitAddressLine(c.addressLine1);
+  return {
+    postcode: c.postcode,
+    paon,
+    // The API folds any secondary name into the address line; there is no
+    // separate SAON field, so the key is built from PAON and street.
+    saon: "",
+    street,
+    lodgedAt: c.lodgedAt,
+    rating: c.rating ?? "",
+    ...(c.floorAreaSqm !== undefined ? { floorAreaSqm: c.floorAreaSqm } : {}),
+    ...(c.constructionAgeBand !== undefined ? { constructionAgeBand: c.constructionAgeBand } : {}),
+  };
+}
+
+/**
+ * Find prepared-but-unsold candidates for one postcode, from the live APIs.
+ *
+ * This is the path that replaced the dataset paste box. The bulk Price Paid file
+ * is gigabytes and cannot be pasted into a browser, so the operator never had a
+ * realistic way to run the prepared-but-unsold join. Instead this queries the
+ * EPC register (credentialed) and the Land Registry Price Paid endpoint (open,
+ * no key) for a single postcode and runs the identical join — no file, no paste.
+ *
+ * Each source is tried independently and its failure is caught and noted: an
+ * unset EPC credential, or an endpoint unreachable from this host, degrades to a
+ * note and zero leads rather than a blank page. It never invents a lead to fill
+ * the space.
+ */
+export async function runFromArea(
+  postcode: string,
+  deps: {
+    readonly epc?: (pc: string) => Promise<readonly EpcCertificate[]>;
+    readonly sales?: (pc: string) => Promise<readonly PricePaidRecord[]>;
+    readonly now?: Date;
+  } = {},
+): Promise<AreaRunResult> {
+  const now = deps.now ?? new Date();
+  const epcFetch = deps.epc ?? ((p: string) => fetchCertificates(p));
+  const salesFetch = deps.sales ?? ((p: string) => fetchSales(p));
+  const notes: string[] = [];
+  const pc = postcode.toUpperCase().trim();
+
+  let certs: readonly EpcCertificate[] = [];
+  try {
+    certs = await epcFetch(pc);
+    notes.push(`EPC register: ${certs.length} certificate(s) in ${pc}.`);
+  } catch (error) {
+    notes.push(`EPC register: ${messageOf(error)}`);
+  }
+
+  let sales: readonly PricePaidRecord[] = [];
+  try {
+    sales = await salesFetch(pc);
+    notes.push(`Price Paid: ${sales.length} registered sale(s) in ${pc}.`);
+  } catch (error) {
+    notes.push(`Price Paid: ${messageOf(error)}`);
+  }
+
+  const { leads, flips, found } = joinToLeads(certs.map(toEpcRecord), sales, now);
+
   return {
     leads,
     flips,
-    epcConsidered: found.considered,
-    salesConsidered: sales.length,
-    skipped: ppdSkipped + epcSkipped,
+    certificates: certs.length,
+    sales: sales.length,
+    notes,
     note:
       found.candidates.length === 0
-        ? `No prepared-but-unsold candidates. ${found.soldSince} sold since their certificate, ${found.tooRecent} too recent to mean anything yet.`
-        : `${found.candidates.length} candidate(s): a certificate lodged, no sale registered since. ${found.soldSince} sold since, ${found.tooRecent} too recent.`,
+        ? `No prepared-but-unsold candidates in ${pc}. ${found.soldSince} sold since their certificate, ${found.tooRecent} too recent to mean anything yet.`
+        : `${found.candidates.length} candidate(s) in ${pc}: a certificate lodged, no sale registered since. ${found.soldSince} sold since, ${found.tooRecent} too recent.`,
   };
 }
 
