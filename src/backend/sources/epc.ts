@@ -219,60 +219,96 @@ export function currentCertificate(
 }
 
 /**
- * Fetch certificates for a postcode.
+ * The authorization header for an EPC request, or a throw if unconfigured.
  *
- * The key is read from the environment at call time rather than at import, so a
- * process that never queries EPC does not require the credential to exist.
+ * Two auth schemes across the migration. The 2026 service issues a Bearer token
+ * ("Bearer token (for developers)", shown in the footer when signed in); the
+ * legacy opendatacommunities host used Basic email:key. Prefer the token where
+ * set, fall back to Basic, and fail closed if neither is configured — an
+ * unconfigured import must refuse rather than quietly return nothing and let a
+ * caller conclude the property has no certificate.
+ */
+function epcAuthorization(): string {
+  const token = process.env.EPC_API_TOKEN;
+  const email = process.env.EPC_API_EMAIL;
+  const key = process.env.EPC_API_KEY;
+  if (token !== undefined && token !== "") return `Bearer ${token}`;
+  if (email !== undefined && email !== "" && key !== undefined && key !== "") {
+    return `Basic ${Buffer.from(`${email}:${key}`).toString("base64")}`;
+  }
+  throw new Error(
+    "EPC auth is not configured; set EPC_API_TOKEN (new service) or EPC_API_EMAIL and EPC_API_KEY (legacy). Refusing to query.",
+  );
+}
+
+export interface EpcSearchPage {
+  readonly certificates: readonly EpcCertificate[];
+  readonly totalRecords?: number;
+  /** The next page number where the service reports one, else null. */
+  readonly nextPage: number | null;
+}
+
+/**
+ * One page of a certificate search by arbitrary query.
+ *
+ * The 2026 service accepts repeatable filters (`council[]`, `efficiency_rating[]`)
+ * and paginates with `current_page`/`page_size`, returning a pagination block
+ * that states the next page. Array values are appended as repeated `name[]`
+ * params to match that convention; scalars are set once. The key is read at call
+ * time so a process that never queries EPC does not require the credential.
+ */
+export async function searchCertificates(
+  params: Readonly<Record<string, string | readonly string[]>>,
+  { page = 1, pageSize = 5000, fetchImpl = fetch }: { page?: number; pageSize?: number; fetchImpl?: typeof fetch } = {},
+): Promise<EpcSearchPage> {
+  assertSourceUsable(SOURCE, "internal-analysis");
+  const authorization = epcAuthorization();
+
+  const url = new URL(process.env.EPC_API_BASE ?? DEFAULT_API);
+  for (const [k, v] of Object.entries(params)) {
+    if (Array.isArray(v)) {
+      for (const item of v) if (item !== "") url.searchParams.append(`${k}[]`, item);
+    } else if (typeof v === "string" && v !== "") {
+      url.searchParams.set(k, v);
+    }
+  }
+  // The 2026 service paginates with page_size/current_page; the legacy one used
+  // size. Both names are sent so either endpoint honours the bound.
+  url.searchParams.set("page_size", String(pageSize));
+  url.searchParams.set("size", String(pageSize));
+  url.searchParams.set("current_page", String(page));
+
+  const response = await fetchImpl(url, {
+    headers: { accept: "application/json", authorization },
+    // Never follow a redirect: this request carries a credential, and a redirect
+    // to another host would hand it somewhere we did not licence. This is the
+    // equivalent of the discovery Fetcher's host allowlist; the timeout is its
+    // equivalent of the per-run budget.
+    redirect: "error",
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`EPC register returned ${response.status}`);
+  }
+  const body = (await response.json()) as {
+    pagination?: { nextPage?: number | null; totalRecords?: number };
+  };
+  const pagination = body.pagination ?? {};
+  return {
+    certificates: parseCertificates(body),
+    ...(typeof pagination.totalRecords === "number" ? { totalRecords: pagination.totalRecords } : {}),
+    nextPage: typeof pagination.nextPage === "number" ? pagination.nextPage : null,
+  };
+}
+
+/**
+ * Fetch certificates for a single postcode — a thin wrapper over the paged
+ * search for the common one-postcode lookup.
  */
 export async function fetchCertificates(
   postcode: string,
   { size = 100, fetchImpl = fetch }: { size?: number; fetchImpl?: typeof fetch } = {},
 ): Promise<readonly EpcCertificate[]> {
-  assertSourceUsable(SOURCE, "internal-analysis");
-
-  // Two auth schemes across the migration. The 2026 service issues a Bearer
-  // token ("Bearer token (for developers)", shown in the footer when signed in);
-  // the legacy opendatacommunities host used Basic email:key. Prefer the token
-  // where set, fall back to Basic for the legacy host, and fail closed if
-  // neither is configured — an unconfigured import must refuse rather than
-  // quietly return nothing and let a caller conclude the property has no
-  // certificate.
-  const token = process.env.EPC_API_TOKEN;
-  const email = process.env.EPC_API_EMAIL;
-  const key = process.env.EPC_API_KEY;
-  let authorization: string;
-  if (token !== undefined && token !== "") {
-    authorization = `Bearer ${token}`;
-  } else if (email !== undefined && email !== "" && key !== undefined && key !== "") {
-    authorization = `Basic ${Buffer.from(`${email}:${key}`).toString("base64")}`;
-  } else {
-    throw new Error(
-      "EPC auth is not configured; set EPC_API_TOKEN (new service) or EPC_API_EMAIL and EPC_API_KEY (legacy). Refusing to query.",
-    );
-  }
-
-  const url = new URL(process.env.EPC_API_BASE ?? DEFAULT_API);
-  url.searchParams.set("postcode", postcode.toUpperCase());
-  // The 2026 service paginates with `page_size`; the legacy one used `size`.
-  // Both are sent so either endpoint honours the bound and ignores the other.
-  url.searchParams.set("page_size", String(size));
-  url.searchParams.set("size", String(size));
-
-  const response = await fetchImpl(url, {
-    headers: {
-      accept: "application/json",
-      authorization,
-    },
-    // Bounded, and never follow a redirect: this request carries a Basic-auth
-    // credential, and a redirect to another host would hand it to somewhere we
-    // did not licence. `redirect: "error"` is this path's equivalent of the
-    // discovery Fetcher's host allowlist; the timeout is its equivalent of the
-    // per-run budget.
-    redirect: "error",
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    throw new Error(`EPC register returned ${response.status} for ${postcode}`);
-  }
-  return parseCertificates(await response.json());
+  const page = await searchCertificates({ postcode: postcode.toUpperCase() }, { pageSize: size, fetchImpl });
+  return page.certificates;
 }

@@ -308,12 +308,24 @@ export interface CandidateSearch {
   readonly soldSince: number;
   /** Certificates too recent to mean anything yet. */
   readonly tooRecent: number;
+  /** Certificates too old to be an actionable "prepared to sell" signal. */
+  readonly tooOld: number;
 }
 
 /** Below this a certificate just means a sale is in progress. */
 export const MINIMUM_MONTHS = 6;
 /** Beyond this the preparation is old enough to be a strong signal. */
 export const STRONG_MONTHS = 12;
+/**
+ * Beyond this a certificate is no longer an actionable "prepared to sell"
+ * signal. A certificate from years ago with no sale since is far more likely a
+ * long-term owner who got one for letting or a remortgage — or an address the
+ * join simply failed to match to its sale — than someone who marketed recently
+ * and still holds it. Presenting a 15-year-old certificate as a "strong" lead
+ * is the kind of false confidence that discredits the whole signal, so it is
+ * excluded and counted separately. Matches the council sweep's own date window.
+ */
+export const STALE_MONTHS = 36;
 
 function monthsBetween(from: string, to: Date): number {
   const start = Date.parse(from);
@@ -340,6 +352,7 @@ export function findCandidates(
   epc: readonly EpcRecord[],
   sales: readonly PricePaidRecord[],
   now: Date = new Date(),
+  maxMonths: number = STALE_MONTHS,
 ): CandidateSearch {
   assertSourceUsable(EPC_SOURCE, "internal-analysis");
   assertSourceUsable(PPD_SOURCE, "internal-analysis");
@@ -355,6 +368,7 @@ export function findCandidates(
   const candidates: PropertyCandidate[] = [];
   let soldSince = 0;
   let tooRecent = 0;
+  let tooOld = 0;
 
   for (const certificate of epc) {
     const key = addressKey(certificate);
@@ -366,9 +380,16 @@ export function findCandidates(
     }
 
     const sale = lastSale.get(key);
-    // A sale registered on or after the certificate means it sold.
+    // A sale registered on or after the certificate means it sold. Checked
+    // before the age cap so an old-but-sold address is counted as sold, not old.
     if (sale !== undefined && sale.soldAt >= certificate.lodgedAt) {
       soldSince += 1;
+      continue;
+    }
+
+    // Too old to be an actionable signal (see STALE_MONTHS).
+    if (months > maxMonths) {
+      tooOld += 1;
       continue;
     }
 
@@ -398,7 +419,7 @@ export function findCandidates(
   // Longest-prepared first: that is the order worth working.
   candidates.sort((a, b) => b.monthsSincePrepared - a.monthsSincePrepared);
 
-  return { candidates, considered: epc.length, soldSince, tooRecent };
+  return { candidates, considered: epc.length, soldSince, tooRecent, tooOld };
 }
 
 /* ------------------------------------------------- bought and flipped */

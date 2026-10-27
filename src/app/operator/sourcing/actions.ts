@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
 import { revalidatePath } from "next/cache";
-import { runFromArea, runRegisters } from "@backend/discovery/sourcingRun";
+import { runFromArea, runFromCouncil, runRegisters } from "@backend/discovery/sourcingRun";
 import { listSourcedProperties, saveDeal, saveSourcedProperty } from "@backend/store/repository";
 import { buildIntake, type IntakeAnswers } from "@shared/domain/intake";
 import { bps, fromMajor, ZERO } from "@shared/money";
@@ -57,14 +57,15 @@ export interface SourcingResult {
 const UK_POSTCODE = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i;
 
 /**
- * Find prepared-but-unsold candidates for a postcode, from the live open APIs.
+ * Find prepared-but-unsold candidates for a postcode or a whole council / city.
  *
  * This replaced the dataset paste box, which never worked: the Price Paid bulk
  * file is gigabytes and cannot be pasted into a browser, so the join it promised
- * was unreachable. Here the operator types a postcode and the server queries the
- * EPC register and the Land Registry endpoint for it and runs the identical
- * join. A server action is its own POST endpoint, so it checks its own
- * permission (§29).
+ * was unreachable. Here the operator types either a postcode — exact, fast — or
+ * a council name, and the server runs the same EPC-to-Price-Paid join at that
+ * scale. A full UK postcode routes to the single-postcode path; anything else is
+ * treated as a council and swept (bounded and throttled). A server action is its
+ * own POST endpoint, so it checks its own permission (§29).
  */
 export async function runAreaAction(
   _previous: SourcingResult | undefined,
@@ -73,15 +74,13 @@ export async function runAreaAction(
   const viewer = await requirePermission("manage-mandates", "/operator/sourcing");
   const author = viewerAccount(viewer);
 
-  const postcode = String(formData.get("postcode") ?? "").toUpperCase().trim();
-  if (postcode === "") {
-    return { ok: false, message: "Enter a postcode to search.", leads: [], flips: [], notes: [] };
-  }
-  if (!UK_POSTCODE.test(postcode)) {
-    return { ok: false, message: "That is not a recognisable UK postcode.", leads: [], flips: [], notes: [] };
+  const raw = String(formData.get("postcode") ?? "").trim();
+  if (raw === "") {
+    return { ok: false, message: "Enter a postcode or a council name to search.", leads: [], flips: [], notes: [] };
   }
 
-  const result = await runFromArea(postcode);
+  const isPostcode = UK_POSTCODE.test(raw);
+  const result = isPostcode ? await runFromArea(raw.toUpperCase()) : await runFromCouncil(raw);
 
   // Persist the worklist — but ONLY the property-fact leads. The distress leads
   // (negative equity here) are shown live and never warehoused: a list of the
@@ -97,8 +96,8 @@ export async function runAreaAction(
 
   await audit("mandate-saved", {
     ...(author !== undefined ? { account: author } : {}),
-    subject: "sourcing-run-area",
-    detail: `Area run for ${postcode}: ${result.certificates} certificate(s), ${result.sales} sale(s), ${result.leads.length} lead(s), ${saved} saved to the worklist.`,
+    subject: isPostcode ? "sourcing-run-area" : "sourcing-run-council",
+    detail: `${isPostcode ? "Postcode" : "Council"} run for ${raw}: ${result.certificates} certificate(s), ${result.sales} sale(s), ${result.leads.length} lead(s), ${saved} saved to the worklist.`,
   });
 
   if (saved > 0) revalidatePath("/operator/sourcing");

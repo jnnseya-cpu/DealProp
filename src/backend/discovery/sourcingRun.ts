@@ -26,8 +26,9 @@ import {
   type PricePaidRecord,
   type PropertyCandidate,
 } from "@backend/discovery/properties";
-import { fetchCertificates, type EpcCertificate } from "@backend/sources/epc";
+import { fetchCertificates, searchCertificates, type EpcCertificate } from "@backend/sources/epc";
 import { fetchSales } from "@backend/sources/pricePaid";
+import { MINIMUM_MONTHS } from "@backend/discovery/properties";
 import {
   GAZETTE_SOURCE,
   fetchNotices,
@@ -276,8 +277,8 @@ export function runFromDatasets(ppdCsv: string, epcCsv: string, now: Date = new 
     skipped: ppdSkipped + epcSkipped,
     note:
       found.candidates.length === 0
-        ? `No prepared-but-unsold candidates. ${found.soldSince} sold since their certificate, ${found.tooRecent} too recent to mean anything yet.`
-        : `${found.candidates.length} candidate(s): a certificate lodged, no sale registered since. ${found.soldSince} sold since, ${found.tooRecent} too recent.`,
+        ? `No prepared-but-unsold candidates. ${found.soldSince} sold since their certificate, ${found.tooRecent} too recent, ${found.tooOld} too old to act on.`
+        : `${found.candidates.length} candidate(s): a certificate lodged, no sale registered since. ${found.soldSince} sold since, ${found.tooRecent} too recent, ${found.tooOld} too old.`,
   };
 }
 
@@ -429,8 +430,144 @@ export async function runFromArea(
     notes,
     note:
       found.candidates.length === 0
-        ? `No prepared-but-unsold candidates in ${pc}. ${found.soldSince} sold since their certificate, ${found.tooRecent} too recent to mean anything yet.`
-        : `${found.candidates.length} candidate(s) in ${pc}: a certificate lodged, no sale registered since. ${found.soldSince} sold since, ${found.tooRecent} too recent.`,
+        ? `No prepared-but-unsold candidates in ${pc}. ${found.soldSince} sold since their certificate, ${found.tooRecent} too recent, ${found.tooOld} too old to act on.`
+        : `${found.candidates.length} candidate(s) in ${pc}: a certificate lodged, no sale registered since. ${found.soldSince} sold since, ${found.tooRecent} too recent, ${found.tooOld} too old.`,
+  };
+}
+
+/* ------------------------------------------- run: a council / city */
+
+/** Run `fn` over items with at most `limit` in flight, preserving order. */
+async function mapPool<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    for (let i = next++; i < items.length; i = next++) {
+      results[i] = await fn(items[i] as T);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(Math.max(limit, 1), items.length) }, worker));
+  return results;
+}
+
+export interface CouncilRunConfig {
+  /** One page of certificates for the council; injected in tests. */
+  readonly epc?: (page: number) => Promise<{ readonly certificates: readonly EpcCertificate[]; readonly nextPage: number | null }>;
+  readonly sales?: (postcode: string) => Promise<readonly PricePaidRecord[]>;
+  readonly now?: Date;
+  /** Hard cap on EPC pages read (each up to 5,000 certificates). */
+  readonly maxCertPages?: number;
+  /** Hard cap on how many distinct postcodes are checked against Price Paid. */
+  readonly maxPostcodes?: number;
+  /** How many Price Paid lookups run at once. */
+  readonly concurrency?: number;
+}
+
+/**
+ * Find prepared-but-unsold candidates across a whole council / city.
+ *
+ * The wider sweep the single-postcode search could not do. EPC supports a
+ * `council[]` filter and pagination, so the certificates come from there in a
+ * bounded number of pages; the actionable age window (older than the minimum,
+ * no older than three years) is applied at source, which both pre-excludes
+ * certificates too recent to mean anything and keeps the volume sane.
+ *
+ * Price Paid has no council filter, so it is queried per postcode — the
+ * confirmed path — for the distinct postcodes the certificates name, throttled
+ * and capped. Correctness turns on coverage: a certificate is only judged where
+ * its postcode's Price Paid lookup actually succeeded, because a missing sale
+ * history would make every certificate there look "no sale since" — a false
+ * candidate. Uncovered certificates are excluded with a note, never guessed.
+ */
+export async function runFromCouncil(council: string, deps: CouncilRunConfig = {}): Promise<AreaRunResult> {
+  const now = deps.now ?? new Date();
+  const maxCertPages = deps.maxCertPages ?? 4;
+  const maxPostcodes = deps.maxPostcodes ?? 50;
+  const concurrency = deps.concurrency ?? 6;
+  const name = council.trim();
+  const notes: string[] = [];
+
+  const monthsAgo = (m: number): string => {
+    const d = new Date(now);
+    d.setMonth(d.getMonth() - m);
+    return d.toISOString().slice(0, 10);
+  };
+  // Older than the minimum (so a sale mid-completion is not a false lead) and
+  // no older than three years (beyond which the signal is stale).
+  const dateEnd = monthsAgo(MINIMUM_MONTHS);
+  const dateStart = monthsAgo(36);
+
+  const epcPage =
+    deps.epc ??
+    ((page: number) => searchCertificates({ council: [name], date_start: dateStart, date_end: dateEnd }, { page }));
+
+  const certs: EpcCertificate[] = [];
+  try {
+    for (let page = 1; page <= maxCertPages; page += 1) {
+      const res = await epcPage(page);
+      certs.push(...res.certificates);
+      if (res.nextPage === null) break;
+      if (page === maxCertPages) {
+        notes.push(`EPC: stopped at ${maxCertPages} pages — narrow to a postcode district for the rest.`);
+      }
+    }
+    notes.push(`EPC register: ${certs.length} certificate(s) in ${name}, lodged ${dateStart} to ${dateEnd}.`);
+  } catch (error) {
+    notes.push(`EPC register: ${messageOf(error)}`);
+  }
+
+  // Distinct postcodes, capped. Price Paid is queried per postcode, so the
+  // fan-out is bounded to what the certificates actually name.
+  const postcodes = [...new Set(certs.map((c) => c.postcode).filter((p) => p !== ""))];
+  const queried = postcodes.slice(0, maxPostcodes);
+  if (postcodes.length > queried.length) {
+    notes.push(
+      `${postcodes.length} postcodes found; checked the first ${queried.length} against Price Paid — narrow the area for the rest.`,
+    );
+  }
+
+  const salesFetch = deps.sales ?? ((p: string) => fetchSales(p));
+  const outcomes = await mapPool(queried, concurrency, async (pc) => {
+    try {
+      return { pc, rows: await salesFetch(pc) };
+    } catch {
+      return { pc, rows: undefined as readonly PricePaidRecord[] | undefined };
+    }
+  });
+
+  const covered = new Set<string>();
+  const sales: PricePaidRecord[] = [];
+  let failed = 0;
+  for (const o of outcomes) {
+    if (o.rows === undefined) {
+      failed += 1;
+      continue;
+    }
+    covered.add(o.pc);
+    sales.push(...o.rows);
+  }
+  notes.push(
+    `Price Paid: queried ${queried.length} postcode(s)${failed > 0 ? `, ${failed} failed` : ""}, ${sales.length} sale(s).`,
+  );
+
+  // Only judge certificates whose postcode has confirmed sale coverage.
+  const certsCovered = certs.filter((c) => covered.has(c.postcode));
+  const { leads, flips, found } = joinToLeads(certsCovered.map(toEpcRecord), sales, now);
+
+  return {
+    leads,
+    flips,
+    certificates: certsCovered.length,
+    sales: sales.length,
+    notes,
+    note:
+      found.candidates.length === 0
+        ? `No prepared-but-unsold candidates in ${name} from ${certsCovered.length} checked certificate(s). ${found.soldSince} sold since, ${found.tooRecent} too recent, ${found.tooOld} too old.`
+        : `${found.candidates.length} candidate(s) in ${name}: a certificate lodged, no sale registered since. ${found.soldSince} sold since, ${found.tooRecent} too recent, ${found.tooOld} too old.`,
   };
 }
 

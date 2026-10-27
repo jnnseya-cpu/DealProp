@@ -10,6 +10,7 @@ import {
   negativeEquity,
   parsePricePaid,
   PPD_SOURCE,
+  STALE_MONTHS,
   STRONG_MONTHS,
   type EpcRecord,
 } from "@backend/discovery/properties";
@@ -254,9 +255,29 @@ describe("finding candidates", () => {
     expect(out.candidates.map((c) => c.street)).toEqual(["B Road", "A Road"]);
   });
 
+  it("excludes a certificate too old to be an actionable signal", () => {
+    // A certificate from years ago with no sale since is a long-term owner or an
+    // unmatched sale, not a recent would-be seller. Presenting it as "strong"
+    // is false confidence, so it is dropped and counted as too old.
+    const ancient = epc({ lodgedAt: "2019-01-01" }); // ~93 months before NOW
+    const out = findCandidates([ancient], [], NOW);
+    expect(out.candidates).toHaveLength(0);
+    expect(out.tooOld).toBe(1);
+  });
+
+  it("still counts an old certificate that DID sell as sold, not too old", () => {
+    const sales = parsePricePaid(
+      row({ price: 200_000, date: "2020-01-01", postcode: "B23 5TT", paon: "14", street: "Holly Lane" }),
+    ).records;
+    const out = findCandidates([epc({ lodgedAt: "2019-01-01" })], sales, NOW);
+    expect(out.tooOld).toBe(0);
+    expect(out.soldSince).toBe(1);
+  });
+
   it("states a window rather than leaving it to a caller", () => {
     expect(MINIMUM_MONTHS).toBe(6);
     expect(STRONG_MONTHS).toBeGreaterThan(MINIMUM_MONTHS);
+    expect(STALE_MONTHS).toBeGreaterThan(STRONG_MONTHS);
   });
 });
 

@@ -3,6 +3,7 @@ import { Fetcher } from "@backend/discovery/fetcher";
 import { parseEpc } from "@backend/discovery/properties";
 import {
   runFromArea,
+  runFromCouncil,
   runFromDatasets,
   runRegisters,
   sourceProperties,
@@ -238,6 +239,50 @@ describe("running from datasets the operator holds", () => {
     const sold = ['"{id}"', '"300000"', '"2026-02-01 00:00"', '"B29 6AD"', '"T"', '"N"', '"F"', '"14"', '""', '"Acacia Avenue"', '"B"', '"B"', '"B"', '"A"', '"A"', '"A"'].join(",");
     const result = runFromDatasets(`${ppd}\n${sold}`, epc, NOW);
     expect(result.leads).toHaveLength(0);
+  });
+});
+
+/* ------------------------------------------------------- runFromCouncil */
+
+describe("sweeping a whole council", () => {
+  const certIn = (postcode: string, paon: string, lodgedAt: string): EpcCertificate => ({
+    lmkKey: `${postcode}-${paon}`,
+    address: `${paon} Test Road, ${postcode}`,
+    addressLine1: `${paon} Test Road`,
+    postcode,
+    lodgedAt,
+    source: attribute("epc-register", lodgedAt),
+  });
+
+  it("judges a certificate only where its postcode has Price Paid coverage", async () => {
+    const certs = [certIn("B1 1AA", "10", "2024-06-01"), certIn("B2 2BB", "20", "2024-06-01")];
+    const result = await runFromCouncil("Birmingham", {
+      epc: async () => ({ certificates: certs, nextPage: null }),
+      sales: async (pc) => {
+        if (pc === "B2 2BB") throw new Error("Price Paid endpoint returned 500");
+        return []; // B1 1AA: covered, no sales → a candidate
+      },
+      now: NOW,
+    });
+    // The failed-lookup postcode's certificate is excluded, never guessed as a
+    // candidate; only the covered one is judged.
+    expect(result.certificates).toBe(1);
+    expect(result.leads.some((l) => l.signalKey === "prepared-but-unsold" && l.postcode === "B1 1AA")).toBe(true);
+    expect(result.leads.some((l) => l.postcode === "B2 2BB")).toBe(false);
+    expect(result.notes.join(" ")).toContain("1 failed");
+  });
+
+  it("stops at the page cap and says so", async () => {
+    const result = await runFromCouncil("Birmingham", {
+      epc: async (page) => ({
+        certificates: [certIn(`B${page} ${page}AA`, "1", "2024-06-01")],
+        nextPage: page + 1, // the feed always claims more
+      }),
+      sales: async () => [],
+      now: NOW,
+      maxCertPages: 2,
+    });
+    expect(result.notes.join(" ")).toContain("stopped at 2 pages");
   });
 });
 

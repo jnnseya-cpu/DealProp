@@ -32,14 +32,15 @@ export function SourcingRun() {
         <form action={runArea} className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
           <h2 className="eyebrow">Search an area for prepared-but-unsold</h2>
           <p className="mt-3 text-sm leading-relaxed text-ink-400">
-            Enter a postcode. The EPC register and Land Registry Price Paid are queried for it and
-            joined on the address: a certificate lodged with no sale registered since is a property
-            prepared for sale that never sold — which no portal publishes. Open data, no bulk file to
-            download.
+            Enter a <span className="text-ink-100">postcode</span> for an exact search, or a{" "}
+            <span className="text-ink-100">council name</span> (e.g. Birmingham) to sweep the whole
+            city. The EPC register and Land Registry Price Paid are joined on the address: a
+            certificate lodged with no sale registered since is a property prepared for sale that
+            never sold — which no portal publishes. Open data, no bulk file to download.
           </p>
 
           <label className="mt-4 block text-xs text-ink-500" htmlFor="postcode">
-            Postcode
+            Postcode or council
           </label>
           <input
             id="postcode"
@@ -47,8 +48,8 @@ export function SourcingRun() {
             required
             autoComplete="off"
             spellCheck={false}
-            placeholder="B29 6AD"
-            className="mt-1.5 w-full rounded-xl border hairline bg-ink-950 px-3 py-2 font-mono text-sm uppercase tracking-wide text-ink-100"
+            placeholder="B29 6AD  ·  or  ·  Birmingham"
+            className="mt-1.5 w-full rounded-xl border hairline bg-ink-950 px-3 py-2 font-mono text-sm text-ink-100"
           />
 
           <button
@@ -56,7 +57,7 @@ export function SourcingRun() {
             disabled={runningArea}
             className="mt-4 inline-flex h-9.5 items-center justify-center rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
           >
-            {runningArea ? "Searching…" : "Search this postcode"}
+            {runningArea ? "Searching…" : "Search"}
           </button>
 
           {area !== undefined && (
