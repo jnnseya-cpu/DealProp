@@ -101,6 +101,10 @@ export function sourceProperties(inputs: SourcingInputs, now: Date = new Date())
   const sender = companyIdentity(process.env);
 
   for (const candidate of inputs.preparedButUnsold ?? []) {
+    // The house number and street, so the card names a property rather than a
+    // postcode. This is a property fact from the EPC register, not data about a
+    // person, and the surface is operator-only.
+    const address = `${candidate.paon} ${candidate.street}`.replace(/\s+/g, " ").trim();
     leads.push({
       signalKey: "prepared-but-unsold",
       label: LABEL["prepared-but-unsold"],
@@ -111,6 +115,7 @@ export function sourceProperties(inputs: SourcingInputs, now: Date = new Date())
       heightenedProtection: false,
       provenance: attribute(EPC_SOURCE, candidate.preparedAt),
       lawfulNextStep: NEXT_STEP["prepared-but-unsold"],
+      ...(address !== "" ? { propertyAddress: address } : {}),
     });
   }
 
@@ -290,12 +295,31 @@ export function runFromDatasets(ppdCsv: string, epcCsv: string, now: Date = new 
  * defined once and reads the same whether the records arrived as a pasted CSV
  * or from a per-postcode API call. Pure: records in, leads out.
  */
+/**
+ * Collapse repeated certificates for one address to a single candidate.
+ *
+ * A property re-certified over the years (a new EPC for a remortgage, a let, a
+ * relisting) yields one candidate per certificate — the same house ten times on
+ * the worklist. Keep the most recently lodged, which is the current "prepared"
+ * state, and preserve the longest-prepared-first order.
+ */
+function dedupeByAddress(candidates: readonly PropertyCandidate[]): readonly PropertyCandidate[] {
+  const byKey = new Map<string, PropertyCandidate>();
+  for (const c of candidates) {
+    const held = byKey.get(c.addressKey);
+    if (held === undefined || c.preparedAt > held.preparedAt) byKey.set(c.addressKey, c);
+  }
+  return [...byKey.values()].sort((a, b) => b.monthsSincePrepared - a.monthsSincePrepared);
+}
+
 function joinToLeads(
   epc: readonly EpcRecord[],
   sales: readonly PricePaidRecord[],
   now: Date,
 ): { readonly leads: readonly SourcedLead[]; readonly flips: readonly FlipEvidence[]; readonly found: CandidateSearch } {
-  const found = findCandidates(epc, sales, now);
+  const raw = findCandidates(epc, sales, now);
+  // One row per address, not one per certificate.
+  const found: CandidateSearch = { ...raw, candidates: dedupeByAddress(raw.candidates) };
 
   // Floor area by address, from the EPC side, for the £/sqm estimate.
   const floorAreaByAddress = new Map<string, number>();

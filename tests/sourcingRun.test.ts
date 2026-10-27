@@ -187,6 +187,19 @@ describe("running an area from the open APIs", () => {
     expect(result.notes.join(" ")).toContain("EPC register:");
     expect(result.notes.join(" ")).toContain("not configured");
   });
+
+  it("names the address and collapses repeated certificates for one property", async () => {
+    const older: EpcCertificate = { ...cert, lmkKey: "a", lodgedAt: "2024-01-01" };
+    const newer: EpcCertificate = { ...cert, lmkKey: "b", lodgedAt: "2025-01-01" };
+    const result = await runFromArea("B29 6AD", {
+      epc: async () => [older, newer], // same address, two certificates
+      sales: async () => [], // no sale → a candidate
+      now: NOW,
+    });
+    const prepared = result.leads.filter((l) => l.signalKey === "prepared-but-unsold");
+    expect(prepared).toHaveLength(1); // one row per address, not per certificate
+    expect(prepared[0]?.propertyAddress).toBe("14 Acacia Avenue");
+  });
 });
 
 /* ------------------------------------------------------- runFromDatasets */

@@ -17,7 +17,7 @@ import { draftProbateLetter } from "@shared/domain/probateLetter";
 import { draftInsolvencyLetter } from "@shared/domain/insolvencyLetter";
 import { enrichAddress } from "@backend/discovery/enrich";
 import type { FlipEvidence, LeadSignal, SourcedLead } from "@shared/domain/sourcedLead";
-import type { JurisdictionCode, PropertyType, Tenure } from "@shared/domain/types";
+import type { JurisdictionCode, PropertyType, SellerSituation, Tenure } from "@shared/domain/types";
 
 const TENURES = new Set<Tenure>(["freehold", "leasehold", "share-of-freehold", "unknown"]);
 
@@ -263,15 +263,16 @@ export async function enrichLead(input: {
  *
  * The bridge from lead to deal, so the operator does not re-key an address the
  * platform already holds. It creates a real deal at status "new" and lands on
- * the seller-checks step — because the next thing that must happen on a probate
- * deal is proving the authority to sell (the grant of probate), which is where
- * these deals succeed or fail.
+ * the seller-checks step — because the next thing that must happen is proving
+ * who owns it and whether they may sell (the grant of probate on a probate lead;
+ * the registered proprietor on a prepared-but-unsold one), which is where these
+ * deals succeed or fail.
  *
  * The one figure that cannot be defaulted is the value, so the operator gives
- * it — nothing is fabricated. Inventory is deliberately left unconfirmed: an
- * executor expressing interest is not yet the verified authority to sell, and
- * that verification is exactly the step this lands on. A server action is its
- * own POST endpoint, so it checks its own permission (§29).
+ * it — nothing is fabricated. Inventory is deliberately left unconfirmed: a
+ * signal is not the verified authority to sell, and that verification is exactly
+ * the step this lands on. A server action is its own POST endpoint, so it checks
+ * its own permission (§29).
  */
 export async function startDealFromLead(
   _prev: { ok: boolean; message: string } | undefined,
@@ -284,9 +285,21 @@ export async function startDealFromLead(
   const address = String(formData.get("address") ?? "").trim();
   const subjectName = String(formData.get("subjectName") ?? "").trim();
   const contact = String(formData.get("contactForService") ?? "").trim();
+  const signal = String(formData.get("signal") ?? "probate-notice");
   const pounds = Number(formData.get("estimatedValue"));
   const propertyTypeRaw = String(formData.get("propertyType") ?? "");
   const jurisdictionRaw = String(formData.get("jurisdiction") ?? "GB-ENG");
+
+  // The seller situation the deal starts in, by the signal it came from. A
+  // prepared-but-unsold property is a failed/stale listing; a Gazette notice is
+  // probate. Both land on seller-checks: ownership and authority to sell must be
+  // proved before any approach, which is exactly where these deals succeed or
+  // fail.
+  const isPrepared = signal === "prepared-but-unsold";
+  const situation: SellerSituation = isPrepared ? "failed-listing" : "probate";
+  const narrative = isPrepared
+    ? `Started from a prepared-but-unsold signal: an EPC was lodged and no sale has been registered since.${address !== "" ? ` Property: ${address}.` : ""} Confirm the registered owner on the title before any approach.`
+    : `Started from a Gazette probate notice.${subjectName !== "" ? ` Estate of ${subjectName}.` : ""}${address !== "" ? ` Property: ${address}.` : ""}${contact !== "" ? ` Contact for service: ${contact}.` : ""}`;
 
   if (postcode === "") return { ok: false, message: "This lead has no postcode to start a deal from." };
   if (!Number.isFinite(pounds) || pounds <= 0) {
@@ -312,9 +325,9 @@ export async function startDealFromLead(
   const locality = (segments[segments.length - 1] ?? "").slice(0, 80);
 
   const answers: IntakeAnswers = {
-    situation: "probate",
+    situation,
     priorities: ["certainty"],
-    narrative: `Started from a Gazette probate notice.${subjectName !== "" ? ` Estate of ${subjectName}.` : ""}${address !== "" ? ` Property: ${address}.` : ""}${contact !== "" ? ` Contact for service: ${contact}.` : ""}`,
+    narrative,
     postcodeArea: postcode.slice(0, 8),
     locality,
     jurisdiction,
@@ -371,7 +384,9 @@ export async function startDealFromLead(
   await audit("mandate-saved", {
     ...(author !== undefined ? { account: author } : {}),
     subject: `deal:${id}`,
-    detail: `Started from a probate lead${subjectName !== "" ? ` (estate of ${subjectName})` : ""} at ${postcode}.`,
+    detail: isPrepared
+      ? `Started from a prepared-but-unsold lead${address !== "" ? ` (${address})` : ""} at ${postcode}.`
+      : `Started from a probate lead${subjectName !== "" ? ` (estate of ${subjectName})` : ""} at ${postcode}.`,
   });
 
   redirect(`/deals/${id}/seller-checks`);

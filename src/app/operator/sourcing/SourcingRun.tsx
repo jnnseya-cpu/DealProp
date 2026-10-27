@@ -169,6 +169,10 @@ function Leads({ leads }: { leads: readonly SourcedLead[] }) {
               </p>
             </div>
 
+            {lead.propertyAddress !== undefined && (
+              <p className="mt-1 text-sm font-medium text-ink-100">{lead.propertyAddress}</p>
+            )}
+
             <p className="mt-3 text-sm leading-relaxed text-ink-300">{lead.summary}</p>
 
             {lead.heightenedProtection && (
@@ -180,9 +184,8 @@ function Leads({ leads }: { leads: readonly SourcedLead[] }) {
 
             {lead.letterDraft !== undefined && <PrintLetter lead={lead} />}
 
-            {lead.signalKey === "probate-notice" && lead.postcode !== undefined && (
-              <StartDealForm lead={lead} />
-            )}
+            {(lead.signalKey === "probate-notice" || lead.signalKey === "prepared-but-unsold") &&
+              lead.postcode !== undefined && <StartDealForm lead={lead} />}
 
             <p className="mt-3 border-l-2 border-ink-700 pl-3 text-sm leading-relaxed text-ink-400">
               <span className="text-ink-300">Lawful next step.</span> {lead.lawfulNextStep}

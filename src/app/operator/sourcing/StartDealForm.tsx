@@ -92,6 +92,7 @@ export function StartDealForm({ lead }: { lead: SourcedLead }) {
         <input type="hidden" name="address" value={lead.propertyAddress ?? ""} />
         <input type="hidden" name="subjectName" value={lead.subjectName ?? ""} />
         <input type="hidden" name="contactForService" value={lead.contactForService ?? ""} />
+        <input type="hidden" name="signal" value={lead.signalKey} />
 
         <p className="text-[13px] leading-relaxed text-ink-400">
           {lead.propertyAddress ?? lead.postcode}

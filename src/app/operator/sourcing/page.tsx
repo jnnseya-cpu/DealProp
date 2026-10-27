@@ -100,6 +100,9 @@ export default async function SourcingPage() {
                       )}
                     </p>
                   </div>
+                  {entry.lead.propertyAddress !== undefined && (
+                    <p className="mt-1 text-sm font-medium text-ink-100">{entry.lead.propertyAddress}</p>
+                  )}
                   <p className="mt-3 text-sm leading-relaxed text-ink-300">{entry.lead.summary}</p>
                   <p className="mt-3 border-l-2 border-ink-700 pl-3 text-sm leading-relaxed text-ink-400">
                     <span className="text-ink-300">Lawful next step.</span> {entry.lead.lawfulNextStep}
