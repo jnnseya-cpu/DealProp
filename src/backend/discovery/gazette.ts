@@ -87,6 +87,24 @@ export function postcodeIn(address: string): string | undefined {
   return `${match[1]} ${match[2]}`.toUpperCase();
 }
 
+/**
+ * The URL of a notice's machine-readable representation.
+ *
+ * The feed hands back either the resource page (…/notice/5237386) or, in some
+ * responses, the identifier URI (…/id/notice/5237386). The readable data lives
+ * at the RESOURCE path with a /data.jsonld (or /data.json) suffix — there is no
+ * …/id/notice/…/data.jsonld, so appending the suffix to the identifier form 404s
+ * and the lead's letter is left with no recipient. Normalise any of those forms
+ * to the one fetchable resource. The notice id may contain a dash (2345-6789),
+ * so it is matched as a run of word characters and dashes, not just digits.
+ */
+export function noticeDataUrl(noticeUrl: string, suffix: "data.jsonld" | "data.json"): string {
+  const stripped = noticeUrl.replace(/\/(?:data\.jsonld|data\.json)\/?$/i, "").replace(/\/$/, "");
+  const idForm = /^(https?:\/\/[^/]+)\/id\/notice\/([\w-]+)/i.exec(stripped);
+  const base = idForm !== null ? `${idForm[1]}/notice/${idForm[2]}` : stripped;
+  return `${base}/${suffix}`;
+}
+
 /* ----------------------------------------------------------------- feed */
 
 /** One notice as the all-notices feed lists it. Nothing is inferred. */
@@ -410,9 +428,7 @@ export async function fetchNoticeDetail(
 ): Promise<ConnectorResult<NoticeDetail>> {
   assertSourceUsable(GAZETTE_SOURCE, "internal-analysis");
 
-  const url = noticeUrl.endsWith("/data.jsonld")
-    ? noticeUrl
-    : `${noticeUrl.replace(/\/$/, "")}/data.jsonld`;
+  const url = noticeDataUrl(noticeUrl, "data.jsonld");
 
   const result = await fetcher.get(GAZETTE_SOURCE, url, {
     headers: { accept: "application/ld+json, application/json" },
@@ -576,10 +592,9 @@ export async function fetchNotice(
 ): Promise<ConnectorResult<unknown>> {
   assertSourceUsable(GAZETTE_SOURCE, "internal-analysis");
 
-  // The structured representation is the notice URL with a data.json suffix.
-  const dataUrl = noticeUrl.endsWith("/data.json")
-    ? noticeUrl
-    : `${noticeUrl.replace(/\/$/, "")}/data.json`;
+  // The structured representation is the notice RESOURCE with a data.json suffix
+  // (never the …/id/notice/ identifier form — see noticeDataUrl).
+  const dataUrl = noticeDataUrl(noticeUrl, "data.json");
 
   const result = await fetcher.get(GAZETTE_SOURCE, dataUrl, {
     headers: { accept: "application/json" },

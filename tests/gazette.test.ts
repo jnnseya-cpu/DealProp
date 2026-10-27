@@ -3,7 +3,9 @@ import { Fetcher } from "@backend/discovery/fetcher";
 import {
   GAZETTE_SOURCE,
   fetchNotice,
+  fetchNoticeDetail,
   fetchNotices,
+  noticeDataUrl,
   parseDeceasedEstate,
   parseGazetteFeed,
   parseInsolvencyNotice,
@@ -262,6 +264,38 @@ describe("the connector is bound to the licensed host", () => {
     const result = await fetchNotice(fetcher, "https://evil.example.com/notice/1");
     expect(result.ok).toBe(false);
     expect(result.reason.toLowerCase()).toContain("not a published host");
+  });
+
+  it("reads a notice's data from the resource path, not the identifier URI", () => {
+    // The feed's identifier form has no …/data.jsonld under it; the readable data
+    // lives at the /notice/ resource. Any of these forms must resolve to it.
+    expect(noticeDataUrl("https://www.thegazette.co.uk/id/notice/5237386", "data.jsonld")).toBe(
+      "https://www.thegazette.co.uk/notice/5237386/data.jsonld",
+    );
+    expect(noticeDataUrl("https://www.thegazette.co.uk/notice/2345-6789", "data.jsonld")).toBe(
+      "https://www.thegazette.co.uk/notice/2345-6789/data.jsonld",
+    );
+    expect(noticeDataUrl("https://www.thegazette.co.uk/notice/42/", "data.json")).toBe(
+      "https://www.thegazette.co.uk/notice/42/data.json",
+    );
+  });
+
+  it("fetches a notice's JSON-LD from the normalised resource URL", async () => {
+    const jsonld = JSON.stringify({
+      "@graph": [
+        { "@id": "n", hasPersonalRepresentative: "exec" },
+        { "@id": "exec", name: "Example & Co", address: "1 High Street, Nottingham, NG1 1AA" },
+      ],
+    });
+    const { fetcher, calls } = fetcherWith({
+      "https://www.thegazette.co.uk/robots.txt": { status: 404 },
+      "https://www.thegazette.co.uk/notice/5237386/data.jsonld": { body: jsonld },
+    });
+    // Passed the identifier form, as the live feed sometimes gives it.
+    const result = await fetchNoticeDetail(fetcher, "https://www.thegazette.co.uk/id/notice/5237386");
+    expect(result.ok).toBe(true);
+    expect(result.value?.contactForService).toContain("Example & Co");
+    expect(calls.some((c) => c === "https://www.thegazette.co.uk/notice/5237386/data.jsonld")).toBe(true);
   });
 
   it("obeys the Gazette's robots.txt like any other site", async () => {

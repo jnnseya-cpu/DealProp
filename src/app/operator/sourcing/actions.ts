@@ -194,7 +194,11 @@ export async function resolveLetter(input: {
       contactForService = detail.value.contactForService;
       claimDeadline = detail.value.claimDeadline;
     } else {
-      note = "The notice could not be read just now — open it directly for the contact.";
+      // Surface the Fetcher's own reason (a 404, a robots rule, a redirect, a
+      // non-JSON body) rather than a generic line — it is what tells us, and the
+      // operator, why the recipient could not be filled in and whether it is the
+      // notice or our read of it that is at fault.
+      note = `The notice could not be read — ${detail.reason} Open it directly for the contact.`;
     }
   }
 
