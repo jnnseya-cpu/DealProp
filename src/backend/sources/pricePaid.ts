@@ -16,10 +16,13 @@ import type { PricePaidRecord } from "@backend/discovery/properties";
  * robots.txt to consult on a data endpoint and the rate control that matters is
  * the per-call timeout below. It follows no redirect and is bounded in time.
  *
- * NOTE ON VERIFICATION: outbound access is blocked in this environment, so no
- * live call has been made from here. The query is written to the published
- * HMLR Price Paid ontology; confirm `fetchSales()` against one real postcode
- * before relying on the tenure and last-sold figures it returns.
+ * VERIFIED LIVE (2026-10-27, from the VPS): the endpoint is reachable and
+ * returns results — BUT only once the postcode is a TYPED literal. HMLR's store
+ * holds `lrcommon:postcode` as `"B29 6AD"^^xsd:string`, and a plain `"B29 6AD"`
+ * literal does not match a typed one in their triplestore, so the first live
+ * call returned HTTP 200 with an empty `bindings` array — a valid query against
+ * the wrong term, not "no sales". The `^^xsd:string` below is load-bearing;
+ * removing it silently returns nothing for every postcode.
  */
 
 const SOURCE = "land-registry-ppd";
@@ -32,8 +35,9 @@ const UK_POSTCODE = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i;
 function query(postcode: string): string {
   return `PREFIX ppd: <http://landregistry.data.gov.uk/def/ppi/>
 PREFIX lrcommon: <http://landregistry.data.gov.uk/def/common/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 SELECT ?paon ?saon ?street ?pricePaid ?transactionDate ?category ?propertyType ?estateType ?newBuild WHERE {
-  ?addr lrcommon:postcode "${postcode}" .
+  ?addr lrcommon:postcode "${postcode}"^^xsd:string .
   ?addr lrcommon:paon ?paon .
   ?addr lrcommon:street ?street .
   OPTIONAL { ?addr lrcommon:saon ?saon }
