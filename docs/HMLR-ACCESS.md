@@ -164,16 +164,47 @@ are written and tested. The adapter is the only new code.
 
 ---
 
-## 7. Where to apply
+## 7. Where to apply — the actual destinations
 
-- **Manual route:** GOV.UK → "Search for land and property information".
-- **Business Gateway:** GOV.UK → search "HM Land Registry Business Gateway";
-  it links the portal-access agreement and the Variable Direct Debit account
-  setup. HMLR's business support can confirm the current programmatic-official-
-  copy product and its onboarding.
-- Ask specifically: *which current HMLR product gives a programmatic Official
-  Copy of the Register and a Search by Property Description, and what are the
-  onboarding steps and per-transaction fees?*
+Three asks, three different front doors:
+
+**A. Per-title owner lookup — manual, today.**
+GOV.UK *Search for land and property information*
+(`search-property-information.service.gov.uk`). No application: search an
+address, order the title register online, pay per title (~£3 for the register;
+one 2026 guide cites £7 for register + plan — confirm the live fee). Use this by
+hand for the leads the engine scores well.
+
+**B. Per-title owner lookup — automated (`lookupOwner`).**
+This is **Business e-services**, with **Business Gateway** as its API add-on:
+- Apply via GOV.UK: **"Apply for Business e-services"** —
+  `https://www.gov.uk/guidance/apply-for-business-e-services`. The application
+  runs on HMLR's customer help site (`customerhelp.landregistry.gov.uk`), takes
+  ~20 minutes, cannot be saved and resumed, and needs your organisation details,
+  a named responsible person and administrators, and acceptance of the
+  Conditions of Use.
+- You must be a **Business e-services (portal) customer first**; **Business
+  Gateway** is then the B2B API add-on, and HMLR require you to have either a
+  case-management system that integrates or your own development capability (we
+  have the latter — see §5). Settlement is via a **Variable Direct Debit
+  account**.
+- Ask them, in writing: *which current product gives a programmatic Official
+  Copy of the Register and a Search by Property Description, what are the
+  onboarding steps, and what are the per-transaction fees?*
+
+**C. Bulk company/overseas owners — free, under licence.**
+Register on GOV.UK *Use land and property data*
+(`use-land-property-data.service.gov.uk`) for **CCOD** ("UK companies that own
+property in England and Wales") and **OCOD** ("Overseas companies…"). CSV bulk
+download and a JSON API, free under the OGL, updated monthly. Questions go to the
+HMLR **Data Services Team**:
+- Email: **data.services@mail.landregistry.gov.uk**
+- Phone: **0300 006 0478**
+- Post: Data Services, HM Land Registry, Rosebrae Court, Woodside Ferry Approach,
+  Birkenhead, CH41 6DU
+
+Do **not** send data enquiries to the press office address — it is not the data
+team.
 
 ---
 
