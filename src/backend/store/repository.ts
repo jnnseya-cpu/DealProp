@@ -145,6 +145,11 @@ export async function saveDeal(deal: DealRecord): Promise<DealRecord> {
   return (await store()).saveDeal(deal);
 }
 
+/** Returns true where a deal existed and was removed. */
+export async function deleteDeal(id: string): Promise<boolean> {
+  return (await store()).deleteDeal(id);
+}
+
 export async function listBuyBoxes(): Promise<readonly BuyBox[]> {
   return (await store()).listBuyBoxes();
 }

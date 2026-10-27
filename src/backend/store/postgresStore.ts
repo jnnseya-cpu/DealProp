@@ -642,6 +642,7 @@ export const postgresStore: Store = {
   },
   getDeal: (id) => one<DealRecord>("deals", id),
   saveDeal: (deal) => upsert("deals", deal),
+  deleteDeal: (id) => remove("deals", id),
 
   listBuyBoxes: () => all<BuyBox>("buy_boxes"),
   getBuyBox: (id) => one<BuyBox>("buy_boxes", id),

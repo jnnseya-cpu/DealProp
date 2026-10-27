@@ -154,6 +154,15 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       expect(all[0]?.status).toBe("qualified");
     });
 
+    it("deletes a deal, and reports whether anything was removed", async () => {
+      const deal = dealRecord();
+      await store.saveDeal(deal);
+      expect(await store.deleteDeal(deal.id)).toBe(true);
+      expect(await store.getDeal(deal.id)).toBeUndefined();
+      // A second delete removes nothing and says so, rather than throwing.
+      expect(await store.deleteDeal(deal.id)).toBe(false);
+    });
+
     it("returns undefined for an unknown id rather than throwing", async () => {
       expect(await store.getDeal("nope")).toBeUndefined();
       expect(await store.getBuyBox("nope")).toBeUndefined();

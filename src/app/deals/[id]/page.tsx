@@ -4,6 +4,7 @@ import { requireOperator, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
 import { getDeal, listDealImages, listFundingBoxes, listBuyBoxes } from "@backend/store/repository";
 import { PropertyPhotos } from "./PropertyPhotos";
+import { DeleteDealButton } from "./DeleteDealButton";
 import { positionOf } from "@backend/workflow";
 import { registryFor } from "@backend/registry";
 import { runDealDirector } from "@shared/domain/director";
@@ -653,6 +654,8 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
           </dl>
           <p className="mt-3 text-xs leading-relaxed text-ink-500">{revenue.note}</p>
         </Panel>
+
+        <DeleteDealButton id={id} reference={record.reference} />
 
         <footer className="mt-10 border-t hairline pt-8">
           <p className="text-xs leading-relaxed text-ink-500">

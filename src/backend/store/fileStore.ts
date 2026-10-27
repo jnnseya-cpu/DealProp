@@ -209,6 +209,14 @@ async function saveDeal(deal: DealRecord): Promise<DealRecord> {
   });
 }
 
+async function deleteDeal(id: string): Promise<boolean> {
+  return mutate((db) => {
+    const before = db.deals.length;
+    db.deals = db.deals.filter((d) => d.id !== id);
+    return db.deals.length < before;
+  });
+}
+
 async function listBuyBoxes(): Promise<readonly BuyBox[]> {
   const db = await readDatabase();
   return db.buyBoxes;
@@ -1141,6 +1149,7 @@ export const fileStore: Store = {
   pageDeals,
   getDeal,
   saveDeal,
+  deleteDeal,
   listBuyBoxes,
   saveBuyBox,
   getBuyBox,

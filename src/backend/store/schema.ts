@@ -848,6 +848,8 @@ export interface Store {
   }>;
   getDeal(id: string): Promise<DealRecord | undefined>;
   saveDeal(deal: DealRecord): Promise<DealRecord>;
+  /** Remove a deal by id. True if a row was deleted, false if none matched. */
+  deleteDeal(id: string): Promise<boolean>;
 
   listBuyBoxes(): Promise<readonly BuyBox[]>;
   getBuyBox(id: string): Promise<BuyBox | undefined>;
