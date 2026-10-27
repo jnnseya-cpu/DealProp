@@ -21,7 +21,7 @@ import {
   parsePricePaidCsv,
   parsePricePaidJson,
 } from "@backend/sources/landRegistry";
-import { currentCertificate, parseCertificates } from "@backend/sources/epc";
+import { currentCertificate, floorAreaOf, parseCertificates } from "@backend/sources/epc";
 
 const NOW = new Date("2026-08-22T00:00:00.000Z");
 
@@ -220,6 +220,15 @@ describe("EPC register", () => {
 
   it("treats the most recently lodged certificate as current", () => {
     expect(currentCertificate(parseCertificates(BODY))?.lmkKey).toBe("K1");
+  });
+
+  it("reads floor area from a certificate detail, whatever its shape or spelling", () => {
+    expect(floorAreaOf({ totalFloorArea: 88 })).toBe(88);
+    expect(floorAreaOf({ data: { totalFloorArea: "72.4" } })).toBe(72);
+    expect(floorAreaOf({ data: [{ "total-floor-area": "95" }] })).toBe(95);
+    // An absurd or absent area is rejected, never a nonsense £/sqm.
+    expect(floorAreaOf({ totalFloorArea: 4 })).toBeUndefined();
+    expect(floorAreaOf({})).toBeUndefined();
   });
 
   it("parses the 2026 service's data shape (camelCase, registrationDate, +-encoded postcode)", () => {

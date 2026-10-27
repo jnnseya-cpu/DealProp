@@ -1,4 +1,4 @@
-import { fetchCertificates, type EpcCertificate } from "@backend/sources/epc";
+import { fetchCertificates, fetchFloorArea, type EpcCertificate } from "@backend/sources/epc";
 import { fetchSales } from "@backend/sources/pricePaid";
 import { addressKey, splitAddressLine, type PricePaidRecord } from "@backend/discovery/properties";
 import { messageOf } from "@backend/report";
@@ -44,6 +44,8 @@ function ppdType(code: string): PropertyType | undefined {
 export interface EnrichOptions {
   readonly epc?: (postcode: string) => Promise<readonly EpcCertificate[]>;
   readonly sales?: (postcode: string) => Promise<readonly PricePaidRecord[]>;
+  /** Floor area by certificate number, for when the search summary omits it. */
+  readonly floorArea?: (certificateNumber: string) => Promise<number | undefined>;
 }
 
 /**
@@ -70,6 +72,7 @@ export async function enrichAddress(
 
   const epc = opts.epc ?? ((p: string) => fetchCertificates(p));
   const sales = opts.sales ?? ((p: string) => fetchSales(p));
+  const floorAreaFetch = opts.floorArea ?? ((id: string) => fetchFloorArea(id));
 
   try {
     const certs = await epc(pc);
@@ -80,6 +83,20 @@ export async function enrichAddress(
       propertyType = epcType(match.propertyType);
       floorAreaSqm = match.floorAreaSqm;
       notes.push("EPC: matched this address.");
+      // The 2026 search summary omits floor area; fetch it from the certificate
+      // detail on demand, since this enrichment runs when an operator opens a
+      // single lead rather than for every search row.
+      if (floorAreaSqm === undefined && match.lmkKey !== "") {
+        try {
+          const area = await floorAreaFetch(match.lmkKey);
+          if (area !== undefined) {
+            floorAreaSqm = area;
+            notes.push("EPC: floor area from the certificate detail.");
+          }
+        } catch (error) {
+          notes.push(`EPC detail: ${messageOf(error)}`);
+        }
+      }
     } else {
       notes.push(`EPC: ${certs.length} certificate(s) in the postcode, none matched the address.`);
     }

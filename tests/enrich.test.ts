@@ -43,6 +43,20 @@ describe("enriching an address from the open registers", () => {
     expect(Number(e.lastSoldPrice)).toBe(Number(fromMajor(200_000)));
   });
 
+  it("fetches floor area from the certificate detail when the search summary omits it", async () => {
+    // The 2026 EPC search result carries no floor area; enrichment pulls it from
+    // the per-certificate detail on demand.
+    const noArea: EpcCertificate = { ...cert, lmkKey: "cert-123" };
+    delete (noArea as { floorAreaSqm?: number }).floorAreaSqm;
+    const e = await enrichAddress("14 Acacia Avenue, Birmingham, B29 6AD", "B29 6AD", {
+      epc: async () => [noArea],
+      sales: async () => [],
+      floorArea: async (id) => (id === "cert-123" ? 72 : undefined),
+    });
+    expect(e.floorAreaSqm).toBe(72);
+    expect(e.notes.join(" ")).toContain("floor area from the certificate detail");
+  });
+
   it("degrades to notes, not a crash, when a source throws or misses", async () => {
     const e = await enrichAddress("99 Nowhere Road, B29 6AD", "B29 6AD", {
       epc: async () => {

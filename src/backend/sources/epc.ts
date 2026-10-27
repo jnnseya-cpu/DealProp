@@ -312,3 +312,56 @@ export async function fetchCertificates(
   const page = await searchCertificates({ postcode: postcode.toUpperCase() }, { pageSize: size, fetchImpl });
   return page.certificates;
 }
+
+const DEFAULT_CERT_API = "https://api.get-energy-performance-data.communities.gov.uk/api/domestic/certificate";
+
+/** The per-certificate endpoint base, derived from the search base unless set. */
+function certificateBase(): string {
+  const set = process.env.EPC_API_CERT_BASE;
+  if (set !== undefined && set !== "") return set;
+  const search = process.env.EPC_API_BASE ?? DEFAULT_API;
+  // .../domestic/search -> .../domestic/certificate
+  return /\/search\/?$/.test(search) ? search.replace(/\/search\/?$/, "/certificate") : DEFAULT_CERT_API;
+}
+
+/** The floor area out of a certificate-detail payload, tolerant of its shape. */
+export function floorAreaOf(body: unknown): number | undefined {
+  const root = (body ?? {}) as Record<string, unknown>;
+  // The record may be returned flat, under { data: {...} }, or under
+  // { data: [ {...} ] }; and the field has been spelled both ways.
+  const data = root.data;
+  const rec = (
+    Array.isArray(data) ? data[0] : typeof data === "object" && data !== null ? data : root
+  ) as Record<string, unknown>;
+  const raw = rec.totalFloorArea ?? rec["total-floor-area"] ?? rec.floorArea;
+  return floorArea(typeof raw === "number" ? String(raw) : (raw as string | undefined));
+}
+
+/**
+ * Fetch one certificate's floor area, by its certificate number.
+ *
+ * The search summary omits floor area; the per-certificate record carries it.
+ * This is called on demand for a single lead (not for every search row), so the
+ * cost is one request when an operator actually sizes a deal. Returns undefined
+ * rather than throwing where the number is simply absent, so a missing area is a
+ * blank field the operator fills, never a failed lookup.
+ */
+export async function fetchFloorArea(
+  certificateNumber: string,
+  { fetchImpl = fetch }: { fetchImpl?: typeof fetch } = {},
+): Promise<number | undefined> {
+  assertSourceUsable(SOURCE, "internal-analysis");
+  if (certificateNumber === "") return undefined;
+  const authorization = epcAuthorization();
+
+  const url = `${certificateBase().replace(/\/$/, "")}/${encodeURIComponent(certificateNumber)}`;
+  const response = await fetchImpl(url, {
+    headers: { accept: "application/json", authorization },
+    redirect: "error",
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`EPC certificate ${certificateNumber} returned ${response.status}`);
+  }
+  return floorAreaOf(await response.json());
+}
