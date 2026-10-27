@@ -258,13 +258,22 @@ function Hero({
             <Button href="/appraise">Appraise a deal instead</Button>
           </div>
           {/*
-            Computed, never typed. A percentage is only true while the
-            permissions behind it are recorded, so it is read from the fee
-            engine rather than written into the markup.
+            The free promise, hammered but honest. The headline word is fixed —
+            "free" is the message the business wants loudest — but the sentence
+            under it is the fee engine's own statement, computed from the
+            permissions actually held, so the loud claim and the true one are the
+            same claim. When a success fee becomes chargeable the statement below
+            changes itself; the badge stays true because "no upfront fee" holds
+            in both states.
           */}
-          <p className="mt-3 text-[13px] text-ink-500">
-            {sellerFee.statement} Nobody phones you unless you ask.
-          </p>
+          <div className="mt-6 flex items-start gap-3.5 rounded-xl border border-lode-500/25 bg-lode-400/[0.06] px-4 py-3.5">
+            <span className="mt-px shrink-0 rounded-md border border-lode-500/40 bg-lode-400/10 px-2 py-1 font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-lode-200">
+              Free to sell
+            </span>
+            <p className="text-[13.5px] leading-[1.55] text-ink-200">
+              {sellerFee.statement} No listing fee, no upfront cost, and nobody phones you unless you ask.
+            </p>
+          </div>
 
           {/*
             Read from the platform, not from seed constants. A visitor reads
@@ -452,8 +461,8 @@ function Doors() {
     {
       tag: "Sell",
       title: "I have a property problem",
-      body: "Tell us the situation, not the asking price. You get costed routes — cash, deferred, JV or assisted sale — and what each one costs you. Listing is free; you pay only when your property sells.",
-      cta: "See my options",
+      body: "Tell us the situation, not the asking price. You get costed routes — cash, deferred, JV or assisted sale — and exactly what each one leaves in your pocket. Free to see, free to decide, and no upfront fees, ever.",
+      cta: "See my options — free",
       href: "/sell",
     },
     {
