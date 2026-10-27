@@ -1,18 +1,18 @@
-# Auto-deploy.
+# Auto-deploy (publish half).
 #
-# The gate is the point: nothing reaches the VPS unless the same suite CI runs
-# has passed here first, against a real Postgres. A red build stops at `verify`
-# and the `deploy` job never starts, so a broken commit cannot go live.
+# The gate is the point: nothing is published unless the same suite CI runs has
+# passed here first, against a real Postgres. A red build stops at `verify` and
+# the image is never pushed, so a broken commit cannot go live.
 #
 # Two jobs, in order:
 #   verify — types + the full suite against Postgres (production's engine).
-#   deploy — build the image, push it to GHCR, and tell the VPS to pull it.
+#   deploy — build the image and push it to GHCR (tagged :latest and :sha).
 #
-# The VPS side is pull-based: the server logs in to GHCR once and runs
-# `docker compose pull && up -d`. Nothing in this file touches the engines or
+# The VPS deploys itself, pull-based: /srv/lode/auto-deploy.sh runs on cron,
+# compares the running image to :latest, and `docker compose pull && up -d
+# --force-recreate` only when it changed. So this file verifies and publishes;
+# the box does the rest within ~2 minutes. Nothing here touches the engines or
 # the money path; it ships the image the Dockerfile already produces.
-#
-# One-time setup lives in docs/DEPLOY-AUTO.md (secrets + the compose change).
 
 name: Deploy
 
@@ -89,16 +89,8 @@ jobs:
             ghcr.io/jnnseya-cpu/dealprop:latest
             ghcr.io/jnnseya-cpu/dealprop:${{ github.sha }}
 
-      - name: Deploy on the VPS
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          script: |
-            set -e
-            cd "${{ secrets.VPS_PATH }}"
-            docker compose pull app
-            docker compose up -d app
-            docker image prune -f
+      # The VPS deploys itself: /srv/lode/auto-deploy.sh runs on cron, and once
+      # the new :latest is here it pulls and force-recreates within two minutes.
+      # So this workflow's job is to verify and publish — nothing SSHes into the
+      # box, which is why every run is green rather than failing on a deploy step
+      # that needed credentials the box pulls with instead.
