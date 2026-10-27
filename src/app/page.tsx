@@ -248,9 +248,8 @@ function Hero({
           </h1>
 
           <p className="mt-6 max-w-[34rem] text-[16px] leading-[1.6] text-ink-300">
-            Lode is not a portal. It is a deal engine. A seller brings a situation; the OS computes
-            one coherent position — the score, the routes, the capital and the law — and carries the
-            transaction through to completion inside sixty days.
+            Not a portal — a deal engine. Tell it your situation and it computes one honest position:
+            the score, the routes, the capital and the law, carried through to completion in sixty days.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-2.5">
@@ -468,21 +467,21 @@ function Doors() {
     {
       tag: "Buy",
       title: "I appraise deals",
-      body: "Discover verified motivated properties, unlock the whole opportunity and negotiate through your acquisition agent. Start free: paste a deal and get the true discount, the walk-away price and the stress that breaks it. No account.",
-      cta: "Appraise a deal",
+      body: "Paste any deal and get the true discount, the walk-away price and the stress that breaks it — free, no account. Then unlock verified off-market opportunities and negotiate through your agent.",
+      cta: "Appraise a deal — free",
       href: "/appraise",
     },
     {
       tag: "Fund",
       title: "I have capital",
-      body: "List your lending criteria free and receive property-backed applications already matched to them — underwriting done, downside modelled, regulatory route classified.",
+      body: "Post your lending criteria free and receive property-backed applications matched to them — underwritten, downside-modelled, regulatory route classified. Decisions, not leads.",
       cta: "How funding works",
       href: "/partners#capital",
     },
     {
       tag: "Agents",
       title: "I am an estate agent",
-      body: "Add properties free and receive buyers whose identity and funding we have already checked — not unfiltered enquiries. You keep the client and the instruction.",
+      body: "List the instructions you can't close, free, and receive buyers whose identity and funding we've already checked — never raw enquiries. You keep the client and the instruction.",
       cta: "How agents work with us",
       href: "/partners",
     },
@@ -558,9 +557,9 @@ function SupplySection({
               How many, where, and how often.
             </h2>
             <p className="mt-5 max-w-[34rem] text-[15px] leading-[1.6] text-ink-300">
-              The three questions worth asking before any of the analysis matters, because an
-              appraisal engine with nothing behind it is a spreadsheet with better manners. These
-              are counted from the platform when this page is built, not written by hand.
+              The three questions that matter before any analysis does — an appraisal engine with no
+              supply behind it is just a spreadsheet with manners. Every number here is counted from
+              the platform as this page loads, never typed by hand.
             </p>
             <p className="mt-4 max-w-[34rem] text-[14px] leading-[1.6] text-ink-400">
               {supply.summary}
@@ -686,7 +685,7 @@ function LiveDeal({
         <SectionHead
           eyebrow="Deal Engine · worked example"
           title="The number most sourcers never show you"
-          lede={`A property bought at ${gbp(a.costs.purchasePrice)} and worth ${gbp(a.exit.grossDevelopmentValue)} finished is not a ${gbp(naiveProfit)} profit. Lode charges every cost, then charges the tax, and only then scores the deal.`}
+          lede={`Bought at ${gbp(a.costs.purchasePrice)}, worth ${gbp(a.exit.grossDevelopmentValue)} finished — that is not a ${gbp(naiveProfit)} profit. Lode charges every cost, then the tax, and only then scores the deal.`}
         />
 
         <div className="mt-14 grid items-start gap-10 lg:grid-cols-[1.1fr_0.9fr]">
@@ -856,7 +855,7 @@ function RedTeamSection({
         <SectionHead
           eyebrow="AI Red Team"
           title="An independent agent tries to destroy the deal"
-          lede="Before any pack reaches a funder, nine fixed stress scenarios run against it. Lenders see the downside at the same moment they see the headline — and every deal on Lode is shocked identically, so they compare."
+          lede="Before any pack reaches a funder, nine fixed stresses hit it. The downside lands next to the headline, and every deal is shocked identically — so a lender can actually compare them."
         />
 
         <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -893,7 +892,7 @@ function StackSection({ stack }: { stack: ReturnType<typeof runDealDirector>["st
         <SectionHead
           eyebrow="Capital Stack"
           title="Bring the deal. Not necessarily the deposit."
-          lede="The capital does not disappear — someone provides every pound and prices it. Lode assembles that stack around a viable transaction and states plainly what the originator is really contributing."
+          lede="Every pound is provided by someone who prices it. Lode assembles that stack around a viable deal and states plainly what the originator is really putting in."
         />
 
         <div className="mt-14 grid gap-10 lg:grid-cols-[1.2fr_0.8fr]">
@@ -946,7 +945,7 @@ function StrategySection({
         <SectionHead
           eyebrow="Strategy Router"
           title={`One property. ${strategies.tested} strategies tested. Most rejected.`}
-          lede="Never force a property into a predetermined strategy. The rejections are the product — an investor who is told why cash purchase fails but assisted sale clears has learned something reusable."
+          lede="No property is forced into a house strategy. The rejections are the point: learn why cash purchase fails here but assisted sale clears, and you can use it on the next one."
         />
 
         <div className="mt-14 grid gap-10 lg:grid-cols-[1.15fr_0.85fr]">
@@ -1019,7 +1018,7 @@ function GoldMineSection({
         <SectionHead
           eyebrow="AI Property GoldMine"
           title="Why has this property not sold?"
-          lede="Time on market alone is weak evidence. A year at an unchanged price means a stubborn seller. A year of repeated reductions and relistings means someone actively trying and failing — a real problem the platform can solve."
+          lede="Time on the market is weak evidence on its own. A year at one price is a stubborn seller; a year of cuts and relistings is someone trying and failing — a real problem to solve."
         />
 
         <div className="mt-14 grid gap-10 lg:grid-cols-[0.9fr_1.1fr]">
@@ -1086,8 +1085,8 @@ function CloseSection({ close }: { close: ReturnType<typeof buildCloseReport> })
       <div className="mx-auto max-w-7xl px-6 py-20">
         <SectionHead
           eyebrow="Close"
-          title="The OS becomes a transaction commander"
-          lede="Once terms are agreed, the value is not the checklist — it is knowing which incomplete item is actually on the critical path. A team that chases everything equally chases the wrong thing."
+          title="Agreed is not completed. The OS drives the gap."
+          lede="After terms are agreed, the win isn't a checklist — it's knowing which unfinished item sits on the critical path. Chase everything equally and you chase the wrong thing."
         />
 
         <div className="mt-14 grid gap-10 lg:grid-cols-[1fr_1fr]">
@@ -1175,7 +1174,7 @@ function TrustSection() {
         <SectionHead
           eyebrow="What protects a buyer"
           title="Checked before it is listed. Graded before it reaches a seller. Refunded if it was wrong."
-          lede="Three controls, in the order a buyer meets them. Each list below is read from the code that enforces it, so what is published here and what is applied cannot drift apart."
+          lede="Three controls, in the order a buyer meets them — and each list below is read from the code that enforces it, so the promise and the practice cannot drift apart."
         />
 
         <div className="mt-14 grid gap-5 lg:grid-cols-3">
@@ -1261,7 +1260,7 @@ function ProtectionSection({ protection }: { protection: ReturnType<typeof runDe
           <SectionHead
             eyebrow="Seller Protection"
             title="The engine can refuse the deal"
-            lede="Motivated-seller acquisition has one obvious temptation: convert distress into discount. That route produces complaints, unenforceable contracts and enforcement action. Protection here is not advisory — a block stops the deal reaching capital at all."
+            lede="Motivated-seller buying has one temptation: turn distress into discount. That path ends in complaints, void contracts and enforcement. So protection here isn't advice — a block stops the deal reaching capital at all."
           />
           <div className="space-y-4">
             <div className="rounded-lg border-l-2 border-emerald-500/80 bg-surface-1 px-5 py-4">
@@ -1294,7 +1293,7 @@ function RevenueSection({ revenue }: { revenue: ReturnType<typeof dealRevenue> }
         <SectionHead
           eyebrow="Business model"
           title="The seller is the supply engine, not the revenue"
-          lede="Sellers enter free. Revenue comes from the dealmakers, capital and professionals that gather around the opportunity — and streams whose permissions are not held are shown at zero rather than assumed."
+          lede="Sellers enter free. The money comes from the dealmakers, capital and professionals that gather around the opportunity — and any stream whose permission isn't held shows as zero, never assumed."
         />
         <div className="mt-12 overflow-hidden rounded-2xl border hairline">
           <table className="w-full text-sm">
@@ -1334,7 +1333,7 @@ function Pricing() {
         <SectionHead
           eyebrow="Pricing"
           title="Sellers free. Always."
-          lede="You want thousands of motivated sellers entering the system, because exclusive deal flow is the asset. Friction at acquisition is the one thing that kills it."
+          lede="Exclusive deal flow is the whole asset, so the supply side is free by design. Friction at acquisition is the one thing that would kill it — so there isn't any."
         />
         <div className="mt-14 grid gap-4 md:grid-cols-3 lg:grid-cols-5">
           {BUYER_TIERS.map((t, i) => (
