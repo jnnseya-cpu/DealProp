@@ -3,6 +3,7 @@ import { attribute, getSource } from "@shared/domain/sources";
 import { companyIdentity } from "@shared/domain/identity";
 import { draftProbateLetter } from "@shared/domain/probateLetter";
 import { draftInsolvencyLetter } from "@shared/domain/insolvencyLetter";
+import { draftHomeownerLetter } from "@shared/domain/homeownerLetter";
 import { messageOf } from "@backend/report";
 import type {
   FlipEvidence,
@@ -61,7 +62,7 @@ import { Fetcher } from "@backend/discovery/fetcher";
 /** The lawful next step for each signal, in one place rather than per lead. */
 const NEXT_STEP: Record<LeadSignal, string> = {
   "prepared-but-unsold":
-    "Confirm the registered owner on the title (lookupOwner — deal id, purpose and a named requester) before any approach. A named individual is written to by post only; there is no electronic contact without consent.",
+    "Approach by post only. Either write to 'The Homeowner' at the property now — no name held, with a privacy notice and a one-line opt-out — or confirm the registered owner on the title (lookupOwner — deal id, purpose and a named requester) for a named approach. There is no electronic contact to an individual without consent.",
   "probate-notice":
     "Heightened protection. The executors are approached by letter only, with MPS screening and a recorded legitimate-interests assessment; the notice's own contact for service is the lawful route. A named person decides — nothing is automated.",
   "owner-insolvent":
@@ -115,7 +116,20 @@ export function sourceProperties(inputs: SourcingInputs, now: Date = new Date())
       heightenedProtection: false,
       provenance: attribute(EPC_SOURCE, candidate.preparedAt),
       lawfulNextStep: NEXT_STEP["prepared-but-unsold"],
-      ...(address !== "" ? { propertyAddress: address } : {}),
+      // The homeowner letter needs an address, not a name — so it is drafted now,
+      // to "The Homeowner" at the property, and the operator can post it without
+      // waiting on a title lookup. Only when there is an address to write to.
+      ...(address !== ""
+        ? {
+            propertyAddress: address,
+            letterDraft: draftHomeownerLetter({
+              sender,
+              propertyAddress: address,
+              ...(candidate.postcode !== "" ? { postcode: candidate.postcode } : {}),
+              today: observedAt,
+            }),
+          }
+        : {}),
     });
   }
 

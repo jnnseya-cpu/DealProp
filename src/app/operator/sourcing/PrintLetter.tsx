@@ -18,7 +18,12 @@ import type { SourcedLead } from "@shared/domain/sourcedLead";
  */
 export function PrintLetter({ lead }: { lead: SourcedLead }) {
   const insolvency = lead.signalKey === "owner-insolvent";
-  const recipientWord = insolvency ? "trustee / Official Receiver" : "executors";
+  const recipientWord =
+    lead.signalKey === "prepared-but-unsold"
+      ? "homeowner"
+      : insolvency
+        ? "trustee / Official Receiver"
+        : "executors";
 
   const [letter, setLetter] = useState(lead.letterDraft ?? "");
   const [contact, setContact] = useState<string | undefined>(lead.contactForService);

@@ -199,6 +199,9 @@ describe("running an area from the open APIs", () => {
     const prepared = result.leads.filter((l) => l.signalKey === "prepared-but-unsold");
     expect(prepared).toHaveLength(1); // one row per address, not per certificate
     expect(prepared[0]?.propertyAddress).toBe("14 Acacia Avenue");
+    // A homeowner letter is drafted to the property — no name, no title lookup.
+    expect(prepared[0]?.letterDraft).toContain("The Homeowner");
+    expect(prepared[0]?.letterDraft).toContain("14 Acacia Avenue");
   });
 });
 
