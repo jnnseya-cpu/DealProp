@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { companyIdentity, identityGaps, registrationLine } from "@shared/domain/identity";
 import { Mark } from "@/app/components/chrome";
+import { InstallButton } from "@/app/components/InstallButton";
 import { sellerFeeStatement } from "@shared/domain/fees";
 import { permissionsHeld } from "@backend/permissions";
 import { FOOTER_COMPANY, FOOTER_LEGAL, FOOTER_PRODUCT, type NavLink } from "@shared/domain/legal";
@@ -38,6 +39,7 @@ export function SiteFooter({ width = "max-w-7xl" }: { width?: string }) {
             <p className="mt-3 max-w-xs text-[13px] leading-[1.6] text-ink-400">
               Problems become deals. Deals find capital. Capital closes property.
             </p>
+            <InstallButton />
           </div>
 
           <FooterColumn label="Product" links={FOOTER_PRODUCT} />
