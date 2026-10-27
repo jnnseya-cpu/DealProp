@@ -168,13 +168,25 @@ export async function fetchCertificates(
 ): Promise<readonly EpcCertificate[]> {
   assertSourceUsable(SOURCE, "internal-analysis");
 
+  // Two auth schemes across the migration. The 2026 service issues a Bearer
+  // token ("Bearer token (for developers)", shown in the footer when signed in);
+  // the legacy opendatacommunities host used Basic email:key. Prefer the token
+  // where set, fall back to Basic for the legacy host, and fail closed if
+  // neither is configured — an unconfigured import must refuse rather than
+  // quietly return nothing and let a caller conclude the property has no
+  // certificate.
+  const token = process.env.EPC_API_TOKEN;
   const email = process.env.EPC_API_EMAIL;
   const key = process.env.EPC_API_KEY;
-  if (email === undefined || email === "" || key === undefined || key === "") {
-    // Fails closed, like every other credential in this codebase: an
-    // unconfigured import must refuse rather than quietly return nothing and
-    // let a caller conclude the property has no certificate.
-    throw new Error("EPC_API_EMAIL and EPC_API_KEY are not configured; refusing to query.");
+  let authorization: string;
+  if (token !== undefined && token !== "") {
+    authorization = `Bearer ${token}`;
+  } else if (email !== undefined && email !== "" && key !== undefined && key !== "") {
+    authorization = `Basic ${Buffer.from(`${email}:${key}`).toString("base64")}`;
+  } else {
+    throw new Error(
+      "EPC auth is not configured; set EPC_API_TOKEN (new service) or EPC_API_EMAIL and EPC_API_KEY (legacy). Refusing to query.",
+    );
   }
 
   const url = new URL(process.env.EPC_API_BASE ?? DEFAULT_API);
@@ -184,7 +196,7 @@ export async function fetchCertificates(
   const response = await fetchImpl(url, {
     headers: {
       accept: "application/json",
-      authorization: `Basic ${Buffer.from(`${email}:${key}`).toString("base64")}`,
+      authorization,
     },
     // Bounded, and never follow a redirect: this request carries a Basic-auth
     // credential, and a redirect to another host would hand it to somewhere we
