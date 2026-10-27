@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { companyIdentity, identityGaps, registrationLine } from "@shared/domain/identity";
+import { companyIdentity } from "@shared/domain/identity";
 import { Mark } from "@/app/components/chrome";
 import { InstallButton } from "@/app/components/InstallButton";
-import { sellerFeeStatement } from "@shared/domain/fees";
-import { permissionsHeld } from "@backend/permissions";
+import { FooterIdentity } from "@/app/components/FooterIdentity";
 import { FOOTER_COMPANY, FOOTER_LEGAL, FOOTER_PRODUCT, type NavLink } from "@shared/domain/legal";
 
 /**
@@ -22,8 +21,6 @@ import { FOOTER_COMPANY, FOOTER_LEGAL, FOOTER_PRODUCT, type NavLink } from "@sha
  */
 export function SiteFooter({ width = "max-w-7xl" }: { width?: string }) {
   const identity = companyIdentity(process.env);
-  const registration = registrationLine(identity);
-  const blocking = identityGaps(identity).filter((g) => g.blocking);
 
   return (
     <footer className="border-t hairline bg-surface-1">
@@ -47,69 +44,15 @@ export function SiteFooter({ width = "max-w-7xl" }: { width?: string }) {
           <FooterColumn label="Legal" links={FOOTER_LEGAL} />
         </div>
 
-        <div className="mt-9 border-t hairline pt-6 text-[12px] leading-[1.7] text-ink-500">
-          {registration !== undefined ? (
-            <p>{registration}</p>
-          ) : (
-            <p className="text-amber-300">
-              Company identity has not been configured. Set the company details in the environment —
-              the registered name, number, place of registration and registered office are required
-              on every page by the Companies Act 2006 s.82, and{" "}
-              <code className="font-mono">npm run preflight</code> will not pass while this line is
-              showing.
-            </p>
-          )}
-
-          {(identity.contactEmail !== undefined ||
-            identity.contactPhone !== undefined ||
-            identity.registeredOffice !== undefined) && (
-            <p className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
-              {identity.contactEmail !== undefined && (
-                <a href={`mailto:${identity.contactEmail}`} className="transition-colors hover:text-ink-200">
-                  {identity.contactEmail}
-                </a>
-              )}
-              {identity.contactPhone !== undefined && (
-                <a
-                  href={`tel:${identity.contactPhone.replace(/\s/g, "")}`}
-                  className="transition-colors hover:text-ink-200"
-                >
-                  {identity.contactPhone}
-                </a>
-              )}
-              {identity.registeredOffice !== undefined && <span>{identity.registeredOffice}</span>}
-            </p>
-          )}
-
-          <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
-            {identity.icoRegistration !== undefined && (
-              <li>ICO registration {identity.icoRegistration}</li>
-            )}
-            {identity.amlSupervision !== undefined && (
-              <li>HMRC anti-money-laundering supervision {identity.amlSupervision}</li>
-            )}
-            {identity.redressScheme !== undefined && <li>{identity.redressScheme}</li>}
-          </ul>
-
-          {blocking.length > 0 && registration !== undefined && (
-            <p className="mt-2 text-amber-300">
-              {blocking.length} statutory disclosure{blocking.length === 1 ? "" : "s"} still
-              unrecorded: {blocking.map((g) => g.label.toLowerCase()).join(", ")}.
-            </p>
-          )}
-
-          {/*
-            "We do not charge sellers" was printed here, on every page of a site
-            whose seller journey quotes a percentage of the price achieved two
-            screens above. Two typed sentences will eventually disagree and the
-            false one is always the one on more pages. This asks the fee engine.
-          */}
-          <p className="mt-4 max-w-3xl">
-            Figures shown anywhere on this site are screening estimates produced by an engine, not
-            advice, not a valuation and not an offer. Tax figures always require professional
-            review. {sellerFeeStatement(permissionsHeld(process.env.HELD_PERMISSIONS)).statement}
-          </p>
-        </div>
+        {/*
+          The statutory identity and the fee statement are RUNTIME configuration
+          and must never be baked at build (a statically prerendered page would
+          show an empty identity as a false "not configured" warning). They are
+          read from /api/identity in this client component instead, so every page
+          — static, ISR or SSG — shows the live details without being forced
+          dynamic.
+        */}
+        <FooterIdentity />
       </div>
     </footer>
   );

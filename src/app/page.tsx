@@ -47,14 +47,20 @@ const OCCUPANCY_LABELS: Record<OccupancyStatus, string> = {
 };
 
 /*
- * Recomputed at most every five minutes.
+ * Rendered per request, not prerendered at build.
  *
- * The supply counts have to be live or they are worse than absent, but they do
- * not have to be to the second — and a landing page that cannot be cached at
- * all is a landing page that is slow for everybody to protect a number that
- * moves a few times a week.
+ * This page prints the statutory company identity (in the footer) and the live
+ * supply counts, both of which are RUNTIME configuration — `COMPANY_*` and
+ * `DATABASE_URL` live in the VPS's app.env and are deliberately never baked into
+ * the image (only NEXT_PUBLIC_* may be a build arg). Prerendering this page at
+ * build time therefore captured an empty identity and an empty store, and then
+ * served that stale HTML even though the real values exist at runtime — which is
+ * why the footer showed "company identity has not been configured" on a site
+ * whose identity was in fact set. Rendering per request reads the live env, so
+ * the footer and the counts reflect what is actually configured. The engine
+ * work here is pure and the one store read is cheap.
  */
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 /**
  * Landing page.
@@ -1372,10 +1378,10 @@ function RevenueSection({ revenue }: { revenue: ReturnType<typeof dealRevenue> }
             </thead>
             <tbody className="divide-y divide-ink-800/80">
               {revenue.lines.map((l) => (
-                <tr key={l.stream} className={l.included ? "" : "opacity-50"}>
+                <tr key={l.stream} className={l.included ? "" : "opacity-45"}>
                   <td className="px-6 py-3.5 text-ink-200">
                     {l.label}
-                    {!l.included && <span className="ml-2 text-xs text-amber-300/80">{l.excludedBecause}</span>}
+                    {!l.included && <span className="ml-2 text-xs text-ink-500">not yet active</span>}
                   </td>
                   <td className="tnum px-6 py-3.5 text-right text-ink-100">{gbp(l.amount)}</td>
                 </tr>

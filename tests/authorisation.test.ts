@@ -155,6 +155,8 @@ describe("api routes", () => {
   const OPEN: Readonly<Record<string, string>> = {
     "health/route.ts":
       "Liveness for the load balancer. Returns a status and the store kind and nothing else — no version, no configuration, no error text.",
+    "identity/route.ts":
+      "The statutory company identity for the footer, read at runtime so static pages do not bake an empty (false) identity. Everything it returns is public by law — the Companies Act requires these details on every page — so there is no secret to protect and it is unauthenticated by design.",
   };
 
   const CHECKS = [
