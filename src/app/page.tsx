@@ -143,6 +143,7 @@ export default async function Home() {
         score={scored.breakdown.composite}
         stack={stack}
       />
+      <AudienceBand />
       <Doors />
       <SupplySection supply={supply} promotion={promotion} />
       <LiveDeal
@@ -436,6 +437,48 @@ function OSConsole({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * A slim band under the hero: the free promise restated, and every audience
+ * named with a door to walk through — so a visitor who is not a seller sees
+ * themselves on the first screen rather than scrolling to find out. Free here is
+ * "no upfront fees", which is true whether or not a success fee is chargeable,
+ * so the line needs no permission check. Restrained on purpose — one line of
+ * copy and a row of links, not a second hero.
+ */
+function AudienceBand() {
+  const links = [
+    { label: "Sellers", href: "/sell" },
+    { label: "Buyers", href: "/appraise" },
+    { label: "Lenders", href: "/partners#capital" },
+    { label: "Agents", href: "/partners" },
+    { label: "Conveyancers", href: "/partners#professionals" },
+  ];
+  return (
+    <section className="border-b hairline bg-surface-1">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-8 gap-y-3 px-6 py-4">
+        <p className="text-[13px] leading-snug text-ink-300">
+          <span className="font-medium text-ink-100">Free for sellers</span>
+          <span className="text-ink-600"> — </span>
+          no upfront fees, ever. One engine for every side of the deal.
+        </p>
+        <nav className="flex flex-wrap items-center gap-x-1 text-[13px]">
+          {links.map((l, i) => (
+            <span key={l.href} className="flex items-center gap-1">
+              {i > 0 && <span aria-hidden className="text-ink-700">·</span>}
+              <Link
+                href={l.href}
+                className="rounded px-1.5 py-0.5 text-ink-400 transition-colors hover:text-lode-200"
+              >
+                {l.label}
+              </Link>
+            </span>
+          ))}
+        </nav>
+      </div>
+    </section>
   );
 }
 
