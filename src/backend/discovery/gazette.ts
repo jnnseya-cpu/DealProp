@@ -252,8 +252,16 @@ export function parseDeceasedEstate(notice: GazetteNotice): DeceasedEstateNotice
   if (deceasedName === undefined || notice.id === "") return undefined;
 
   const lastAddress = addressFromContent(notice.content);
-  const postcode =
-    lastAddress !== undefined ? postcodeIn(lastAddress) : postcodeIn(notice.content ?? "");
+  // The postcode comes ONLY from the deceased's own address line, never from a
+  // scan of the whole notice body. A deceased-estates notice always prints the
+  // executor's or solicitor's address too ("send claims to …"), and a
+  // whole-content fallback grabbed *that* postcode when the deceased's address
+  // line carried none — producing a lead whose postcode belonged to the
+  // solicitor, not the property, and falsely promoting it to "strong". Where the
+  // stated address has no postcode, the lead has none: it is worth a look and the
+  // property must be identified first, which is honest. (Do not reintroduce a
+  // postcodeIn(notice.content) fallback — it is the bug this records.)
+  const postcode = lastAddress !== undefined ? postcodeIn(lastAddress) : undefined;
 
   return {
     noticeId: notice.id,
@@ -472,8 +480,10 @@ export function parseInsolvencyNotice(notice: GazetteNotice): InsolvencyNotice |
   if (debtorName === undefined || notice.id === "") return undefined;
 
   const lastAddress = addressFromContent(notice.content);
-  const postcode =
-    lastAddress !== undefined ? postcodeIn(lastAddress) : postcodeIn(notice.content ?? "");
+  // Postcode from the debtor's own address line only — never a scan of the whole
+  // body, which would pick up the trustee's or practitioner's postcode printed
+  // elsewhere in the notice. See parseDeceasedEstate for the bug this records.
+  const postcode = lastAddress !== undefined ? postcodeIn(lastAddress) : undefined;
   const stated = [notice.content, notice.title].filter((s): s is string => s !== undefined).join(" ");
 
   return {

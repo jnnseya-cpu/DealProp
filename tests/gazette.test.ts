@@ -122,6 +122,23 @@ describe("a deceased-estates notice is extracted, never inferred", () => {
     expect(parseDeceasedEstate({ id: "1", title: "", publishedAt: "x" })).toBeUndefined();
     expect(parseDeceasedEstate({ id: "", title: "A", publishedAt: "x" })).toBeUndefined();
   });
+
+  it("never takes a postcode from elsewhere in the notice when the address has none", () => {
+    // The deceased's address line carries no postcode, but the notice body
+    // prints the solicitor's address — with its own postcode — in the claims-to
+    // paragraph. The old whole-content fallback attached THAT postcode to the
+    // property and falsely marked the lead located; it must now be undefined.
+    const record = parseDeceasedEstate({
+      id: "https://www.thegazette.co.uk/id/notice/1",
+      title: "Mary Jones",
+      publishedAt: "2026-10-01T00:00:00Z",
+      content:
+        "<div><dl><dt>Address of Deceased</dt><dd>12 Orchard Lane, Solihull</dd></dl>" +
+        "<p>Send claims to Smith &amp; Co Solicitors, 4 Queen Street, Birmingham B1 1AA.</p></div>",
+    });
+    expect(record?.lastAddress).toContain("Orchard Lane");
+    expect(record?.postcode).toBeUndefined();
+  });
 });
 
 /* ------------------------------------------------------------ insolvency */
@@ -157,6 +174,20 @@ describe("a personal-insolvency notice is extracted, never inferred", () => {
   it("returns undefined where no debtor is named", () => {
     expect(parseInsolvencyNotice({ id: "1", title: "", publishedAt: "x" })).toBeUndefined();
     expect(parseInsolvencyNotice({ id: "", title: "A", publishedAt: "x" })).toBeUndefined();
+  });
+
+  it("never takes a postcode from the trustee's address printed in the body", () => {
+    const record = parseInsolvencyNotice({
+      id: "x",
+      title: "John Brown",
+      publishedAt: "2026-09-01T00:00:00Z",
+      content:
+        "<div><dl><dt>Notice Type</dt><dd>Bankruptcy order</dd>" +
+        "<dt>Address of Debtor</dt><dd>7 Mill Road, Coventry</dd></dl>" +
+        "<p>The trustee is at Insolvency LLP, 2 Broad Street, Leeds LS1 4DT.</p></div>",
+    });
+    expect(record?.lastAddress).toContain("Mill Road");
+    expect(record?.postcode).toBeUndefined();
   });
 });
 
