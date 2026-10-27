@@ -32,6 +32,11 @@ describe("the homeowner letter is addressed to the property, holds no name, and 
     expect(letter.toLowerCase()).toContain("speed and certainty");
   });
 
+  it("states that selling to us is free, with no fee or commission", () => {
+    expect(letter.toLowerCase()).toContain("selling to us is free to you");
+    expect(letter.toLowerCase()).toContain("no commission and no fee");
+  });
+
   it("names the sender and gives a one-line opt-out", () => {
     expect(letter).toContain("JNN Global Ltd");
     expect(letter.toLowerCase()).toContain("not write to this property again");
