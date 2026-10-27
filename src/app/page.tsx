@@ -140,6 +140,8 @@ export default async function Home() {
         supply={supply}
         subject={subject}
         strategiesTested={strategies.tested}
+        scoreComponents={scored.breakdown.components.length}
+        stressScenarios={scored.redTeam.results.length}
         score={scored.breakdown.composite}
         stack={stack}
       />
@@ -205,6 +207,8 @@ function Hero({
   supply,
   subject,
   strategiesTested,
+  scoreComponents,
+  stressScenarios,
   sellerFee,
   score,
   stack,
@@ -213,10 +217,47 @@ function Hero({
   supply: SupplyPosition;
   subject: string;
   strategiesTested: number;
+  scoreComponents: number;
+  stressScenarios: number;
   sellerFee: SellerFeeStatement;
   score: number;
   stack: ReturnType<typeof runDealDirector>["stack"];
 }) {
+  // Three stats, and never a zero. Real supply leads where it exists; where it
+  // is genuinely empty the row backfills with computed facts about the engine
+  // itself — all true, none invented — so a cold first screen reads strong
+  // rather than showing a stranger a line of noughts. The honest supply counts
+  // (including the zeros, with context) still live in the Deal flow section.
+  type Stat = { label: string; value: string; sub: string };
+  const supplyStats: Stat[] = [];
+  if (supply.open > 0) {
+    supplyStats.push({
+      label: "Open opportunities",
+      value: String(supply.open),
+      sub:
+        supply.areas.length === 0
+          ? "live now"
+          : supply.areas.length === 1
+            ? `in ${supply.areas[0]}`
+            : `across ${supply.areas.length} postcode areas`,
+    });
+  }
+  if (supply.fundingMandates > 0) {
+    supplyStats.push({
+      label: "Capital mandates",
+      value: String(supply.fundingMandates),
+      sub: `${supply.buyMandates} buying mandate${supply.buyMandates === 1 ? "" : "s"} alongside`,
+    });
+  } else if (supply.buyMandates > 0) {
+    supplyStats.push({ label: "Buying mandates", value: String(supply.buyMandates), sub: "active Buy Boxes" });
+  }
+  const capabilityStats: Stat[] = [
+    { label: "Strategies tested", value: String(strategiesTested), sub: "per property, before advice" },
+    { label: "Stress scenarios", value: String(stressScenarios), sub: "run on every deal" },
+    { label: "Score components", value: String(scoreComponents), sub: "each one auditable" },
+  ];
+  const stats = [...supplyStats, ...capabilityStats].slice(0, 3);
+
   return (
     <section className="grain relative overflow-hidden border-b hairline">
       {/*
@@ -276,32 +317,15 @@ function Hero({
           </div>
 
           {/*
-            Read from the platform, not from seed constants. A visitor reads
-            these as "how big is this", so a fixture here is the first thing
-            they would find out was untrue.
+            Real supply where it exists (read from the platform, never a
+            fixture), backfilled with computed engine facts so the row is never
+            a line of zeros to a cold visitor. The full honest counts — zeros and
+            all, with context — are in the Deal flow section below.
           */}
           <dl className="mt-11 grid max-w-lg grid-cols-3 gap-8 border-t hairline pt-7">
-            <HeroStat
-              label="Open opportunities"
-              value={String(supply.open)}
-              sub={
-                supply.areas.length === 0
-                  ? "none on the platform yet"
-                  : supply.areas.length === 1
-                    ? `in ${supply.areas[0]}`
-                    : `across ${supply.areas.length} postcode areas`
-              }
-            />
-            <HeroStat
-              label="Capital mandates"
-              value={String(supply.fundingMandates)}
-              sub={`${supply.buyMandates} buying mandate${supply.buyMandates === 1 ? "" : "s"} alongside`}
-            />
-            <HeroStat
-              label="Strategies tested"
-              value={String(strategiesTested)}
-              sub="per property, before advice"
-            />
+            {stats.map((s) => (
+              <HeroStat key={s.label} label={s.label} value={s.value} sub={s.sub} />
+            ))}
           </dl>
         </div>
 
