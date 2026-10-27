@@ -14,8 +14,11 @@ import { fetchNoticeDetail } from "@backend/discovery/gazette";
 import { Fetcher } from "@backend/discovery/fetcher";
 import { companyIdentity } from "@shared/domain/identity";
 import { draftProbateLetter } from "@shared/domain/probateLetter";
+import { enrichAddress } from "@backend/discovery/enrich";
 import type { FlipEvidence, SourcedLead } from "@shared/domain/sourcedLead";
-import type { JurisdictionCode, PropertyType } from "@shared/domain/types";
+import type { JurisdictionCode, PropertyType, Tenure } from "@shared/domain/types";
+
+const TENURES = new Set<Tenure>(["freehold", "leasehold", "share-of-freehold", "unknown"]);
 
 const PROPERTY_TYPES = new Set<PropertyType>([
   "house", "flat", "bungalow", "hmo", "commercial", "mixed-use", "land",
@@ -201,6 +204,40 @@ export async function resolveLetter(input: {
   };
 }
 
+export interface LeadEnrichment {
+  readonly propertyType?: string;
+  readonly tenure?: "freehold" | "leasehold";
+  readonly floorAreaSqm?: number;
+  /** The last registered sale, in whole pounds, as a value anchor. */
+  readonly lastSoldPounds?: number;
+  readonly lastSoldAt?: string;
+  readonly notes: readonly string[];
+}
+
+/**
+ * Enrich a lead's address from the EPC register and Price Paid, on demand.
+ *
+ * The Gazette carries no property attributes, so these come from the open
+ * registers matched to the address: the type and floor area from the EPC, the
+ * tenure and the last sold price from Land Registry. Nothing is invented — a
+ * miss is a field the operator fills. Checks its own permission (§29).
+ */
+export async function enrichLead(input: {
+  readonly address: string;
+  readonly postcode: string;
+}): Promise<LeadEnrichment> {
+  await requirePermission("manage-mandates", "/operator/sourcing");
+  const e = await enrichAddress(input.address, input.postcode);
+  return {
+    ...(e.propertyType !== undefined ? { propertyType: e.propertyType } : {}),
+    ...(e.tenure !== undefined ? { tenure: e.tenure } : {}),
+    ...(e.floorAreaSqm !== undefined ? { floorAreaSqm: e.floorAreaSqm } : {}),
+    ...(e.lastSoldPrice !== undefined ? { lastSoldPounds: Math.round(Number(e.lastSoldPrice) / 100) } : {}),
+    ...(e.lastSoldAt !== undefined ? { lastSoldAt: e.lastSoldAt } : {}),
+    notes: e.notes,
+  };
+}
+
 /**
  * Turn a probate lead into a deal in the pipeline.
  *
@@ -242,6 +279,8 @@ export async function startDealFromLead(
   const jurisdiction = JURISDICTIONS.has(jurisdictionRaw as JurisdictionCode)
     ? (jurisdictionRaw as JurisdictionCode)
     : "GB-ENG";
+  const tenureRaw = String(formData.get("tenure") ?? "freehold");
+  const tenure: Tenure = TENURES.has(tenureRaw as Tenure) ? (tenureRaw as Tenure) : "freehold";
 
   // Locality: the town, taken as the last address segment that is not the
   // postcode. Best-effort; the operator can refine it on the deal.
@@ -260,7 +299,7 @@ export async function startDealFromLead(
     locality,
     jurisdiction,
     propertyType,
-    tenure: "freehold",
+    tenure,
     bedrooms: 3,
     occupancy: "unknown",
     knownIssues: [],
