@@ -36,7 +36,16 @@ import type { EpcRating } from "@shared/domain/jurisdictions/types";
  */
 
 const SOURCE = "epc-register";
-const API = "https://epc.opendatacommunities.org/api/v1/domestic/search";
+/**
+ * The default search endpoint. The service moved hosts in 2026 —
+ * `epc.opendatacommunities.org` now 301-redirects to
+ * `get-energy-performance-data.communities.gov.uk`, and because this request
+ * carries a Basic-auth credential the redirect is refused (see `redirect:
+ * "error"` below) rather than followed to a host we did not licence. `EPC_API_BASE`
+ * overrides the full endpoint URL so a host move is a configuration change, not
+ * a redeploy.
+ */
+const DEFAULT_API = "https://epc.opendatacommunities.org/api/v1/domestic/search";
 /** How long a single EPC lookup may take before it is abandoned. */
 const TIMEOUT_MS = 15_000;
 
@@ -168,7 +177,7 @@ export async function fetchCertificates(
     throw new Error("EPC_API_EMAIL and EPC_API_KEY are not configured; refusing to query.");
   }
 
-  const url = new URL(API);
+  const url = new URL(process.env.EPC_API_BASE ?? DEFAULT_API);
   url.searchParams.set("postcode", postcode.toUpperCase());
   url.searchParams.set("size", String(size));
 
