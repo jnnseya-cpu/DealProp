@@ -37,15 +37,15 @@ import type { EpcRating } from "@shared/domain/jurisdictions/types";
 
 const SOURCE = "epc-register";
 /**
- * The default search endpoint. The service moved hosts in 2026 —
- * `epc.opendatacommunities.org` now 301-redirects to
- * `get-energy-performance-data.communities.gov.uk`, and because this request
- * carries a Basic-auth credential the redirect is refused (see `redirect:
- * "error"` below) rather than followed to a host we did not licence. `EPC_API_BASE`
- * overrides the full endpoint URL so a host move is a configuration change, not
- * a redeploy.
+ * The default search endpoint, as of the 2026 migration. The legacy
+ * `epc.opendatacommunities.org/api/v1/domestic/search` was retired and now
+ * 301-redirects; the service lives at the `api.` subdomain below and is
+ * verified reachable from production. `EPC_API_BASE` overrides the full endpoint
+ * URL so a future move is a configuration change, not a redeploy, and because
+ * this request carries a credential the redirect is refused (see `redirect:
+ * "error"` below) rather than followed to a host we did not licence.
  */
-const DEFAULT_API = "https://epc.opendatacommunities.org/api/v1/domestic/search";
+const DEFAULT_API = "https://api.get-energy-performance-data.communities.gov.uk/api/domestic/search";
 /** How long a single EPC lookup may take before it is abandoned. */
 const TIMEOUT_MS = 15_000;
 
@@ -75,7 +75,7 @@ export interface EpcCertificate {
   readonly source: SourceAttribution;
 }
 
-/** The subset of EPC API fields this adapter reads. All arrive as strings. */
+/** The subset of the LEGACY EPC API fields this adapter reads. All strings. */
 interface EpcRow {
   readonly "lmk-key"?: string;
   readonly address?: string;
@@ -89,6 +89,30 @@ interface EpcRow {
   readonly "total-floor-area"?: string;
   readonly "property-type"?: string;
   readonly "construction-age-band"?: string;
+  readonly tenure?: string;
+}
+
+/**
+ * One row from the 2026 service's `data` array. The search result is a summary —
+ * it carries the address, postcode, band and registration date, but NOT the
+ * floor area or property type (those need the full certificate, a separate
+ * call). The fields that are present are enough for the prepared-but-unsold
+ * signal, which turns on a certificate existing with no sale registered since;
+ * floor area and type are tolerated here where present and left undefined
+ * otherwise, which the join already handles.
+ */
+interface EpcDataRow {
+  readonly certificateNumber?: string;
+  readonly addressLine1?: string;
+  readonly addressLine2?: string;
+  readonly addressLine3?: string;
+  readonly addressLine4?: string;
+  readonly postcode?: string;
+  readonly postTown?: string;
+  readonly currentEnergyEfficiencyBand?: string;
+  readonly registrationDate?: string;
+  readonly propertyType?: string;
+  readonly totalFloorArea?: string | number;
   readonly tenure?: string;
 }
 
@@ -107,46 +131,84 @@ function floorArea(raw: string | undefined): number | undefined {
 }
 
 export function parseCertificates(body: unknown): readonly EpcCertificate[] {
-  const rows = (body as { rows?: readonly EpcRow[] }).rows ?? [];
-  const certificates: EpcCertificate[] = [];
-
-  for (const row of rows) {
-    // Lodgement is the date the certificate entered the register; inspection is
-    // when the assessor attended. Either dates the "somebody prepared to sell"
-    // signal, so the earlier one is used where both exist.
-    const lodged = (row["lodgement-date"] ?? row["inspection-date"] ?? "").slice(0, 10);
-    if (lodged === "") continue;
-
-    const addressLine1 = (row.address1 ?? "").trim();
-    const address =
-      row.address ??
-      [row.address1, row.address2].filter((p) => p !== undefined && p !== "").join(", ");
-
-    certificates.push({
-      lmkKey: row["lmk-key"] ?? "",
-      address: address.trim(),
-      addressLine1: addressLine1 !== "" ? addressLine1 : address.trim(),
-      postcode: (row.postcode ?? "").toUpperCase(),
-      ...(rating(row["current-energy-rating"]) !== undefined
-        ? { rating: rating(row["current-energy-rating"]) }
-        : {}),
-      ...(rating(row["potential-energy-rating"]) !== undefined
-        ? { potentialRating: rating(row["potential-energy-rating"]) }
-        : {}),
-      lodgedAt: lodged,
-      ...(floorArea(row["total-floor-area"]) !== undefined
-        ? { floorAreaSqm: floorArea(row["total-floor-area"]) }
-        : {}),
-      ...(row["property-type"] !== undefined ? { propertyType: row["property-type"] } : {}),
-      ...(row["construction-age-band"] !== undefined
-        ? { constructionAgeBand: row["construction-age-band"] }
-        : {}),
-      ...(row.tenure !== undefined ? { tenure: row.tenure } : {}),
-      source: attribute(SOURCE, lodged),
-    });
+  const b = (body ?? {}) as { rows?: readonly EpcRow[]; data?: readonly EpcDataRow[] };
+  // The 2026 service returns { data: [...] }; the legacy one returned
+  // { rows: [...] }. Detect by shape so both parse, and a response that is
+  // neither yields nothing rather than throwing.
+  if (Array.isArray(b.data)) {
+    return b.data
+      .map(fromDataRow)
+      .filter((c): c is EpcCertificate => c !== undefined);
   }
+  return (b.rows ?? [])
+    .map(fromLegacyRow)
+    .filter((c): c is EpcCertificate => c !== undefined);
+}
 
-  return certificates;
+/** A certificate from the 2026 service's `data` row. */
+function fromDataRow(row: EpcDataRow): EpcCertificate | undefined {
+  const lodged = (row.registrationDate ?? "").slice(0, 10);
+  if (lodged === "") return undefined;
+
+  const addressLine1 = (row.addressLine1 ?? "").trim();
+  const address = [row.addressLine1, row.addressLine2, row.addressLine3, row.addressLine4, row.postTown]
+    .filter((p) => p !== undefined && p !== "")
+    .join(", ")
+    .trim();
+  const areaRaw = typeof row.totalFloorArea === "number" ? String(row.totalFloorArea) : row.totalFloorArea;
+
+  return {
+    lmkKey: row.certificateNumber ?? "",
+    address: address !== "" ? address : addressLine1,
+    addressLine1: addressLine1 !== "" ? addressLine1 : address,
+    // The service returns the postcode with a '+' for the space (M20+4AP).
+    postcode: (row.postcode ?? "").toUpperCase().replace(/\+/g, " ").trim(),
+    ...(rating(row.currentEnergyEfficiencyBand) !== undefined
+      ? { rating: rating(row.currentEnergyEfficiencyBand) }
+      : {}),
+    lodgedAt: lodged,
+    ...(floorArea(areaRaw) !== undefined ? { floorAreaSqm: floorArea(areaRaw) } : {}),
+    ...(row.propertyType !== undefined ? { propertyType: row.propertyType } : {}),
+    ...(row.tenure !== undefined ? { tenure: row.tenure } : {}),
+    source: attribute(SOURCE, lodged),
+  };
+}
+
+/** A certificate from a legacy `rows` entry. */
+function fromLegacyRow(row: EpcRow): EpcCertificate | undefined {
+  // Lodgement is the date the certificate entered the register; inspection is
+  // when the assessor attended. Either dates the "somebody prepared to sell"
+  // signal, so the earlier one is used where both exist.
+  const lodged = (row["lodgement-date"] ?? row["inspection-date"] ?? "").slice(0, 10);
+  if (lodged === "") return undefined;
+
+  const addressLine1 = (row.address1 ?? "").trim();
+  const address =
+    row.address ??
+    [row.address1, row.address2].filter((p) => p !== undefined && p !== "").join(", ");
+
+  return {
+    lmkKey: row["lmk-key"] ?? "",
+    address: address.trim(),
+    addressLine1: addressLine1 !== "" ? addressLine1 : address.trim(),
+    postcode: (row.postcode ?? "").toUpperCase(),
+    ...(rating(row["current-energy-rating"]) !== undefined
+      ? { rating: rating(row["current-energy-rating"]) }
+      : {}),
+    ...(rating(row["potential-energy-rating"]) !== undefined
+      ? { potentialRating: rating(row["potential-energy-rating"]) }
+      : {}),
+    lodgedAt: lodged,
+    ...(floorArea(row["total-floor-area"]) !== undefined
+      ? { floorAreaSqm: floorArea(row["total-floor-area"]) }
+      : {}),
+    ...(row["property-type"] !== undefined ? { propertyType: row["property-type"] } : {}),
+    ...(row["construction-age-band"] !== undefined
+      ? { constructionAgeBand: row["construction-age-band"] }
+      : {}),
+    ...(row.tenure !== undefined ? { tenure: row.tenure } : {}),
+    source: attribute(SOURCE, lodged),
+  };
 }
 
 /** The current certificate for an address: the most recently lodged one. */
@@ -191,6 +253,9 @@ export async function fetchCertificates(
 
   const url = new URL(process.env.EPC_API_BASE ?? DEFAULT_API);
   url.searchParams.set("postcode", postcode.toUpperCase());
+  // The 2026 service paginates with `page_size`; the legacy one used `size`.
+  // Both are sent so either endpoint honours the bound and ignores the other.
+  url.searchParams.set("page_size", String(size));
   url.searchParams.set("size", String(size));
 
   const response = await fetchImpl(url, {

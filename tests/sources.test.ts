@@ -221,6 +221,32 @@ describe("EPC register", () => {
   it("treats the most recently lodged certificate as current", () => {
     expect(currentCertificate(parseCertificates(BODY))?.lmkKey).toBe("K1");
   });
+
+  it("parses the 2026 service's data shape (camelCase, registrationDate, +-encoded postcode)", () => {
+    const certs = parseCertificates({
+      data: [
+        {
+          certificateNumber: "1111-2222-3333-4444-5555",
+          addressLine1: "9 Union Street",
+          addressLine2: "",
+          postTown: "MANCHESTER",
+          postcode: "M20+4AP",
+          currentEnergyEfficiencyBand: "D",
+          registrationDate: "2021-08-11",
+          uprn: 10094703381,
+        },
+      ],
+      pagination: { totalRecords: 1 },
+    });
+    expect(certs).toHaveLength(1);
+    expect(certs[0]?.lmkKey).toBe("1111-2222-3333-4444-5555");
+    expect(certs[0]?.addressLine1).toBe("9 Union Street");
+    expect(certs[0]?.postcode).toBe("M20 4AP");
+    expect(certs[0]?.rating).toBe("D");
+    expect(certs[0]?.lodgedAt).toBe("2021-08-11");
+    // The search summary carries no floor area — left undefined, not faked.
+    expect(certs[0]?.floorAreaSqm).toBeUndefined();
+  });
 });
 
 describe("registry pressure", () => {
