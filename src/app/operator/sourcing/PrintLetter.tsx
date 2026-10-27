@@ -5,16 +5,18 @@ import { resolveLetter } from "./actions";
 import type { SourcedLead } from "@shared/domain/sourcedLead";
 
 /**
- * Review and print the letter to a lead's office-holder.
+ * Review, complete and print the letter to a lead's office-holder.
  *
  * Kind-aware: a probate lead's letter goes to the estate's representatives (the
  * executor), a bankruptcy lead's to the trustee in bankruptcy / Official
- * Receiver — never to the bereaved or the bankrupt. When opened, the component
- * resolves the office-holder from the notice on demand — one fetch — and redraws
- * the letter with their address in the recipient block, so it is ready to post
- * without leaving Lode. Until it resolves (or if the notice names none), it
- * shows the drafted letter with the notice link, so there is always something in
- * hand. Never sent from here: it is printed and posted by a named person.
+ * Receiver — never to the bereaved or the bankrupt. The recipient's address is
+ * filled two ways: when opened, the component tries to read the office-holder
+ * from the notice (a best effort — the Gazette forbids reading some of its notice
+ * data automatically, and we respect that); and, always, the operator can open
+ * the notice (one tap, permitted) and paste the office-holder's name and address
+ * into the field below, which redraws the letter addressed to them. So a letter
+ * is never printed with a placeholder where the recipient should be. Never sent
+ * from here — it is printed and posted by a named person.
  */
 export function PrintLetter({ lead }: { lead: SourcedLead }) {
   const insolvency = lead.signalKey === "owner-insolvent";
@@ -24,10 +26,13 @@ export function PrintLetter({ lead }: { lead: SourcedLead }) {
       : insolvency
         ? "trustee / Official Receiver"
         : "executors";
+  const holderWord = insolvency ? "trustee / Official Receiver" : "contact for service";
 
   const [letter, setLetter] = useState(lead.letterDraft ?? "");
   const [contact, setContact] = useState<string | undefined>(lead.contactForService);
+  const [address, setAddress] = useState<string>(lead.contactForService ?? "");
   const [loading, setLoading] = useState(false);
+  const [applying, setApplying] = useState(false);
   const [tried, setTried] = useState(false);
   const [note, setNote] = useState<string | undefined>(undefined);
 
@@ -43,17 +48,37 @@ export function PrintLetter({ lead }: { lead: SourcedLead }) {
         propertyAddress: lead.propertyAddress ?? "",
       });
       setLetter(r.letter);
-      if (r.contactForService !== undefined) setContact(r.contactForService);
-      if (r.message !== undefined) setNote(r.message);
-      else if (r.contactForService === undefined) {
-        setNote(
-          `This notice named no ${insolvency ? "trustee" : "contact for service"} — open the notice to read who to write to.`,
-        );
+      if (r.contactForService !== undefined) {
+        setContact(r.contactForService);
+        setAddress(r.contactForService);
       }
+      if (r.message !== undefined) setNote(r.message);
     } catch {
-      setNote("Could not reach the notice just now. Open it directly for the contact.");
+      setNote("Could not reach the notice just now. Open it directly and paste the contact below.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function applyAddress() {
+    const typed = address.trim();
+    if (typed === "") return;
+    setApplying(true);
+    try {
+      const r = await resolveLetter({
+        kind: lead.signalKey,
+        noticeUrl: lead.sourceUrl ?? "",
+        subjectName: lead.subjectName ?? "",
+        propertyAddress: lead.propertyAddress ?? "",
+        contactOverride: typed,
+      });
+      setLetter(r.letter);
+      setContact(typed);
+      setNote(undefined);
+    } catch {
+      setNote("Could not update the letter just now — try again.");
+    } finally {
+      setApplying(false);
     }
   }
 
@@ -75,6 +100,9 @@ export function PrintLetter({ lead }: { lead: SourcedLead }) {
     w.print();
   }
 
+  // The letter still carries the placeholder recipient until an address is set.
+  const unaddressed = contact === undefined;
+
   return (
     <details
       className="mt-3 rounded-lg border hairline bg-surface-2"
@@ -88,7 +116,7 @@ export function PrintLetter({ lead }: { lead: SourcedLead }) {
       <div className="border-t hairline px-4 py-3">
         {loading && (
           <p className="mb-2 text-[12px] text-ink-400">
-            Finding the {insolvency ? "trustee" : "contact for service"} in the notice…
+            Looking for the {holderWord} in the notice…
           </p>
         )}
         {contact !== undefined && (
@@ -106,19 +134,58 @@ export function PrintLetter({ lead }: { lead: SourcedLead }) {
             )}
           </p>
         )}
+
+        {/* Always offer the manual completion — it is the reliable path. */}
+        <div className="mb-3 rounded-md border hairline bg-surface-1 p-3">
+          <label className="block text-[12px] font-medium text-ink-200">
+            {holderWord.replace(/^./, (c) => c.toUpperCase())} — name &amp; address
+          </label>
+          <p className="mt-0.5 text-[11px] leading-snug text-ink-500">
+            {lead.sourceUrl !== undefined ? (
+              <>
+                <a href={lead.sourceUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                  Open the notice →
+                </a>{" "}
+                to read who to write to, then paste it here and apply.
+              </>
+            ) : (
+              "Paste the office-holder's name and address, then apply."
+            )}
+          </p>
+          <textarea
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            rows={3}
+            spellCheck={false}
+            placeholder={`e.g. Wards Solicitors, Prudential Buildings, 11-19 Wine Street, Bristol, BS1 2PH`}
+            className="mt-2 w-full resize-y rounded-md border hairline bg-surface-2 px-2.5 py-1.5 text-[13px] leading-relaxed text-ink-100"
+          />
+          <button
+            type="button"
+            onClick={applyAddress}
+            disabled={applying || address.trim() === ""}
+            className="mt-2 inline-flex h-8 items-center rounded-md border hairline bg-surface-2 px-3 text-[13px] font-medium text-ink-100 transition-colors hover:bg-surface-3 disabled:opacity-50"
+          >
+            {applying ? "Applying…" : "Apply to letter"}
+          </button>
+        </div>
+
         <pre className="max-h-80 overflow-auto whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-ink-300">
           {letter}
         </pre>
         <button
           type="button"
           onClick={print}
-          className="mt-3 inline-flex h-8 items-center rounded-md bg-lode-400 px-3 text-[13px] font-medium text-ink-950 transition-colors hover:bg-lode-300"
+          disabled={unaddressed}
+          title={unaddressed ? "Add the recipient's address first" : undefined}
+          className="mt-3 inline-flex h-8 items-center rounded-md bg-lode-400 px-3 text-[13px] font-medium text-ink-950 transition-colors hover:bg-lode-300 disabled:opacity-50"
         >
           Print this letter →
         </button>
         <p className="mt-2 text-[11px] leading-snug text-ink-500">
-          Check the address and any bracketed placeholder before posting. Post it yourself — nothing
-          is sent from here.
+          {unaddressed
+            ? "Add the recipient's address above before printing — nothing is sent from here."
+            : "Check the address and any bracketed placeholder before posting. Post it yourself — nothing is sent from here."}
         </p>
       </div>
     </details>

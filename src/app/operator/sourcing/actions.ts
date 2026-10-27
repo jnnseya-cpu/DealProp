@@ -178,6 +178,13 @@ export async function resolveLetter(input: {
   readonly noticeUrl: string;
   readonly subjectName: string;
   readonly propertyAddress: string;
+  /**
+   * The office-holder's name and address, typed by the operator (read from the
+   * notice, which anyone may open). When present it is used verbatim and NO fetch
+   * is made — so a letter is always completable even where the Gazette forbids
+   * reading its notice data automatically.
+   */
+  readonly contactOverride?: string;
 }): Promise<ResolvedLetter> {
   await requirePermission("manage-mandates", "/operator/sourcing");
 
@@ -188,17 +195,24 @@ export async function resolveLetter(input: {
   let claimDeadline: string | undefined;
   let note: string | undefined;
 
-  if (input.noticeUrl !== "") {
+  const override = input.contactOverride?.trim();
+  if (override !== undefined && override !== "") {
+    contactForService = override;
+  } else if (input.noticeUrl !== "") {
     const detail = await fetchNoticeDetail(new Fetcher(), input.noticeUrl);
     if (detail.ok && detail.value !== undefined) {
       contactForService = detail.value.contactForService;
       claimDeadline = detail.value.claimDeadline;
+    } else if (/robots/i.test(detail.reason)) {
+      // The Gazette's own robots.txt forbids reading its notice data
+      // automatically, and we obey it. Not an error to fix — the operator opens
+      // the notice (permitted) and pastes the office-holder's address.
+      note =
+        "The Gazette does not allow its notice data to be read automatically. Open the notice (one tap) and paste the office-holder's address below — it will fill into the letter.";
     } else {
-      // Surface the Fetcher's own reason (a 404, a robots rule, a redirect, a
-      // non-JSON body) rather than a generic line — it is what tells us, and the
-      // operator, why the recipient could not be filled in and whether it is the
-      // notice or our read of it that is at fault.
-      note = `The notice could not be read — ${detail.reason} Open it directly for the contact.`;
+      // Any other failure (a 404, a redirect, a non-JSON body): surface the
+      // real reason so it is clear whether the notice or our read of it is at fault.
+      note = `The notice could not be read — ${detail.reason} Open it directly, and paste the contact below.`;
     }
   }
 

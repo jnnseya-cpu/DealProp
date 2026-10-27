@@ -322,22 +322,41 @@ describe("the connector is bound to the licensed host", () => {
     );
   });
 
-  it("fetches a notice's JSON-LD from the normalised resource URL", async () => {
-    const jsonld = JSON.stringify({
+  it("fetches a notice from the data.json resource URL (not the robots-blocked .jsonld)", async () => {
+    // The real notice shape: a foaf:Agent with its address under `adr`, a
+    // vcard:Address with hyphenated fields and a postcode key that is a URI.
+    const json = JSON.stringify({
       "@graph": [
-        { "@id": "n", hasPersonalRepresentative: "exec" },
-        { "@id": "exec", name: "Example & Co", address: "1 High Street, Nottingham, NG1 1AA" },
+        {
+          "@id": "n#notifiableThing",
+          hasClaimDeadline: "2026-12-28",
+          hasPersonalRepresentative: "n#exec",
+        },
+        { "@id": "n#exec", "@type": "foaf:Agent", name: "Wards Solicitors", adr: "n#addr" },
+        {
+          "@id": "n#addr",
+          "@type": "vcard:Address",
+          "street-address": "Prudential Buildings, 11-19 Wine Street",
+          locality: "Bristol",
+          "postal-code": "BS1 2PH",
+          postcode: "https://www.thegazette.co.uk/id/postcode/BS12PH",
+        },
       ],
     });
     const { fetcher, calls } = fetcherWith({
       "https://www.thegazette.co.uk/robots.txt": { status: 404 },
-      "https://www.thegazette.co.uk/notice/5237386/data.jsonld": { body: jsonld },
+      "https://www.thegazette.co.uk/notice/5239323/data.json": { body: json },
     });
-    // Passed the identifier form, as the live feed sometimes gives it.
-    const result = await fetchNoticeDetail(fetcher, "https://www.thegazette.co.uk/id/notice/5237386");
+    // Passed the identifier form, as the live feed gives it.
+    const result = await fetchNoticeDetail(fetcher, "https://www.thegazette.co.uk/id/notice/5239323");
     expect(result.ok).toBe(true);
-    expect(result.value?.contactForService).toContain("Example & Co");
-    expect(calls.some((c) => c === "https://www.thegazette.co.uk/notice/5237386/data.jsonld")).toBe(true);
+    expect(result.value?.contactForService).toContain("Wards Solicitors");
+    expect(result.value?.contactForService).toContain("Wine Street");
+    expect(result.value?.contactForService).toContain("BS1 2PH");
+    // Never the postcode URI.
+    expect(result.value?.contactForService).not.toContain("http");
+    expect(result.value?.claimDeadline).toBe("2026-12-28");
+    expect(calls.some((c) => c === "https://www.thegazette.co.uk/notice/5239323/data.json")).toBe(true);
   });
 
   it("obeys the Gazette's robots.txt like any other site", async () => {

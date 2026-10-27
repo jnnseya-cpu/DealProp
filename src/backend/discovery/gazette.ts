@@ -460,25 +460,36 @@ function contactFromNode(
 ): string | undefined {
   if (node === undefined) return undefined;
 
-  const name = byLocalName(node, [
-    "name", "hasName", "label", "title", "fullName", "legalName", "organisationName",
-  ]);
+  // The office-holder is a foaf:Agent (a firm, with a single `name`) or a person
+  // (given/family name). Try a single name first, then compose one.
+  let name = byLocalName(node, ["name", "hasName", "fullName", "legalName", "organisationName", "label"]);
+  if (name === undefined) {
+    const given = byLocalName(node, ["givenName", "firstName"]);
+    const family = byLocalName(node, ["familyName", "lastName", "surname"]);
+    const composed = [given, family].filter((p): p is string => p !== undefined && p !== "").join(" ");
+    if (composed !== "") name = composed;
+  }
 
   // The address may be a reference to an address node (an @id string), the
   // address inline as an object, or a plain string on the node itself. Resolve a
   // reference first, because the reference value is itself a string (the @id)
-  // and would otherwise be mistaken for the address.
+  // and would otherwise be mistaken for the address. The real Gazette notice
+  // puts it under `adr` → a vcard:Address with hyphenated `street-address` /
+  // `postal-code`, so those spellings are read, and the vcard's `postcode` key —
+  // which is a URI to a postcode node, not the postcode — is never used as text.
   let address: string | undefined;
-  let addrValue = valueByLocalName(node, ["hasAddress", "address", "postalAddress", "location"]);
+  let addrValue = valueByLocalName(node, ["adr", "hasAddress", "address", "postalAddress", "location"]);
   if (typeof addrValue === "string" && byId.has(addrValue)) {
     addrValue = byId.get(addrValue);
   }
   if (typeof addrValue === "object" && addrValue !== null && !Array.isArray(addrValue)) {
     const an = addrValue as Record<string, unknown>;
+    const pcRaw = byLocalName(an, ["postal-code", "postalCode", "postcode", "postCode"]);
+    const pc = pcRaw !== undefined && !/^https?:\/\//i.test(pcRaw) ? pcRaw : undefined;
     const composed = [
-      byLocalName(an, ["streetAddress", "address", "paon", "saon", "street", "addressLine1", "line1"]),
+      byLocalName(an, ["street-address", "streetAddress", "address", "paon", "saon", "street", "addressLine1", "line1"]),
       byLocalName(an, ["locality", "town", "addressLocality", "postTown"]),
-      byLocalName(an, ["postalCode", "postcode", "postCode"]),
+      pc,
     ]
       .filter((p): p is string => p !== undefined && p !== "")
       .join(", ");
@@ -504,7 +515,13 @@ export async function fetchNoticeDetail(
 ): Promise<ConnectorResult<NoticeDetail>> {
   assertSourceUsable(GAZETTE_SOURCE, "internal-analysis");
 
-  const url = noticeDataUrl(noticeUrl, "data.jsonld");
+  // The Gazette's robots.txt disallows `/notice/*/data.jsonld` specifically, and
+  // the Fetcher obeys robots (§19/§39) — so that endpoint is off-limits by the
+  // publisher's own stated wish, not a bug. The `data.json` representation is a
+  // different path (the all-notices feed is served the same way) and carries the
+  // same linked-data graph; it is used here, and if the publisher disallows it
+  // too the Fetcher refuses cleanly and the caller falls back to the notice link.
+  const url = noticeDataUrl(noticeUrl, "data.json");
 
   const result = await fetcher.get(GAZETTE_SOURCE, url, {
     headers: { accept: "application/ld+json, application/json" },
