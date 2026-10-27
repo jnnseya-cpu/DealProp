@@ -185,11 +185,13 @@ export function sourceProperties(inputs: SourcingInputs, now: Date = new Date())
       lawfulNextStep: NEXT_STEP["owner-insolvent"],
       ...(notice.noticeUrl !== undefined ? { sourceUrl: notice.noticeUrl } : {}),
       ...(notice.lastAddress !== undefined ? { propertyAddress: notice.lastAddress } : {}),
+      ...(notice.contactForService !== undefined ? { contactForService: notice.contactForService } : {}),
       subjectName: notice.debtorName,
       ...(writesToTrustee
         ? {
             letterDraft: draftInsolvencyLetter({
               sender,
+              ...(notice.contactForService !== undefined ? { officeHolder: notice.contactForService } : {}),
               debtorName: notice.debtorName,
               ...(notice.lastAddress !== undefined ? { propertyAddress: notice.lastAddress } : {}),
               today: observedAt,

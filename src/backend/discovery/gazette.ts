@@ -244,6 +244,41 @@ function addressFromContent(content: string | undefined): string | undefined {
 }
 
 /**
+ * The office-holder a notice prints in its own content block.
+ *
+ * Some notices carry, in the same definition list as the address, the person or
+ * firm to whom claims are to be given (the executor/solicitor, on a probate
+ * notice) or the appointed trustee (on an insolvency notice). Where they do, the
+ * lawful recipient is read straight from the feed entry we already fetched — no
+ * second request, so it cannot be defeated by a per-notice page being gated or
+ * moved — and the letter is addressable the moment the lead is produced.
+ *
+ * Extraction, never inference: it takes the `<dd>` of a `<dt>` whose label NAMES
+ * a representative, and never the subject's own address line ("Address of
+ * Deceased" / "Address of Debtor"), which would hand the letter back to exactly
+ * the vulnerable person it must not be sent to.
+ */
+function contactFromContent(content: string | undefined): string | undefined {
+  if (content === undefined) return undefined;
+  const pairs = /<dt>([\s\S]*?)<\/dt>\s*<dd>([\s\S]*?)<\/dd>/gi;
+  const NAMES =
+    /representative|executor|administrator|trustee|practitioner|liquidator|receiver|solicitor|claims|person to whom|deliver|notices are to be/;
+  for (let m = pairs.exec(content); m !== null; m = pairs.exec(content)) {
+    const label = (m[1] ?? "").replace(/<[^>]*>/g, " ").toLowerCase();
+    // Never the subject's own address, however it is phrased.
+    if (/deceased|debtor|bankrupt/.test(label)) continue;
+    if (!NAMES.test(label)) continue;
+    const value = (m[2] ?? "")
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (value !== "") return value;
+  }
+  return undefined;
+}
+
+/**
  * The name a notice carries as its title, with a trailing status marker
  * removed where the Gazette appends one ("(deceased)", "(in bankruptcy)").
  */
@@ -280,12 +315,17 @@ export function parseDeceasedEstate(notice: GazetteNotice): DeceasedEstateNotice
   // property must be identified first, which is honest. (Do not reintroduce a
   // postcodeIn(notice.content) fallback — it is the bug this records.)
   const postcode = lastAddress !== undefined ? postcodeIn(lastAddress) : undefined;
+  // The lawful recipient, where the notice prints it in the feed content — so
+  // the letter is addressable without a second request. Absent here, it is
+  // resolved on demand from the notice's own page (fetchNoticeDetail).
+  const contactForService = contactFromContent(notice.content);
 
   return {
     noticeId: notice.id,
     deceasedName,
     ...(lastAddress !== undefined ? { lastAddress } : {}),
     ...(postcode !== undefined ? { postcode } : {}),
+    ...(contactForService !== undefined ? { contactForService } : {}),
     ...(notice.noticeUrl !== undefined ? { noticeUrl: notice.noticeUrl } : {}),
   };
 }
@@ -311,10 +351,25 @@ function graphOf(json: unknown): readonly Record<string, unknown>[] {
   return [body];
 }
 
-/** The first string value under any of the given keys, Atom-wrapped or bare. */
-function firstString(node: Record<string, unknown>, keys: readonly string[]): string | undefined {
-  for (const key of keys) {
-    const value = node[key];
+/**
+ * The local name of a JSON-LD key: the part after the last `#` or `/`, lowered.
+ *
+ * The Gazette's JSON-LD serialises its predicates as expanded IRIs
+ * (`https://www.thegazette.co.uk/def/…#hasPersonalRepresentative`) at least as
+ * often as compact terms, and an exact-string lookup for `hasPersonalRepresentative`
+ * misses the expanded form entirely — which is why the on-demand contact came
+ * back empty against real notices. Matching on the local name reads both.
+ */
+function localName(key: string): string {
+  const tail = key.split(/[#/]/).pop() ?? key;
+  return tail.toLowerCase();
+}
+
+/** First string value whose key's local name is one of `names`, Atom-wrapped or bare. */
+function byLocalName(node: Record<string, unknown>, names: readonly string[]): string | undefined {
+  const want = new Set(names.map((n) => n.toLowerCase()));
+  for (const [key, value] of Object.entries(node)) {
+    if (!want.has(localName(key))) continue;
     if (typeof value === "string" && value.trim() !== "") return value.trim();
     const t = text(value);
     if (t !== undefined) return t;
@@ -322,14 +377,41 @@ function firstString(node: Record<string, unknown>, keys: readonly string[]): st
   return undefined;
 }
 
+/** First value whose key's local name is one of `names`, whatever its shape. */
+function valueByLocalName(node: Record<string, unknown>, names: readonly string[]): unknown {
+  const want = new Set(names.map((n) => n.toLowerCase()));
+  for (const [key, value] of Object.entries(node)) {
+    if (want.has(localName(key))) return value;
+  }
+  return undefined;
+}
+
+/** The office-holder predicates to write to, by local name (probate + insolvency). */
+const OFFICE_HOLDER = new Set([
+  "haspersonalrepresentative",
+  "hasinsolvencypractitioner",
+  "hasofficeholder",
+  "hastrustee",
+  "hasadministrator",
+  "hasliquidator",
+  "hasreceiver",
+  "hasofficialreceiver",
+  "hasinsolvencyintermediary",
+  "hasinsolvencyservicesofficeholder",
+  "personalrepresentative",
+  "trustee",
+  "officeholder",
+  "representative",
+]);
+
 /**
  * The contact for service and claim deadline from a notice's JSON-LD.
  *
  * The notice node names its personal representative (the executor — the lawful
- * contact) by reference, and carries the claim deadline directly. The executor
- * node is resolved from the graph and its name and address read tolerantly:
- * the exact key names are not guessed at one by one, so a representation that
- * labels them differently still yields what it has rather than nothing.
+ * contact), or a trustee / Official Receiver on an insolvency notice, either by
+ * reference (an `@id` resolved from the graph) or inline as a nested object. Its
+ * name and address are read by local name, so an expanded-IRI representation
+ * still yields what it has rather than nothing.
  */
 export function parseNoticeDetail(json: unknown): NoticeDetail {
   const graph = graphOf(json);
@@ -339,40 +421,31 @@ export function parseNoticeDetail(json: unknown): NoticeDetail {
     if (typeof id === "string") byId.set(id, node);
   }
 
-  // The office-holder to write to, by notice type: a personal representative
-  // (probate), or a trustee / liquidator / administrator / receiver / official
-  // receiver (insolvency). Any of these predicates references the node that
-  // names the professional and their address.
-  const OFFICE_HOLDER = [
-    "hasPersonalRepresentative",
-    "hasInsolvencyPractitioner",
-    "hasOfficeHolder",
-    "hasTrustee",
-    "hasAdministrator",
-    "hasLiquidator",
-    "hasReceiver",
-    "hasOfficialReceiver",
-    "hasInsolvencyIntermediary",
-    "hasInsolvencyServicesOfficeHolder",
-  ];
-
   let claimDeadline: string | undefined;
-  let repId: string | undefined;
+  let repNode: Record<string, unknown> | undefined;
   for (const node of graph) {
-    if (claimDeadline === undefined) claimDeadline = firstString(node, ["hasClaimDeadline"]);
-    if (repId === undefined) {
-      for (const predicate of OFFICE_HOLDER) {
-        const rep = node[predicate];
-        if (typeof rep === "string") {
-          repId = rep;
+    if (claimDeadline === undefined) {
+      claimDeadline = byLocalName(node, ["hasClaimDeadline", "claimDeadline", "deadlineForClaims"]);
+    }
+    if (repNode === undefined) {
+      for (const [key, value] of Object.entries(node)) {
+        if (!OFFICE_HOLDER.has(localName(key))) continue;
+        // A reference (the @id of another node), or the representative inline.
+        if (typeof value === "string") {
+          const resolved = byId.get(value);
+          if (resolved !== undefined) {
+            repNode = resolved;
+            break;
+          }
+        } else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+          repNode = value as Record<string, unknown>;
           break;
         }
       }
     }
   }
 
-  const contactForService =
-    repId !== undefined ? contactFromNode(byId.get(repId), byId) : undefined;
+  const contactForService = contactFromNode(repNode, byId);
 
   return {
     ...(contactForService !== undefined ? { contactForService } : {}),
@@ -387,28 +460,31 @@ function contactFromNode(
 ): string | undefined {
   if (node === undefined) return undefined;
 
-  const name = firstString(node, ["name", "hasName", "label", "title", "fullName"]);
+  const name = byLocalName(node, [
+    "name", "hasName", "label", "title", "fullName", "legalName", "organisationName",
+  ]);
 
-  // The address may be a reference to an address node, or a string on the node.
-  // Resolve a reference first, because the reference value is itself a string
-  // (the @id) and would otherwise be mistaken for the address.
+  // The address may be a reference to an address node (an @id string), the
+  // address inline as an object, or a plain string on the node itself. Resolve a
+  // reference first, because the reference value is itself a string (the @id)
+  // and would otherwise be mistaken for the address.
   let address: string | undefined;
-  const ref = node["hasAddress"] ?? node["address"] ?? node["postalAddress"];
-  if (typeof ref === "string" && byId.has(ref)) {
-    const addrNode = byId.get(ref);
-    if (addrNode !== undefined) {
-      const composed = [
-        firstString(addrNode, ["streetAddress", "address", "paon", "saon", "street"]),
-        firstString(addrNode, ["locality", "town", "addressLocality"]),
-        firstString(addrNode, ["postalCode", "postcode", "label"]),
-      ]
-        .filter((p): p is string => p !== undefined && p !== "")
-        .join(", ");
-      if (composed !== "") address = composed;
-    }
+  let addrValue = valueByLocalName(node, ["hasAddress", "address", "postalAddress", "location"]);
+  if (typeof addrValue === "string" && byId.has(addrValue)) {
+    addrValue = byId.get(addrValue);
   }
-  if (address === undefined) {
-    address = firstString(node, ["streetAddress", "address", "hasAddress", "postalAddress"]);
+  if (typeof addrValue === "object" && addrValue !== null && !Array.isArray(addrValue)) {
+    const an = addrValue as Record<string, unknown>;
+    const composed = [
+      byLocalName(an, ["streetAddress", "address", "paon", "saon", "street", "addressLine1", "line1"]),
+      byLocalName(an, ["locality", "town", "addressLocality", "postTown"]),
+      byLocalName(an, ["postalCode", "postcode", "postCode"]),
+    ]
+      .filter((p): p is string => p !== undefined && p !== "")
+      .join(", ");
+    if (composed !== "") address = composed;
+  } else if (typeof addrValue === "string" && addrValue.trim() !== "") {
+    address = addrValue.trim();
   }
 
   const parts = [name, address].filter((p): p is string => p !== undefined && p !== "");
@@ -471,6 +547,12 @@ export interface InsolvencyNotice {
   readonly noticeType: InsolvencyNoticeType;
   /** ISO-8601, as stated. */
   readonly noticeDate?: string;
+  /**
+   * The trustee / Official Receiver named in the notice — the lawful recipient,
+   * never the debtor — where the feed content prints it. Absent, it is resolved
+   * on demand from the notice's own page.
+   */
+  readonly contactForService?: string;
   /** The notice's public page, for opening the source from inside Lode. */
   readonly noticeUrl?: string;
 }
@@ -501,6 +583,9 @@ export function parseInsolvencyNotice(notice: GazetteNotice): InsolvencyNotice |
   // elsewhere in the notice. See parseDeceasedEstate for the bug this records.
   const postcode = lastAddress !== undefined ? postcodeIn(lastAddress) : undefined;
   const stated = [notice.content, notice.title].filter((s): s is string => s !== undefined).join(" ");
+  // The trustee / Official Receiver, where the feed content names one — so the
+  // bankruptcy letter is addressable without a second request. Never the debtor.
+  const contactForService = contactFromContent(notice.content);
 
   return {
     noticeId: notice.id,
@@ -509,6 +594,7 @@ export function parseInsolvencyNotice(notice: GazetteNotice): InsolvencyNotice |
     ...(postcode !== undefined ? { postcode } : {}),
     noticeType: insolvencyType(stated),
     ...(notice.publishedAt !== "" ? { noticeDate: notice.publishedAt } : {}),
+    ...(contactForService !== undefined ? { contactForService } : {}),
     ...(notice.noticeUrl !== undefined ? { noticeUrl: notice.noticeUrl } : {}),
   };
 }

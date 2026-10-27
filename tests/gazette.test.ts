@@ -125,6 +125,23 @@ describe("a deceased-estates notice is extracted, never inferred", () => {
     expect(parseDeceasedEstate({ id: "", title: "A", publishedAt: "x" })).toBeUndefined();
   });
 
+  it("reads the executor from the feed content so the letter is addressable without a second fetch", () => {
+    const record = parseDeceasedEstate({
+      id: "https://www.thegazette.co.uk/id/notice/2",
+      title: "Arthur Hale",
+      publishedAt: "2026-10-01T00:00:00Z",
+      content:
+        "<div><dl><dt>Address of Deceased</dt><dd>5 Vale Road, Derby, DE1 2AB</dd>" +
+        "<dt>Name &amp; Address of person to whom claims are to be given</dt>" +
+        "<dd>Hale &amp; Partners, 9 Market Place, Derby DE1 3AA</dd></dl></div>",
+    });
+    // The contact is the representative, never the deceased's own address line.
+    expect(record?.contactForService).toContain("Hale & Partners");
+    expect(record?.contactForService).toContain("Market Place");
+    expect(record?.contactForService).not.toContain("Vale Road");
+    expect(record?.postcode).toBe("DE1 2AB");
+  });
+
   it("never takes a postcode from elsewhere in the notice when the address has none", () => {
     // The deceased's address line carries no postcode, but the notice body
     // prints the solicitor's address — with its own postcode — in the claims-to
@@ -230,6 +247,31 @@ describe("a notice's contact for service is read from its JSON-LD", () => {
     expect(detail.contactForService).toContain("Jane Solicitor");
     expect(detail.contactForService).toContain("Market Square");
     expect(detail.contactForService).toContain("LS1 1AA");
+  });
+
+  it("reads the representative when the keys are expanded IRIs and it is inline", () => {
+    // How the Gazette actually serialises it: predicates as full IRIs, and the
+    // representative given inline rather than by @id reference.
+    const detail = parseNoticeDetail({
+      "@graph": [
+        {
+          "@id": "https://www.thegazette.co.uk/id/notice/9",
+          "https://www.thegazette.co.uk/def/publication#hasClaimDeadline": "2026-12-31",
+          "https://www.thegazette.co.uk/def/probate#hasPersonalRepresentative": {
+            "http://xmlns.com/foaf/0.1/name": "Oakwell Solicitors",
+            "https://www.thegazette.co.uk/def/address#hasAddress": {
+              "https://www.thegazette.co.uk/def/address#streetAddress": "12 Church Lane",
+              "https://www.thegazette.co.uk/def/address#locality": "York",
+              "https://www.thegazette.co.uk/def/address#postalCode": "YO1 7HH",
+            },
+          },
+        },
+      ],
+    });
+    expect(detail.claimDeadline).toBe("2026-12-31");
+    expect(detail.contactForService).toContain("Oakwell Solicitors");
+    expect(detail.contactForService).toContain("Church Lane");
+    expect(detail.contactForService).toContain("YO1 7HH");
   });
 
   it("returns nothing it cannot find rather than inventing it", () => {
