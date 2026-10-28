@@ -7,6 +7,7 @@ import { listSourcedProperties } from "@backend/store/repository";
 import type { ReadinessState } from "@shared/domain/sourcedLead";
 import { signalCoverage } from "@shared/domain/sourcingSignals";
 import { SourcingRun } from "./SourcingRun";
+import { OPERATOR_SIGNATURE } from "./signature";
 import { DismissForm } from "./DismissForm";
 
 export const dynamic = "force-dynamic";
@@ -70,11 +71,7 @@ export default async function SourcingPage() {
         </p>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-400">{coverage.summary}</p>
 
-        <SourcingRun
-          {...(process.env.LETTER_SIGNATURE_URL !== undefined && process.env.LETTER_SIGNATURE_URL !== ""
-            ? { signatureUrl: process.env.LETTER_SIGNATURE_URL }
-            : {})}
-        />
+        <SourcingRun signatureUrl={process.env.LETTER_SIGNATURE_URL || OPERATOR_SIGNATURE} />
 
         {active.length > 0 && (
           <section className="mt-12">
