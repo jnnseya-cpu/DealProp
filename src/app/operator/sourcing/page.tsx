@@ -8,7 +8,9 @@ import type { ReadinessState } from "@shared/domain/sourcedLead";
 import { signalCoverage } from "@shared/domain/sourcingSignals";
 import { SourcingRun } from "./SourcingRun";
 import { OPERATOR_SIGNATURE } from "@/app/components/signature";
-import { DismissForm } from "./DismissForm";
+import { WorklistLeads, type WorklistItem } from "./WorklistLeads";
+import { companyIdentity } from "@shared/domain/identity";
+import { draftHomeownerLetter } from "@shared/domain/homeownerLetter";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +56,36 @@ export default async function SourcingPage() {
   const active = worklist.filter((p) => p.dismissed === undefined);
   const setAside = worklist.length - active.length;
 
+  // One signature source for the whole page (env override, else the baked default).
+  const signature = process.env.LETTER_SIGNATURE_URL || OPERATOR_SIGNATURE;
+
+  // Refresh each worklist row's homeowner letter from the stored property facts,
+  // so rows saved before the letter existed — and all rows after a wording change
+  // — carry a current letter, to "The Homeowner" at the property. Only where there
+  // is an address to write to.
+  const sender = companyIdentity(process.env);
+  const today = new Date().toISOString().slice(0, 10);
+  const worklistItems: readonly WorklistItem[] = active.map((entry) => {
+    const address = entry.lead.propertyAddress;
+    const letter =
+      address !== undefined && address !== ""
+        ? draftHomeownerLetter({
+            sender,
+            propertyAddress: address,
+            ...(entry.lead.postcode !== undefined && entry.lead.postcode !== ""
+              ? { postcode: entry.lead.postcode }
+              : {}),
+            today,
+          })
+        : undefined;
+    return {
+      id: entry.id,
+      lead: letter !== undefined ? { ...entry.lead, letterDraft: letter } : entry.lead,
+      firstSeenAt: entry.firstSeenAt,
+      lastSeenAt: entry.lastSeenAt,
+    };
+  });
+
   return (
     <main className="min-h-screen pb-24">
       <SiteHeader trailing={<OperatorNav current="/operator/sourcing" />} />
@@ -71,7 +103,7 @@ export default async function SourcingPage() {
         </p>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-400">{coverage.summary}</p>
 
-        <SourcingRun signatureUrl={process.env.LETTER_SIGNATURE_URL || OPERATOR_SIGNATURE} />
+        <SourcingRun signatureUrl={signature} />
 
         {active.length > 0 && (
           <section className="mt-12">
@@ -84,37 +116,7 @@ export default async function SourcingPage() {
               do once. Only property facts are stored here — the distress signals (probate, insolvency)
               are shown live and never warehoused.
             </p>
-            <ul className="mt-4 space-y-4">
-              {active.map((entry) => (
-                <li key={entry.id} className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-                    <p className="font-display text-base text-ink-100">{entry.lead.label}</p>
-                    <p className="font-mono text-xs">
-                      <span className={entry.lead.strength === "strong" ? "text-emerald-300" : "text-ink-400"}>
-                        {entry.lead.strength}
-                      </span>
-                      {entry.lead.postcode !== undefined && (
-                        <>
-                          <span className="text-ink-600"> · </span>
-                          <span className="text-ink-300 tabular-nums">{entry.lead.postcode}</span>
-                        </>
-                      )}
-                    </p>
-                  </div>
-                  {entry.lead.propertyAddress !== undefined && (
-                    <p className="mt-1 text-sm font-medium text-ink-100">{entry.lead.propertyAddress}</p>
-                  )}
-                  <p className="mt-3 text-sm leading-relaxed text-ink-300">{entry.lead.summary}</p>
-                  <p className="mt-3 border-l-2 border-ink-700 pl-3 text-sm leading-relaxed text-ink-400">
-                    <span className="text-ink-300">Lawful next step.</span> {entry.lead.lawfulNextStep}
-                  </p>
-                  <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-ink-600">
-                    first seen {entry.firstSeenAt.slice(0, 10)} · last seen {entry.lastSeenAt.slice(0, 10)}
-                  </p>
-                  <DismissForm id={entry.id} />
-                </li>
-              ))}
-            </ul>
+            <WorklistLeads items={worklistItems} signature={signature} />
           </section>
         )}
 
