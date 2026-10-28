@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { resolveLetter } from "./actions";
-import type { SourcedLead } from "@shared/domain/sourcedLead";
+import { resolveLetter, markLeadContacted } from "./actions";
+import { leadContactKey, type SourcedLead } from "@shared/domain/sourcedLead";
 
 /**
  * Review, complete and print the letter to a lead's office-holder.
@@ -35,6 +35,7 @@ export function PrintLetter({ lead, signatureUrl }: { lead: SourcedLead; signatu
   const [applying, setApplying] = useState(false);
   const [tried, setTried] = useState(false);
   const [note, setNote] = useState<string | undefined>(undefined);
+  const [contacted, setContacted] = useState(false);
 
   async function onOpen() {
     if (tried || contact !== undefined || lead.sourceUrl === undefined) return;
@@ -142,6 +143,17 @@ export function PrintLetter({ lead, signatureUrl }: { lead: SourcedLead; signatu
     } else {
       w.print();
     }
+
+    // Printing is the one moment we know this property or estate has actually
+    // been approached, so record it and suppress the lead from future runs —
+    // that is the whole point of printing a letter here. Only the stable key is
+    // stored, never the person. Reversible from the Contacted list on the page.
+    const key = leadContactKey(lead);
+    if (key !== undefined && !contacted) {
+      void markLeadContacted({ key, signalKey: lead.signalKey }).then((r) => {
+        if (r.ok) setContacted(true);
+      });
+    }
   }
 
   // Only the office-holder letters (probate / bankruptcy) need a contact resolved
@@ -235,6 +247,12 @@ export function PrintLetter({ lead, signatureUrl }: { lead: SourcedLead; signatu
           {" "}The printed copy carries the Lode letterhead
           {signatureUrl !== undefined ? " and your signature" : ""} — the preview above is plain text.
         </p>
+        {contacted && (
+          <p className="mt-2 border-l-2 border-emerald-500/70 pl-3 text-[12px] leading-relaxed text-ink-300">
+            Marked as written to — this lead won&apos;t appear in future searches. You can restore it
+            from the <span className="text-ink-200">Contacted</span> list on the sourcing page.
+          </p>
+        )}
       </div>
     </details>
   );

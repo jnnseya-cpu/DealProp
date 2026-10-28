@@ -6,7 +6,14 @@ import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
 import { revalidatePath } from "next/cache";
 import { runFromArea, runFromCouncil, runRegisters } from "@backend/discovery/sourcingRun";
-import { listSourcedProperties, saveDeal, saveSourcedProperty } from "@backend/store/repository";
+import {
+  clearContactedLead,
+  listContactedLeads,
+  listSourcedProperties,
+  markContactedLead,
+  saveDeal,
+  saveSourcedProperty,
+} from "@backend/store/repository";
 import { buildIntake, type IntakeAnswers } from "@shared/domain/intake";
 import { bps, fromMajor, ZERO } from "@shared/money";
 import { newToken } from "@backend/auth/tokens";
@@ -16,6 +23,7 @@ import { companyIdentity } from "@shared/domain/identity";
 import { draftProbateLetter } from "@shared/domain/probateLetter";
 import { draftInsolvencyLetter } from "@shared/domain/insolvencyLetter";
 import { enrichAddress } from "@backend/discovery/enrich";
+import { leadContactKey } from "@shared/domain/sourcedLead";
 import type { FlipEvidence, LeadSignal, SourcedLead } from "@shared/domain/sourcedLead";
 import type { JurisdictionCode, PropertyType, SellerSituation, Tenure } from "@shared/domain/types";
 
@@ -25,6 +33,9 @@ const PROPERTY_TYPES = new Set<PropertyType>([
   "house", "flat", "bungalow", "hmo", "commercial", "mixed-use", "land",
 ]);
 const JURISDICTIONS = new Set<JurisdictionCode>(["GB-ENG", "GB-SCT", "GB-WLS", "GB-NIR"]);
+const LEAD_SIGNALS = new Set<LeadSignal>([
+  "prepared-but-unsold", "probate-notice", "owner-insolvent", "negative-equity",
+]);
 
 /** The human reference, random so it reveals no running count. */
 function dealReference(): string {
@@ -82,13 +93,21 @@ export async function runAreaAction(
   const isPostcode = UK_POSTCODE.test(raw);
   const result = isPostcode ? await runFromArea(raw.toUpperCase()) : await runFromCouncil(raw);
 
+  // Drop anything already written to, so a run never re-surfaces a property a
+  // letter has already gone to. Suppression is keyed by the lead's stable id.
+  const contacted = new Set((await listContactedLeads()).map((c) => c.key));
+  const leads = result.leads.filter((lead) => {
+    const key = leadContactKey(lead);
+    return key === undefined || !contacted.has(key);
+  });
+
   // Persist the worklist — but ONLY the property-fact leads. The distress leads
   // (negative equity here) are shown live and never warehoused: a list of the
   // possibly-underwater is exactly what data minimisation exists to prevent, so
   // the store will not hold one.
   const now = new Date().toISOString();
   let saved = 0;
-  for (const lead of result.leads) {
+  for (const lead of leads) {
     if (lead.signalKey !== "prepared-but-unsold" || lead.addressKey === undefined) continue;
     await saveSourcedProperty({ id: lead.addressKey, lead, firstSeenAt: now, lastSeenAt: now });
     saved += 1;
@@ -97,14 +116,14 @@ export async function runAreaAction(
   await audit("mandate-saved", {
     ...(author !== undefined ? { account: author } : {}),
     subject: isPostcode ? "sourcing-run-area" : "sourcing-run-council",
-    detail: `${isPostcode ? "Postcode" : "Council"} run for ${raw}: ${result.certificates} certificate(s), ${result.sales} sale(s), ${result.leads.length} lead(s), ${saved} saved to the worklist.`,
+    detail: `${isPostcode ? "Postcode" : "Council"} run for ${raw}: ${result.certificates} certificate(s), ${result.sales} sale(s), ${leads.length} lead(s), ${saved} saved to the worklist.`,
   });
 
   if (saved > 0) revalidatePath("/operator/sourcing");
   return {
-    ok: result.leads.length > 0,
+    ok: leads.length > 0,
     message: result.note,
-    leads: result.leads,
+    leads,
     flips: result.flips,
     notes: result.notes,
   };
@@ -147,6 +166,73 @@ export async function dismissSourcedPropertyAction(
 
   revalidatePath("/operator/sourcing");
   return { ok: true, message: "Set aside." };
+}
+
+/**
+ * Mark a lead as written to, so it never surfaces on a future run.
+ *
+ * Called when the operator prints a letter — the one moment we know a property
+ * or estate has actually been approached, so a second letter would be a repeat.
+ * Only the lead's stable key is stored (§59 data minimisation); the distress
+ * lead itself is never warehoused. Idempotent, reversible, and a POST endpoint
+ * of its own, so it checks its own permission (§29). Returns ok even when the
+ * key was already marked — printing a letter twice is not an error here.
+ */
+export async function markLeadContacted(input: {
+  readonly key: string;
+  readonly signalKey: LeadSignal;
+}): Promise<{ ok: boolean }> {
+  const viewer = await requirePermission("manage-mandates", "/operator/sourcing");
+  const author = viewerAccount(viewer);
+
+  const key = input.key.trim();
+  if (key === "" || !LEAD_SIGNALS.has(input.signalKey)) return { ok: false };
+
+  const marked = await markContactedLead({
+    key,
+    signalKey: input.signalKey,
+    contactedAt: new Date().toISOString(),
+    by: author?.email ?? "operator",
+  });
+  if (marked) {
+    await audit("mandate-saved", {
+      ...(author !== undefined ? { account: author } : {}),
+      subject: `sourced-lead-contacted:${input.signalKey}`,
+      detail: `Letter printed; lead suppressed from future runs. key=${key}`,
+    });
+    revalidatePath("/operator/sourcing");
+  }
+  return { ok: true };
+}
+
+/**
+ * Restore a contacted lead so it can surface again — the undo for a suppression.
+ *
+ * Reversibility matters: a print opened to review, then not posted, must not
+ * hide a property for good. Clearing the mark lets the lead reappear on the next
+ * run. Low-stakes and operator-only, so the shared operator may do it; it checks
+ * its own permission (§29) all the same.
+ */
+export async function restoreContactedLeadAction(
+  _previous: { ok: boolean; message: string } | undefined,
+  formData: FormData,
+): Promise<{ ok: boolean; message: string }> {
+  const viewer = await requirePermission("manage-mandates", "/operator/sourcing");
+  const author = viewerAccount(viewer);
+
+  const key = String(formData.get("key") ?? "").trim();
+  if (key === "") return { ok: false, message: "No lead identified." };
+
+  const removed = await clearContactedLead(key);
+  if (removed) {
+    await audit("mandate-deleted", {
+      ...(author !== undefined ? { account: author } : {}),
+      subject: "sourced-lead-contacted",
+      detail: `Suppression cleared; lead may surface again. key=${key}`,
+    });
+    revalidatePath("/operator/sourcing");
+  }
+  return { ok: true, message: removed ? "Restored." : "Nothing to restore." };
 }
 
 export interface ResolvedLetter {
@@ -422,19 +508,28 @@ export async function runRegistersAction(
     ...(process.env.GAZETTE_INSOLVENCY_CODE !== undefined ? { insolvencyCode: process.env.GAZETTE_INSOLVENCY_CODE } : {}),
   });
 
+  // A notice already written to (its office-holder) does not come back: the
+  // suppression is keyed by the notice's own public URL, the one stable id these
+  // live leads carry. Nothing about the person is stored to do this.
+  const contacted = new Set((await listContactedLeads()).map((c) => c.key));
+  const leads = result.leads.filter((lead) => {
+    const key = leadContactKey(lead);
+    return key === undefined || !contacted.has(key);
+  });
+
   await audit("mandate-saved", {
     ...(author !== undefined ? { account: author } : {}),
     subject: "sourcing-run-registers",
-    detail: `Register run: ${result.requestsMade} request(s), ${result.leads.length} lead(s). ${result.notes.join(" ")}`,
+    detail: `Register run: ${result.requestsMade} request(s), ${leads.length} lead(s). ${result.notes.join(" ")}`,
   });
 
   return {
-    ok: result.leads.length > 0,
+    ok: leads.length > 0,
     message:
-      result.leads.length > 0
-        ? `${result.leads.length} lead(s) from the public registers in ${result.requestsMade} request(s).`
+      leads.length > 0
+        ? `${leads.length} lead(s) from the public registers in ${result.requestsMade} request(s).`
         : "No leads. The registers were not reachable from here, or no notice code is configured — see the notes.",
-    leads: result.leads,
+    leads,
     flips: [],
     notes: result.notes,
   };

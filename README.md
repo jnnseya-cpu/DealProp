@@ -135,7 +135,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Property discovery | `src/backend/discovery/properties.ts` | Price Paid joined to the EPC register: prepared for sale, never sold; flips; negative equity |
 | Gazette adapter | `src/backend/discovery/gazette.ts` | Deceased-estates and personal-insolvency notices at source: probate and insolvency without a portal |
 | Insolvency Register | `src/backend/discovery/insolvencyRegister.ts` | Authoritative per-person confirmation of a current insolvency; internal analysis only |
-| Sourcing run | `src/backend/discovery/sourcingRun.ts` | Joins the adapters into ranked leads (prepared-but-unsold, probate, insolvency, negative-equity) plus flip evidence, each with its lawful next step — surfaced at `/operator/sourcing` |
+| Sourcing run | `src/backend/discovery/sourcingRun.ts` | Joins the adapters into ranked leads (prepared-but-unsold, probate, insolvency, negative-equity) plus flip evidence, each with its lawful next step — surfaced at `/operator/sourcing`. Printing a lead's letter marks it contacted, and a contacted lead is suppressed from every future run (keyed by its address or public notice URL — never the person; reversible from the page) |
 | Seller consent | `src/shared/domain/sellerConsent.ts` | The privacy-notice version shown and the ownership affirmation, recorded with every enquiry — the lawful basis for holding the rest |
 | Strategy signals | `src/shared/domain/sourcingSignals.ts` | Every motivated-seller filter, mapped to the licensed source or marked as needing a portal feed |
 | Listing-data seam | `src/shared/domain/listingData.ts` | Port for a licensed listing reseller; fails closed, flips the portal signals live when wired |

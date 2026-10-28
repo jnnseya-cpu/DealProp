@@ -36,6 +36,7 @@ import type {
   PendingCharge,
   StoredCandidate,
   StoredSourcedProperty,
+  ContactedLead,
   StoredImportedListing,
   StoredNotification,
   Suppression,
@@ -292,6 +293,14 @@ const SCHEMA = `
     id text PRIMARY KEY,
     data jsonb NOT NULL,
     submitted_at timestamptz NOT NULL
+  );
+  -- Leads already written to, suppressed from future runs. Keyed by the lead's
+  -- own stable identity (address key, or public notice URL) — never the distress
+  -- lead itself. The PRIMARY KEY makes the mark idempotent.
+  CREATE TABLE IF NOT EXISTS contacted_leads (
+    key text PRIMARY KEY,
+    data jsonb NOT NULL,
+    contacted_at timestamptz NOT NULL
   );
   -- Append-only enforced by the database, not by convention.
   --
@@ -1190,6 +1199,33 @@ export const postgresStore: Store = {
       );
       return merged;
     });
+  },
+
+  async listContactedLeads(): Promise<readonly ContactedLead[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: ContactedLead }>(
+      "SELECT data FROM contacted_leads ORDER BY contacted_at DESC",
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async markContactedLead(entry: ContactedLead): Promise<boolean> {
+    await ensureSchema();
+    // ON CONFLICT DO NOTHING makes the mark idempotent; rowCount is 0 when the
+    // key was already present, which is the "already contacted" answer.
+    const result = await getPool().query(
+      `INSERT INTO contacted_leads (key, data, contacted_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (key) DO NOTHING`,
+      [entry.key, JSON.stringify(entry), entry.contactedAt],
+    );
+    return (result.rowCount ?? 0) > 0;
+  },
+
+  async clearContactedLead(key: string): Promise<boolean> {
+    await ensureSchema();
+    const result = await getPool().query("DELETE FROM contacted_leads WHERE key = $1", [key]);
+    return (result.rowCount ?? 0) > 0;
   },
 
   async listImportedListings(): Promise<readonly StoredImportedListing[]> {

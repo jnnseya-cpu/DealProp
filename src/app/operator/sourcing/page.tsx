@@ -3,12 +3,13 @@ import { SiteHeader } from "@/app/components/chrome";
 import { requirePermission } from "@/app/operator/guard";
 import { getSource } from "@shared/domain/sources";
 import { sourcingReadiness } from "@backend/discovery/sourcingRun";
-import { listSourcedProperties } from "@backend/store/repository";
-import type { ReadinessState } from "@shared/domain/sourcedLead";
+import { listContactedLeads, listSourcedProperties } from "@backend/store/repository";
+import type { LeadSignal, ReadinessState } from "@shared/domain/sourcedLead";
 import { signalCoverage } from "@shared/domain/sourcingSignals";
 import { SourcingRun } from "./SourcingRun";
 import { OPERATOR_SIGNATURE } from "@/app/components/signature";
 import { WorklistLeads, type WorklistItem } from "./WorklistLeads";
+import { ContactedLeads, type ContactedRow } from "./ContactedLeads";
 import { companyIdentity } from "@shared/domain/identity";
 import { draftHomeownerLetter } from "@shared/domain/homeownerLetter";
 
@@ -53,8 +54,38 @@ export default async function SourcingPage() {
   const refused = getSource("portal-listings");
 
   const worklist = await listSourcedProperties();
-  const active = worklist.filter((p) => p.dismissed === undefined);
-  const setAside = worklist.length - active.length;
+  const contacted = await listContactedLeads();
+  const contactedKeys = new Set(contacted.map((c) => c.key));
+
+  // Active worklist excludes both what a person set aside and what a letter has
+  // already gone to — the latter keyed by the property's id (its address key).
+  const active = worklist.filter((p) => p.dismissed === undefined && !contactedKeys.has(p.id));
+  const setAside = worklist.filter((p) => p.dismissed !== undefined).length;
+
+  // The contacted list spans all three doors. For a prepared-but-unsold property
+  // the worklist still holds its address to show; a probate or insolvency notice
+  // is keyed by its public URL and nothing else is stored, so that URL is all
+  // there is to show — which is exactly the point.
+  const CONTACTED_TITLE: Record<LeadSignal, string> = {
+    "prepared-but-unsold": "Prepared for sale, never sold",
+    "probate-notice": "Probate (deceased estate)",
+    "owner-insolvent": "Owner in insolvency",
+    "negative-equity": "Possible negative equity",
+  };
+  const worklistById = new Map(worklist.map((p) => [p.id, p]));
+  const contactedRows: readonly ContactedRow[] = contacted.map((c) => {
+    const address = worklistById.get(c.key)?.lead.propertyAddress;
+    const isNotice = /^https?:\/\//i.test(c.key);
+    return {
+      key: c.key,
+      signalKey: c.signalKey,
+      contactedAt: c.contactedAt,
+      by: c.by,
+      title: CONTACTED_TITLE[c.signalKey],
+      ...(address !== undefined ? { address } : {}),
+      ...(isNotice ? { noticeUrl: c.key } : {}),
+    };
+  });
 
   // One signature source for the whole page (env override, else the baked default).
   const signature = process.env.LETTER_SIGNATURE_URL || OPERATOR_SIGNATURE;
@@ -117,6 +148,20 @@ export default async function SourcingPage() {
               are shown live and never warehoused.
             </p>
             <WorklistLeads items={worklistItems} signature={signature} />
+          </section>
+        )}
+
+        {contactedRows.length > 0 && (
+          <section className="mt-12">
+            <h2 className="eyebrow">
+              Contacted — {contactedRows.length} suppressed from future searches
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-400">
+              A letter has been printed for each of these, so they are kept out of the three sourcing
+              doors to stop a second approach. Only the property reference is held — never the
+              person. Restore any one to let it surface again on the next run.
+            </p>
+            <ContactedLeads items={contactedRows} />
           </section>
         )}
 

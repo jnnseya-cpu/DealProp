@@ -951,6 +951,52 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       });
     });
 
+    describe("contacted leads (suppressed from future runs)", () => {
+      const entry = (over: Partial<Parameters<Store["markContactedLead"]>[0]> = {}) => ({
+        key: "B29 6AD|14|ACACIA AVENUE",
+        signalKey: "prepared-but-unsold" as const,
+        contactedAt: "2026-10-28T00:00:00.000Z",
+        by: "ops@example.com",
+        ...over,
+      });
+
+      it("is empty to begin with", async () => {
+        expect(await store.listContactedLeads()).toEqual([]);
+      });
+
+      it("marks a lead and lists it", async () => {
+        const marked = await store.markContactedLead(entry());
+        expect(marked).toBe(true);
+        const all = await store.listContactedLeads();
+        expect(all).toHaveLength(1);
+        expect(all[0]?.key).toBe("B29 6AD|14|ACACIA AVENUE");
+      });
+
+      it("is idempotent — a second mark of the same key returns false and adds no row", async () => {
+        await store.markContactedLead(entry());
+        const second = await store.markContactedLead(entry({ by: "someone@example.com" }));
+        expect(second).toBe(false);
+        expect(await store.listContactedLeads()).toHaveLength(1);
+      });
+
+      it("keeps a notice URL as the key, so a live lead is suppressed without warehousing it", async () => {
+        await store.markContactedLead(
+          entry({ key: "https://www.thegazette.co.uk/notice/4601234", signalKey: "probate-notice" }),
+        );
+        const all = await store.listContactedLeads();
+        expect(all[0]?.key).toBe("https://www.thegazette.co.uk/notice/4601234");
+        expect(all[0]?.signalKey).toBe("probate-notice");
+      });
+
+      it("clears a mark, so the lead can surface again", async () => {
+        await store.markContactedLead(entry());
+        expect(await store.clearContactedLead(entry().key)).toBe(true);
+        expect(await store.listContactedLeads()).toEqual([]);
+        // Clearing something already gone is a no-op, not an error.
+        expect(await store.clearContactedLead(entry().key)).toBe(false);
+      });
+    });
+
     describe("imported listings", () => {
       const base = {
         id: "https://www.auctions.co.uk/lot/1",

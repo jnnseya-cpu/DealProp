@@ -36,6 +36,7 @@ import type {
   PendingCharge,
   StoredCandidate,
   StoredSourcedProperty,
+  ContactedLead,
   StoredImportedListing,
   StoredNotification,
   Suppression,
@@ -98,6 +99,7 @@ function emptyDatabase(): Database {
     discoveryCandidates: [],
     sourcedProperties: [],
     importedListings: [],
+    contactedLeads: [],
     outreachMessages: [],
     suppressions: [],
     dataRoomGrants: [],
@@ -138,6 +140,7 @@ async function readDatabase(): Promise<Database> {
       // Absent in any store written before the sourcing worklist existed.
       sourcedProperties: parsed.sourcedProperties ?? [],
       importedListings: parsed.importedListings ?? [],
+      contactedLeads: parsed.contactedLeads ?? [],
       outreachMessages: parsed.outreachMessages ?? [],
       suppressions: parsed.suppressions ?? [],
       dataRoomGrants: parsed.dataRoomGrants ?? [],
@@ -784,6 +787,30 @@ async function saveSourcedProperty(entry: StoredSourcedProperty): Promise<Stored
   });
 }
 
+async function listContactedLeads(): Promise<readonly ContactedLead[]> {
+  const db = await readDatabase();
+  return [...(db.contactedLeads ?? [])].sort((a, b) => b.contactedAt.localeCompare(a.contactedAt));
+}
+
+async function markContactedLead(entry: ContactedLead): Promise<boolean> {
+  return mutate((db) => {
+    const list = db.contactedLeads ?? (db.contactedLeads = []);
+    if (list.some((c) => c.key === entry.key)) return false;
+    list.push(entry);
+    return true;
+  });
+}
+
+async function clearContactedLead(key: string): Promise<boolean> {
+  return mutate((db) => {
+    const list = db.contactedLeads ?? (db.contactedLeads = []);
+    const index = list.findIndex((c) => c.key === key);
+    if (index < 0) return false;
+    list.splice(index, 1);
+    return true;
+  });
+}
+
 async function listImportedListings(): Promise<readonly StoredImportedListing[]> {
   const db = await readDatabase();
   return [...(db.importedListings ?? [])].sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
@@ -1193,6 +1220,9 @@ export const fileStore: Store = {
   saveDiscoveryCandidate,
   listSourcedProperties,
   saveSourcedProperty,
+  listContactedLeads,
+  markContactedLead,
+  clearContactedLead,
   listImportedListings,
   saveImportedListing,
   listOutreachMessages,

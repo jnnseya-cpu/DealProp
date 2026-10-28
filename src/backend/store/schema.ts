@@ -14,7 +14,7 @@ import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { Channel, LawfulBasis, Severity } from "@shared/domain/notifications";
 import type { SellerEnquiryConsent } from "@shared/domain/sellerConsent";
-import type { SourcedLead } from "@shared/domain/sourcedLead";
+import type { LeadSignal, SourcedLead } from "@shared/domain/sourcedLead";
 import type { ImportedListing, SubmitterRole } from "@shared/domain/listingImport";
 import type { AgentDecision } from "@shared/domain/agents";
 import type {
@@ -376,6 +376,11 @@ export interface Database {
   sourcedProperties?: StoredSourcedProperty[];
   /** Listings imported from a link by their rights-holder. Optional, as above. */
   importedListings?: StoredImportedListing[];
+  /**
+   * Leads already written to, suppressed from future runs. Only the stable key
+   * is kept — never the distress lead itself. Optional, as above.
+   */
+  contactedLeads?: ContactedLead[];
   outreachMessages: OutreachMessage[];
   dataRoomGrants: DataRoomGrant[];
   pendingCharges: PendingCharge[];
@@ -514,6 +519,29 @@ export interface StoredSourcedProperty {
   readonly lastSeenAt: string;
   /** Set aside by a named person, with a reason. Survives a rerun. */
   readonly dismissed?: { readonly at: string; readonly by: string; readonly reason: string };
+}
+
+/**
+ * A lead already written to, so it is suppressed from every future sourcing run.
+ *
+ * The purpose is to stop the same property or estate being printed and posted to
+ * twice — a second letter is a waste at best and, on a probate or insolvency
+ * notice, exactly the repeated approach the protections guard against.
+ *
+ * `key` is the lead's own stable identity: the address key for a
+ * prepared-but-unsold property (the same id the worklist uses), the public
+ * notice URL for a probate or insolvency notice. That is deliberately ALL this
+ * holds. It is not a warehouse of the bereaved or the insolvent — the distress
+ * leads are still never stored (§59, data minimisation). A Gazette notice URL is
+ * a public reference, not a person's details, and keeping it to prevent a second
+ * approach is the conduct the protections want, not the thing they forbid. It is
+ * reversible: a named person can clear a mark and the lead returns on the next run.
+ */
+export interface ContactedLead {
+  readonly key: string;
+  readonly signalKey: LeadSignal;
+  readonly contactedAt: string;
+  readonly by: string;
 }
 
 /**
@@ -1039,6 +1067,13 @@ export interface Store {
   listSourcedProperties(): Promise<readonly StoredSourcedProperty[]>;
   /** Upsert by address key. firstSeenAt and a dismissal survive a rerun. */
   saveSourcedProperty(entry: StoredSourcedProperty): Promise<StoredSourcedProperty>;
+
+  /** Leads already written to and therefore suppressed from future results. */
+  listContactedLeads(): Promise<readonly ContactedLead[]>;
+  /** Idempotent upsert by key. Returns false where the key was already marked. */
+  markContactedLead(entry: ContactedLead): Promise<boolean>;
+  /** Clear a mark so the lead can resurface. Returns true if one was removed. */
+  clearContactedLead(key: string): Promise<boolean>;
 
   /** Listings imported by their rights-holder, most recent first. */
   listImportedListings(): Promise<readonly StoredImportedListing[]>;

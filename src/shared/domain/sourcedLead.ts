@@ -62,6 +62,26 @@ export interface SourcedLead {
 }
 
 /**
+ * The stable identity a lead is suppressed by once it has been written to.
+ *
+ * A prepared-but-unsold property is keyed by its address key (the same id the
+ * worklist uses); a probate or insolvency notice by its public notice URL. These
+ * are the only signals that carry a letter to print, so the only ones that can
+ * be "contacted". Returns undefined for anything else, or where the lead carries
+ * neither key — it then cannot be suppressed, which is the safe default (it may
+ * reappear) rather than risk suppressing the wrong thing on a shared key.
+ */
+export function leadContactKey(
+  lead: Pick<SourcedLead, "signalKey" | "addressKey" | "sourceUrl">,
+): string | undefined {
+  if (lead.signalKey === "prepared-but-unsold") return lead.addressKey;
+  if (lead.signalKey === "probate-notice" || lead.signalKey === "owner-insolvent") {
+    return lead.sourceUrl;
+  }
+  return undefined;
+}
+
+/**
  * A completed nearby refurbishment, as market evidence — not a lead.
  *
  * A flip someone else already did tells you the finished value the street will
