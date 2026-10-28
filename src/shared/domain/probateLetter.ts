@@ -110,7 +110,7 @@ export function draftProbateLetter(input: ProbateLetterInput): string {
     "",
     `We are ${name}, a property purchasing and advisory business. Where an estate includes a residential property that the personal representatives wish to sell, we may be able to help — with a direct purchase, a sale in a timescale that suits the estate, or simply an honest view of the options. There is no obligation.`,
     "",
-    "If the estate sells to us, there is nothing for the estate to pay us: no commission and no fees of any kind. We are the buyer, not an agent, and the estate would instruct its own solicitor as in any sale.",
+    "To be clear about cost: if the estate sells to us there is nothing for the estate to pay us — no commission and no fees of any kind, no listing fee, and nothing to pay up front. We are the buyer, not an agent, and the estate would instruct its own solicitor as in any sale. There is no obligation at any stage.",
     "",
     "Please take independent advice before any decision, and obtain more than one valuation: a high-street estate agent may achieve a higher price if the estate can wait and the property is marketed in the usual way. Any figure we put forward will state plainly what it is and what it is not.",
     "",

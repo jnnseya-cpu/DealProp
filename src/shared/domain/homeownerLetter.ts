@@ -90,7 +90,7 @@ export function draftHomeownerLetter(input: HomeownerLetterInput): string {
     "",
     `If you have ever thought about selling, we may be able to offer a straightforward, chain-free purchase, and we would be glad to talk with no obligation whatsoever. We should be plain about one thing: we are writing as a prospective buyer, not as your agent, and if your aim is the highest possible price a good estate agent would usually achieve more than a direct sale to a buyer like us. What we offer is speed and certainty, which suits some situations and not others.`,
     "",
-    "And to be clear about cost: selling to us is free to you. There is no commission and no fee of any kind to pay us — we are the buyer, not an agent. You would instruct your own conveyancer, as you would in any sale.",
+    "And to be completely clear about cost: selling to us is free to you. There is no commission and no fee of any kind to pay us — no listing fee, and nothing to pay up front. We are the buyer, not an agent, and you would instruct your own conveyancer, as you would in any sale. There is no obligation at any stage.",
     "",
     `If it is of interest, you can reach us at ${email}${phoneLine}. If you would prefer not to hear from us again, one line to the same address is enough and we will not write to this property again.`,
     "",

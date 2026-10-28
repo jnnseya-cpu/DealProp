@@ -92,7 +92,7 @@ export function draftInsolvencyLetter(input: InsolvencyLetterInput): string {
     "",
     `We are ${name}, a property purchasing business. Where the estate includes residential property to be realised, we may be able to assist with a prompt, chain-free purchase, and we are ready to provide proof of funds on request. We understand your duty to obtain the best price reasonably obtainable, and we would expect any sale to be at arm's length and properly evidenced; this is an expression of interest, not an offer, and carries no obligation.`,
     "",
-    "A purchase by us carries no fee or commission payable to the estate: we are the buyer, not an agent, so nothing is deducted from what the estate realises on our side of the transaction.",
+    "To be clear about cost: a purchase by us carries no fee or commission payable to the estate — no fees of any kind, and nothing to pay up front. We are the buyer, not an agent, so nothing is deducted from what the estate realises on our side of the transaction.",
     "",
     `If a property in the estate is to be marketed or sold, we would be glad to be considered. You can reach us at ${email}${phoneLine}. If you would prefer we did not write again, one line to the same address is enough.`,
     "",
