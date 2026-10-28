@@ -28,6 +28,7 @@ const ITEMS: readonly Item[] = [
   { href: "#goldmine", label: "GoldMine" },
   { href: "#close", label: "Close" },
   { href: "#pricing", label: "Pricing" },
+  { href: "/join", label: "Create account" },
   { href: "/operator", label: "Sign in" },
 ];
 
@@ -63,7 +64,7 @@ export function LandingNav() {
     <div className="relative flex items-center">
       {/* Laptop and up: inline row (the sign-in link is handled by the page). */}
       <div className="hidden items-center gap-7 text-[13px] text-ink-400 lg:flex">
-        {ITEMS.filter((i) => i.href !== "/operator").map((item) => (
+        {ITEMS.filter((i) => i.href !== "/operator" && i.href !== "/join").map((item) => (
           <NavLink key={item.href} item={item} className="transition-colors hover:text-ink-100" />
         ))}
       </div>

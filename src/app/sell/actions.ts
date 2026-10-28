@@ -22,6 +22,8 @@ import type {
 import { allSituations } from "@shared/domain/motivation";
 import { newToken } from "@backend/auth/tokens";
 import { saveDeal } from "@backend/store/repository";
+import { cookies } from "next/headers";
+import { readSession, SESSION_COOKIE } from "@backend/auth/session";
 import { callerFrom, consume } from "@backend/rateLimit";
 import { headers as nextHeaders } from "next/headers";
 
@@ -186,6 +188,16 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
 
   const intake = buildIntake(answers);
 
+  // Tie the submission to a seller account where one is signed in, so it shows
+  // on their dashboard. Read straight from the signed session cookie, not
+  // through the page guard: this is attribution, not authorisation — the form
+  // stays open to everyone (public by design) and the capability link below is
+  // the way back either way. The id is HMAC-verified by readSession, so it is
+  // authentic even though nothing here gates on it.
+  const sessionJar = await cookies();
+  const claims = await readSession(sessionJar.get(SESSION_COOKIE)?.value, process.env.OPERATOR_SECRET);
+  const ownerAccountId = claims?.accountId;
+
   // The URL this returns is the seller's only way back to their own result and
   // it carries their situation, their figures and the safeguards raised on
   // their behalf. It was previously derived from the postcode, the locality and
@@ -200,6 +212,7 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
     createdAt: new Date().toISOString(),
     property: intake.property,
     seller: intake.seller,
+    ...(ownerAccountId !== undefined ? { ownerAccountId } : {}),
     // The enquiry carries no agreed price yet: the routes page derives what an
     // investor could pay. A placeholder price keeps the record shape valid and
     // is never shown to the seller.

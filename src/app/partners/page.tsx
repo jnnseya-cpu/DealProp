@@ -64,7 +64,8 @@ export default async function PartnersPage() {
           <nav className="flex items-center gap-5 text-[13px] text-ink-400">
             <Link href="/appraise" className="transition-colors hover:text-ink-100">Appraisal</Link>
             <Link href="/sell" className="transition-colors hover:text-ink-100">Selling</Link>
-            <Button href="/operator" size="sm">Sign in</Button>
+            <Link href="/operator" className="hidden transition-colors hover:text-ink-100 sm:block">Sign in</Link>
+            <Button href="/join?role=partner" size="sm" variant="primary">Create account</Button>
           </nav>
         }
       />
@@ -272,7 +273,8 @@ export default async function PartnersPage() {
         </section>
 
         <div className="mt-12 flex flex-wrap items-center gap-3 border-t hairline pt-8">
-          <Button href="/sell" variant="primary">Send a seller to their options</Button>
+          <Button href="/join?role=partner" variant="primary">Create your agent account</Button>
+          <Button href="/sell">Send a seller to their options</Button>
           <Button href="/appraise">Appraise a deal</Button>
         </div>
       </div>

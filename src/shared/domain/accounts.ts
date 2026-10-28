@@ -33,12 +33,19 @@ export type Role =
   | "funder"
   /**
    * External. An estate agent or auctioneer who lists their own stock here.
-   * Created by an operator, which is the verification: a partner account exists
-   * because somebody with authority decided this firm may publish. They may
-   * import and manage their OWN listings and nothing else — no seller data, no
-   * mandates, no deal material.
+   * May import and manage their OWN listings and nothing else — no seller data,
+   * no mandates, no deal material.
    */
-  | "partner";
+  | "partner"
+  /**
+   * External. Someone selling their own property. Holds the least privilege of
+   * any role: they may submit a property and track the ones they submitted while
+   * signed in, and nothing else — never another seller's enquiry, never a
+   * mandate, never deal material. The /sell flow stays open to people with no
+   * account at all (a capability link to their options); a seller account simply
+   * ties their submissions to a login and a dashboard.
+   */
+  | "seller";
 
 export type Permission =
   | "manage-accounts"
@@ -71,6 +78,15 @@ export type Permission =
    * else — a partner never sees seller data, a mandate or deal material.
    */
   | "import-own-listings"
+  /**
+   * Submit and track one's OWN property, and no one else's.
+   *
+   * The seller self-service permission. A seller holds it and reaches `/account`
+   * to submit a property and see the ones they submitted; ownership by
+   * `ownerAccountId` on the deal keeps "own" honest. It carries nothing else — a
+   * seller never sees another enquiry, a mandate or deal material.
+   */
+  | "manage-own-property"
   | "view-audit-log"
   /**
    * Blog performance: view counts and the SEO audit.
@@ -109,6 +125,9 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   // A partner lists their own stock and nothing more. No seller data, no
   // mandates, no deal material — the least privilege that does the job.
   partner: ["import-own-listings"],
+  // A seller submits and tracks their own property and nothing more. The
+  // smallest grant on the platform.
+  seller: ["manage-own-property"],
 };
 
 export interface InvestorCertification {
@@ -378,6 +397,32 @@ export function managesAllImports(
   return can(account, "manage-mandates", now).allowed;
 }
 
+/**
+ * Whether this account may see or manage a particular property submission.
+ *
+ * The seller counterpart to `canManageMandate`. An operator (via
+ * `view-seller-data`) works every deal; a seller sees only the properties they
+ * submitted, and the ownership check is what keeps that honest — a seller must
+ * never reach another seller's enquiry, which is the most sensitive data on the
+ * platform.
+ */
+export function canManageProperty(
+  account: Pick<Account, "id" | "role" | "disabledAt" | "certification">,
+  propertyOwnerId: string | undefined,
+  now: Date = new Date(),
+): AccessDecision {
+  const staff = can(account, "view-seller-data", now);
+  if (staff.allowed) return staff;
+
+  const own = can(account, "manage-own-property", now);
+  if (!own.allowed) return own;
+
+  if (propertyOwnerId === account.id) {
+    return { allowed: true, reason: "Granted: the account owns this property submission." };
+  }
+  return { allowed: false, reason: "That property belongs to another account." };
+}
+
 
 function article(word: string): string {
   return /^[aeiou]/i.test(word) ? "An" : "A";
@@ -391,6 +436,7 @@ const PERMISSION_LABELS: Record<Permission, string> = {
   "manage-mandates": "create or edit any mandate",
   "manage-own-mandates": "create or edit their own mandates",
   "import-own-listings": "import and manage their own listings",
+  "manage-own-property": "submit and track their own property",
   "view-audit-log": "read the audit trail",
   "view-content-performance": "see how the blog is performing",
 };
@@ -435,7 +481,21 @@ export function mayStartTrial(
   return { allowed: true, reason: "No trial has been started on this account." };
 }
 
-export const ALL_ROLES: readonly Role[] = ["admin", "operator", "investor", "funder", "partner"];
+export const ALL_ROLES: readonly Role[] = [
+  "admin", "operator", "investor", "funder", "partner", "seller",
+];
+
+/**
+ * The roles a visitor may give themselves at public sign-up.
+ *
+ * Staff roles (`admin`, `operator`) are never here: a privilege that reaches
+ * seller data or the whole platform is granted by a named administrator, never
+ * claimed by whoever filled in a form. The self-service grants are all
+ * least-privilege and own-scoped, and the two that can reach a financial
+ * promotion (investor, funder) still see nothing until they certify (§FPO) —
+ * so self-registration widens who can sign up, never what a fresh account sees.
+ */
+export const SELF_SERVICE_ROLES: readonly Role[] = ["seller", "investor", "funder", "partner"];
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Administrator",
@@ -443,4 +503,5 @@ export const ROLE_LABELS: Record<Role, string> = {
   investor: "Investor",
   funder: "Capital provider",
   partner: "Partner (agent or auctioneer)",
+  seller: "Seller",
 };

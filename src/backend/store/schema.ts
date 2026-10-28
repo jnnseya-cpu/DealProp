@@ -54,6 +54,15 @@ export interface DealRecord {
   readonly property: PropertyFacts;
   readonly seller: SellerProfile;
   readonly inputs: DealInputs;
+  /**
+   * The seller account that submitted this, where one was signed in.
+   *
+   * Absent for an operator-entered deal or a submission made with no account —
+   * the /sell flow stays open to people who never register. When present it
+   * lets a seller see their own submissions on their dashboard, scoped by
+   * `canManageProperty`; it never widens who else may see the deal.
+   */
+  readonly ownerAccountId?: string;
   readonly listing?: ListingSignal;
   readonly milestones?: readonly Milestone[];
   /**
@@ -874,6 +883,15 @@ export interface Store {
     readonly rows: readonly DealRecord[];
     readonly total: number;
   }>;
+  /**
+   * The deals a seller account submitted, newest first.
+   *
+   * Scoped by `ownerAccountId` so a seller's dashboard reads only their own
+   * submissions without loading the whole table — the seller counterpart to
+   * `listRevealsForAccount`. Operators still use `pageDeals`/`listDeals`; this
+   * is never a path to another account's deal.
+   */
+  listDealsForOwner(ownerAccountId: string): Promise<readonly DealRecord[]>;
   getDeal(id: string): Promise<DealRecord | undefined>;
   saveDeal(deal: DealRecord): Promise<DealRecord>;
   /** Remove a deal by id. True if a row was deleted, false if none matched. */

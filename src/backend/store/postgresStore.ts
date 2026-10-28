@@ -77,6 +77,11 @@ const SCHEMA = `
     data jsonb NOT NULL,
     updated_at timestamptz NOT NULL DEFAULT now()
   );
+  -- A seller reads their own submissions by ownerAccountId; most deals have
+  -- none, so a partial index keeps it to the rows that carry one.
+  CREATE INDEX IF NOT EXISTS deals_owner
+    ON deals ((data->>'ownerAccountId'))
+    WHERE data->>'ownerAccountId' IS NOT NULL;
   CREATE TABLE IF NOT EXISTS buy_boxes (
     id text PRIMARY KEY,
     data jsonb NOT NULL,
@@ -618,6 +623,15 @@ export const postgresStore: Store = {
   kind: "postgres",
 
   listDeals: () => all<DealRecord>("deals"),
+
+  async listDealsForOwner(ownerAccountId: string): Promise<readonly DealRecord[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: DealRecord }>(
+      `SELECT data FROM deals WHERE data->>'ownerAccountId' = $1 ORDER BY data->>'createdAt' DESC`,
+      [ownerAccountId],
+    );
+    return rows.map((r) => r.data);
+  },
 
   async pageDeals(
     limit: number,

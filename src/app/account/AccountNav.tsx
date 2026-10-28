@@ -12,6 +12,7 @@ import { NavBar, type NavItem } from "@/app/components/NavBar";
  */
 
 const DESTINATIONS: readonly NavItem[] = [
+  { href: "/account", label: "Home" },
   { href: "/opportunities", label: "Opportunities" },
   { href: "/account/passport", label: "Readiness" },
   { href: "/account/billing", label: "Billing" },

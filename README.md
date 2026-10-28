@@ -93,6 +93,8 @@ listed honestly in [Not built yet](#not-built-yet).
 | Policies | `/legal/[slug]` | Privacy, cookies, terms, complaints, outreach — data-driven, no dead links |
 | Buy Boxes | `/invest` | Investor mandates, each shown against the deals it matches |
 | Funding Boxes | `/capital` | Capital mandates, each shown against the deals it funds |
+| Sign up | `/join` | Public self-service sign-up — seller, investor, capital provider or agent; staff roles can never be chosen, and a fresh account sees nothing it has not certified for |
+| Your account | `/account` | The command centre: one home per role that assembles your own surfaces — submissions, mandates, readiness, listings, billing — scoped by `can()` |
 | Sign in | `/operator` | Named account, or the shared password as bootstrap |
 | Accounts | `/operator/accounts` | Create, disable, see certification status |
 | Audit trail | `/operator/audit` | Append-only: who saw what, and when |

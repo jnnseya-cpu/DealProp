@@ -200,6 +200,12 @@ function Nav() {
           >
             Sign in
           </Link>
+          <Link
+            href="/join"
+            className="hidden px-2 text-[13px] text-ink-400 transition-colors hover:text-ink-100 lg:block"
+          >
+            Create account
+          </Link>
           <Button href="/appraise" variant="primary" size="sm">Appraise a deal</Button>
         </div>
       </div>

@@ -89,7 +89,16 @@ export function SignInForm({
         </button>
       </form>
 
-      <div className="mt-6 border-t hairline pt-4 text-center">
+      {!operator && (
+        <p className="mt-6 text-center text-xs text-ink-400">
+          New to Lode?{" "}
+          <Link href="/join" className="text-lode-300 underline-offset-2 hover:underline">
+            Create an account
+          </Link>
+        </p>
+      )}
+
+      <div className="mt-4 border-t hairline pt-4 text-center">
         <Link href={otherHref} className="text-xs text-ink-400 transition-colors hover:text-lode-300">
           {operator ? "← Back to account sign-in" : "Operator & admin sign-in →"}
         </Link>

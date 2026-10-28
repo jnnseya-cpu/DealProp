@@ -31,6 +31,8 @@ const PUBLIC_BY_DESIGN: Readonly<Record<string, string>> = {
   "sell/actions.ts":
     "A seller has no account and never will. Rate limited instead, and the result is a capability URL.",
   "operator/actions.ts": "Sign-in and sign-out themselves, which cannot require being signed in.",
+  "join/actions.ts":
+    "Self-service sign-up. Nobody is signed in yet by definition. Rate limited, the role is restricted to the self-service set on the server, and it mints only a least-privilege account.",
 };
 
 /**

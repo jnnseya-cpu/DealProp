@@ -186,6 +186,13 @@ async function listDeals(): Promise<readonly DealRecord[]> {
   return db.deals;
 }
 
+async function listDealsForOwner(ownerAccountId: string): Promise<readonly DealRecord[]> {
+  const db = await readDatabase();
+  return db.deals
+    .filter((d) => d.ownerAccountId === ownerAccountId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 async function pageDeals(
   limit: number,
   offset: number,
@@ -1173,6 +1180,7 @@ async function listAudit(
 export const fileStore: Store = {
   kind: "file",
   listDeals,
+  listDealsForOwner,
   pageDeals,
   getDeal,
   saveDeal,

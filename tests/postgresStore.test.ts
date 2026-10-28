@@ -416,6 +416,30 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       });
     });
 
+    describe("a seller's own submissions", () => {
+      const owned = (n: number, owner: string | undefined) => ({
+        ...dealRecord(),
+        id: `deal-${n}`,
+        reference: `LODE-${String(n).padStart(4, "0")}`,
+        createdAt: `2026-0${n}-01T00:00:00.000Z`,
+        ...(owner !== undefined ? { ownerAccountId: owner } : {}),
+      });
+
+      it("returns only the deals that account submitted, newest first", async () => {
+        await store.saveDeal(owned(1, "acc-seller"));
+        await store.saveDeal(owned(2, "acc-other"));
+        await store.saveDeal(owned(3, "acc-seller"));
+        await store.saveDeal(owned(4, undefined)); // operator-entered, no owner
+        const mine = await store.listDealsForOwner("acc-seller");
+        expect(mine.map((d) => d.id)).toEqual(["deal-3", "deal-1"]);
+      });
+
+      it("never returns an ownerless deal to anyone", async () => {
+        await store.saveDeal(owned(4, undefined));
+        expect(await store.listDealsForOwner("acc-seller")).toEqual([]);
+      });
+    });
+
     describe("money going out", () => {
       const recipient = {
         id: "rec-1",

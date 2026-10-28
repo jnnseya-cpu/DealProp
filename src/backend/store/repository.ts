@@ -139,6 +139,10 @@ export async function pageDeals(limit: number, offset = 0) {
   return (await store()).pageDeals(limit, offset);
 }
 
+export async function listDealsForOwner(ownerAccountId: string) {
+  return (await store()).listDealsForOwner(ownerAccountId);
+}
+
 export async function getDeal(id: string): Promise<DealRecord | undefined> {
   return (await store()).getDeal(id);
 }

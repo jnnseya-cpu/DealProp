@@ -48,6 +48,12 @@ export const LIMITS = {
    */
   "sign-in": { requests: 5, windowMs: 60_000 },
   /**
+   * Sign-up. As tight as sign-in: it also runs scrypt (hashing the new
+   * password) and, unlike sign-in, writes a row — so an open endpoint is both a
+   * CPU flood and a way to fill the store with junk accounts.
+   */
+  "sign-up": { requests: 5, windowMs: 60_000 },
+  /**
    * The payment webhook. High, because a provider legitimately redelivers in
    * bursts and refusing one is money we then have to reconcile by hand. It is
    * a bound against a flood, not a shaping policy.

@@ -10,32 +10,11 @@ import {
   operatorPasswordMatches,
 } from "@backend/auth/operator";
 import { createSession, SESSION_COOKIE, SESSION_SECONDS } from "@backend/auth/session";
+import { cookieScope } from "@backend/auth/cookie";
 import { hashPassword, needsRehash, verifyPassword } from "@backend/auth/password";
 import { findAccountByEmail, saveAccount } from "@backend/store/repository";
 import { audit } from "@backend/audit";
 import { callerFrom, consume } from "@backend/rateLimit";
-
-/**
- * The cookie's domain, so one session spans the apex and `www`.
- *
- * Without this a cookie set on `www.lodeprop.com` is not sent to `lodeprop.com`
- * (and vice versa), so the apex→www redirect silently logs a signed-in person
- * out the moment they navigate. Derived from the configured site URL and
- * stripped of a leading `www.`, so the domain is the registrable one and covers
- * both. Returns nothing for localhost or a bare IP, which cannot take a domain
- * cookie — there the host-only cookie is correct.
- */
-function cookieScope(): { readonly domain?: string } {
-  const raw = process.env.NEXT_PUBLIC_SITE_URL;
-  if (raw === undefined || raw === "") return {};
-  try {
-    const host = new URL(raw).hostname;
-    if (host === "localhost" || /^[0-9.]+$/.test(host)) return {};
-    return { domain: host.replace(/^www\./, "") };
-  } catch {
-    return {};
-  }
-}
 
 /**
  * Operator sign-in.

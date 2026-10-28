@@ -4,12 +4,14 @@ import {
   can,
   canManageImport,
   canManageMandate,
+  canManageProperty,
   certificationStatus,
   managesAllImports,
   managesAllMandates,
   mayReceiveDealMaterial,
   publicAccount,
   ROLE_LABELS,
+  SELF_SERVICE_ROLES,
   type Account,
 } from "@shared/domain/accounts";
 import {
@@ -73,6 +75,54 @@ describe("roles", () => {
 
   it("labels every role, and no role that does not exist", () => {
     expect(Object.keys(ROLE_LABELS).sort()).toEqual([...ALL_ROLES].sort());
+  });
+
+  it("gives a seller the least privilege: their own property and nothing else", () => {
+    const seller = account({ role: "seller" });
+    expect(can(seller, "manage-own-property", NOW).allowed).toBe(true);
+    // Never seller data (another person's enquiry), a mandate, deal material or
+    // account management.
+    for (const perm of [
+      "view-seller-data",
+      "view-deal-material",
+      "manage-mandates",
+      "manage-own-mandates",
+      "import-own-listings",
+      "manage-accounts",
+    ] as const) {
+      expect(can(seller, perm, NOW).allowed, perm).toBe(false);
+    }
+  });
+
+  it("never offers a staff role at public sign-up", () => {
+    // The security invariant behind self-registration: a form can widen who
+    // signs up, never what they are. admin and operator are granted by a named
+    // administrator, never claimed.
+    expect(SELF_SERVICE_ROLES).not.toContain("admin");
+    expect(SELF_SERVICE_ROLES).not.toContain("operator");
+    expect([...SELF_SERVICE_ROLES].sort()).toEqual(["funder", "investor", "partner", "seller"]);
+    // Every self-service role is a real role.
+    for (const role of SELF_SERVICE_ROLES) expect(ALL_ROLES).toContain(role);
+  });
+});
+
+describe("property ownership", () => {
+  it("lets a seller see only the property they submitted", () => {
+    const seller = account({ id: "acc-seller", role: "seller" });
+    expect(canManageProperty(seller, "acc-seller", NOW).allowed).toBe(true);
+    expect(canManageProperty(seller, "acc-other", NOW).allowed).toBe(false);
+    // An ownerless deal (operator-entered) is never a seller's to claim.
+    expect(canManageProperty(seller, undefined, NOW).allowed).toBe(false);
+  });
+
+  it("lets an operator work any property submission", () => {
+    const operator = account({ role: "operator" });
+    expect(canManageProperty(operator, "acc-anyone", NOW).allowed).toBe(true);
+    expect(canManageProperty(operator, undefined, NOW).allowed).toBe(true);
+  });
+
+  it("refuses a role that cannot manage property at all", () => {
+    expect(canManageProperty(account({ role: "investor" }), "acc-1", NOW).allowed).toBe(false);
   });
 });
 

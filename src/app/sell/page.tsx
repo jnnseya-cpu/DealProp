@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { SellForm } from "./SellForm";
 import { SiteHeader } from "@/app/components/chrome";
@@ -44,6 +45,13 @@ export default function SellPage() {
         </p>
         <p className="mt-4 max-w-xl border-l-2 border-lode-400/70 py-1 pl-4 text-[13px] leading-[1.65] text-ink-400">
           {sellerFeeStatement(permissionsHeld()).statement}
+        </p>
+        <p className="mt-4 text-[13px] text-ink-500">
+          Want to track your submission?{" "}
+          <Link href="/join?role=seller" className="text-lode-300 underline-offset-2 hover:underline">
+            Create a free account
+          </Link>{" "}
+          — optional, and you&apos;ll still get a private link to your options either way.
         </p>
       </div>
 
