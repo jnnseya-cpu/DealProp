@@ -13,7 +13,9 @@ import { getJurisdiction } from "@shared/domain/jurisdictions";
 import { STRUCTURE_LABELS } from "@shared/domain/strategies";
 import { add } from "@shared/money";
 import { gbp, gbpSigned, months, percent } from "@shared/format";
-import { VERDICT_TONE } from "@/app/components/chrome";
+import { VERDICT_TONE, Mark } from "@/app/components/chrome";
+import { OPERATOR_SIGNATURE } from "@/app/components/signature";
+import { companyIdentity } from "@shared/domain/identity";
 import "./memorandum.css";
 
 export const dynamic = "force-dynamic";
@@ -85,6 +87,11 @@ export default async function MemorandumPage({
   const a = briefing.scored.appraisal;
   const p = record.property;
   const verdict = VERDICT_TONE[briefing.verdict];
+  // The sign-off: the preparing firm and the operator's signature (the same one
+  // the seller letters carry), overridable at runtime by LETTER_SIGNATURE_URL.
+  const sender = companyIdentity(process.env);
+  const preparerName = sender.legalName ?? sender.tradingName ?? "Lode";
+  const signature = process.env.LETTER_SIGNATURE_URL || OPERATOR_SIGNATURE;
 
   // The executive summary is live prose over computed figures: the engine's
   // numbers go in, the model writes the sentences between them, and it is told
@@ -118,7 +125,11 @@ export default async function MemorandumPage({
 
       <article>
         <header className="memo-head">
-          <p className="memo-kicker">Lode &middot; Investment memorandum</p>
+          <div className="memo-brand">
+            <Mark size={26} color="#9c6f21" />
+            <span className="memo-wordmark">Lode</span>
+          </div>
+          <p className="memo-kicker">Investment memorandum</p>
           <h1>
             {p.locality}, {p.postcodeArea}
           </h1>
@@ -374,6 +385,13 @@ export default async function MemorandumPage({
               </li>
             ))}
           </ul>
+        </section>
+
+        <section className="memo-signoff">
+          <p className="memo-signoff-label">Prepared by</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="memo-sig" src={signature} alt="Signature" />
+          <p className="memo-signoff-name">{preparerName}</p>
         </section>
 
         <footer className="memo-foot">

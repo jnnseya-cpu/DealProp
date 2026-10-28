@@ -30,14 +30,14 @@ export function scoreBg(value: number): string {
   return "bg-red-500";
 }
 
-export function Mark({ size = 22 }: { size?: number }) {
+export function Mark({ size = 22, color = "var(--color-lode-400)" }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 26 26" fill="none" aria-hidden>
-      <path d="M13 2 3 8v10l10 6 10-6V8L13 2Z" stroke="var(--color-lode-400)" strokeWidth="1.3" />
-      <path d="M8 11.5 13 8.5l5 3v5.5l-5 3-5-3v-5.5Z" fill="var(--color-lode-400)" fillOpacity="0.22" />
+      <path d="M13 2 3 8v10l10 6 10-6V8L13 2Z" stroke={color} strokeWidth="1.3" />
+      <path d="M8 11.5 13 8.5l5 3v5.5l-5 3-5-3v-5.5Z" fill={color} fillOpacity="0.22" />
       <path
         d="M13 8.5v9M8 11.5l10 5.5M18 11.5 8 17"
-        stroke="var(--color-lode-400)"
+        stroke={color}
         strokeWidth="0.9"
         strokeOpacity="0.75"
       />

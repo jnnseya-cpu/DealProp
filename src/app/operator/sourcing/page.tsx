@@ -7,7 +7,7 @@ import { listSourcedProperties } from "@backend/store/repository";
 import type { ReadinessState } from "@shared/domain/sourcedLead";
 import { signalCoverage } from "@shared/domain/sourcingSignals";
 import { SourcingRun } from "./SourcingRun";
-import { OPERATOR_SIGNATURE } from "./signature";
+import { OPERATOR_SIGNATURE } from "@/app/components/signature";
 import { DismissForm } from "./DismissForm";
 
 export const dynamic = "force-dynamic";
