@@ -144,8 +144,12 @@ export function PrintLetter({ lead, signatureUrl }: { lead: SourcedLead; signatu
     }
   }
 
-  // The letter still carries the placeholder recipient until an address is set.
-  const unaddressed = contact === undefined;
+  // Only the office-holder letters (probate / bankruptcy) need a contact resolved
+  // before they are fully addressed; the homeowner letter is already addressed to
+  // "The Homeowner" at the property. Used only to nudge — printing is never
+  // blocked, because the operator addresses the envelope and checks before posting.
+  const needsOfficeHolder = lead.signalKey === "probate-notice" || lead.signalKey === "owner-insolvent";
+  const unaddressed = needsOfficeHolder && contact === undefined;
 
   return (
     <details
@@ -220,15 +224,13 @@ export function PrintLetter({ lead, signatureUrl }: { lead: SourcedLead; signatu
         <button
           type="button"
           onClick={print}
-          disabled={unaddressed}
-          title={unaddressed ? "Add the recipient's address first" : undefined}
-          className="mt-3 inline-flex h-8 items-center rounded-md bg-lode-400 px-3 text-[13px] font-medium text-ink-950 transition-colors hover:bg-lode-300 disabled:opacity-50"
+          className="mt-3 inline-flex h-8 items-center rounded-md bg-lode-400 px-3 text-[13px] font-medium text-ink-950 transition-colors hover:bg-lode-300"
         >
           Print this letter →
         </button>
         <p className="mt-2 text-[11px] leading-snug text-ink-500">
           {unaddressed
-            ? "Add the recipient's address above before printing — nothing is sent from here."
+            ? "No office-holder address resolved yet — paste it above, or address the envelope from the notice. Post it yourself — nothing is sent from here."
             : "Check the address and any bracketed placeholder before posting. Post it yourself — nothing is sent from here."}
           {" "}The printed copy carries the Lode letterhead
           {signatureUrl !== undefined ? " and your signature" : ""} — the preview above is plain text.
