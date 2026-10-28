@@ -88,21 +88,31 @@ export function postcodeIn(address: string): string | undefined {
 }
 
 /**
- * The URL of a notice's machine-readable representation.
+ * The identifier URI for a notice, which is what to dereference for its data.
  *
- * The feed hands back either the resource page (…/notice/5237386) or, in some
- * responses, the identifier URI (…/id/notice/5237386). The readable data lives
- * at the RESOURCE path with a /data.jsonld (or /data.json) suffix — there is no
- * …/id/notice/…/data.jsonld, so appending the suffix to the identifier form 404s
- * and the lead's letter is left with no recipient. Normalise any of those forms
- * to the one fetchable resource. The notice id may contain a dash (2345-6789),
- * so it is matched as a run of word characters and dashes, not just digits.
+ * The Gazette's robots.txt disallows every explicit data FILE on a notice — the
+ * data.jsonld, data.xml, data.rdf and data.ttl paths — and the data.json variant
+ * returns HTTP 500, so none of those is a usable, permitted source. What IS
+ * permitted and does work is the canonical linked-data identifier at
+ * "/id/notice/{id}" (only its "/version/" sub-paths are disallowed): dereferencing
+ * it with an "Accept: application/ld+json" header 303-redirects to the notice and
+ * returns the full JSON-LD graph — the executor/trustee and their address
+ * included. That is the standard linked-data access pattern and the one robots
+ * leaves open, so the recipient fills in automatically without reading a
+ * disallowed URL. The notice id may contain a dash (L-59614-1254187), so it is
+ * matched as a run of word characters and dashes.
  */
-export function noticeDataUrl(noticeUrl: string, suffix: "data.jsonld" | "data.json"): string {
-  const stripped = noticeUrl.replace(/\/(?:data\.jsonld|data\.json)\/?$/i, "").replace(/\/$/, "");
-  const idForm = /^(https?:\/\/[^/]+)\/id\/notice\/([\w-]+)/i.exec(stripped);
-  const base = idForm !== null ? `${idForm[1]}/notice/${idForm[2]}` : stripped;
-  return `${base}/${suffix}`;
+export function noticeIdUrl(noticeUrl: string): string {
+  let origin = "https://www.thegazette.co.uk";
+  if (noticeUrl.startsWith("http")) {
+    try {
+      origin = new URL(noticeUrl).origin;
+    } catch {
+      /* keep the default host */
+    }
+  }
+  const m = /\/notice\/([\w-]+)/i.exec(noticeUrl);
+  return m !== null ? `${origin}/id/notice/${m[1]}` : noticeUrl;
 }
 
 /* ----------------------------------------------------------------- feed */
@@ -515,13 +525,11 @@ export async function fetchNoticeDetail(
 ): Promise<ConnectorResult<NoticeDetail>> {
   assertSourceUsable(GAZETTE_SOURCE, "internal-analysis");
 
-  // The Gazette's robots.txt disallows `/notice/*/data.jsonld` specifically, and
-  // the Fetcher obeys robots (§19/§39) — so that endpoint is off-limits by the
-  // publisher's own stated wish, not a bug. The `data.json` representation is a
-  // different path (the all-notices feed is served the same way) and carries the
-  // same linked-data graph; it is used here, and if the publisher disallows it
-  // too the Fetcher refuses cleanly and the caller falls back to the notice link.
-  const url = noticeDataUrl(noticeUrl, "data.json");
+  // Dereference the notice's identifier URI (robots-allowed) with Accept
+  // ld+json; it returns the full JSON-LD graph. See noticeIdUrl for why this is
+  // the one permitted, working source — every explicit data file is disallowed
+  // or 500s.
+  const url = noticeIdUrl(noticeUrl);
 
   const result = await fetcher.get(GAZETTE_SOURCE, url, {
     headers: { accept: "application/ld+json, application/json" },
@@ -695,12 +703,12 @@ export async function fetchNotice(
 ): Promise<ConnectorResult<unknown>> {
   assertSourceUsable(GAZETTE_SOURCE, "internal-analysis");
 
-  // The structured representation is the notice RESOURCE with a data.json suffix
-  // (never the …/id/notice/ identifier form — see noticeDataUrl).
-  const dataUrl = noticeDataUrl(noticeUrl, "data.json");
+  // Dereference the identifier URI for the notice graph — the one permitted,
+  // working representation (see noticeIdUrl).
+  const dataUrl = noticeIdUrl(noticeUrl);
 
   const result = await fetcher.get(GAZETTE_SOURCE, dataUrl, {
-    headers: { accept: "application/json" },
+    headers: { accept: "application/ld+json, application/json" },
   });
   if (!result.ok || result.body === undefined) return { ok: false, reason: result.reason };
 

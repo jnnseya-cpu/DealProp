@@ -5,7 +5,7 @@ import {
   fetchNotice,
   fetchNoticeDetail,
   fetchNotices,
-  noticeDataUrl,
+  noticeIdUrl,
   parseDeceasedEstate,
   parseGazetteFeed,
   parseInsolvencyNotice,
@@ -308,21 +308,22 @@ describe("the connector is bound to the licensed host", () => {
     expect(result.reason.toLowerCase()).toContain("not a published host");
   });
 
-  it("reads a notice's data from the resource path, not the identifier URI", () => {
-    // The feed's identifier form has no …/data.jsonld under it; the readable data
-    // lives at the /notice/ resource. Any of these forms must resolve to it.
-    expect(noticeDataUrl("https://www.thegazette.co.uk/id/notice/5237386", "data.jsonld")).toBe(
-      "https://www.thegazette.co.uk/notice/5237386/data.jsonld",
+  it("dereferences the notice identifier URI, whatever form the feed gave", () => {
+    // The data lives behind the /id/notice/{id} identifier (robots-allowed),
+    // dereferenced with Accept ld+json. Either feed form must resolve to it.
+    expect(noticeIdUrl("https://www.thegazette.co.uk/notice/5237386")).toBe(
+      "https://www.thegazette.co.uk/id/notice/5237386",
     );
-    expect(noticeDataUrl("https://www.thegazette.co.uk/notice/2345-6789", "data.jsonld")).toBe(
-      "https://www.thegazette.co.uk/notice/2345-6789/data.jsonld",
+    expect(noticeIdUrl("https://www.thegazette.co.uk/id/notice/5237386")).toBe(
+      "https://www.thegazette.co.uk/id/notice/5237386",
     );
-    expect(noticeDataUrl("https://www.thegazette.co.uk/notice/42/", "data.json")).toBe(
-      "https://www.thegazette.co.uk/notice/42/data.json",
+    // Notice ids may carry a dash.
+    expect(noticeIdUrl("https://www.thegazette.co.uk/notice/L-59614-1254187")).toBe(
+      "https://www.thegazette.co.uk/id/notice/L-59614-1254187",
     );
   });
 
-  it("fetches a notice from the data.json resource URL (not the robots-blocked .jsonld)", async () => {
+  it("dereferences the identifier URI (robots-allowed), not a blocked data file", async () => {
     // The real notice shape: a foaf:Agent with its address under `adr`, a
     // vcard:Address with hyphenated fields and a postcode key that is a URI.
     const json = JSON.stringify({
@@ -345,10 +346,10 @@ describe("the connector is bound to the licensed host", () => {
     });
     const { fetcher, calls } = fetcherWith({
       "https://www.thegazette.co.uk/robots.txt": { status: 404 },
-      "https://www.thegazette.co.uk/notice/5239323/data.json": { body: json },
+      "https://www.thegazette.co.uk/id/notice/5239323": { body: json },
     });
-    // Passed the identifier form, as the live feed gives it.
-    const result = await fetchNoticeDetail(fetcher, "https://www.thegazette.co.uk/id/notice/5239323");
+    // Passed the resource form, as the feed's link gives it.
+    const result = await fetchNoticeDetail(fetcher, "https://www.thegazette.co.uk/notice/5239323");
     expect(result.ok).toBe(true);
     expect(result.value?.contactForService).toContain("Wards Solicitors");
     expect(result.value?.contactForService).toContain("Wine Street");
@@ -356,7 +357,7 @@ describe("the connector is bound to the licensed host", () => {
     // Never the postcode URI.
     expect(result.value?.contactForService).not.toContain("http");
     expect(result.value?.claimDeadline).toBe("2026-12-28");
-    expect(calls.some((c) => c === "https://www.thegazette.co.uk/notice/5239323/data.json")).toBe(true);
+    expect(calls.some((c) => c === "https://www.thegazette.co.uk/id/notice/5239323")).toBe(true);
   });
 
   it("obeys the Gazette's robots.txt like any other site", async () => {
