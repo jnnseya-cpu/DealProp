@@ -5,7 +5,8 @@ import { toWorkingDeal } from "@shared/domain/workingDeal";
 import { matchBuyBox, MATCH_HORIZON } from "@shared/domain/matching";
 import { STRUCTURE_LABELS } from "@shared/domain/strategies";
 import { gbp, percent } from "@shared/format";
-import { SiteHeader } from "@/app/components/chrome";
+import { SiteHeader, scoreBg } from "@/app/components/chrome";
+import { BarList } from "@/app/components/charts";
 import { MandateControls } from "@/app/components/mandate";
 import { requireMandateManagement, viewerAccount, viewerManagesAllMandates } from "@/app/operator/guard";
 import { SignOutButton } from "@/app/operator/SignOutButton";
@@ -97,6 +98,24 @@ export default async function InvestPage() {
           </p>
         )}
 
+        {rows.some((r) => r.box.active) && (
+          <section className="mt-8 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+            <h2 className="eyebrow">Live matches by mandate</h2>
+            <div className="mt-4">
+              <BarList
+                data={rows
+                  .filter((r) => r.box.active)
+                  .map((r) => ({
+                    label: r.box.investorName,
+                    value: r.matches.length,
+                    display: `${r.matches.length} ${r.matches.length === 1 ? "deal" : "deals"}`,
+                  }))}
+                empty="No active mandate matches a live deal yet."
+              />
+            </div>
+          </section>
+        )}
+
         <div className="mt-10">
           <BuyBoxForm />
         </div>
@@ -174,16 +193,26 @@ function BuyBoxCard({
         ) : (
           <>
             <p className="text-sm text-ink-200">
-              {matches.length} live {matches.length === 1 ? "deal matches" : "deals match"}
+              {matches.length} live {matches.length === 1 ? "deal matches" : "deals match"}, strongest first
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {matches.slice(0, 8).map(({ record, match }) => (
+            <div className="mt-3">
+              <BarList
+                data={matches.slice(0, 6).map(({ record, match }) => ({
+                  label: record.reference,
+                  value: match.score,
+                  display: `${match.score}`,
+                  fill: scoreBg(match.score),
+                }))}
+              />
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {matches.slice(0, 8).map(({ record }) => (
                 <Link
                   key={record.id}
                   href={`/deals/${record.id}`}
-                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border hairline bg-surface-2 px-3 text-[13px] text-ink-200 transition-colors hover:border-ink-600 hover:text-ink-100"
+                  className="inline-flex h-7 items-center justify-center rounded-md border hairline bg-surface-2 px-2.5 text-[12px] text-ink-300 transition-colors hover:border-ink-600 hover:text-ink-100"
                 >
-                  {record.reference} · {match.score}
+                  Open {record.reference} →
                 </Link>
               ))}
             </div>

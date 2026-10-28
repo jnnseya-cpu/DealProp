@@ -2,10 +2,19 @@ import { redirect } from "next/navigation";
 import { OperatorNav } from "@/app/operator/OperatorNav";
 import { AccountNav } from "@/app/account/AccountNav";
 import { Badge, Button, Panel, SiteHeader } from "@/app/components/chrome";
+import { BarList, Meter } from "@/app/components/charts";
 import { currentViewer } from "@/app/operator/guard";
 import { can, certificationStatus, ROLE_LABELS } from "@shared/domain/accounts";
 import { listDealsForOwner } from "@backend/store/repository";
+import { buyerPassport } from "@shared/domain/passport";
+import { fromMajor } from "@shared/money";
 import type { DealStatus } from "@shared/domain/types";
+
+/** A readiness passport is graded against a price; with none in mind, a reference. */
+const REFERENCE_PRICE = fromMajor(200_000);
+const ALL_STATUSES: readonly DealStatus[] = [
+  "new", "qualified", "in-market", "funded", "completed", "withdrawn",
+];
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +88,20 @@ export default async function AccountHome() {
 
   // Only the seller view reads deal rows, and only their own, scoped by owner.
   const myDeals = isSeller ? await listDealsForOwner(account.id) : [];
+  const statusChart = ALL_STATUSES.map((status) => ({
+    status,
+    n: myDeals.filter((d) => d.status === status).length,
+  })).filter((x) => x.n > 0);
+
   const cert = isInvestorOrFunder ? certificationStatus(account, now) : undefined;
+  // Readiness, the same figure the profile page grades, so a buyer sees one
+  // number in both places. Only where evidence has been recorded.
+  const passport =
+    isInvestorOrFunder && account.passportEvidence !== undefined
+      ? buyerPassport(account.passportEvidence, REFERENCE_PRICE, now)
+      : undefined;
+  const checksHeld = passport?.checks.filter((c) => c.held).length ?? 0;
+  const checksTotal = passport?.checks.length ?? 0;
   const mandateHref = account.role === "funder" ? "/capital" : "/invest";
   const mandateLabel = account.role === "funder" ? "Funding Boxes" : "Buy Boxes";
 
@@ -131,6 +153,21 @@ export default async function AccountHome() {
                   How it works
                 </Button>
               </div>
+
+              {statusChart.length > 0 && (
+                <div className="mt-5 border-t hairline pt-4">
+                  <p className="eyebrow">Your submissions by status</p>
+                  <div className="mt-3">
+                    <BarList
+                      data={statusChart.map((x) => ({
+                        label: STATUS_LABEL[x.status],
+                        value: x.n,
+                        display: String(x.n),
+                      }))}
+                    />
+                  </div>
+                </div>
+              )}
 
               {myDeals.length > 0 ? (
                 <ul className="mt-5 space-y-2 border-t hairline pt-4">
@@ -192,6 +229,20 @@ export default async function AccountHome() {
                   Readiness passport
                 </Button>
               </div>
+
+              {passport !== undefined && (
+                <div className="mt-4 border-t hairline pt-4">
+                  <div className="flex items-baseline justify-between text-[12px] text-ink-400">
+                    <span>Readiness evidenced</span>
+                    <span className="tnum text-ink-100">
+                      {checksHeld} / {checksTotal} · grade {passport.grade}
+                    </span>
+                  </div>
+                  <div className="mt-1.5">
+                    <Meter value={checksHeld} max={checksTotal} />
+                  </div>
+                </div>
+              )}
             </Panel>
           )}
 

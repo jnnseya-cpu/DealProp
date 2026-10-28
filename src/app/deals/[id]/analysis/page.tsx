@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { SiteHeader } from "@/app/components/chrome";
+import { SiteHeader, scoreBg, scoreTone } from "@/app/components/chrome";
+import { BarList, Ring } from "@/app/components/charts";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
 import { meter } from "@backend/billing/meter";
@@ -145,6 +146,37 @@ export default async function AnalysisPage({
             ))}
           </dl>
           <p className="mt-3 text-xs text-ink-500">Computed after tax by the Lode engine. Shown free; the same figures as the Deal Room.</p>
+        </section>
+
+        <section className="mt-6 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+          <h2 className="eyebrow">Deal Score · nine components</h2>
+          <div className="mt-4 flex flex-col gap-6 sm:flex-row sm:items-start">
+            <div className="flex shrink-0 flex-col items-center gap-2 sm:w-36">
+              <Ring
+                value={briefing.scored.breakdown.composite}
+                toneClass={scoreTone(briefing.scored.breakdown.composite)}
+                caption="Score"
+                size={96}
+              />
+              <span className={`text-sm font-medium ${scoreTone(briefing.scored.breakdown.composite)}`}>
+                {briefing.verdict}
+              </span>
+            </div>
+            <div className="flex-1">
+              <BarList
+                data={briefing.scored.breakdown.components.map((c) => ({
+                  label: c.label,
+                  value: c.score,
+                  display: `${c.score}`,
+                  fill: scoreBg(c.score),
+                }))}
+              />
+            </div>
+          </div>
+          <p className="mt-4 text-xs text-ink-500">
+            The composite is weighted after tax and capped by any single-factor capital loss, so the
+            ring can be lower than the bars suggest — the cap is the finding, not an average.
+          </p>
         </section>
 
         {!run && (

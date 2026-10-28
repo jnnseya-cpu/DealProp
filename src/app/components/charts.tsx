@@ -128,6 +128,75 @@ export function StackedBar({ segments }: { segments: readonly StackSegment[] }) 
 }
 
 /**
+ * A single score as a ring — one figure that is its own headline.
+ *
+ * Inline SVG (the one place these primitives use it, because an arc is not a
+ * div), server-rendered with nothing shipped to the browser. Like {@link Meter}
+ * it never decides "good": the arc colour arrives as `toneClass` — a text-* token
+ * the caller takes from the same `scoreTone` thresholds as the number — and is
+ * drawn with `currentColor`, so the ring and the figure can never disagree. The
+ * track is the opaque surface, so the ring reads on any panel.
+ */
+export function Ring({
+  value,
+  max = 100,
+  toneClass = "text-lode-400",
+  caption,
+  size = 76,
+}: {
+  value: number;
+  max?: number;
+  /** A Tailwind text-* colour class; the arc is drawn in currentColor. */
+  readonly toneClass?: string;
+  /** A short qualifier under the figure, e.g. "Deal Score". */
+  readonly caption?: string;
+  readonly size?: number;
+}) {
+  const pct = max === 0 ? 0 : Math.min(1, Math.max(0, value / max));
+  const stroke = 7;
+  const r = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * r;
+  const arc = pct * circumference;
+  const center = size / 2;
+  return (
+    <div
+      className="relative inline-flex shrink-0 items-center justify-center"
+      style={{ width: size, height: size }}
+      role="img"
+      aria-label={`${value} of ${max}${caption !== undefined ? ` — ${caption}` : ""}`}
+    >
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={toneClass}>
+        <circle
+          cx={center}
+          cy={center}
+          r={r}
+          fill="none"
+          strokeWidth={stroke}
+          style={{ stroke: "var(--color-surface-3)" }}
+        />
+        <circle
+          cx={center}
+          cy={center}
+          r={r}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={`${arc} ${circumference - arc}`}
+          transform={`rotate(-90 ${center} ${center})`}
+        />
+      </svg>
+      <span className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="tnum text-[18px] font-medium leading-none text-ink-100">{value}</span>
+        {caption !== undefined && (
+          <span className="mt-1 text-[9px] uppercase tracking-[0.1em] text-ink-500">{caption}</span>
+        )}
+      </span>
+    </div>
+  );
+}
+
+/**
  * A 0–100 meter whose band is the finding — a readiness or a score. The fill
  * colour comes from the same thresholds as the number beside it, passed in by
  * the caller via `fill` so this mark never invents its own idea of "good". A
