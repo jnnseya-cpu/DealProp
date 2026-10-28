@@ -70,7 +70,11 @@ export default async function SourcingPage() {
         </p>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-400">{coverage.summary}</p>
 
-        <SourcingRun />
+        <SourcingRun
+          {...(process.env.LETTER_SIGNATURE_URL !== undefined && process.env.LETTER_SIGNATURE_URL !== ""
+            ? { signatureUrl: process.env.LETTER_SIGNATURE_URL }
+            : {})}
+        />
 
         {active.length > 0 && (
           <section className="mt-12">

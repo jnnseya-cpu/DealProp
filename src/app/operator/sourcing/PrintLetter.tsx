@@ -18,7 +18,7 @@ import type { SourcedLead } from "@shared/domain/sourcedLead";
  * is never printed with a placeholder where the recipient should be. Never sent
  * from here — it is printed and posted by a named person.
  */
-export function PrintLetter({ lead }: { lead: SourcedLead }) {
+export function PrintLetter({ lead, signatureUrl }: { lead: SourcedLead; signatureUrl?: string }) {
   const insolvency = lead.signalKey === "owner-insolvent";
   const recipientWord =
     lead.signalKey === "prepared-but-unsold"
@@ -85,19 +85,63 @@ export function PrintLetter({ lead }: { lead: SourcedLead }) {
   function print() {
     const w = window.open("", "_blank", "width=820,height=1000");
     if (w === null) return;
-    const escaped = letter
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+    const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    // The signature sits in the signing space after "Yours faithfully", so split
+    // the letter there and drop the image in; the rest (the name and footer)
+    // follows. If the letter has no such line, the signature goes at the end.
+    const marker = "Yours faithfully";
+    const at = letter.indexOf(marker);
+    const head = at === -1 ? letter : letter.slice(0, at + marker.length);
+    const tail = at === -1 ? "" : letter.slice(at + marker.length).replace(/^\n+/, "");
+
+    // A site-relative signature path is made absolute for the print window, which
+    // has no base; an absolute URL or a data: URI is used as-is.
+    const sig =
+      signatureUrl === undefined || signatureUrl === ""
+        ? ""
+        : signatureUrl.startsWith("/")
+          ? `${window.location.origin}${signatureUrl}`
+          : signatureUrl;
+
+    // The Lode mark as a letterhead — inline SVG so it prints with no network
+    // dependency. Colour is the brand gold (globals.css --color-lode-400).
+    const letterhead =
+      `<div class="lh">` +
+      `<svg width="30" height="30" viewBox="0 0 26 26" fill="none">` +
+      `<path d="M13 2 3 8v10l10 6 10-6V8L13 2Z" stroke="#c9a44e" stroke-width="1.3"/>` +
+      `<path d="M8 11.5 13 8.5l5 3v5.5l-5 3-5-3v-5.5Z" fill="#c9a44e" fill-opacity="0.22"/>` +
+      `<path d="M13 8.5v9M8 11.5l10 5.5M18 11.5 8 17" stroke="#c9a44e" stroke-width="0.9" stroke-opacity="0.75"/>` +
+      `</svg><span class="wm">Lode</span></div>`;
+
+    const sigImg = sig === "" ? "" : `<img class="sig" src="${sig}" alt="Signature">`;
+
     w.document.write(
       `<!doctype html><html><head><meta charset="utf-8"><title>Letter</title>` +
         `<style>@page{margin:25mm}` +
-        `body{font:12pt/1.55 Georgia,"Times New Roman",serif;color:#111;white-space:pre-wrap;max-width:170mm}</style>` +
-        `</head><body>${escaped}</body></html>`,
+        `body{font:12pt/1.55 Georgia,"Times New Roman",serif;color:#111;max-width:170mm}` +
+        `.txt{white-space:pre-wrap}` +
+        `.lh{display:flex;align-items:center;gap:8px;margin-bottom:10mm}` +
+        `.wm{font:600 20px/1 Georgia,serif;letter-spacing:.02em;color:#1a1a1a}` +
+        `.sig{display:block;height:64px;margin:3mm 0 1mm}` +
+        `</style></head><body>` +
+        letterhead +
+        `<div class="txt">${esc(head)}</div>` +
+        sigImg +
+        `<div class="txt">${esc(tail)}</div>` +
+        `</body></html>`,
     );
     w.document.close();
     w.focus();
-    w.print();
+
+    // Print once the signature image has loaded, or immediately if there is none.
+    const img = sig === "" ? null : (w.document.querySelector("img.sig") as HTMLImageElement | null);
+    if (img !== null && !img.complete) {
+      img.addEventListener("load", () => w.print());
+      img.addEventListener("error", () => w.print());
+    } else {
+      w.print();
+    }
   }
 
   // The letter still carries the placeholder recipient until an address is set.
@@ -186,6 +230,8 @@ export function PrintLetter({ lead }: { lead: SourcedLead }) {
           {unaddressed
             ? "Add the recipient's address above before printing — nothing is sent from here."
             : "Check the address and any bracketed placeholder before posting. Post it yourself — nothing is sent from here."}
+          {" "}The printed copy carries the Lode letterhead
+          {signatureUrl !== undefined ? " and your signature" : ""} — the preview above is plain text.
         </p>
       </div>
     </details>

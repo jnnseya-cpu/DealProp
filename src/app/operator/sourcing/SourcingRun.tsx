@@ -16,7 +16,7 @@ import { bps } from "@shared/money";
  * record the assessment, write by post. There is no "approach" button, because
  * the automated-outreach version of this is the unlawful one.
  */
-export function SourcingRun() {
+export function SourcingRun({ signatureUrl }: { signatureUrl?: string }) {
   const [area, runArea, runningArea] = useActionState<SourcingResult | undefined, FormData>(
     runAreaAction,
     undefined,
@@ -113,7 +113,10 @@ export function SourcingRun() {
         </form>
       </div>
 
-      <Leads leads={[...(area?.leads ?? []), ...(registers?.leads ?? [])]} />
+      <Leads
+        leads={[...(area?.leads ?? []), ...(registers?.leads ?? [])]}
+        {...(signatureUrl !== undefined ? { signatureUrl } : {})}
+      />
       <Flips flips={area?.flips ?? []} />
     </>
   );
@@ -148,7 +151,7 @@ function Flips({ flips }: { flips: readonly FlipEvidence[] }) {
   );
 }
 
-function Leads({ leads }: { leads: readonly SourcedLead[] }) {
+function Leads({ leads, signatureUrl }: { leads: readonly SourcedLead[]; signatureUrl?: string }) {
   if (leads.length === 0) return null;
   return (
     <section className="mt-10">
@@ -182,7 +185,9 @@ function Leads({ leads }: { leads: readonly SourcedLead[] }) {
               </p>
             )}
 
-            {lead.letterDraft !== undefined && <PrintLetter lead={lead} />}
+            {lead.letterDraft !== undefined && (
+              <PrintLetter lead={lead} {...(signatureUrl !== undefined ? { signatureUrl } : {})} />
+            )}
 
             {(lead.signalKey === "probate-notice" || lead.signalKey === "prepared-but-unsold") &&
               lead.postcode !== undefined && <StartDealForm lead={lead} />}
