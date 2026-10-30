@@ -292,7 +292,11 @@ export const PLANS: readonly Plan[] = [
   {
     id: "buyer-investor",
     audience: "buyer",
-    name: "Investor",
+    // Named for the journey stage (browse -> search -> analyse -> fund -> scale),
+    // not the audience: the audience is "Buyer", so a tier called "Investor"
+    // read as a second, conflicting name for the same person. The id stays
+    // `buyer-investor` — entitlements key off it, so this is display only.
+    name: "Scout",
     summary: "Deal alerts and full search.",
     price: fromMajor(39),
     statedAs: "inclusive",
