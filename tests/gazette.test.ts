@@ -125,6 +125,22 @@ describe("a deceased-estates notice is extracted, never inferred", () => {
     expect(parseDeceasedEstate({ id: "", title: "A", publishedAt: "x" })).toBeUndefined();
   });
 
+  it("strips the Gazette's /n line-break marker from the name and address", () => {
+    // Some notices carry a literal "/n" where a line break belongs. Left in, it
+    // prints into the letter and onto the envelope ("Dear Margaret /n Davenport").
+    const record = parseDeceasedEstate({
+      id: "1",
+      title: "Margaret /n Davenport",
+      publishedAt: "2026-10-30T00:00:00Z",
+      content:
+        "<div><dl><dt>Address of Deceased</dt><dd>/n 60 Pengelly,/nDelabole,/nCornwall/nPL33 9AR</dd></dl></div>",
+    });
+    expect(record?.deceasedName).toBe("Margaret Davenport");
+    expect(record?.lastAddress).not.toContain("/n");
+    expect(record?.lastAddress).toContain("Delabole");
+    expect(record?.postcode).toBe("PL33 9AR");
+  });
+
   it("reads the executor from the feed content so the letter is addressable without a second fetch", () => {
     const record = parseDeceasedEstate({
       id: "https://www.thegazette.co.uk/id/notice/2",

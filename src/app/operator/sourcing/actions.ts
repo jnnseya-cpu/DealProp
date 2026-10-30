@@ -540,7 +540,12 @@ export async function runRegistersAction(
   const viewer = await requirePermission("manage-mandates", "/operator/sourcing");
   const author = viewerAccount(viewer);
 
+  // How many notices to gather per kind. Higher means more pages fetched, so
+  // more priority-area (Midlands) leads surface in a national feed — the default
+  // is a middle ground, raise it with GAZETTE_MAX_NOTICES.
+  const maxNotices = Number(process.env.GAZETTE_MAX_NOTICES) || 120;
   const result = await runRegisters({
+    maxNotices,
     ...(process.env.GAZETTE_DECEASED_CODE !== undefined ? { deceasedCode: process.env.GAZETTE_DECEASED_CODE } : {}),
     ...(process.env.GAZETTE_INSOLVENCY_CODE !== undefined ? { insolvencyCode: process.env.GAZETTE_INSOLVENCY_CODE } : {}),
   });

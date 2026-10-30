@@ -248,6 +248,7 @@ function addressFromContent(content: string | undefined): string | undefined {
   const value = raw
     .replace(/<[^>]*>/g, " ")
     .replace(/&amp;/g, "&")
+    .replace(/\/n/g, " ") // the Gazette's own line-break marker, not a real character
     .replace(/\s+/g, " ")
     .trim();
   return value === "" ? undefined : value;
@@ -281,6 +282,7 @@ function contactFromContent(content: string | undefined): string | undefined {
     const value = (m[2] ?? "")
       .replace(/<[^>]*>/g, " ")
       .replace(/&amp;/g, "&")
+      .replace(/\/n/g, " ")
       .replace(/\s+/g, " ")
       .trim();
     if (value !== "") return value;
@@ -296,7 +298,9 @@ function cleanName(title: string | undefined): string | undefined {
   const value = text(title);
   if (value === undefined) return undefined;
   const stripped = value
+    .replace(/\/n/g, " ") // the Gazette's own line-break marker, not a real character
     .replace(/\s*\((?:deceased|in bankruptcy|in liquidation|in administration)\)\s*$/i, "")
+    .replace(/\s+/g, " ")
     .trim();
   return stripped === "" ? undefined : stripped;
 }
