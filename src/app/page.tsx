@@ -22,7 +22,8 @@ import { gbp, gbpSigned, percent } from "@shared/format";
 import { Button, Mark, scoreBg, scoreTone, VERDICT_TONE } from "@/app/components/chrome";
 import { LandingNav } from "@/app/components/LandingNav";
 import { Meter, StackedBar, type StackSegment } from "@/app/components/charts";
-import { BUYER_TIERS } from "@shared/domain/revenue";
+import { BUYER_TIERS, FUNDER_TIERS } from "@shared/domain/revenue";
+import { PricingTiers } from "@/app/components/PricingTiers";
 import { sellerFeeStatement, type SellerFeeStatement } from "@shared/domain/fees";
 import { mayPublishReturns, type PromotionDecision } from "@shared/domain/prohibitions";
 import { permissionsHeld } from "@backend/permissions";
@@ -31,7 +32,7 @@ import { REVEAL_GUARANTEE } from "@shared/domain/reveal";
 import { GRADES } from "@shared/domain/passport";
 import { MATERIAL_ITEMS } from "@shared/domain/materialInformation";
 import { sellerDueDiligence } from "@shared/domain/sellerDueDiligence";
-import { REVEAL_PRICES } from "@shared/domain/pricing";
+import { ACU_PACKAGES, REVEAL_PRICES } from "@shared/domain/pricing";
 import type { OccupancyStatus } from "@shared/domain/types";
 
 /**
@@ -176,7 +177,7 @@ export default async function Home() {
       {goldmine !== undefined && <GoldMineSection goldmine={goldmine} listing={record.listing!} />}
       <CloseSection close={close} />
       <RevenueSection revenue={revenue} />
-      <Pricing />
+      <Pricing sellerFee={sellerFee} />
       <SiteFooter />
     </main>
   );
@@ -1405,7 +1406,7 @@ function RevenueSection({ revenue }: { revenue: ReturnType<typeof dealRevenue> }
   );
 }
 
-function Pricing() {
+function Pricing({ sellerFee }: { sellerFee: SellerFeeStatement }) {
   return (
     <section id="pricing" className="border-b hairline bg-surface-1">
       <div className="mx-auto max-w-7xl px-6 py-20">
@@ -1414,28 +1415,15 @@ function Pricing() {
           title="Sellers free. Always."
           lede="Exclusive deal flow is the whole asset, so the supply side is free by design. Friction at acquisition is the one thing that would kill it — so there isn't any."
         />
-        <div className="mt-14 grid gap-4 md:grid-cols-3 lg:grid-cols-5">
-          {BUYER_TIERS.map((t, i) => (
-            <div
-              key={t.name}
-              className={`flex flex-col rounded-2xl border px-6 py-7 ${i === 2 ? "border-lode-500/40 bg-lode-400/5" : "hairline bg-surface-2"}`}
-            >
-              <p className="text-sm font-medium text-ink-100">{t.name}</p>
-              <p className="tnum mt-2 text-[24px] leading-none text-ink-100">
-                {t.monthly === 0 ? "Free" : gbp(t.monthly)}
-                {t.monthly !== 0 && <span className="text-sm text-ink-400">/mo</span>}
-              </p>
-              <p className="mt-2 text-xs leading-relaxed text-ink-400">{t.summary}</p>
-              <ul className="mt-5 space-y-2 border-t hairline pt-5">
-                {t.features.map((f) => (
-                  <li key={f} className="flex gap-2 text-xs leading-relaxed text-ink-300">
-                    <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-lode-400" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+
+        {/*
+          Two audiences buy a subscription — buyers and lenders — and the plans
+          are not the same shape. The toggle shows one list at a time, both
+          derived from `pricing.ts` via `revenue.ts`, so neither restates a
+          price. The client component only chooses which published list to show.
+        */}
+        <div className="mt-14">
+          <PricingTiers buyer={BUYER_TIERS} funder={FUNDER_TIERS} />
         </div>
 
         {/*
@@ -1480,6 +1468,48 @@ function Pricing() {
               platform and the refund is automatic; nobody has to be persuaded.
             </p>
           </div>
+        </div>
+
+        {/*
+          Analysis credits (ACUs) are what the AI work is metered in — a strategy
+          run, a memorandum, an underwriting summary each cost credits. Priced in
+          packs from `pricing.ts`; the trial pack is free. Stated here so the
+          metered cost is not something a buyer first meets inside a tool.
+        */}
+        <div className="mt-5 overflow-hidden rounded-2xl border hairline bg-surface-2">
+          <div className="border-b hairline px-6 py-5">
+            <p className="text-sm font-medium text-ink-100">Analysis credits</p>
+            <p className="mt-2 max-w-[46rem] text-xs leading-relaxed text-ink-400">
+              The AI work — strategy runs, red-team stresses, investment memoranda — is metered in
+              analysis credits, so you pay for what you use rather than for a seat you might not fill.
+              Buy a pack; it never expires out from under you mid-deal.
+            </p>
+          </div>
+          <ul className="grid sm:grid-cols-2 lg:grid-cols-5">
+            {ACU_PACKAGES.map((p) => (
+              <li
+                key={p.id}
+                className="border-b hairline px-6 py-4 last:border-0 sm:[&:nth-last-child(2)]:border-0 sm:odd:border-r lg:border-b-0 lg:border-r lg:last:border-r-0"
+              >
+                <p className="text-[13px] font-medium text-ink-100">{p.name}</p>
+                <p className="tnum mt-1 text-[18px] leading-none text-ink-100">
+                  {p.price === 0 ? "Free" : gbp(p.price)}
+                </p>
+                <p className="tnum mt-2 text-xs text-ink-400">{p.acus.toLocaleString("en-GB")} credits</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/*
+          The seller's own fee. Stated only through `sellerFeeStatement()`, which
+          reads the fee engine and the permission catalogue — never a literal in
+          this file. When the success fee cannot lawfully be charged the engine
+          says "free", and that is what prints.
+        */}
+        <div className="mt-5 rounded-2xl border hairline bg-surface-2 px-6 py-5">
+          <p className="text-sm font-medium text-ink-100">Sellers</p>
+          <p className="mt-2 max-w-[46rem] text-sm leading-relaxed text-ink-300">{sellerFee.statement}</p>
         </div>
       </div>
     </section>
