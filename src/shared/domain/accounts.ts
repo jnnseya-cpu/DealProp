@@ -677,11 +677,21 @@ export function withinRoleCap(roles: readonly Role[]): boolean {
   return new Set(roles).size <= MAX_ACCOUNT_ROLES;
 }
 
+/**
+ * The one place a role is named for a human.
+ *
+ * These are the canonical, platform-wide labels — every badge, pricing header,
+ * dashboard and form reads them from here so the same person is never called
+ * two different things. The role KEYS (investor/funder/partner) stay as code
+ * identifiers; only the display name changes. "Sourcer / Flipper" is not a role
+ * of its own — it is a buyer + seller account — so it has no entry here and is
+ * named where that combination is offered (sign-up, the account roles form).
+ */
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Administrator",
   operator: "Operator",
-  investor: "Investor",
-  funder: "Capital provider",
-  partner: "Partner (agent or auctioneer)",
+  investor: "Buyer",
+  funder: "Lender",
+  partner: "Agent & auctioneer",
   seller: "Seller",
 };

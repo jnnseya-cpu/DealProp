@@ -15,7 +15,7 @@ import { setOwnRoles } from "./actions";
  */
 const SELF_LABEL: Partial<Record<Role, string>> = {
   seller: "Seller — I have property to sell",
-  investor: "Buyer / investor — I acquire property",
+  investor: "Buyer — I acquire property",
 };
 
 export function RolesSelfForm({ roles }: { roles: readonly Role[] }) {
@@ -30,7 +30,7 @@ export function RolesSelfForm({ roles }: { roles: readonly Role[] }) {
   return (
     <form action={submit} className="space-y-3">
       <p className="text-[13px] leading-relaxed text-ink-300">
-        Turn on everything you do — a flipper is simply both. Change it whenever you like.
+        Turn on everything you do — a sourcer / flipper is simply both. Change it whenever you like.
       </p>
       <div className="flex flex-col gap-2">
         {SELF_SERVICE_ROLES.map((r) => (
@@ -54,7 +54,7 @@ export function RolesSelfForm({ roles }: { roles: readonly Role[] }) {
           </span>
           .{" "}
           {fixed.some(isReservedRole)
-            ? "Estate agent and lender are verified by Lode and are not changed here."
+            ? "Agent & auctioneer and lender are verified by Lode and are not changed here."
             : "Set by Lode and not changed here."}
         </p>
       )}

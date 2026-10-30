@@ -1446,7 +1446,10 @@ function Pricing({
           price. The client component only chooses which published list to show.
         */}
         <div className="mt-14">
-          <PricingTiers buyer={BUYER_TIERS} funder={FUNDER_TIERS} />
+          <p className="eyebrow text-center">Buyers &amp; lenders · monthly plans</p>
+          <div className="mt-6">
+            <PricingTiers buyer={BUYER_TIERS} funder={FUNDER_TIERS} />
+          </div>
         </div>
 
         {/*
@@ -1457,9 +1460,10 @@ function Pricing({
           a surprise. Read from `pricing.ts`, which is the only place a price
           is allowed to exist.
         */}
-        <div className="mt-5 overflow-hidden rounded-2xl border hairline bg-surface-2">
+        <p className="eyebrow mt-12">Buyers · per opportunity</p>
+        <div className="mt-4 overflow-hidden rounded-2xl border hairline bg-surface-2">
           <div className="border-b hairline px-6 py-5">
-            <p className="text-sm font-medium text-ink-100">Then a fee per introduction</p>
+            <p className="text-sm font-medium text-ink-100">A fee per introduction</p>
             <p className="mt-2 max-w-[46rem] text-xs leading-relaxed text-ink-400">
               Paid once, when a buyer opens a specific opportunity — never to see an address that
               is already advertised. Priced by what the opportunity is, because the work behind a
@@ -1537,11 +1541,12 @@ function Pricing({
           so the rate lives only in pricing.ts. A 2px left rule, per the design
           system.
         */}
-        <div className="mt-8 border-l-2 border-lode-500/60 pl-4">
-          <p className="text-sm font-medium text-ink-100">Flippers</p>
+        <p className="eyebrow mt-12">Sourcers &amp; flippers</p>
+        <div className="mt-4 border-l-2 border-lode-500/60 pl-4">
+          <p className="text-sm font-medium text-ink-100">No separate plan — you are both sides</p>
           <p className="mt-1.5 max-w-[46rem] text-sm leading-relaxed text-ink-400">
-            A flipper is both sides of the market, so there is no separate plan — one account is
-            buyer and seller together — but the two ways to flip are not priced the same.
+            A sourcer / flipper is both sides of the market, so there is no separate plan — one
+            account is buyer and seller together — but the two ways to do it are not priced the same.
           </p>
           <ul className="mt-3 space-y-2">
             <li className="flex gap-2 text-sm leading-relaxed text-ink-300">
@@ -1571,13 +1576,14 @@ function Pricing({
           both here means every account-holder category a visitor can sign up as
           — buyer, lender, seller, partner — has its price on this page.
         */}
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <p className="eyebrow mt-12">Supply side · free to be here</p>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl border hairline bg-surface-2 px-6 py-5">
             <p className="text-sm font-medium text-ink-100">Sellers</p>
             <p className="mt-2 text-sm leading-relaxed text-ink-300">{sellerFee.statement}</p>
           </div>
           <div className="rounded-2xl border hairline bg-surface-2 px-6 py-5">
-            <p className="text-sm font-medium text-ink-100">Partners — estate agents &amp; auctioneers</p>
+            <p className="text-sm font-medium text-ink-100">Agents &amp; auctioneers</p>
             <p className="mt-2 text-sm leading-relaxed text-ink-300">{partnerFee.statement}</p>
           </div>
         </div>
