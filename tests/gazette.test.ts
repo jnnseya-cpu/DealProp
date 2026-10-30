@@ -211,6 +211,38 @@ describe("a personal-insolvency notice is extracted, never inferred", () => {
     expect(parseInsolvencyNotice({ id: "", title: "A", publishedAt: "x" })).toBeUndefined();
   });
 
+  it("surfaces the court, so the operator knows which Official Receiver to write to", () => {
+    // From a definition-list Court field.
+    const fromField = parseInsolvencyNotice({
+      id: "c1",
+      title: "Amy Field",
+      publishedAt: "2026-10-30T00:00:00Z",
+      content:
+        "<div><dl><dt>Notice Type</dt><dd>Bankruptcy order</dd>" +
+        "<dt>Court</dt><dd>County Court at Nottingham</dd>" +
+        "<dt>Court Case Number</dt><dd>123 of 2026</dd></dl></div>",
+    });
+    expect(fromField?.court).toBe("County Court at Nottingham");
+
+    // Or from the "In the … Court …" prose a notice prints.
+    const fromProse = parseInsolvencyNotice({
+      id: "c2",
+      title: "Ben Prose",
+      publishedAt: "2026-10-30T00:00:00Z",
+      content: "<p>In the County Court at Birmingham. A bankruptcy order was made.</p>",
+    });
+    expect(fromProse?.court).toContain("County Court at Birmingham");
+
+    // A case-number field is never mistaken for the court.
+    const noCourt = parseInsolvencyNotice({
+      id: "c3",
+      title: "Cara None",
+      publishedAt: "2026-10-30T00:00:00Z",
+      content: "<div><dl><dt>Court Case Number</dt><dd>99 of 2026</dd></dl></div>",
+    });
+    expect(noCourt?.court).toBeUndefined();
+  });
+
   it("never takes a postcode from the trustee's address printed in the body", () => {
     const record = parseInsolvencyNotice({
       id: "x",

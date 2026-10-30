@@ -308,6 +308,12 @@ export async function resolveLetter(input: {
    * reading its notice data automatically.
    */
   readonly contactOverride?: string;
+  /**
+   * The court the insolvency notice named, carried from the lead so the redraw
+   * keeps the court hint where no office-holder resolves. Never fetched or
+   * guessed here — it is only what the notice already stated.
+   */
+  readonly court?: string;
 }): Promise<ResolvedLetter> {
   await requirePermission("manage-mandates", "/operator/sourcing");
 
@@ -344,6 +350,7 @@ export async function resolveLetter(input: {
       ? draftInsolvencyLetter({
           sender,
           ...(contactForService !== undefined ? { officeHolder: contactForService } : {}),
+          ...(input.court !== undefined && input.court !== "" ? { court: input.court } : {}),
           debtorName: input.subjectName,
           ...(input.propertyAddress !== "" ? { propertyAddress: input.propertyAddress } : {}),
           today,

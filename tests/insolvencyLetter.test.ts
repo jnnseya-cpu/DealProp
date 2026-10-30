@@ -61,4 +61,23 @@ describe("the insolvency letter is addressed to the office-holder, never the deb
     expect(thin).toContain("[registered office address]");
     expect(thin).toContain("[contact email]");
   });
+
+  it("directs to the Official Receiver for the court when no office-holder is named", () => {
+    const withCourt = draftInsolvencyLetter({
+      sender: { legalName: "JNN Global Ltd" },
+      court: "County Court at Nottingham",
+      debtorName: "A Person",
+      today: "2026-10-30",
+    });
+    expect(withCourt).toContain("The Official Receiver for County Court at Nottingham");
+    // The operator is told to complete the OR office address, never a guessed one.
+    expect(withCourt).toContain("gov.uk");
+    // With no court, it stays the plain placeholder.
+    const noCourt = draftInsolvencyLetter({
+      sender: { legalName: "JNN Global Ltd" },
+      debtorName: "A Person",
+      today: "2026-10-30",
+    });
+    expect(noCourt).not.toContain("Official Receiver for");
+  });
 });

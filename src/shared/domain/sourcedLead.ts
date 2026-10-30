@@ -59,6 +59,12 @@ export interface SourcedLead {
   readonly propertyAddress?: string;
   /** The deceased or debtor named, recorded on the deal this lead becomes. */
   readonly subjectName?: string;
+  /**
+   * The court named on an insolvency notice, where it states one. On a
+   * bankruptcy order with no trustee yet appointed, it tells the operator which
+   * Official Receiver office to write to.
+   */
+  readonly court?: string;
 }
 
 /**

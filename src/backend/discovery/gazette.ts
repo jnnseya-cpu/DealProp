@@ -255,6 +255,44 @@ function addressFromContent(content: string | undefined): string | undefined {
 }
 
 /**
+ * The court a personal-insolvency notice names, where it prints one.
+ *
+ * On a bankruptcy order a trustee is often not yet appointed, so there is no
+ * named office-holder — the Official Receiver attached to the court that made
+ * the order is the recipient. The court is the one thing the notice always
+ * states, so surfacing it tells the operator which OR office to write to.
+ *
+ * Extraction, never inference: it reads a definition-list "Court" value, or the
+ * "In the … Court …" line the notice prints, and returns it verbatim; it never
+ * guesses a court from anything else.
+ */
+function courtFromContent(content: string | undefined): string | undefined {
+  if (content === undefined) return undefined;
+  const clean = (s: string): string =>
+    s
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/\/n/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  // A definition-list field whose label names the court, but not a case number.
+  const pairs = /<dt>([\s\S]*?)<\/dt>\s*<dd>([\s\S]*?)<\/dd>/gi;
+  for (let m = pairs.exec(content); m !== null; m = pairs.exec(content)) {
+    const label = clean(m[1] ?? "").toLowerCase();
+    if (!label.includes("court") || label.includes("case") || label.includes("number")) continue;
+    const value = clean(m[2] ?? "");
+    if (value !== "") return value;
+  }
+
+  // Otherwise the "In the … Court …" line the notice prints as prose.
+  const prose = clean(content);
+  const inThe = /\bIn the (High Court of Justice[^.,;]*|County Court at [A-Z][^.,;]*|[A-Z][\w' ]*? Court[^.,;]*)/i.exec(prose);
+  const line = inThe?.[1]?.trim();
+  return line !== undefined && line !== "" ? line.slice(0, 120) : undefined;
+}
+
+/**
  * The office-holder a notice prints in its own content block.
  *
  * Some notices carry, in the same definition list as the address, the person or
@@ -582,6 +620,12 @@ export interface InsolvencyNotice {
    * on demand from the notice's own page.
    */
   readonly contactForService?: string;
+  /**
+   * The court that made the order, where the notice names one. On a bankruptcy
+   * order with no trustee yet appointed, it tells the operator which Official
+   * Receiver office is the recipient.
+   */
+  readonly court?: string;
   /** The notice's public page, for opening the source from inside Lode. */
   readonly noticeUrl?: string;
 }
@@ -615,6 +659,7 @@ export function parseInsolvencyNotice(notice: GazetteNotice): InsolvencyNotice |
   // The trustee / Official Receiver, where the feed content names one — so the
   // bankruptcy letter is addressable without a second request. Never the debtor.
   const contactForService = contactFromContent(notice.content);
+  const court = courtFromContent(notice.content);
 
   return {
     noticeId: notice.id,
@@ -624,6 +669,7 @@ export function parseInsolvencyNotice(notice: GazetteNotice): InsolvencyNotice |
     noticeType: insolvencyType(stated),
     ...(notice.publishedAt !== "" ? { noticeDate: notice.publishedAt } : {}),
     ...(contactForService !== undefined ? { contactForService } : {}),
+    ...(court !== undefined ? { court } : {}),
     ...(notice.noticeUrl !== undefined ? { noticeUrl: notice.noticeUrl } : {}),
   };
 }

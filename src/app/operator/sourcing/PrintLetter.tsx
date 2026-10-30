@@ -47,6 +47,7 @@ export function PrintLetter({ lead, signatureUrl }: { lead: SourcedLead; signatu
         noticeUrl: lead.sourceUrl,
         subjectName: lead.subjectName ?? "",
         propertyAddress: lead.propertyAddress ?? "",
+        ...(lead.court !== undefined ? { court: lead.court } : {}),
       });
       setLetter(r.letter);
       if (r.contactForService !== undefined) {
@@ -72,6 +73,7 @@ export function PrintLetter({ lead, signatureUrl }: { lead: SourcedLead; signatu
         subjectName: lead.subjectName ?? "",
         propertyAddress: lead.propertyAddress ?? "",
         contactOverride: typed,
+        ...(lead.court !== undefined ? { court: lead.court } : {}),
       });
       setLetter(r.letter);
       setContact(typed);

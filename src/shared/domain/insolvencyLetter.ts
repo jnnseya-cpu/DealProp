@@ -22,6 +22,12 @@ export interface InsolvencyLetterInput {
   readonly sender: CompanyIdentity;
   /** The trustee/Official Receiver named in the notice, where known. */
   readonly officeHolder?: string;
+  /**
+   * The court that made the order, where the notice names one. Used only to
+   * direct the recipient where no trustee is yet named — the Official Receiver
+   * for that court is then the office-holder.
+   */
+  readonly court?: string;
   readonly debtorName: string;
   /** Any property address known for the estate; usually absent on these. */
   readonly propertyAddress?: string;
@@ -51,10 +57,16 @@ export function draftInsolvencyLetter(input: InsolvencyLetterInput): string {
   const email = orPlaceholder(s.contactEmail, "contact email");
   const phoneLine = s.contactPhone !== undefined ? ` or ${s.contactPhone}` : "";
 
+  // The recipient. A named trustee/Official Receiver where the notice gave one;
+  // otherwise, where the court is known, the Official Receiver for that court
+  // (the operator completes its address from gov.uk); otherwise the plain
+  // placeholder. The court is never guessed — it is only what the notice stated.
   const recipient =
     input.officeHolder !== undefined && input.officeHolder !== ""
       ? input.officeHolder
-      : "c/o the trustee or Official Receiver named in the notice";
+      : input.court !== undefined && input.court !== ""
+        ? `The Official Receiver for ${input.court}\n[complete the Official Receiver office address — see gov.uk]`
+        : "c/o the trustee or Official Receiver named in the notice";
 
   const subject =
     input.propertyAddress !== undefined && input.propertyAddress !== ""
