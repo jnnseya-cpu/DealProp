@@ -91,7 +91,7 @@ export default async function FundingPage({ params }: { params: Promise<{ id: st
         {readiness.blockers.length > 0 && (
           <div className="mt-8 rounded-lg border-l-2 border-red-500/80 bg-surface-1 px-5 py-4">
             <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-red-300">
-              Stops this going to a funder
+              Stops this going to a lender
             </h2>
             <ul className="mt-3 space-y-2">
               {readiness.blockers.map((blocker) => (
@@ -164,7 +164,7 @@ export default async function FundingPage({ params }: { params: Promise<{ id: st
           </div>
         </Section>
 
-        <Section title="The ratios a funder decides on">
+        <Section title="The ratios a lender decides on">
           <dl className="space-y-4">
             {metrics.metrics.map((metric) => (
               <div key={metric.key}>

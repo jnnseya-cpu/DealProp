@@ -74,7 +74,7 @@ export default function NewsletterPage() {
               We never add sellers who fill in the enquiry form. Telling us about a property is not
               consent to be marketed at.
             </li>
-            <li>Your address is not sold, shared or passed to buyers, funders or partners.</li>
+            <li>Your address is not sold, shared or passed to buyers, lenders or agents.</li>
           </ul>
         </section>
       </div>

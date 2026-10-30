@@ -52,7 +52,7 @@ export function DraftForm({
   return (
     <form action={submit} className="mt-4 flex flex-wrap items-end gap-3">
       <div>
-        <label className="block text-sm text-ink-300" htmlFor="candidateId">Funder</label>
+        <label className="block text-sm text-ink-300" htmlFor="candidateId">Lender</label>
         <select
           id="candidateId"
           name="candidateId"
@@ -281,7 +281,7 @@ function StagePair({
     <form action={action} className="flex flex-wrap items-end gap-3">
       <p className="w-full font-mono text-[10px] uppercase tracking-[0.2em] text-ink-500">{legend}</p>
       <div>
-        <label className="block text-sm text-ink-300" htmlFor={`${idPrefix}-candidate`}>Funder</label>
+        <label className="block text-sm text-ink-300" htmlFor={`${idPrefix}-candidate`}>Lender</label>
         <select id={`${idPrefix}-candidate`} name="candidateId" className="mt-1 rounded-xl border hairline bg-ink-950 px-3 py-2 text-sm text-ink-100">
           {candidates.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>

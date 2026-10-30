@@ -22,7 +22,7 @@ export async function GET(): Promise<Response> {
     corpus,
     siteUrl(),
     SITE_NAME,
-    "A property deal engine. Sellers bring a situation, dealmakers bring the opportunity, funders bring the capital, and the platform structures a transaction that survives tax, stress testing and completion.",
+    "A property deal engine. Sellers bring a situation, dealmakers bring the opportunity, lenders bring the capital, and the platform structures a transaction that survives tax, stress testing and completion.",
   );
 
   return new Response(body, {

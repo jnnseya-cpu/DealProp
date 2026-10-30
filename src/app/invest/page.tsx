@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Buy Boxes — Lode",
-  description: "Investor mandates, and the live deals each one actually matches.",
+  description: "Buyer mandates, and the live deals each one actually matches.",
 };
 
 /**

@@ -950,7 +950,7 @@ function RedTeamSection({
         <SectionHead
           eyebrow="AI Red Team"
           title="An independent agent tries to destroy the deal"
-          lede="Before any pack reaches a funder, nine fixed stresses hit it. The downside lands next to the headline, and every deal is shocked identically — so a lender can actually compare them."
+          lede="Before any pack reaches a lender, nine fixed stresses hit it. The downside lands next to the headline, and every deal is shocked identically — so a lender can actually compare them."
         />
 
         <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

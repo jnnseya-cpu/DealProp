@@ -47,7 +47,7 @@ export default async function OptOutPage({
             : "The link did not carry an address. Reply to the message you received with “remove me” and it will be actioned automatically."}
         </p>
         <p className="mt-6 text-sm leading-relaxed text-ink-400">
-          We write to funders about property transactions we are working on. We do not sell or share
+          We write to lenders about property transactions we are working on. We do not sell or share
           contact details, and we only ever use an address an organisation has published for
           enquiries.
         </p>

@@ -49,14 +49,14 @@ export function FundingBoxForm({ box }: { box?: FundingBox }) {
       summary={
         editing
           ? "Changes take effect immediately for every deal matched from now on."
-          : "What this funder will lend or invest against, and on what terms. A wrong figure here produces silence rather than an error, and silence reads as no capital available."
+          : "What this lender will lend or invest against, and on what terms. A wrong figure here produces silence rather than an error, and silence reads as no capital available."
       }
       openByDefault={editing}
     >
       {editing && <input type="hidden" name="id" value={box.id} />}
 
       <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Funder name">
+        <Field label="Lender name">
           <TextInput name="funderName" required defaultValue={box?.funderName} maxLength={120} />
         </Field>
         <Field label="Kind">

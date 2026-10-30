@@ -138,7 +138,7 @@ export async function saveFundingBoxAction(
         : owner !== undefined
           ? { ownerAccountId: owner.id }
           : {}),
-      funderName: requiredText(formData.get("funderName"), "Funder name"),
+      funderName: requiredText(formData.get("funderName"), "Lender name"),
       kind: requireOneOf<FunderKind>(formData.get("kind"), FUNDER_KINDS, "funder kind"),
       jurisdictions: requireManyOf<JurisdictionCode>(
         formData.getAll("jurisdictions"),

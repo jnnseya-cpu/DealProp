@@ -99,7 +99,7 @@ export default async function CapitalPage() {
           </p>
         )}
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-300">
-          Declared capital is what a funder says they have, not money we hold or have verified. It
+          Declared capital is what a lender says they have, not money we hold or have verified. It
           is shown so the number can be interrogated rather than assumed, and no deal is introduced
           on the strength of it alone.
         </p>

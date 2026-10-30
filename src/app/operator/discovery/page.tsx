@@ -9,7 +9,7 @@ import type { VerificationStatus } from "@shared/domain/outreach";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Funder discovery — Lode" };
+export const metadata = { title: "Lender discovery — Lode" };
 
 /**
  * Funders found by discovery, and what was done about each.
@@ -54,7 +54,7 @@ export default async function DiscoveryPage() {
 
       <div className="mx-auto max-w-4xl px-6 py-10">
         <span className="eyebrow">
-          Funder discovery
+          Lender discovery
         </span>
         <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           {candidates.length === 0
@@ -67,7 +67,7 @@ export default async function DiscoveryPage() {
           still decides whether a particular message to them would be lawful.
         </p>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-400">
-          This is funder discovery. To find <span className="text-ink-200">motivated sellers</span> from
+          This is lender discovery. To find <span className="text-ink-200">motivated sellers</span> from
           the licensed registers — prepared-but-unsold, probate, insolvency — see{" "}
           <a href="/operator/sourcing" className="text-lode-300 underline underline-offset-2">
             property sourcing

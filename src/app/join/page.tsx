@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Create your account — Lode",
-  description: "Sign up to Lode as a seller, investor, capital provider or agent.",
+  description: "Sign up to Lode as a seller, buyer, sourcer / flipper, lender or agent.",
 };
 
 /**

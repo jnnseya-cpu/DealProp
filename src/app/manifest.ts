@@ -26,7 +26,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Lode — Property Deal OS",
     short_name: "Lode",
     description:
-      "Problems become deals. Deals find capital. Capital closes property. An AI deal engine for motivated sellers, dealmakers and funders.",
+      "Problems become deals. Deals find capital. Capital closes property. An AI deal engine for motivated sellers, dealmakers and lenders.",
     id: canonical,
     start_url: canonical,
     ...(base !== "" ? { scope: `${base}/` } : {}),

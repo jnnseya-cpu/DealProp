@@ -17,7 +17,7 @@ export function NewAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) 
     <MandateForm
       action={createAccount}
       title="Create an account"
-      summary="A named person the audit trail can name. Investors and capital providers must certify separately before any deal material reaches them."
+      summary="A named person the audit trail can name. Buyers and lenders must certify separately before any deal material reaches them."
     >
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label="Name">
@@ -50,7 +50,7 @@ export function NewAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) 
       </Field>
       <Field
         label="Connected party"
-        hint="Mark this account as Lode or a party connected to Lode acting as a principal (buyer, flipper or funder). Sellers are shown a disclosure wherever it takes part. Never set at self-service sign-up."
+        hint="Mark this account as Lode or a party connected to Lode acting as a principal (buyer, sourcer / flipper or lender). Sellers are shown a disclosure wherever it takes part. Never set at self-service sign-up."
       >
         <Toggle name="connectedParty" label="This account is Lode or a connected party" />
       </Field>

@@ -562,7 +562,7 @@ function Result({
 
       {/* Ratios and the router. */}
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        <Panel eyebrow="What a funder measures" title="Ratios">
+        <Panel eyebrow="What a lender measures" title="Ratios">
           <div className="grid grid-cols-2 gap-4">
             {metrics.metrics.slice(0, 4).map((m) => (
               <Stat

@@ -11,7 +11,7 @@ export const revalidate = 3600;
 export const metadata: Metadata = {
   title: `How ${SITE_NAME} works`,
   description:
-    "Tell us the problem, see the routes that solve it, and a named person takes it from there. How Lode works for sellers, buyers, funders and professionals.",
+    "Tell us the problem, see the routes that solve it, and a named person takes it from there. How Lode works for sellers, buyers, lenders and professionals.",
   alternates: { canonical: canonical(siteUrl(), "/how-it-works") },
 };
 
@@ -50,7 +50,7 @@ const BUYER: readonly Step[] = [
 
 const FUNDER: readonly Step[] = [
   { n: "01", title: "Publish a Funding Box", body: "Your lending criteria as a standing mandate: the facilities you write, the ratios you need, the regions you cover." },
-  { n: "02", title: "See fundable deals", body: "Deals are scored on the ratios a funder actually decides on — LTV, LTGDV, funding gap, exit headroom — and packaged with the readiness a credit team expects." },
+  { n: "02", title: "See fundable deals", body: "Deals are scored on the ratios a lender actually decides on — LTV, LTGDV, funding gap, exit headroom — and packaged with the readiness a credit team expects." },
   { n: "03", title: "A lawful introduction", body: "An introduction is made only where the regulatory route permits it and the deal owner has consented to identify the transaction. Each stage of disclosure is gated separately." },
 ];
 
@@ -74,7 +74,7 @@ export default function HowItWorksPage() {
           See the routes that solve it.
         </h1>
         <p className="mt-5 max-w-2xl text-base leading-relaxed text-ink-300">
-          Lode is one engine with four doors into it — a seller, a buyer, a funder, a professional.
+          Lode is one engine with four doors into it — a seller, a buyer, a lender, a professional.
           Whichever you are, the same thing is true underneath: one run returns one position, every
           figure carries its reasoning, and a named person decides anything that affects a real person.
         </p>

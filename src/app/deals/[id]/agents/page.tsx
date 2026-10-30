@@ -69,7 +69,7 @@ export default async function AgentsPage({ params }: { params: Promise<{ id: str
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-400">
           {run.blockers > 0
-            ? `${run.blockers} of them would stop this deal going to a funder. `
+            ? `${run.blockers} of them would stop this deal going to a lender. `
             : ""}
           Every figure below was computed by the same engines the Deal Room reads. No agent has
           acted on any of it, and none of them can — they draft and they rank, and a named person

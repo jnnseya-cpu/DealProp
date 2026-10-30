@@ -11,7 +11,7 @@ import { siteUrl, SITE_NAME } from "@backend/site";
 export const metadata: Metadata = {
   title: "Lode — Property Deal OS",
   description:
-    "Problems become deals. Deals find capital. Capital closes property. An AI deal engine for motivated sellers, dealmakers and funders.",
+    "Problems become deals. Deals find capital. Capital closes property. An AI deal engine for motivated sellers, dealmakers and lenders.",
   applicationName: "Lode",
   manifest: "/manifest.webmanifest",
   icons: {
