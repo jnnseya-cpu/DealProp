@@ -553,33 +553,30 @@ export const ALL_ROLES: readonly Role[] = [
 /**
  * The roles a visitor may give themselves at public sign-up.
  *
- * Deliberately only seller and buyer/investor (a flipper is both at once, on the
- * one account). Two kinds of role are NOT here:
- *
- *  - Staff (`admin`, `operator`): a privilege that reaches seller data or the
- *    whole platform is granted by a named administrator, never claimed on a form.
- *  - Estate agent (`partner`) and lender (`funder`): a regulated real-world
- *    status Lode cannot confer, so they are {@link RESERVED_ROLES} — not
- *    self-service, and not even an admin may allocate them. A person still has
- *    only ONE account; those roles arrive on it through verified onboarding.
+ * Everyone signs up to Lode freely and independently and chooses what they do —
+ * seller, buyer/investor, estate agent, lender, or a flipper (buyer + seller).
+ * This is the normal path, and the lender and agent onboarding here is left
+ * exactly as it was. The only role NOT here is staff (`admin`, `operator`): a
+ * privilege that reaches seller data or the whole platform is granted by a named
+ * administrator, never claimed on a form.
  */
-export const SELF_SERVICE_ROLES: readonly Role[] = ["seller", "investor"];
+export const SELF_SERVICE_ROLES: readonly Role[] = ["seller", "investor", "funder", "partner"];
 
 /**
- * The roles NOBODY may hand out — not at sign-up, and not even an administrator.
+ * The roles an ADMIN may not allocate — they come only from a person's own
+ * sign-up.
  *
- * An estate agent and a lender are real-world regulated capacities: a firm
- * either is a registered estate agent (redress scheme, AML supervision) or it is
- * not, and a lender either holds the authorisation or it does not. Lode cannot
- * confer either by flipping a switch, so neither self-service nor an admin may
- * grant them. They come only from a verified onboarding that checks the actual
- * status — which is a separate, evidence-gated path, deliberately not an admin
- * toggle. An account that already holds one keeps it; this stops anyone else
- * being *given* one.
+ * An estate agent and a lender are real-world regulated capacities. A person
+ * declares themselves one when they sign up through that role's own onboarding;
+ * an administrator's generic "make this account anything" power deliberately
+ * cannot stamp someone as an agent or a lender, so the status is always
+ * authentic to how the person registered rather than something conferred by a
+ * toggle. They are freely self-service (above); what they are not is
+ * admin-allocatable. An account that already holds one keeps it.
  */
 export const RESERVED_ROLES: readonly Role[] = ["funder", "partner"];
 
-/** Whether a role is reserved — ungrantable by self-service or by an admin. */
+/** Whether a role is one an admin may not allocate (it comes from sign-up only). */
 export function isReservedRole(role: Role): boolean {
   return RESERVED_ROLES.includes(role);
 }
@@ -590,7 +587,8 @@ export function isReservedRole(role: Role): boolean {
  * Everything that is not reserved: seller, buyer/investor, flipper's parts, and
  * the staff roles (which carry their own named-admin check at the call site).
  * This is "make an account be everything he wants, except estate agent and
- * lender", expressed once so the forms and the server agree.
+ * lender", expressed once so the forms and the server agree. The admin tool is
+ * for exceptional cases — the normal path is self-service sign-up.
  */
 export function adminAllocatableRoles(): readonly Role[] {
   return ALL_ROLES.filter((r) => !isReservedRole(r));

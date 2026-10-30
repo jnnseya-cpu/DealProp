@@ -40,13 +40,8 @@ export default async function JoinPage({
           Join Lode
         </h1>
         <p className="mt-4 text-sm leading-relaxed text-ink-300">
-          One account per person, free to open — seller, buyer, or both (a flipper). Selling is free.
-          Buyers get a dashboard right away; deal material unlocks once you certify. Estate agents and
-          lenders are set up by Lode after a quick check — email{" "}
-          <a href="mailto:contact@lodeprop.com" className="text-lode-300 underline-offset-2 hover:underline">
-            contact@lodeprop.com
-          </a>{" "}
-          to get started.
+          One account per person, free to open — sign up as whatever you are: seller, buyer, flipper,
+          lender or agent. Selling is free. Buyers and lenders certify before deal material unlocks.
         </p>
 
         <div className="mt-8 rounded-2xl border hairline bg-surface-1 px-5 py-4">
