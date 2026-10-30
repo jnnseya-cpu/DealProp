@@ -562,11 +562,19 @@ export async function startDealFromLead(
       ...(formData.get("sourceUrl") ? { sourceUrl: String(formData.get("sourceUrl")) } : {}),
     });
     if (key !== undefined) {
+      // Keep the same three facts the print path keeps, so if this lead is later
+      // restored it still offers "Start a deal" from the Contacted list.
+      const startFacts = {
+        ...(postcode !== "" ? { postcode } : {}),
+        ...(address !== "" ? { address } : {}),
+        ...(subjectName !== "" ? { subjectName } : {}),
+      };
       await markContactedLead({
         key,
         signalKey: signal as LeadSignal,
         contactedAt: new Date().toISOString(),
         by: author?.email ?? "operator",
+        ...(Object.keys(startFacts).length > 0 ? { startFacts } : {}),
       }).catch(() => undefined);
     }
   }
