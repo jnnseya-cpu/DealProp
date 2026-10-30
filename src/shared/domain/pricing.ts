@@ -709,6 +709,43 @@ export function sourcingFeeHeadline(shape: SourcingFeeShape = "percentage"): str
   return `${percent(band.rateBps, 2)} of the purchase price, minimum ${gbp(band.minimum)}${cap}, due on completion`;
 }
 
+/* --------------------------------------------- the assignment margin fee */
+
+/**
+ * What a sourcer pays Lode when they assign a sourced deal on for a margin.
+ *
+ * A flipper who sources a deal here and assigns the contract to an end buyer
+ * keeps the difference between the price they lock and the price the end buyer
+ * pays — the assignment margin, which can run to tens of thousands. That is not
+ * a free event: money changes hands and it changes hands because Lode supplied
+ * the deal flow the margin came from, so Lode takes a share of it.
+ *
+ * A share rather than a fixed fee, because the margin itself is variable: a
+ * fixed fee is a rounding error on a large margin and swallows a small one. The
+ * share is deliberately above the auctioneer's 10% revenue share and below the
+ * regulated-introducer rates.
+ *
+ * Charged on the MARGIN only, never on the whole price — the end buyer's money
+ * for the property itself is not ours to take a percentage of, and a fee on the
+ * price rather than the profit is the mistake that turns a good deal into a dead
+ * one. Due on completion of the assignment, the stage the margin is received.
+ */
+export const ASSIGNMENT_MARGIN_FEE_BPS: Bps = pct(15);
+
+/** The fee on an assignment margin. Zero where there is no positive margin. */
+export function assignmentMarginFee(margin: Money): Money {
+  if (margin <= 0) return ZERO;
+  return applyBps(margin, ASSIGNMENT_MARGIN_FEE_BPS);
+}
+
+/** The flipper's headline, stated from the rate so no page restates it. */
+export function assignmentMarginFeeHeadline(): string {
+  return (
+    `${percent(ASSIGNMENT_MARGIN_FEE_BPS, 0)} of the assignment margin — the difference ` +
+    `between what you lock and what the end buyer pays — due on completion`
+  );
+}
+
 export function successFeeBand(service: SellerService): SuccessFeeBand {
   const found = SUCCESS_FEE_BANDS.find((b) => b.service === service);
   if (found === undefined) throw new Error(`No success fee band for "${service}".`);

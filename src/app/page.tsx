@@ -37,7 +37,7 @@ import { REVEAL_GUARANTEE } from "@shared/domain/reveal";
 import { GRADES } from "@shared/domain/passport";
 import { MATERIAL_ITEMS } from "@shared/domain/materialInformation";
 import { sellerDueDiligence } from "@shared/domain/sellerDueDiligence";
-import { ACU_PACKAGES, REVEAL_PRICES } from "@shared/domain/pricing";
+import { ACU_PACKAGES, assignmentMarginFeeHeadline, REVEAL_PRICES } from "@shared/domain/pricing";
 import type { OccupancyStatus } from "@shared/domain/types";
 
 /**
@@ -1519,20 +1519,39 @@ function Pricing({
           Flippers are the one category without a plan of their own, because a
           flipper is both sides of the market at once: a flipper account is
           buyer + seller (see /join/actions.ts, where "flipper" maps to
-          investor + seller). So their price is already on this page, split
-          across the two sides — and that holds for both shapes of flip, the
-          one who buys, refurbishes and sells, and the one who sources a deal
-          and assigns it on for a margin without ever buying it. A 2px left
-          rule, not a tinted box, per the design system.
+          investor + seller). But the two shapes of flip are NOT priced the
+          same, and an earlier draft wrongly called both "free". The one who
+          buys, refurbishes and sells runs through the buyer side then the
+          seller side. The one who sources a deal and assigns it on keeps the
+          margin — tens of thousands on a good deal — and that is a paid event:
+          Lode takes a share, stated here from `assignmentMarginFeeHeadline()`
+          so the rate lives only in pricing.ts. A 2px left rule, per the design
+          system.
         */}
         <div className="mt-8 border-l-2 border-lode-500/60 pl-4">
           <p className="text-sm font-medium text-ink-100">Flippers</p>
           <p className="mt-1.5 max-w-[46rem] text-sm leading-relaxed text-ink-400">
-            A flipper is both sides of the market, so there is no separate plan: one account is
-            buyer and seller together. You pay on the buyer side to source, analyse and unlock a
-            deal, and the sell side is free — the same whether you buy, refurbish and sell, or
-            source a deal and assign it on for a margin without buying it yourself.
+            A flipper is both sides of the market, so there is no separate plan — one account is
+            buyer and seller together — but the two ways to flip are not priced the same.
           </p>
+          <ul className="mt-3 space-y-2">
+            <li className="flex gap-2 text-sm leading-relaxed text-ink-300">
+              <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-lode-400" />
+              <span>
+                <span className="text-ink-100">Buy, refurbish and sell.</span> You pay on the buyer
+                side to source and acquire; selling the finished property runs through the seller
+                side above.
+              </span>
+            </li>
+            <li className="flex gap-2 text-sm leading-relaxed text-ink-300">
+              <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-lode-400" />
+              <span>
+                <span className="text-ink-100">Source and assign on.</span> You lock a deal and
+                assign it to an end buyer for the difference. That margin is yours; Lode takes{" "}
+                {assignmentMarginFeeHeadline()}.
+              </span>
+            </li>
+          </ul>
         </div>
 
         {/*

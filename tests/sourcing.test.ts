@@ -9,8 +9,15 @@ import {
 } from "@shared/domain/sourcing";
 import { resolveCitation } from "@shared/domain/citations";
 import { feeAmount, feeDefinition } from "@shared/domain/fees";
-import { sourcingFee, sourcingFeeBand, SOURCING_FEE_BANDS } from "@shared/domain/pricing";
-import { fromMajor, toMajor } from "@shared/money";
+import {
+  assignmentMarginFee,
+  ASSIGNMENT_MARGIN_FEE_BPS,
+  assignmentMarginFeeHeadline,
+  sourcingFee,
+  sourcingFeeBand,
+  SOURCING_FEE_BANDS,
+} from "@shared/domain/pricing";
+import { fromMajor, neg, pct, toMajor, ZERO } from "@shared/money";
 import { STREAMS } from "@shared/domain/revenue";
 
 const AGENCY = ["estate-agency-aml", "redress-scheme"] as const;
@@ -216,5 +223,28 @@ describe("the sourcing fee", () => {
     const stream = STREAMS.find((s) => s.key === "sourcing-fee");
     expect(stream).toBeDefined();
     expect([...(stream?.requiresPermissions ?? [])].sort()).toEqual([...AGENCY].sort());
+  });
+});
+
+describe("the assignment margin fee", () => {
+  it("takes the agreed share of the margin, not of the price", () => {
+    // A flipper locks at 100k and assigns at 110k: the margin is 10k and the
+    // fee is a share of that 10k, never of the 110k the end buyer pays.
+    expect(ASSIGNMENT_MARGIN_FEE_BPS).toBe(pct(15));
+    expect(toMajor(assignmentMarginFee(fromMajor(10_000)))).toBe(1_500);
+  });
+
+  it("is zero where there is no positive margin", () => {
+    // An assignment at or below the locked price earns the flipper nothing, so
+    // there is nothing to take a share of.
+    expect(assignmentMarginFee(ZERO)).toBe(ZERO);
+    expect(assignmentMarginFee(neg(fromMajor(5_000)))).toBe(ZERO);
+  });
+
+  it("states its rate from the constant, due on completion", () => {
+    const headline = assignmentMarginFeeHeadline();
+    expect(headline).toMatch(/15%/);
+    expect(headline).toMatch(/margin/);
+    expect(headline).toMatch(/completion/);
   });
 });
