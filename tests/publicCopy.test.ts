@@ -14,7 +14,7 @@ import { SELLER_KINDS } from "@shared/domain/sellerDueDiligence";
 import { PLANS } from "@shared/domain/pricing";
 import { BUYER_TIERS } from "@shared/domain/revenue";
 import { supplyPosition } from "@shared/domain/supply";
-import { partnerFeeStatement, sellerFeeStatement } from "@shared/domain/fees";
+import { assignmentMarginFeeStatement, partnerFeeStatement, sellerFeeStatement } from "@shared/domain/fees";
 
 /**
  * The prohibitions, applied to the copy rather than to the engine.
@@ -289,6 +289,55 @@ describe("partnerFeeStatement", () => {
   it("reads the auction share from the commission catalogue", () => {
     // The figure must come from pricing.ts, not a literal in the sentence.
     expect(partnerFeeStatement().statement).toMatch(/%/);
+  });
+});
+
+describe("assignmentMarginFeeStatement", () => {
+  const GOOD = {
+    amlRegistration: "XZAB12345",
+    amlConfirmedAt: "2026-06-01",
+    redressScheme: "property-redress-scheme",
+    redressMembership: "PRS-99",
+  } as const;
+  const NOW = new Date("2026-09-01T00:00:00.000Z");
+
+  it("gates the 15% behind the flipper's own compliance", () => {
+    // Anonymous (the landing page) and an uncompliant flipper both see the
+    // requirement, not a chargeable fee.
+    const anon = assignmentMarginFeeStatement(undefined, NOW);
+    expect(anon.chargeable).toBe(false);
+    expect(anon.statement).toMatch(/anti-money-laundering/i);
+    expect(anon.statement).toMatch(/redress/i);
+  });
+
+  it("clears only once AML and redress are recorded and current", () => {
+    const ok = assignmentMarginFeeStatement(GOOD, NOW);
+    expect(ok.chargeable).toBe(true);
+    expect(ok.blocker).toBeUndefined();
+  });
+
+  it("refuses a lapsed AML registration", () => {
+    // Confirmed over a year before NOW: no registration, for our purposes.
+    const stale = assignmentMarginFeeStatement({ ...GOOD, amlConfirmedAt: "2025-01-01" }, NOW);
+    expect(stale.chargeable).toBe(false);
+    expect(stale.blocker).toMatch(/lapse/i);
+  });
+
+  it("refuses a half-set record", () => {
+    for (const bad of [
+      { ...GOOD, amlRegistration: "" },
+      { ...GOOD, redressMembership: "" },
+    ]) {
+      expect(assignmentMarginFeeStatement(bad, NOW).chargeable).toBe(false);
+    }
+  });
+
+  it("says something publishable either way", () => {
+    for (const compliance of [undefined, GOOD]) {
+      const { statement } = assignmentMarginFeeStatement(compliance, NOW);
+      expect(checkValuationLanguage(statement).clean).toBe(true);
+      expect(statement.trim().endsWith(".")).toBe(true);
+    }
   });
 });
 

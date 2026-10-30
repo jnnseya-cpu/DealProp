@@ -25,8 +25,10 @@ import { Meter, StackedBar, type StackSegment } from "@/app/components/charts";
 import { BUYER_TIERS, FUNDER_TIERS } from "@shared/domain/revenue";
 import { PricingTiers } from "@/app/components/PricingTiers";
 import {
+  assignmentMarginFeeStatement,
   partnerFeeStatement,
   sellerFeeStatement,
+  type AssignmentFeeStatement,
   type PartnerFeeStatement,
   type SellerFeeStatement,
 } from "@shared/domain/fees";
@@ -37,7 +39,7 @@ import { REVEAL_GUARANTEE } from "@shared/domain/reveal";
 import { GRADES } from "@shared/domain/passport";
 import { MATERIAL_ITEMS } from "@shared/domain/materialInformation";
 import { sellerDueDiligence } from "@shared/domain/sellerDueDiligence";
-import { ACU_PACKAGES, assignmentMarginFeeHeadline, REVEAL_PRICES } from "@shared/domain/pricing";
+import { ACU_PACKAGES, REVEAL_PRICES } from "@shared/domain/pricing";
 import type { OccupancyStatus } from "@shared/domain/types";
 
 /**
@@ -142,6 +144,11 @@ export default async function Home() {
   // What a partner — an estate agent or auctioneer listing their own stock —
   // pays: nothing to be here, a revenue share only on work we win them.
   const partnerFee = partnerFeeStatement();
+  // The flipper's assignment fee, shown to an anonymous visitor, so it states
+  // the gate: Lode's 15% is charged only once the sourcer's own AML and redress
+  // compliance are recorded. A signed-in flipper sees their real status on the
+  // account dashboard.
+  const assignmentFee = assignmentMarginFeeStatement(undefined);
 
   const stress = (key: string): Money =>
     scored.redTeam.results.find((r) => r.stress.key === key)?.profit ?? scored.appraisal.profit;
@@ -185,7 +192,7 @@ export default async function Home() {
       {goldmine !== undefined && <GoldMineSection goldmine={goldmine} listing={record.listing!} />}
       <CloseSection close={close} />
       <RevenueSection revenue={revenue} />
-      <Pricing sellerFee={sellerFee} partnerFee={partnerFee} />
+      <Pricing sellerFee={sellerFee} partnerFee={partnerFee} assignmentFee={assignmentFee} />
       <SiteFooter />
     </main>
   );
@@ -1417,9 +1424,11 @@ function RevenueSection({ revenue }: { revenue: ReturnType<typeof dealRevenue> }
 function Pricing({
   sellerFee,
   partnerFee,
+  assignmentFee,
 }: {
   sellerFee: SellerFeeStatement;
   partnerFee: PartnerFeeStatement;
+  assignmentFee: AssignmentFeeStatement;
 }) {
   return (
     <section id="pricing" className="border-b hairline bg-surface-1">
@@ -1546,9 +1555,7 @@ function Pricing({
             <li className="flex gap-2 text-sm leading-relaxed text-ink-300">
               <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-lode-400" />
               <span>
-                <span className="text-ink-100">Source and assign on.</span> You lock a deal and
-                assign it to an end buyer for the difference. That margin is yours; Lode takes{" "}
-                {assignmentMarginFeeHeadline()}.
+                <span className="text-ink-100">Source and assign on.</span> {assignmentFee.statement}
               </span>
             </li>
           </ul>

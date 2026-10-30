@@ -200,6 +200,48 @@ export interface Account {
    * entitlement follows, and for the same reason.
    */
   readonly passportEvidence?: PassportEvidence;
+  /**
+   * The flipper's own regulatory standing as a deal sourcer.
+   *
+   * Sourcing a deal and assigning it on for a margin is estate-agency work done
+   * by this person, not by Lode, so before Lode facilitates the assignment and
+   * takes its share the sourcer must — in their own name — hold HMRC
+   * anti-money-laundering supervision and redress-scheme membership. Recorded
+   * here because it is a fact about the person, not about any one deal. Decided
+   * on by `assignmentMarginFeeStatement()` in `fees.ts`; absent until recorded.
+   */
+  readonly sourcerCompliance?: SourcerCompliance;
+}
+
+/**
+ * A redress scheme a sourcer may belong to. Both are government-approved under
+ * the Consumers, Estate Agents and Redress Act 2007.
+ */
+export type RedressScheme = "property-redress-scheme" | "property-ombudsman";
+
+export const REDRESS_SCHEME_LABELS: Record<RedressScheme, string> = {
+  "property-redress-scheme": "Property Redress Scheme",
+  "property-ombudsman": "The Property Ombudsman",
+};
+
+/**
+ * A sourcer's own regulatory standing, recorded on their account.
+ *
+ * This is the flipper's compliance, distinct from the platform permissions the
+ * fee engine checks: it is held in the person's own name and gates whether Lode
+ * may take its 15% of the margin they make by assigning a deal on. Recorded,
+ * dated and checked rather than asserted — "I'm compliant" is what every
+ * unregistered sourcer says. AML supervision renews annually, so it lapses the
+ * same way an investor certification does.
+ */
+export interface SourcerCompliance {
+  /** HMRC anti-money-laundering supervision registration number. */
+  readonly amlRegistration: string;
+  /** ISO date the AML supervision was last confirmed; renewed annually. */
+  readonly amlConfirmedAt: string;
+  readonly redressScheme: RedressScheme;
+  /** The membership reference held with that scheme. */
+  readonly redressMembership: string;
 }
 
 /** An account as it may safely be rendered or logged. */

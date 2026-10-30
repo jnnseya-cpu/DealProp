@@ -13,6 +13,8 @@ import {
   ROLE_LABELS,
 } from "@shared/domain/accounts";
 import { RolesSelfForm } from "./RolesSelfForm";
+import { SourcerComplianceForm } from "./SourcerComplianceForm";
+import { assignmentMarginFeeStatement } from "@shared/domain/fees";
 import { listDealsForOwner } from "@backend/store/repository";
 import { buyerPassport } from "@shared/domain/passport";
 import { fromMajor } from "@shared/money";
@@ -93,6 +95,11 @@ export default async function AccountHome() {
   const isSeller = can(account, "manage-own-property").allowed;
   const isInvestorOrFunder = can(account, "manage-own-mandates").allowed;
   const isPartner = can(account, "import-own-listings").allowed;
+  // A flipper is both sides — seller and buyer/investor. Only a flipper sources
+  // a deal and assigns it on, so only a flipper needs the assignment-fee panel
+  // and its compliance gate.
+  const isFlipper = isSeller && isInvestorOrFunder;
+  const assignment = isFlipper ? assignmentMarginFeeStatement(account.sourcerCompliance, now) : undefined;
 
   // Only the seller view reads deal rows, and only their own, scoped by owner.
   const myDeals = isSeller ? await listDealsForOwner(account.id) : [];
@@ -296,6 +303,24 @@ export default async function AccountHome() {
                   Partner with Lode
                 </Button>
               </div>
+            </Panel>
+          )}
+
+          {/* Flipper: the assignment fee and the compliance that gates it. */}
+          {isFlipper && assignment !== undefined && (
+            <Panel eyebrow="Sourcing" title="Assigning a deal on">
+              <div className="flex items-center gap-2">
+                <Badge tone={assignment.chargeable ? "good" : "warn"}>
+                  {assignment.chargeable ? "Ready to assign" : "Compliance needed"}
+                </Badge>
+              </div>
+              <p className="mt-3 text-[13px] leading-relaxed text-ink-300">{assignment.statement}</p>
+              {assignment.blocker !== undefined && (
+                <p className="mt-2 border-l-2 border-amber-400/70 pl-3 text-[12px] leading-relaxed text-ink-400">
+                  {assignment.blocker}
+                </p>
+              )}
+              <SourcerComplianceForm compliance={account.sourcerCompliance} />
             </Panel>
           )}
 

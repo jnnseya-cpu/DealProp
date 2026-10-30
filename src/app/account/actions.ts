@@ -6,11 +6,15 @@ import { saveAccount } from "@backend/store/repository";
 import {
   accountRoles,
   MAX_ACCOUNT_ROLES,
+  REDRESS_SCHEME_LABELS,
   SELF_SERVICE_ROLES,
   withinRoleCap,
   type Account,
+  type RedressScheme,
   type Role,
+  type SourcerCompliance,
 } from "@shared/domain/accounts";
+import { requiredText, requireOneOf } from "@shared/formFields";
 import { audit } from "@backend/audit";
 
 /**
@@ -72,4 +76,64 @@ export async function setOwnRoles(
   });
   revalidatePath("/account");
   return { ok: true, message: "Updated what you do on Lode." };
+}
+
+/**
+ * A flipper records their own deal-sourcing compliance.
+ *
+ * Sourcing a deal and assigning it on for a margin is the sourcer's own
+ * regulated act, so before Lode will facilitate that assignment and take its
+ * share the flipper records, in their own name, their HMRC anti-money-laundering
+ * registration and their redress-scheme membership. This only ever writes the
+ * caller's own account (§29), and it records evidence — a claim with a date and
+ * a reference on it — never a bare "I am compliant" flag. Whether the fee may
+ * then be charged is decided by `assignmentMarginFeeStatement()`, which also
+ * lapses the AML registration after a year; recording it here does not override
+ * that check.
+ */
+export async function setSourcerCompliance(
+  _previous: { ok: boolean; message: string } | undefined,
+  formData: FormData,
+): Promise<{ ok: boolean; message: string }> {
+  const viewer = await currentViewer();
+  if (viewer === undefined || viewer.kind !== "account") {
+    return { ok: false, message: "Sign in to record your sourcing compliance." };
+  }
+  const account = viewer.account;
+
+  let compliance: SourcerCompliance;
+  try {
+    const amlRegistration = requiredText(formData.get("amlRegistration"), "AML registration", 60);
+    const amlConfirmedAt = requiredText(formData.get("amlConfirmedAt"), "AML confirmation date", 10);
+    if (Number.isNaN(new Date(amlConfirmedAt).getTime())) {
+      return { ok: false, message: "Enter the AML confirmation date as YYYY-MM-DD." };
+    }
+    if (amlConfirmedAt.slice(0, 10) > new Date().toISOString().slice(0, 10)) {
+      return { ok: false, message: "The AML confirmation date cannot be in the future." };
+    }
+    const redressScheme = requireOneOf<RedressScheme>(
+      formData.get("redressScheme"),
+      new Set<string>(Object.keys(REDRESS_SCHEME_LABELS)),
+      "redress scheme",
+    );
+    const redressMembership = requiredText(formData.get("redressMembership"), "Redress membership", 60);
+    compliance = {
+      amlRegistration,
+      amlConfirmedAt: amlConfirmedAt.slice(0, 10),
+      redressScheme,
+      redressMembership,
+    };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Please check the form." };
+  }
+
+  const next: Account = { ...account, sourcerCompliance: compliance };
+  await saveAccount(next);
+  await audit("account-created", {
+    account,
+    subject: account.id,
+    detail: `Recorded sourcing compliance: AML ${compliance.amlRegistration}, ${REDRESS_SCHEME_LABELS[compliance.redressScheme]} ${compliance.redressMembership}.`,
+  });
+  revalidatePath("/account");
+  return { ok: true, message: "Recorded your sourcing compliance." };
 }

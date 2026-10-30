@@ -1,8 +1,10 @@
 import { add, applyBps, ZERO, type Money } from "@shared/money";
 import { gbp, percent } from "@shared/format";
 import type { DealAppraisal, DealStatus } from "@shared/domain/types";
+import type { SourcerCompliance } from "@shared/domain/accounts";
 import { permissionDefinition, type PermissionKey } from "@shared/domain/permissions";
 import {
+  assignmentMarginFeeHeadline,
   providerCommission,
   sellerFeeHeadline,
   sourcingFee,
@@ -299,6 +301,83 @@ export function partnerFeeStatement(): PartnerFeeStatement {
     auctioneer.rateBps !== undefined ? ` (${percent(auctioneer.rateBps, 0)} on an auction instruction)` : "";
   return {
     statement: `Estate agents and auctioneers join and list their own stock free — the supply side carries no fee to be here. A partner pays only where the platform wins them completed work, and then it is an agreed revenue share${share}, never a charge to list.`,
+  };
+}
+
+/* -------------------------------------- the sourcer's own compliance gate */
+
+/** AML supervision is renewed annually; treated as lapsed after this. */
+export const SOURCER_AML_VALID_MONTHS = 12;
+
+/** Whole months between an ISO date and now, floored; infinite if unparseable. */
+function monthsSince(iso: string, now: Date): number {
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return Number.POSITIVE_INFINITY;
+  return (now.getFullYear() - then.getFullYear()) * 12 + (now.getMonth() - then.getMonth());
+}
+
+/**
+ * Why a sourcer's compliance does not yet let the assignment fee be charged, or
+ * `undefined` where it is good. One reason, worst first, so the account page can
+ * tell the flipper exactly what to do next.
+ */
+export function sourcerComplianceProblem(
+  compliance: SourcerCompliance | undefined,
+  now: Date,
+): string | undefined {
+  if (compliance === undefined || compliance.amlRegistration.trim() === "") {
+    return "No HMRC anti-money-laundering registration is recorded.";
+  }
+  if (compliance.redressMembership.trim() === "") {
+    return "No redress-scheme membership is recorded.";
+  }
+  const age = monthsSince(compliance.amlConfirmedAt, now);
+  if (age >= SOURCER_AML_VALID_MONTHS) {
+    return `The anti-money-laundering supervision was last confirmed ${age} months ago and lapses after ${SOURCER_AML_VALID_MONTHS}. Confirm it again before assigning a deal on.`;
+  }
+  return undefined;
+}
+
+export interface AssignmentFeeStatement {
+  /** True only where the sourcer's own compliance is recorded and current. */
+  readonly chargeable: boolean;
+  /** What stops it, where it is not chargeable. */
+  readonly blocker?: string;
+  /** Publishable copy, safe on the landing page or an account dashboard. */
+  readonly statement: string;
+}
+
+/**
+ * Whether Lode may take its 15% of a sourcer's assignment margin, and the
+ * sentence that says so.
+ *
+ * The 15% is never unconditional. It is charged only once the sourcer's own
+ * AML registration and redress membership are recorded and current, because the
+ * assignment is their regulated act, not ours. Pass `undefined` (the anonymous
+ * landing page) and it states the requirement; pass a signed-in flipper's
+ * recorded compliance and it either clears or names exactly what is missing.
+ * The rate itself always comes from `assignmentMarginFeeHeadline()`.
+ */
+export function assignmentMarginFeeStatement(
+  compliance: SourcerCompliance | undefined,
+  now: Date = new Date(),
+): AssignmentFeeStatement {
+  const head = assignmentMarginFeeHeadline();
+  const blocker = sourcerComplianceProblem(compliance, now);
+  if (blocker === undefined) {
+    return {
+      chargeable: true,
+      statement: `Source a deal and assign it on and the margin is yours. Lode takes ${head}.`,
+    };
+  }
+  return {
+    chargeable: false,
+    blocker,
+    statement:
+      `Source a deal and assign it on and the margin is yours — Lode takes ${head}. ` +
+      "We facilitate that assignment, and take our share, only once your own HMRC " +
+      "anti-money-laundering registration and redress-scheme membership are recorded, because " +
+      "sourcing a deal and assigning it on for a fee is regulated work that has to be yours to do.",
   };
 }
 
