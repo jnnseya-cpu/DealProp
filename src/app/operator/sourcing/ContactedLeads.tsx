@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { restoreContactedLeadAction } from "./actions";
+import { restoreAllContactedAction, restoreContactedLeadAction } from "./actions";
 import type { LeadSignal } from "@shared/domain/sourcedLead";
 
 /**
@@ -30,7 +30,9 @@ export interface ContactedRow {
 
 export function ContactedLeads({ items }: { items: readonly ContactedRow[] }) {
   return (
-    <ul className="mt-4 space-y-3">
+    <>
+      <RestoreAllForm count={items.length} />
+      <ul className="mt-4 space-y-3">
       {items.map((row) => (
         <li
           key={row.key}
@@ -61,7 +63,31 @@ export function ContactedLeads({ items }: { items: readonly ContactedRow[] }) {
           <RestoreForm leadKey={row.key} />
         </li>
       ))}
-    </ul>
+      </ul>
+    </>
+  );
+}
+
+/** Clear every suppression — the clean-slate reset before a print run. */
+function RestoreAllForm({ count }: { count: number }) {
+  const [result, submit, pending] = useActionState<{ ok: boolean; message: string } | undefined, FormData>(
+    restoreAllContactedAction,
+    undefined,
+  );
+
+  return (
+    <form action={submit} className="mt-4 flex flex-wrap items-center gap-3">
+      <button
+        type="submit"
+        disabled={pending}
+        className="inline-flex h-8 items-center rounded-md border hairline bg-surface-2 px-3 text-xs text-ink-200 transition-colors hover:border-ink-600 hover:text-ink-100"
+      >
+        {pending ? "Restoring…" : `Restore all ${count} (reset)`}
+      </button>
+      {result !== undefined && (
+        <span className={`text-xs ${result.ok ? "text-emerald-300" : "text-amber-300"}`}>{result.message}</span>
+      )}
+    </form>
   );
 }
 

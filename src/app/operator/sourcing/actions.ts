@@ -235,6 +235,43 @@ export async function restoreContactedLeadAction(
   return { ok: true, message: removed ? "Restored." : "Nothing to restore." };
 }
 
+/**
+ * Restore every contacted lead at once — the clean-slate reset.
+ *
+ * Clears all suppression so nothing a test (or an earlier run) marked contacted
+ * stays hidden from the next search. It un-hides; it never deletes a lead. From
+ * then on, printing a letter suppresses that lead again as normal. Operator-only
+ * and audited, like the single restore (§29).
+ */
+export async function restoreAllContactedAction(
+  _previous: { ok: boolean; message: string } | undefined,
+  _formData: FormData,
+): Promise<{ ok: boolean; message: string }> {
+  const viewer = await requirePermission("manage-mandates", "/operator/sourcing");
+  const author = viewerAccount(viewer);
+
+  const all = await listContactedLeads();
+  let cleared = 0;
+  for (const c of all) {
+    if (await clearContactedLead(c.key)) cleared += 1;
+  }
+  if (cleared > 0) {
+    await audit("mandate-deleted", {
+      ...(author !== undefined ? { account: author } : {}),
+      subject: "sourced-lead-contacted",
+      detail: `Reset: ${cleared} contacted lead(s) restored to search.`,
+    });
+    revalidatePath("/operator/sourcing");
+  }
+  return {
+    ok: true,
+    message:
+      cleared > 0
+        ? `Restored ${cleared}. Everything surfaces again until it is printed.`
+        : "Nothing was suppressed — the list is already clear.",
+  };
+}
+
 export interface ResolvedLetter {
   readonly ok: boolean;
   /**
