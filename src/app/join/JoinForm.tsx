@@ -13,11 +13,13 @@ import type { Role } from "@shared/domain/accounts";
  * Each option says what the account is for in one line, because "funder" and
  * "partner" are our words, not the visitor's.
  */
-const OPTIONS: readonly { readonly role: Role; readonly label: string; readonly blurb: string }[] = [
-  { role: "seller", label: "I'm selling a property", blurb: "Get a fair cash offer. Selling to us is free — no agent, no fees." },
-  { role: "investor", label: "I'm a buyer / investor", blurb: "See graded opportunities and track your readiness. Deal material unlocks once you certify." },
-  { role: "funder", label: "I'm a lender / capital provider", blurb: "Fund screened acquisitions, secured on UK property. For qualifying investors." },
-  { role: "partner", label: "I'm an estate agent / auctioneer", blurb: "List your own stock and refer instructions you can't complete." },
+/** The form's choices. `value` is what the server reads; "flipper" is a buyer + seller. */
+const OPTIONS: readonly { readonly value: string; readonly label: string; readonly blurb: string }[] = [
+  { value: "seller", label: "I'm selling a property", blurb: "Get a fair cash offer. Selling to us is free — no agent, no fees." },
+  { value: "investor", label: "I'm a buyer / investor", blurb: "See graded opportunities and track your readiness. Deal material unlocks once you certify." },
+  { value: "flipper", label: "I flip property (buy and sell)", blurb: "Both at once: buy opportunities and sell on. One account, buyer and seller." },
+  { value: "funder", label: "I'm a lender / capital provider", blurb: "Fund screened acquisitions, secured on UK property. For qualifying investors." },
+  { value: "partner", label: "I'm an estate agent / auctioneer", blurb: "List your own stock and refer instructions you can't complete." },
 ];
 
 export function JoinForm({ defaultRole }: { defaultRole?: Role }) {
@@ -25,7 +27,7 @@ export function JoinForm({ defaultRole }: { defaultRole?: Role }) {
     register,
     undefined,
   );
-  const [role, setRole] = useState<Role>(defaultRole ?? "seller");
+  const [role, setRole] = useState<string>(defaultRole ?? "seller");
 
   return (
     <form action={submit} className="space-y-5">
@@ -34,17 +36,17 @@ export function JoinForm({ defaultRole }: { defaultRole?: Role }) {
         <div className="mt-2 space-y-2">
           {OPTIONS.map((opt) => (
             <label
-              key={opt.role}
+              key={opt.value}
               className={`flex cursor-pointer gap-3 rounded-xl border px-3.5 py-2.5 transition-colors ${
-                role === opt.role ? "border-lode-500/60 bg-surface-2" : "hairline bg-surface-2/40 hover:bg-surface-2"
+                role === opt.value ? "border-lode-500/60 bg-surface-2" : "hairline bg-surface-2/40 hover:bg-surface-2"
               }`}
             >
               <input
                 type="radio"
                 name="role"
-                value={opt.role}
-                checked={role === opt.role}
-                onChange={() => setRole(opt.role)}
+                value={opt.value}
+                checked={role === opt.value}
+                onChange={() => setRole(opt.value)}
                 className="mt-0.5 accent-lode-400"
               />
               <span>

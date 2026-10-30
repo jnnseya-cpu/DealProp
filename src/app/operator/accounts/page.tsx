@@ -73,6 +73,21 @@ export default async function AccountsPage() {
                       <span className="rounded border border-lode-500/45 bg-lode-500/10 px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-lode-200">
                         {ROLE_LABELS[a.role]}
                       </span>
+                      {(a.roles ?? [])
+                        .filter((r) => r !== a.role)
+                        .map((r) => (
+                          <span
+                            key={r}
+                            className="rounded border border-ink-700 px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-ink-400"
+                          >
+                            {ROLE_LABELS[r]}
+                          </span>
+                        ))}
+                      {a.connectedParty === true && (
+                        <span className="rounded border border-amber-600/45 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-amber-300">
+                          Connected party
+                        </span>
+                      )}
                       {a.disabled && (
                         <span className="rounded-md border border-ink-700 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-ink-500">
                           Disabled

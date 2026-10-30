@@ -146,7 +146,34 @@ export interface Account {
   readonly id: string;
   readonly email: string;
   readonly name: string;
+  /**
+   * The primary role, kept as a single value for display and for the audit
+   * trail's "as a ___" line. Permissions come from the union of this and
+   * {@link Account.roles} via {@link accountRoles}.
+   */
   readonly role: Role;
+  /**
+   * Any further roles this person holds beyond the primary one.
+   *
+   * People are rarely one thing: a flipper buys and sells, an agent may also
+   * invest. Rather than make them keep several accounts, an account carries a
+   * set of roles and `can()` grants a permission held by ANY of them. Optional
+   * and absent by default, so every existing account stays valid and reads as
+   * single-role. Self-service sign-up may only ever set roles from
+   * {@link SELF_SERVICE_ROLES}; a staff role is added by an administrator.
+   */
+  readonly roles?: readonly Role[];
+  /**
+   * Set where this account is Lode itself, or a party connected to Lode, acting
+   * as a buyer/flipper/funder rather than an independent third party.
+   *
+   * It is a disclosure flag, not a permission: where a connected party
+   * participates in a deal the seller must be told they are dealing with the
+   * house, not a neutral market (a conflict of interest the CPRs and fair
+   * dealing require be disclosed). Never settable at self-service sign-up — a
+   * person cannot declare themselves the house — only by an administrator.
+   */
+  readonly connectedParty?: boolean;
   /** scrypt hash and salt. Never the password. */
   readonly passwordHash: string;
   readonly passwordSalt: string;
@@ -181,6 +208,8 @@ export interface PublicAccount {
   readonly email: string;
   readonly name: string;
   readonly role: Role;
+  readonly roles?: readonly Role[];
+  readonly connectedParty?: boolean;
   readonly disabled: boolean;
   readonly certification?: InvestorCertification;
 }
@@ -192,10 +221,39 @@ export function publicAccount(account: Account): PublicAccount {
     email: account.email,
     name: account.name,
     role: account.role,
+    ...(account.roles !== undefined ? { roles: account.roles } : {}),
+    ...(account.connectedParty === true ? { connectedParty: true } : {}),
     disabled: account.disabledAt !== undefined,
     ...(account.certification !== undefined ? { certification: account.certification } : {}),
   };
 }
+
+/**
+ * Every role this account holds, primary first, de-duplicated.
+ *
+ * The one place "what is this person" is answered, so `can()` and every caller
+ * read the same union. A single-role account (no `roles`) returns just its one
+ * role, so nothing about the old model changes.
+ */
+export function accountRoles(account: Pick<Account, "role" | "roles">): readonly Role[] {
+  const extra = (account.roles ?? []).filter((r) => r !== account.role);
+  return [account.role, ...extra];
+}
+
+/** Whether this account is Lode or a connected party acting as a principal. */
+export function isConnectedParty(account: Pick<Account, "connectedParty">): boolean {
+  return account.connectedParty === true;
+}
+
+/**
+ * The sentence shown to a seller when a connected party participates.
+ *
+ * Plain and unmissable: the seller is dealing with the house, not an
+ * independent buyer. Rendered wherever such a party's offer or interest reaches
+ * a seller, so the conflict is disclosed rather than implied.
+ */
+export const CONNECTED_PARTY_DISCLOSURE =
+  "This party is Lode or connected to Lode — a principal buyer, not an independent third party. Consider taking independent advice.";
 
 /** Months between two ISO timestamps, floored. */
 function monthsSince(iso: string, now: Date): number {
@@ -285,7 +343,7 @@ export interface AccessDecision {
  * one's own colleagues is not a promotion to an investor.
  */
 export function can(
-  account: Pick<Account, "role" | "disabledAt" | "certification">,
+  account: Pick<Account, "role" | "roles" | "disabledAt" | "certification">,
   permission: Permission,
   now: Date = new Date(),
 ): AccessDecision {
@@ -293,15 +351,22 @@ export function can(
     return { allowed: false, reason: "This account has been disabled." };
   }
 
-  if (!ROLE_PERMISSIONS[account.role].includes(permission)) {
+  const roles = accountRoles(account);
+  // Held by ANY role the account carries: a flipper (buyer + seller) may do
+  // everything either role allows, decided here so no call site reinvents it.
+  const granting = roles.find((r) => ROLE_PERMISSIONS[r].includes(permission));
+  if (granting === undefined) {
     return {
       allowed: false,
       reason: `${article(account.role)} ${account.role} account cannot ${PERMISSION_LABELS[permission]}.`,
     };
   }
 
-  const external = account.role === "investor" || account.role === "funder";
-  if (permission === "view-deal-material" && external) {
+  // Deal material carries the extra test for an external account. Staff do not
+  // certify — a promotion to one's own colleagues is not a promotion to an
+  // investor — so an account that is also staff skips the gate.
+  const staff = roles.includes("admin") || roles.includes("operator");
+  if (permission === "view-deal-material" && !staff) {
     const status = certificationStatus(account, now);
     if (!status.current) {
       return { allowed: false, reason: status.reason };
@@ -309,7 +374,7 @@ export function can(
     return { allowed: true, reason: status.reason };
   }
 
-  return { allowed: true, reason: `Granted by the ${account.role} role.` };
+  return { allowed: true, reason: `Granted by the ${granting} role.` };
 }
 
 /**

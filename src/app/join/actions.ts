@@ -49,11 +49,20 @@ export async function register(
   let name: string;
   let email: string;
   let role: Role;
+  let extraRoles: readonly Role[] = [];
   try {
     name = requiredText(formData.get("name"), "Name", 120);
     email = requiredText(formData.get("email"), "Email", 200).toLowerCase();
     if (!email.includes("@")) return { ok: false, message: "That does not look like an email address." };
-    role = requireOneOf<Role>(formData.get("role"), new Set<string>(SELF_SERVICE_ROLES), "role");
+    // "Flipper" is not a role of its own — it is someone who buys and sells, so
+    // it maps to a multi-role account (buyer + seller). Every other choice is a
+    // single self-service role, validated against the allowed set.
+    if (String(formData.get("role")) === "flipper") {
+      role = "investor";
+      extraRoles = ["seller"];
+    } else {
+      role = requireOneOf<Role>(formData.get("role"), new Set<string>(SELF_SERVICE_ROLES), "role");
+    }
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : "Please check the form." };
   }
@@ -76,6 +85,7 @@ export async function register(
     email,
     name,
     role,
+    ...(extraRoles.length > 0 ? { roles: extraRoles } : {}),
     passwordHash: hash,
     passwordSalt: salt,
     createdAt: new Date().toISOString(),
@@ -84,7 +94,7 @@ export async function register(
   await audit("account-created", {
     account,
     subject: `account:${account.id}`,
-    detail: `Self-service sign-up as ${role}.`,
+    detail: `Self-service sign-up as ${[role, ...extraRoles].join(" + ")}.`,
   });
 
   const jar = await cookies();

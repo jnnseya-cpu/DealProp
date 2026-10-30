@@ -1,7 +1,7 @@
 "use client";
 
 import { ALL_ROLES, ROLE_LABELS } from "@shared/domain/accounts";
-import { Field, MandateForm, Select, TextInput } from "@/app/components/mandate";
+import { Field, MandateForm, Select, TextInput, Toggle } from "@/app/components/mandate";
 import { createAccount } from "./actions";
 
 export function NewAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
@@ -35,6 +35,12 @@ export function NewAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) 
           <TextInput name="password" type="password" required autoComplete="new-password" />
         </Field>
       </div>
+      <Field
+        label="Connected party"
+        hint="Mark this account as Lode or a party connected to Lode acting as a principal (buyer, flipper or funder). Sellers are shown a disclosure wherever it takes part. Never set at self-service sign-up."
+      >
+        <Toggle name="connectedParty" label="This account is Lode or a connected party" />
+      </Field>
     </MandateForm>
   );
 }

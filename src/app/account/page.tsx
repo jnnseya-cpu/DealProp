@@ -4,7 +4,13 @@ import { AccountNav } from "@/app/account/AccountNav";
 import { Badge, Button, Panel, SiteHeader } from "@/app/components/chrome";
 import { BarList, Meter } from "@/app/components/charts";
 import { currentViewer } from "@/app/operator/guard";
-import { can, certificationStatus, ROLE_LABELS } from "@shared/domain/accounts";
+import {
+  CONNECTED_PARTY_DISCLOSURE,
+  can,
+  certificationStatus,
+  isConnectedParty,
+  ROLE_LABELS,
+} from "@shared/domain/accounts";
 import { listDealsForOwner } from "@backend/store/repository";
 import { buyerPassport } from "@shared/domain/passport";
 import { fromMajor } from "@shared/money";
@@ -115,7 +121,19 @@ export default async function AccountHome() {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="eyebrow">Your account</span>
           <Badge tone="accent">{ROLE_LABELS[account.role]}</Badge>
+          {(account.roles ?? [])
+            .filter((r) => r !== account.role)
+            .map((r) => (
+              <Badge key={r} tone="neutral">{ROLE_LABELS[r]}</Badge>
+            ))}
+          {isConnectedParty(account) && <Badge tone="warn">Lode connected party</Badge>}
         </div>
+        {isConnectedParty(account) && (
+          <p className="mt-3 max-w-2xl border-l-2 border-amber-400/70 pl-3 text-[13px] leading-relaxed text-ink-300">
+            {CONNECTED_PARTY_DISCLOSURE} This is disclosed to sellers wherever your account takes part
+            in a deal.
+          </p>
+        )}
         <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           Welcome{account.name !== "" ? `, ${account.name.split(" ")[0]}` : ""}
         </h1>

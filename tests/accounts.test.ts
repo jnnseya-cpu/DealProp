@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   ALL_ROLES,
+  accountRoles,
   can,
   canManageImport,
   canManageMandate,
   canManageProperty,
   certificationStatus,
+  isConnectedParty,
   managesAllImports,
   managesAllMandates,
   mayReceiveDealMaterial,
@@ -103,6 +105,48 @@ describe("roles", () => {
     expect([...SELF_SERVICE_ROLES].sort()).toEqual(["funder", "investor", "partner", "seller"]);
     // Every self-service role is a real role.
     for (const role of SELF_SERVICE_ROLES) expect(ALL_ROLES).toContain(role);
+  });
+});
+
+describe("multi-role accounts", () => {
+  it("unions the roles, primary first, de-duplicated", () => {
+    expect(accountRoles(account({ role: "investor" }))).toEqual(["investor"]);
+    expect(accountRoles(account({ role: "investor", roles: ["seller"] }))).toEqual([
+      "investor",
+      "seller",
+    ]);
+    // A roles array that repeats the primary does not list it twice.
+    expect(accountRoles(account({ role: "investor", roles: ["investor", "seller"] }))).toEqual([
+      "investor",
+      "seller",
+    ]);
+  });
+
+  it("grants a flipper everything either role allows", () => {
+    // A flipper is a buyer (investor) and a seller: it may run its own mandates
+    // AND submit/track its own property. Neither role alone can do both.
+    const flipper = account({ role: "investor", roles: ["seller"] });
+    expect(can(flipper, "manage-own-mandates", NOW).allowed).toBe(true);
+    expect(can(flipper, "manage-own-property", NOW).allowed).toBe(true);
+    // Still never seller data or account management.
+    expect(can(flipper, "view-seller-data", NOW).allowed).toBe(false);
+    expect(can(flipper, "manage-accounts", NOW).allowed).toBe(false);
+  });
+
+  it("skips the certification gate when a role is also staff", () => {
+    // An investor who is also an operator is staff: a promotion to one's own
+    // colleagues is not a promotion to an investor, so no certification needed.
+    const staffInvestor = account({ role: "investor", roles: ["operator"] });
+    expect(can(staffInvestor, "view-deal-material", NOW).allowed).toBe(true);
+    // A plain investor without certification still cannot.
+    expect(can(account({ role: "investor" }), "view-deal-material", NOW).allowed).toBe(false);
+  });
+});
+
+describe("connected party", () => {
+  it("is false by default and true only when flagged", () => {
+    expect(isConnectedParty(account())).toBe(false);
+    expect(isConnectedParty(account({ connectedParty: true }))).toBe(true);
   });
 });
 

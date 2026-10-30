@@ -68,11 +68,16 @@ export async function createAccount(
     }
 
     const { hash, salt } = await hashPassword(password);
+    // Only an administrator reaches this action, so marking an account as a
+    // Lode/connected party is an administrator's decision — a person can never
+    // declare themselves the house at self-service sign-up.
+    const connectedParty = formData.get("connectedParty") === "on";
     const account: Account = {
       id: `acc-${randomUUID()}`,
       email,
       name: requiredText(formData.get("name"), "Name"),
       role,
+      ...(connectedParty ? { connectedParty: true } : {}),
       passwordHash: hash,
       passwordSalt: salt,
       createdAt: new Date().toISOString(),
