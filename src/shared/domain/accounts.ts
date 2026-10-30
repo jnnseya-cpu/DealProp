@@ -242,6 +242,25 @@ export interface SourcerCompliance {
   readonly redressScheme: RedressScheme;
   /** The membership reference held with that scheme. */
   readonly redressMembership: string;
+  /**
+   * Lode's own check of the two references above.
+   *
+   * The flipper records the claim; this is the check. A self-recorded number is
+   * a claim until somebody at Lode has looked it up on the HMRC AML register and
+   * confirmed the redress membership — evidence with a named checker and a date,
+   * the same shape as a payout recipient's. Absent until a named operator
+   * verifies it, and the assignment fee is not chargeable without it.
+   */
+  readonly verification?: SourcerVerification;
+}
+
+export interface SourcerVerification {
+  /** ISO date Lode checked the references. */
+  readonly verifiedAt: string;
+  /** The named operator who checked — never the shared password. */
+  readonly verifiedBy: string;
+  /** What was checked, kept verbatim (e.g. "HMRC AML register + PRS membership"). */
+  readonly evidence: string;
 }
 
 /** An account as it may safely be rendered or logged. */
@@ -254,6 +273,12 @@ export interface PublicAccount {
   readonly connectedParty?: boolean;
   readonly disabled: boolean;
   readonly certification?: InvestorCertification;
+  /**
+   * The sourcer's recorded compliance, carried through because an operator must
+   * see the references to verify them. It is regulatory evidence, not a
+   * credential — no secret, so safe to render on the operator surface.
+   */
+  readonly sourcerCompliance?: SourcerCompliance;
 }
 
 /** Strips the credential. Use wherever an account crosses a boundary. */
@@ -267,6 +292,7 @@ export function publicAccount(account: Account): PublicAccount {
     ...(account.connectedParty === true ? { connectedParty: true } : {}),
     disabled: account.disabledAt !== undefined,
     ...(account.certification !== undefined ? { certification: account.certification } : {}),
+    ...(account.sourcerCompliance !== undefined ? { sourcerCompliance: account.sourcerCompliance } : {}),
   };
 }
 

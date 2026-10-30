@@ -293,13 +293,18 @@ describe("partnerFeeStatement", () => {
 });
 
 describe("assignmentMarginFeeStatement", () => {
-  const GOOD = {
+  const NOW = new Date("2026-09-01T00:00:00.000Z");
+  const RECORDED = {
     amlRegistration: "XZAB12345",
     amlConfirmedAt: "2026-06-01",
     redressScheme: "property-redress-scheme",
     redressMembership: "PRS-99",
   } as const;
-  const NOW = new Date("2026-09-01T00:00:00.000Z");
+  // Recorded AND verified by a named operator — the only state that clears.
+  const GOOD = {
+    ...RECORDED,
+    verification: { verifiedAt: "2026-07-01", verifiedBy: "A. Operator", evidence: "HMRC AML register + PRS" },
+  } as const;
 
   it("gates the 15% behind the flipper's own compliance", () => {
     // Anonymous (the landing page) and an uncompliant flipper both see the
@@ -310,10 +315,27 @@ describe("assignmentMarginFeeStatement", () => {
     expect(anon.statement).toMatch(/redress/i);
   });
 
-  it("clears only once AML and redress are recorded and current", () => {
+  it("clears only once recorded, current AND operator-verified", () => {
     const ok = assignmentMarginFeeStatement(GOOD, NOW);
     expect(ok.chargeable).toBe(true);
     expect(ok.blocker).toBeUndefined();
+  });
+
+  it("refuses a complete record that Lode has not yet verified", () => {
+    // The whole point of operator verification: a self-recorded claim does not
+    // clear the gate on its own.
+    const unverified = assignmentMarginFeeStatement(RECORDED, NOW);
+    expect(unverified.chargeable).toBe(false);
+    expect(unverified.blocker).toMatch(/verif/i);
+  });
+
+  it("refuses a lapsed operator verification", () => {
+    const stale = assignmentMarginFeeStatement(
+      { ...RECORDED, verification: { verifiedAt: "2025-01-01", verifiedBy: "A. Operator", evidence: "x" } },
+      NOW,
+    );
+    expect(stale.chargeable).toBe(false);
+    expect(stale.blocker).toMatch(/renew/i);
   });
 
   it("refuses a lapsed AML registration", () => {

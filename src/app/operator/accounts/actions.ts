@@ -12,6 +12,7 @@ import {
   withinRoleCap,
   type Account,
   type Role,
+  type SourcerCompliance,
 } from "@shared/domain/accounts";
 import { findAccountByEmail, getAccount, listAccounts, saveAccount } from "@backend/store/repository";
 import { currentViewer, viewerAccount } from "@/app/operator/guard";
@@ -206,6 +207,68 @@ export async function setAccountRoles(
   });
   revalidatePath("/operator/accounts");
   return { ok: true, message: "Roles updated." };
+}
+
+/**
+ * A named operator verifies a flipper's AML and redress references.
+ *
+ * The flipper records the claim at /account; this is Lode's check of it. A
+ * self-recorded registration number is worth nothing until somebody has looked
+ * it up on the HMRC anti-money-laundering register and confirmed the redress
+ * membership, so verification carries a named checker, a date and what was
+ * checked — and it must be a named person, never the shared operator password,
+ * because a check nobody is accountable for is not a check (§32, §73). Until
+ * this runs, `assignmentMarginFeeStatement()` keeps the 15% unchargeable.
+ */
+export async function verifySourcerCompliance(
+  _previous: BoxFormResult | undefined,
+  formData: FormData,
+): Promise<BoxFormResult> {
+  const viewer = await currentViewer();
+  if (viewer === undefined) return { ok: false, message: "Sign in first." };
+  const checker = viewerAccount(viewer);
+  if (checker === undefined) {
+    return {
+      ok: false,
+      message:
+        "Verification must be done as a named operator, not the shared password — there is nobody behind it to be accountable for the check.",
+    };
+  }
+
+  const id = String(formData.get("id") ?? "");
+  const account = await getAccount(id);
+  if (account === undefined) return { ok: false, message: "No such account." };
+  if (account.sourcerCompliance === undefined) {
+    return { ok: false, message: "This account has recorded no references to verify." };
+  }
+
+  let evidence: string;
+  try {
+    evidence = requiredText(formData.get("evidence"), "What you checked", 200);
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Please check the form." };
+  }
+
+  const next: Account = {
+    ...account,
+    sourcerCompliance: {
+      ...account.sourcerCompliance,
+      verification: {
+        verifiedAt: new Date().toISOString().slice(0, 10),
+        verifiedBy: checker.name,
+        evidence,
+      },
+    } satisfies SourcerCompliance,
+  };
+
+  await saveAccount(next);
+  await audit("account-created", {
+    account: checker,
+    subject: id,
+    detail: `Verified sourcing compliance: ${evidence}.`,
+  });
+  revalidatePath("/operator/accounts");
+  return { ok: true, message: `Verified by ${checker.name}.` };
 }
 
 /**

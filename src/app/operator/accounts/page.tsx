@@ -6,6 +6,7 @@ import { listAccounts } from "@backend/store/repository";
 import { NewAccountForm } from "./NewAccountForm";
 import { AccountControls } from "./AccountControls";
 import { RolesEditor } from "./RolesEditor";
+import { VerifySourcerForm } from "./VerifySourcerForm";
 
 export const dynamic = "force-dynamic";
 
@@ -111,6 +112,9 @@ export default async function AccountsPage() {
                       connectedParty={a.connectedParty === true}
                       canGrantStaff={canCreateAdmin}
                     />
+                    {a.sourcerCompliance !== undefined && (
+                      <VerifySourcerForm id={a.id} compliance={a.sourcerCompliance} />
+                    )}
                   </div>
                   <AccountControls id={a.id} disabled={a.disabled} />
                 </div>

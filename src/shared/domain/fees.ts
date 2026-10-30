@@ -309,6 +309,9 @@ export function partnerFeeStatement(): PartnerFeeStatement {
 /** AML supervision is renewed annually; treated as lapsed after this. */
 export const SOURCER_AML_VALID_MONTHS = 12;
 
+/** How long Lode's verification of the references stands before a re-check. */
+export const SOURCER_VERIFICATION_MONTHS = 12;
+
 /** Whole months between an ISO date and now, floored; infinite if unparseable. */
 function monthsSince(iso: string, now: Date): number {
   const then = new Date(iso);
@@ -334,6 +337,22 @@ export function sourcerComplianceProblem(
   const age = monthsSince(compliance.amlConfirmedAt, now);
   if (age >= SOURCER_AML_VALID_MONTHS) {
     return `The anti-money-laundering supervision was last confirmed ${age} months ago and lapses after ${SOURCER_AML_VALID_MONTHS}. Confirm it again before assigning a deal on.`;
+  }
+  // The references are recorded; now they must be CHECKED. A self-recorded
+  // number is a claim until a named operator has looked it up on the HMRC AML
+  // register and confirmed the redress membership — the same claim-versus-check
+  // distinction the payout verification draws.
+  const verification = compliance.verification;
+  if (
+    verification === undefined ||
+    verification.verifiedBy.trim() === "" ||
+    verification.evidence.trim() === ""
+  ) {
+    return "Your references are recorded but not yet verified by Lode. We check the HMRC anti-money-laundering register and the redress scheme before a deal may be assigned on.";
+  }
+  const checkedAge = monthsSince(verification.verifiedAt, now);
+  if (checkedAge < 0 || checkedAge >= SOURCER_VERIFICATION_MONTHS) {
+    return `Lode's verification of your references was made ${checkedAge < 0 ? "with a future date" : `${checkedAge} months ago`} and must be renewed before assigning a deal on.`;
   }
   return undefined;
 }
