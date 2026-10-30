@@ -1019,6 +1019,25 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         // Clearing something already gone is a no-op, not an error.
         expect(await store.clearContactedLead(entry().key)).toBe(false);
       });
+
+      it("keeps the three start-a-deal facts, and clears them with the mark", async () => {
+        await store.markContactedLead(
+          entry({
+            key: "https://www.thegazette.co.uk/notice/5238809",
+            signalKey: "owner-insolvent",
+            startFacts: { postcode: "B2 2UB", address: "1 Example St, Birmingham", subjectName: "A Debtor" },
+          }),
+        );
+        const all = await store.listContactedLeads();
+        expect(all[0]?.startFacts).toEqual({
+          postcode: "B2 2UB",
+          address: "1 Example St, Birmingham",
+          subjectName: "A Debtor",
+        });
+        // Restore deletes the entry, and the facts with it.
+        await store.clearContactedLead("https://www.thegazette.co.uk/notice/5238809");
+        expect(await store.listContactedLeads()).toEqual([]);
+      });
     });
 
     describe("imported listings", () => {

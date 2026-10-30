@@ -4,6 +4,15 @@ import { useActionState, useState } from "react";
 import { enrichLead, startDealFromLead } from "./actions";
 import type { SourcedLead } from "@shared/domain/sourcedLead";
 
+/**
+ * Just the fields starting a deal needs — so it works from a full run lead and
+ * from a contacted lead rebuilt from its three stored facts alike.
+ */
+export type StartDealLead = Pick<
+  SourcedLead,
+  "signalKey" | "postcode" | "propertyAddress" | "subjectName" | "contactForService" | "addressKey" | "sourceUrl"
+>;
+
 const INIT = { ok: false, message: "" };
 
 const TYPES = [
@@ -39,7 +48,7 @@ const JURISDICTIONS = [
  * sale) and submits; the action creates the deal and lands on seller-checks.
  * Nothing is invented — a register miss just leaves a field for the operator.
  */
-export function StartDealForm({ lead }: { lead: SourcedLead }) {
+export function StartDealForm({ lead }: { lead: StartDealLead }) {
   const [state, action, pending] = useActionState(startDealFromLead, INIT);
 
   const [value, setValue] = useState("");

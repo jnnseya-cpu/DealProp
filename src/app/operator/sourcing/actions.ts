@@ -173,14 +173,20 @@ export async function dismissSourcedPropertyAction(
  *
  * Called when the operator prints a letter — the one moment we know a property
  * or estate has actually been approached, so a second letter would be a repeat.
- * Only the lead's stable key is stored (§59 data minimisation); the distress
- * lead itself is never warehoused. Idempotent, reversible, and a POST endpoint
- * of its own, so it checks its own permission (§29). Returns ok even when the
- * key was already marked — printing a letter twice is not an error here.
+ * Beyond the stable key, it keeps three facts and no more — postcode, address,
+ * the subject's name — so "Start a deal" still works from the Contacted list
+ * once the live notice has rotated out of the feed. Lawful because the operator
+ * has chosen to act on this lead, and reversible: Restore deletes it. Idempotent,
+ * and a POST endpoint of its own, so it checks its own permission (§29). Returns
+ * ok even when the key was already marked — printing a letter twice is not an
+ * error here.
  */
 export async function markLeadContacted(input: {
   readonly key: string;
   readonly signalKey: LeadSignal;
+  readonly postcode?: string;
+  readonly address?: string;
+  readonly subjectName?: string;
 }): Promise<{ ok: boolean }> {
   const viewer = await requirePermission("manage-mandates", "/operator/sourcing");
   const author = viewerAccount(viewer);
@@ -188,11 +194,19 @@ export async function markLeadContacted(input: {
   const key = input.key.trim();
   if (key === "" || !LEAD_SIGNALS.has(input.signalKey)) return { ok: false };
 
+  // Exactly three fields, each only when present.
+  const startFacts = {
+    ...(input.postcode !== undefined && input.postcode !== "" ? { postcode: input.postcode } : {}),
+    ...(input.address !== undefined && input.address !== "" ? { address: input.address } : {}),
+    ...(input.subjectName !== undefined && input.subjectName !== "" ? { subjectName: input.subjectName } : {}),
+  };
+
   const marked = await markContactedLead({
     key,
     signalKey: input.signalKey,
     contactedAt: new Date().toISOString(),
     by: author?.email ?? "operator",
+    ...(Object.keys(startFacts).length > 0 ? { startFacts } : {}),
   });
   if (marked) {
     await audit("mandate-saved", {

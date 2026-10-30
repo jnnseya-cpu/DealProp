@@ -2,8 +2,8 @@
 
 import { useActionState } from "react";
 import { restoreAllContactedAction, restoreContactedLeadAction } from "./actions";
-import { StartDealForm } from "./StartDealForm";
-import type { LeadSignal, SourcedLead } from "@shared/domain/sourcedLead";
+import { StartDealForm, type StartDealLead } from "./StartDealForm";
+import type { LeadSignal } from "@shared/domain/sourcedLead";
 
 /**
  * The leads already written to, kept out of the search results but shown here so
@@ -28,10 +28,12 @@ export interface ContactedRow {
   /** The public notice URL, where the key is one (probate / insolvency). */
   readonly noticeUrl?: string;
   /**
-   * The stored lead, where it is warehoused (prepared-but-unsold). Present means
-   * a deal can be started from it here, even though it is suppressed from search.
+   * Enough to start a deal from here even though the lead is suppressed from
+   * search — the worklist lead for a prepared-but-unsold property, or the three
+   * stored facts rebuilt into a lead for a probate/insolvency notice. Absent
+   * where nothing was kept (e.g. a notice contacted with no postcode).
    */
-  readonly lead?: SourcedLead;
+  readonly lead?: StartDealLead;
 }
 
 export function ContactedLeads({ items }: { items: readonly ContactedRow[] }) {

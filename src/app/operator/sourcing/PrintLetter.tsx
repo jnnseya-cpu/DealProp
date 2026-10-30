@@ -152,7 +152,15 @@ export function PrintLetter({ lead, signatureUrl }: { lead: SourcedLead; signatu
     // stored, never the person. Reversible from the Contacted list on the page.
     const key = leadContactKey(lead);
     if (key !== undefined && !contacted) {
-      void markLeadContacted({ key, signalKey: lead.signalKey }).then((r) => {
+      void markLeadContacted({
+        key,
+        signalKey: lead.signalKey,
+        // The three facts that let "Start a deal" work from the Contacted list
+        // later, even after the live notice has rotated out of the feed.
+        ...(lead.postcode !== undefined ? { postcode: lead.postcode } : {}),
+        ...(lead.propertyAddress !== undefined ? { address: lead.propertyAddress } : {}),
+        ...(lead.subjectName !== undefined ? { subjectName: lead.subjectName } : {}),
+      }).then((r) => {
         if (r.ok) setContacted(true);
       });
     }

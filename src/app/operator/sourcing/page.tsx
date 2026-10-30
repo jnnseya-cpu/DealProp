@@ -75,8 +75,25 @@ export default async function SourcingPage() {
   const worklistById = new Map(worklist.map((p) => [p.id, p]));
   const contactedRows: readonly ContactedRow[] = contacted.map((c) => {
     const stored = worklistById.get(c.key);
-    const address = stored?.lead.propertyAddress;
     const isNotice = /^https?:\/\//i.test(c.key);
+    const address = stored?.lead.propertyAddress ?? c.startFacts?.address;
+
+    // A deal can be started from the Contacted list wherever we hold enough:
+    // a prepared-but-unsold worklist lead, or a notice lead rebuilt from its
+    // three stored facts. Both need a postcode to start a deal.
+    const lead: ContactedRow["lead"] =
+      stored?.lead.postcode !== undefined
+        ? stored.lead
+        : c.startFacts?.postcode !== undefined
+          ? {
+              signalKey: c.signalKey,
+              postcode: c.startFacts.postcode,
+              ...(c.startFacts.address !== undefined ? { propertyAddress: c.startFacts.address } : {}),
+              ...(c.startFacts.subjectName !== undefined ? { subjectName: c.startFacts.subjectName } : {}),
+              ...(isNotice ? { sourceUrl: c.key } : {}),
+            }
+          : undefined;
+
     return {
       key: c.key,
       signalKey: c.signalKey,
@@ -85,9 +102,7 @@ export default async function SourcingPage() {
       title: CONTACTED_TITLE[c.signalKey],
       ...(address !== undefined ? { address } : {}),
       ...(isNotice ? { noticeUrl: c.key } : {}),
-      // A warehoused (prepared-but-unsold) lead is still here with its facts, so
-      // a deal can be started from it even though it is suppressed from search.
-      ...(stored?.lead.postcode !== undefined ? { lead: stored.lead } : {}),
+      ...(lead !== undefined ? { lead } : {}),
     };
   });
 

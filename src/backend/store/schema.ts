@@ -551,6 +551,23 @@ export interface ContactedLead {
   readonly signalKey: LeadSignal;
   readonly contactedAt: string;
   readonly by: string;
+  /**
+   * The minimum needed to start a deal from this lead later — and nothing more.
+   *
+   * Captured when a probate or insolvency lead is written to, so "Start a deal"
+   * still works from the Contacted list once the live notice has rotated out of
+   * the Gazette feed. This is the one place such a lead's facts are kept, and
+   * it is deliberately three fields: postcode, address, the subject's name. It
+   * is lawful here because the operator has chosen to ACT on this lead (they
+   * printed to it) — the same basis as starting a deal — and it is reversible:
+   * clearing the suppression (Restore) deletes this with it. Absent for a
+   * prepared-but-unsold lead, whose facts are already in the worklist.
+   */
+  readonly startFacts?: {
+    readonly postcode?: string;
+    readonly address?: string;
+    readonly subjectName?: string;
+  };
 }
 
 /**
