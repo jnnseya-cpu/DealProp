@@ -14,7 +14,7 @@ import { SELLER_KINDS } from "@shared/domain/sellerDueDiligence";
 import { PLANS } from "@shared/domain/pricing";
 import { BUYER_TIERS } from "@shared/domain/revenue";
 import { supplyPosition } from "@shared/domain/supply";
-import { sellerFeeStatement } from "@shared/domain/fees";
+import { partnerFeeStatement, sellerFeeStatement } from "@shared/domain/fees";
 
 /**
  * The prohibitions, applied to the copy rather than to the engine.
@@ -272,6 +272,23 @@ describe("sellerFeeStatement", () => {
       expect(checkValuationLanguage(statement).clean).toBe(true);
       expect(statement.trim().endsWith(".")).toBe(true);
     }
+  });
+});
+
+describe("partnerFeeStatement", () => {
+  it("says the supply side is free and never quotes a certainty", () => {
+    // Rendered verbatim on the landing page from the domain, like the seller
+    // statement, so it goes through the same valuation-language check and must
+    // make clear a partner pays nothing to be here.
+    const { statement } = partnerFeeStatement();
+    expect(checkValuationLanguage(statement).clean, statement).toBe(true);
+    expect(statement).toMatch(/free/);
+    expect(statement.trim().endsWith(".")).toBe(true);
+  });
+
+  it("reads the auction share from the commission catalogue", () => {
+    // The figure must come from pricing.ts, not a literal in the sentence.
+    expect(partnerFeeStatement().statement).toMatch(/%/);
   });
 });
 

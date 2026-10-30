@@ -1,8 +1,9 @@
 import { add, applyBps, ZERO, type Money } from "@shared/money";
-import { gbp } from "@shared/format";
+import { gbp, percent } from "@shared/format";
 import type { DealAppraisal, DealStatus } from "@shared/domain/types";
 import { permissionDefinition, type PermissionKey } from "@shared/domain/permissions";
 import {
+  providerCommission,
   sellerFeeHeadline,
   sourcingFee,
   successFee,
@@ -274,6 +275,30 @@ export function sellerFeeStatement(
     chargeable: false,
     statement:
       "Seeing your options is free and there is nothing for a seller to pay. Introducing a seller to a buyer for a fee is estate agency work, and that income is refused until the supervision behind it is recorded.",
+  };
+}
+
+/**
+ * What a partner — an estate agent or auctioneer listing their own stock —
+ * pays to be on the platform.
+ *
+ * The answer is nothing to join and nothing to list: the supply side is free
+ * by design, which is the same rule that makes a seller free. A partner pays
+ * only where the platform wins them completed work, and that is an agreed
+ * revenue share rather than a charge to be here. The auction share is read from
+ * the commission catalogue in `pricing.ts` so this sentence never drifts from
+ * the figure the arrangement is actually settled on.
+ */
+export interface PartnerFeeStatement {
+  readonly statement: string;
+}
+
+export function partnerFeeStatement(): PartnerFeeStatement {
+  const auctioneer = providerCommission("auctioneer");
+  const share =
+    auctioneer.rateBps !== undefined ? ` (${percent(auctioneer.rateBps, 0)} on an auction instruction)` : "";
+  return {
+    statement: `Estate agents and auctioneers join and list their own stock free — the supply side carries no fee to be here. A partner pays only where the platform wins them completed work, and then it is an agreed revenue share${share}, never a charge to list.`,
   };
 }
 

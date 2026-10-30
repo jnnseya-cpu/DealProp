@@ -24,7 +24,12 @@ import { LandingNav } from "@/app/components/LandingNav";
 import { Meter, StackedBar, type StackSegment } from "@/app/components/charts";
 import { BUYER_TIERS, FUNDER_TIERS } from "@shared/domain/revenue";
 import { PricingTiers } from "@/app/components/PricingTiers";
-import { sellerFeeStatement, type SellerFeeStatement } from "@shared/domain/fees";
+import {
+  partnerFeeStatement,
+  sellerFeeStatement,
+  type PartnerFeeStatement,
+  type SellerFeeStatement,
+} from "@shared/domain/fees";
 import { mayPublishReturns, type PromotionDecision } from "@shared/domain/prohibitions";
 import { permissionsHeld } from "@backend/permissions";
 import { situationLabel } from "@shared/domain/motivation";
@@ -134,6 +139,9 @@ export default async function Home() {
   // What a seller will actually pay, decided by the fee engine rather than by
   // whoever last edited this paragraph.
   const sellerFee = sellerFeeStatement(permissions);
+  // What a partner — an estate agent or auctioneer listing their own stock —
+  // pays: nothing to be here, a revenue share only on work we win them.
+  const partnerFee = partnerFeeStatement();
 
   const stress = (key: string): Money =>
     scored.redTeam.results.find((r) => r.stress.key === key)?.profit ?? scored.appraisal.profit;
@@ -177,7 +185,7 @@ export default async function Home() {
       {goldmine !== undefined && <GoldMineSection goldmine={goldmine} listing={record.listing!} />}
       <CloseSection close={close} />
       <RevenueSection revenue={revenue} />
-      <Pricing sellerFee={sellerFee} />
+      <Pricing sellerFee={sellerFee} partnerFee={partnerFee} />
       <SiteFooter />
     </main>
   );
@@ -1406,7 +1414,13 @@ function RevenueSection({ revenue }: { revenue: ReturnType<typeof dealRevenue> }
   );
 }
 
-function Pricing({ sellerFee }: { sellerFee: SellerFeeStatement }) {
+function Pricing({
+  sellerFee,
+  partnerFee,
+}: {
+  sellerFee: SellerFeeStatement;
+  partnerFee: PartnerFeeStatement;
+}) {
   return (
     <section id="pricing" className="border-b hairline bg-surface-1">
       <div className="mx-auto max-w-7xl px-6 py-20">
@@ -1502,14 +1516,24 @@ function Pricing({ sellerFee }: { sellerFee: SellerFeeStatement }) {
         </div>
 
         {/*
-          The seller's own fee. Stated only through `sellerFeeStatement()`, which
-          reads the fee engine and the permission catalogue — never a literal in
-          this file. When the success fee cannot lawfully be charged the engine
-          says "free", and that is what prints.
+          The supply side — sellers and partners. Both are free to be here by
+          design, because exclusive deal flow is the whole asset. Each sentence
+          is stated through its fee-engine helper (`sellerFeeStatement`,
+          `partnerFeeStatement`) rather than a literal in this file: when the
+          seller success fee cannot lawfully be charged the engine says "free",
+          and the partner share is read from the commission catalogue. Showing
+          both here means every account-holder category a visitor can sign up as
+          — buyer, lender, seller, partner — has its price on this page.
         */}
-        <div className="mt-5 rounded-2xl border hairline bg-surface-2 px-6 py-5">
-          <p className="text-sm font-medium text-ink-100">Sellers</p>
-          <p className="mt-2 max-w-[46rem] text-sm leading-relaxed text-ink-300">{sellerFee.statement}</p>
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border hairline bg-surface-2 px-6 py-5">
+            <p className="text-sm font-medium text-ink-100">Sellers</p>
+            <p className="mt-2 text-sm leading-relaxed text-ink-300">{sellerFee.statement}</p>
+          </div>
+          <div className="rounded-2xl border hairline bg-surface-2 px-6 py-5">
+            <p className="text-sm font-medium text-ink-100">Partners — estate agents &amp; auctioneers</p>
+            <p className="mt-2 text-sm leading-relaxed text-ink-300">{partnerFee.statement}</p>
+          </div>
         </div>
       </div>
     </section>
