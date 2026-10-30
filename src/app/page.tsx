@@ -575,7 +575,7 @@ function Doors() {
     },
     {
       tag: "Agents",
-      title: "I am an estate agent",
+      title: "I am an agent or auctioneer",
       body: "List the instructions you can't close, free, and receive buyers whose identity and funding we've already checked — never raw enquiries. You keep the client and the instruction.",
       cta: "How agents work with us",
       href: "/partners",
