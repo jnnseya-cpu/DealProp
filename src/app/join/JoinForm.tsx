@@ -17,7 +17,7 @@ import type { Role } from "@shared/domain/accounts";
 const OPTIONS: readonly { readonly value: string; readonly label: string; readonly blurb: string }[] = [
   { value: "seller", label: "I'm selling a property", blurb: "Get a fair cash offer. Selling to us is free — no agent, no fees." },
   { value: "investor", label: "I'm a buyer / investor", blurb: "See graded opportunities and track your readiness. Deal material unlocks once you certify." },
-  { value: "flipper", label: "I flip property (buy and sell)", blurb: "Both at once: buy opportunities and sell on. One account, buyer and seller." },
+  { value: "flipper", label: "I flip or source property", blurb: "Buy and sell on, or source a deal and assign it for a margin without buying. One account, buyer and seller." },
 ];
 
 export function JoinForm({ defaultRole }: { defaultRole?: Role }) {

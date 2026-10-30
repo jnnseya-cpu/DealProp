@@ -558,22 +558,43 @@ export const ALL_ROLES: readonly Role[] = [
  *
  *  - Staff (`admin`, `operator`): a privilege that reaches seller data or the
  *    whole platform is granted by a named administrator, never claimed on a form.
- *  - Estate agent (`partner`) and lender (`funder`): a firm that publishes stock
- *    and a party that lends money are vetted before they act, so they are
- *    allocated by an administrator ({@link ADMIN_ALLOCATED_ROLES}), not
- *    self-declared. A person still has only ONE account — the admin adds the
- *    role to it rather than a second account being created.
+ *  - Estate agent (`partner`) and lender (`funder`): a regulated real-world
+ *    status Lode cannot confer, so they are {@link RESERVED_ROLES} — not
+ *    self-service, and not even an admin may allocate them. A person still has
+ *    only ONE account; those roles arrive on it through verified onboarding.
  */
 export const SELF_SERVICE_ROLES: readonly Role[] = ["seller", "investor"];
 
 /**
- * The external roles only an administrator may allocate.
+ * The roles NOBODY may hand out — not at sign-up, and not even an administrator.
  *
- * An estate agent publishes other people's property and a lender advances money
- * — both are relationships Lode vets, so neither can be claimed at sign-up. An
- * admin adds them to the person's single existing account.
+ * An estate agent and a lender are real-world regulated capacities: a firm
+ * either is a registered estate agent (redress scheme, AML supervision) or it is
+ * not, and a lender either holds the authorisation or it does not. Lode cannot
+ * confer either by flipping a switch, so neither self-service nor an admin may
+ * grant them. They come only from a verified onboarding that checks the actual
+ * status — which is a separate, evidence-gated path, deliberately not an admin
+ * toggle. An account that already holds one keeps it; this stops anyone else
+ * being *given* one.
  */
-export const ADMIN_ALLOCATED_ROLES: readonly Role[] = ["funder", "partner"];
+export const RESERVED_ROLES: readonly Role[] = ["funder", "partner"];
+
+/** Whether a role is reserved — ungrantable by self-service or by an admin. */
+export function isReservedRole(role: Role): boolean {
+  return RESERVED_ROLES.includes(role);
+}
+
+/**
+ * The roles an administrator may actually allocate to an account.
+ *
+ * Everything that is not reserved: seller, buyer/investor, flipper's parts, and
+ * the staff roles (which carry their own named-admin check at the call site).
+ * This is "make an account be everything he wants, except estate agent and
+ * lender", expressed once so the forms and the server agree.
+ */
+export function adminAllocatableRoles(): readonly Role[] {
+  return ALL_ROLES.filter((r) => !isReservedRole(r));
+}
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Administrator",

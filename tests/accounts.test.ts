@@ -14,7 +14,9 @@ import {
   publicAccount,
   ROLE_LABELS,
   SELF_SERVICE_ROLES,
-  ADMIN_ALLOCATED_ROLES,
+  RESERVED_ROLES,
+  isReservedRole,
+  adminAllocatableRoles,
   type Account,
 } from "@shared/domain/accounts";
 import {
@@ -97,22 +99,32 @@ describe("roles", () => {
     }
   });
 
-  it("self-service is only seller and buyer; agent, lender and staff are admin-allocated", () => {
-    // A form can widen who signs up, never what they are. Staff (admin,
-    // operator) and the vetted roles (estate agent, lender) are allocated by an
-    // administrator — a person declares themselves neither the house nor a
-    // regulated firm on a sign-up form.
+  it("self-service is only seller and buyer; staff needs an admin", () => {
+    // A form can widen who signs up, never what they are.
     expect([...SELF_SERVICE_ROLES].sort()).toEqual(["investor", "seller"]);
     for (const banned of ["admin", "operator", "funder", "partner"] as const) {
       expect(SELF_SERVICE_ROLES).not.toContain(banned);
     }
-    // The two vetted external roles are the admin-allocated set.
-    expect([...ADMIN_ALLOCATED_ROLES].sort()).toEqual(["funder", "partner"]);
-    // Self-service and admin-allocated never overlap, and both are real roles.
-    for (const role of [...SELF_SERVICE_ROLES, ...ADMIN_ALLOCATED_ROLES]) {
-      expect(ALL_ROLES).toContain(role);
-    }
-    for (const role of SELF_SERVICE_ROLES) expect(ADMIN_ALLOCATED_ROLES).not.toContain(role);
+    for (const role of SELF_SERVICE_ROLES) expect(ALL_ROLES).toContain(role);
+  });
+
+  it("reserves estate agent and lender — nobody allocates them, not even an admin", () => {
+    // A regulated real-world status Lode cannot confer, so it is neither
+    // self-service nor admin-allocatable.
+    expect([...RESERVED_ROLES].sort()).toEqual(["funder", "partner"]);
+    expect(isReservedRole("partner")).toBe(true);
+    expect(isReservedRole("funder")).toBe(true);
+    expect(isReservedRole("seller")).toBe(false);
+    // The admin may allocate everything else, and never a reserved role.
+    const allocatable = adminAllocatableRoles();
+    expect(allocatable).not.toContain("partner");
+    expect(allocatable).not.toContain("funder");
+    expect(allocatable).toContain("seller");
+    expect(allocatable).toContain("investor");
+    expect(allocatable).toContain("admin");
+    expect(allocatable).toContain("operator");
+    // A reserved role is never self-service either.
+    for (const r of RESERVED_ROLES) expect(SELF_SERVICE_ROLES).not.toContain(r);
   });
 });
 

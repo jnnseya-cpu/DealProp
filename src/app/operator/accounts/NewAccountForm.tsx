@@ -1,17 +1,17 @@
 "use client";
 
-import { ALL_ROLES, ROLE_LABELS } from "@shared/domain/accounts";
+import { adminAllocatableRoles, ROLE_LABELS } from "@shared/domain/accounts";
 import { Field, MandateForm, Select, TextInput, Toggle } from "@/app/components/mandate";
 import { createAccount } from "./actions";
 
 export function NewAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) {
-  // Administrator is offered only to someone who may actually grant it. The
-  // server enforces this regardless; hiding it keeps the form from presenting
-  // a choice it would then refuse.
-  const roleOptions = ALL_ROLES.filter((r) => r !== "admin" || canCreateAdmin).map((r) => ({
-    value: r,
-    label: ROLE_LABELS[r],
-  }));
+  // Reserved roles (estate agent, lender) are never offered — an admin cannot
+  // allocate them. Administrator is offered only to someone who may grant it.
+  // The server enforces both regardless; hiding them keeps the form from
+  // presenting a choice it would then refuse.
+  const roleOptions = adminAllocatableRoles()
+    .filter((r) => r !== "admin" || canCreateAdmin)
+    .map((r) => ({ value: r, label: ROLE_LABELS[r] }));
 
   return (
     <MandateForm

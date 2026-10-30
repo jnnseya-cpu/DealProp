@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireOneOf, requiredText, type BoxFormResult } from "@shared/formFields";
 import { hashPassword, passwordProblem } from "@backend/auth/password";
-import { ALL_ROLES, type Account, type Role } from "@shared/domain/accounts";
+import { accountRoles, ALL_ROLES, isReservedRole, type Account, type Role } from "@shared/domain/accounts";
 import { findAccountByEmail, getAccount, listAccounts, saveAccount } from "@backend/store/repository";
 import { currentViewer, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
@@ -49,6 +49,16 @@ export async function createAccount(
 
     const role = requireOneOf<Role>(formData.get("role"), ROLES, "role");
 
+    // Estate agent and lender are reserved: a regulated real-world status Lode
+    // cannot confer, so not even an admin may allocate them — here or as an
+    // extra role below. They come only from a verified onboarding.
+    if (isReservedRole(role)) {
+      return {
+        ok: false,
+        message: "Estate agent and lender are verified roles and cannot be allocated here.",
+      };
+    }
+
     // Creating an administrator is the one role that grants account management
     // itself, so it is the one creation a shared credential must not make once
     // there is a real administrator to be accountable for it. A named admin may
@@ -78,6 +88,7 @@ export async function createAccount(
     const extraRoles = ALL_ROLES.filter(
       (r) =>
         r !== role &&
+        !isReservedRole(r) &&
         formData.getAll("extraRoles").includes(r) &&
         (canStaff || (r !== "admin" && r !== "operator")),
     );
@@ -141,8 +152,15 @@ export async function setAccountRoles(
   const account = await getAccount(id);
   if (account === undefined) return { ok: false, message: "No such account." };
 
-  const chosen = ALL_ROLES.filter((r) => formData.getAll("roles").includes(r));
-  if (chosen.length === 0) return { ok: false, message: "An account must keep at least one role." };
+  // Reserved roles (estate agent, lender) are never granted or revoked here —
+  // an admin cannot confer a regulated status. Any already on the account pass
+  // through untouched; a reserved checkbox in the form is ignored.
+  const existingReserved = accountRoles(account).filter(isReservedRole);
+  const chosen = ALL_ROLES.filter(
+    (r) => !isReservedRole(r) && formData.getAll("roles").includes(r),
+  );
+  const finalRoles = [...chosen, ...existingReserved];
+  if (finalRoles.length === 0) return { ok: false, message: "An account must keep at least one role." };
 
   // Only an admin may grant admin or operator, and only an admin may grant them
   // here — the create action's bootstrap exception does not apply to an edit.
@@ -153,9 +171,9 @@ export async function setAccountRoles(
     return { ok: false, message: "Only a named administrator may grant a staff role." };
   }
 
-  // Keep the existing primary where it is still chosen; otherwise the first.
-  const primary = chosen.includes(account.role) ? account.role : (chosen[0] as Role);
-  const extra = chosen.filter((r) => r !== primary);
+  // Keep the existing primary where it is still held; otherwise the first.
+  const primary = finalRoles.includes(account.role) ? account.role : (finalRoles[0] as Role);
+  const extra = finalRoles.filter((r) => r !== primary);
   const connectedParty = formData.get("connectedParty") === "on";
 
   const { roles: _r, connectedParty: _c, ...rest } = account;
@@ -170,7 +188,7 @@ export async function setAccountRoles(
   await audit("account-created", {
     ...(viewerAccount(viewer) !== undefined ? { account: viewerAccount(viewer) } : {}),
     subject: id,
-    detail: `Roles allocated: ${chosen.join(" + ")}${connectedParty ? " · connected party" : ""}.`,
+    detail: `Roles allocated: ${finalRoles.join(" + ")}${connectedParty ? " · connected party" : ""}.`,
   });
   revalidatePath("/operator/accounts");
   return { ok: true, message: "Roles updated." };

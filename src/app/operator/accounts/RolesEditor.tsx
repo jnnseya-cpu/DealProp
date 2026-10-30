@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { ALL_ROLES, ROLE_LABELS, type Role } from "@shared/domain/accounts";
+import { adminAllocatableRoles, isReservedRole, ROLE_LABELS, type Role } from "@shared/domain/accounts";
 import type { BoxFormResult } from "@shared/formFields";
 import { setAccountRoles } from "./actions";
 
@@ -29,7 +29,12 @@ export function RolesEditor({
     setAccountRoles,
     undefined,
   );
-  const options = ALL_ROLES.filter((r) => (r !== "admin" && r !== "operator") || canGrantStaff);
+  const options = adminAllocatableRoles().filter(
+    (r) => (r !== "admin" && r !== "operator") || canGrantStaff,
+  );
+  // Reserved roles the account already holds are shown but never editable here —
+  // an admin cannot grant or revoke a verified estate-agent or lender status.
+  const heldReserved = roles.filter(isReservedRole);
 
   return (
     <details className="mt-3">
@@ -52,6 +57,13 @@ export function RolesEditor({
             </label>
           ))}
         </div>
+        {heldReserved.length > 0 && (
+          <p className="text-[12px] leading-relaxed text-ink-500">
+            Verified, not editable here:{" "}
+            <span className="text-ink-300">{heldReserved.map((r) => ROLE_LABELS[r]).join(", ")}</span>.
+            Estate agent and lender status is set by verified onboarding, never allocated.
+          </p>
+        )}
         <label className="flex items-center gap-2 text-sm text-ink-200">
           <input
             type="checkbox"
