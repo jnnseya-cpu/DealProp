@@ -5,6 +5,7 @@ import { runAreaAction, runRegistersAction, type SourcingResult } from "./action
 import { PrintLetter } from "./PrintLetter";
 import { StartDealForm } from "./StartDealForm";
 import type { FlipEvidence, SourcedLead } from "@shared/domain/sourcedLead";
+import { isPriorityArea } from "@shared/domain/sourcingArea";
 import { gbp, percent } from "@shared/format";
 import { bps } from "@shared/money";
 
@@ -167,6 +168,11 @@ function Leads({ leads, signatureUrl }: { leads: readonly SourcedLead[]; signatu
                   <>
                     <span className="text-ink-600"> · </span>
                     <span className="text-ink-300 tabular-nums">{lead.postcode}</span>
+                    {isPriorityArea(lead.postcode) && (
+                      <span className="ml-2 rounded border border-lode-500/45 bg-lode-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.08em] text-lode-200">
+                        Priority area
+                      </span>
+                    )}
                   </>
                 )}
               </p>

@@ -40,6 +40,7 @@ import {
 } from "@backend/discovery/gazette";
 import { INSOLVENCY_SOURCE } from "@backend/discovery/insolvencyRegister";
 import { Fetcher } from "@backend/discovery/fetcher";
+import { DEFAULT_PRIORITY_AREAS, isPriorityArea, parsePriorityAreas } from "@shared/domain/sourcingArea";
 
 /**
  * Turning the register adapters into a list of leads a person can work.
@@ -95,7 +96,11 @@ export interface SourcingInputs {
  * urgency is never a reason to hurry an approach to a grieving or insolvent
  * person.
  */
-export function sourceProperties(inputs: SourcingInputs, now: Date = new Date()): readonly SourcedLead[] {
+export function sourceProperties(
+  inputs: SourcingInputs,
+  now: Date = new Date(),
+  priorityAreas: readonly string[] = DEFAULT_PRIORITY_AREAS,
+): readonly SourcedLead[] {
   const observedAt = now.toISOString().slice(0, 10);
   const leads: SourcedLead[] = [];
   // The sender particulars for any probate letter drafted below. Read once.
@@ -205,8 +210,15 @@ export function sourceProperties(inputs: SourcingInputs, now: Date = new Date())
   // the caller derives), so they are passed straight through here.
   for (const lead of inputs.negativeEquity ?? []) leads.push(lead);
 
-  // Strong first; a stable order within each tier so a rerun reads the same.
-  return leads.sort((a, b) => (a.strength === b.strength ? 0 : a.strength === "strong" ? -1 : 1));
+  // Priority area first (the operator's target region — the Gazette feed is
+  // national, so without this the priority leads scroll off), then strong first,
+  // then a stable order within each tier so a rerun reads the same. Area is a
+  // where-we-work sort, not an urgency sort: it never hurries an approach to a
+  // grieving or insolvent person, it only surfaces the region Lode operates in.
+  const priorityRank = (l: SourcedLead): number =>
+    l.postcode !== undefined && isPriorityArea(l.postcode, priorityAreas) ? 0 : 1;
+  const strengthRank = (l: SourcedLead): number => (l.strength === "strong" ? 0 : 1);
+  return leads.sort((a, b) => priorityRank(a) - priorityRank(b) || strengthRank(a) - strengthRank(b));
 }
 
 /* ------------------------------------------------------- source readiness */
@@ -724,8 +736,11 @@ export async function runRegisters(
   // feed pages (fast, even at a hundred leads) and means every lead can resolve
   // its contact, not just a capped first slice. See resolveLetter in the
   // sourcing actions.
+  // Priority areas float to the top of the national register run — the default
+  // West & East Midlands, or a GAZETTE_PRIORITY_AREAS override.
+  const priorityAreas = parsePriorityAreas(process.env.GAZETTE_PRIORITY_AREAS) ?? DEFAULT_PRIORITY_AREAS;
   return {
-    leads: sourceProperties({ deceasedEstates: deceased, insolvencies }, now),
+    leads: sourceProperties({ deceasedEstates: deceased, insolvencies }, now, priorityAreas),
     notes,
     requestsMade: fetcher.requestsMade,
   };

@@ -13,6 +13,12 @@ import {
 import type { EpcCertificate } from "@backend/sources/epc";
 import type { PricePaidRecord } from "@backend/discovery/properties";
 import { attribute } from "@shared/domain/sources";
+import {
+  DEFAULT_PRIORITY_AREAS,
+  isPriorityArea,
+  parsePriorityAreas,
+  postcodeArea,
+} from "@shared/domain/sourcingArea";
 import { fromMajor } from "@shared/money";
 
 const NOW = new Date("2026-10-21T00:00:00.000Z");
@@ -134,6 +140,56 @@ describe("the adapters join into one ranked list of leads", () => {
       NOW,
     );
     expect(leads[0]?.letterDraft).toBeUndefined();
+  });
+
+  it("floats priority-area leads to the top, ahead of stronger leads elsewhere", () => {
+    const mix: SourcingInputs = {
+      deceasedEstates: [
+        // Strong but outside the priority area.
+        { noticeId: "a", deceasedName: "Elsewhere", lastAddress: "1 A, Leeds LS1 4DT", postcode: "LS1 4DT" },
+        // A Midlands lead — Nottingham (NG) is a priority area.
+        { noticeId: "b", deceasedName: "Midlands", lastAddress: "2 B, Nottingham NG1 1AA", postcode: "NG1 1AA" },
+        // A third outside, after it.
+        { noticeId: "c", deceasedName: "Also Elsewhere", lastAddress: "3 C, Manchester M1 2AB", postcode: "M1 2AB" },
+      ],
+    };
+    const leads = sourceProperties(mix, NOW);
+    expect(leads[0]?.postcode).toBe("NG1 1AA");
+  });
+
+  it("honours a custom priority-area list", () => {
+    const mix: SourcingInputs = {
+      deceasedEstates: [
+        { noticeId: "a", deceasedName: "Nottingham", lastAddress: "1, Nottingham NG1 1AA", postcode: "NG1 1AA" },
+        { noticeId: "b", deceasedName: "Manchester", lastAddress: "2, Manchester M1 2AB", postcode: "M1 2AB" },
+      ],
+    };
+    // Prioritise Manchester instead; it must now lead.
+    const leads = sourceProperties(mix, NOW, ["M"]);
+    expect(leads[0]?.postcode).toBe("M1 2AB");
+  });
+});
+
+describe("priority areas", () => {
+  it("reads the postcode area, one or two letters before the digit", () => {
+    expect(postcodeArea("B29 6AD")).toBe("B");
+    expect(postcodeArea("CV1 2AB")).toBe("CV");
+    expect(postcodeArea("ng7 2rd")).toBe("NG");
+    expect(postcodeArea("")).toBe("");
+  });
+
+  it("knows the Midlands by default and takes an override", () => {
+    expect(isPriorityArea("B29 6AD")).toBe(true); // Birmingham
+    expect(isPriorityArea("NG1 1AA")).toBe(true); // Nottingham
+    expect(isPriorityArea("LS1 4DT")).toBe(false); // Leeds
+    expect(isPriorityArea("LS1 4DT", ["LS"])).toBe(true); // override
+    expect(DEFAULT_PRIORITY_AREAS).toContain("CV");
+  });
+
+  it("parses an override, or undefined when empty", () => {
+    expect(parsePriorityAreas("b, cv ,ng")).toEqual(["B", "CV", "NG"]);
+    expect(parsePriorityAreas("")).toBeUndefined();
+    expect(parsePriorityAreas(undefined)).toBeUndefined();
   });
 });
 
