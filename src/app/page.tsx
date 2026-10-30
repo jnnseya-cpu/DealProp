@@ -1516,6 +1516,26 @@ function Pricing({
         </div>
 
         {/*
+          Flippers are the one category without a plan of their own, because a
+          flipper is both sides of the market at once: a flipper account is
+          buyer + seller (see /join/actions.ts, where "flipper" maps to
+          investor + seller). So their price is already on this page, split
+          across the two sides — and that holds for both shapes of flip, the
+          one who buys, refurbishes and sells, and the one who sources a deal
+          and assigns it on for a margin without ever buying it. A 2px left
+          rule, not a tinted box, per the design system.
+        */}
+        <div className="mt-8 border-l-2 border-lode-500/60 pl-4">
+          <p className="text-sm font-medium text-ink-100">Flippers</p>
+          <p className="mt-1.5 max-w-[46rem] text-sm leading-relaxed text-ink-400">
+            A flipper is both sides of the market, so there is no separate plan: one account is
+            buyer and seller together. You pay on the buyer side to source, analyse and unlock a
+            deal, and the sell side is free — the same whether you buy, refurbish and sell, or
+            source a deal and assign it on for a margin without buying it yourself.
+          </p>
+        </div>
+
+        {/*
           The supply side — sellers and partners. Both are free to be here by
           design, because exclusive deal flow is the whole asset. Each sentence
           is stated through its fee-engine helper (`sellerFeeStatement`,
