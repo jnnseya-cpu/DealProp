@@ -4,7 +4,15 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireOneOf, requiredText, type BoxFormResult } from "@shared/formFields";
 import { hashPassword, passwordProblem } from "@backend/auth/password";
-import { accountRoles, ALL_ROLES, isReservedRole, type Account, type Role } from "@shared/domain/accounts";
+import {
+  accountRoles,
+  ALL_ROLES,
+  isReservedRole,
+  MAX_ACCOUNT_ROLES,
+  withinRoleCap,
+  type Account,
+  type Role,
+} from "@shared/domain/accounts";
 import { findAccountByEmail, getAccount, listAccounts, saveAccount } from "@backend/store/repository";
 import { currentViewer, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
@@ -92,6 +100,9 @@ export async function createAccount(
         formData.getAll("extraRoles").includes(r) &&
         (canStaff || (r !== "admin" && r !== "operator")),
     );
+    if (!withinRoleCap([role, ...extraRoles])) {
+      return { ok: false, message: `An account may hold at most ${MAX_ACCOUNT_ROLES} roles.` };
+    }
     const connectedParty = formData.get("connectedParty") === "on";
     const account: Account = {
       id: `acc-${randomUUID()}`,
@@ -161,6 +172,9 @@ export async function setAccountRoles(
   );
   const finalRoles = [...chosen, ...existingReserved];
   if (finalRoles.length === 0) return { ok: false, message: "An account must keep at least one role." };
+  if (!withinRoleCap(finalRoles)) {
+    return { ok: false, message: `An account may hold at most ${MAX_ACCOUNT_ROLES} roles.` };
+  }
 
   // Only an admin may grant admin or operator, and only an admin may grant them
   // here — the create action's bootstrap exception does not apply to an edit.

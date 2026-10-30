@@ -594,6 +594,21 @@ export function adminAllocatableRoles(): readonly Role[] {
   return ALL_ROLES.filter((r) => !isReservedRole(r));
 }
 
+/**
+ * The most roles one account may hold.
+ *
+ * One person, one account — and at most this many roles on it. The cap applies
+ * wherever roles are set: an admin allocates up to three, and a person's own
+ * self-service choices count toward the same three. It stops an account quietly
+ * accumulating every capability on the platform.
+ */
+export const MAX_ACCOUNT_ROLES = 3;
+
+/** Whether a role set is within the per-account cap (de-duplicated). */
+export function withinRoleCap(roles: readonly Role[]): boolean {
+  return new Set(roles).size <= MAX_ACCOUNT_ROLES;
+}
+
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Administrator",
   operator: "Operator",

@@ -3,7 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { currentViewer } from "@/app/operator/guard";
 import { saveAccount } from "@backend/store/repository";
-import { accountRoles, SELF_SERVICE_ROLES, type Account, type Role } from "@shared/domain/accounts";
+import {
+  accountRoles,
+  MAX_ACCOUNT_ROLES,
+  SELF_SERVICE_ROLES,
+  withinRoleCap,
+  type Account,
+  type Role,
+} from "@shared/domain/accounts";
 import { audit } from "@backend/audit";
 
 /**
@@ -42,6 +49,9 @@ export async function setOwnRoles(
   const finalRoles: readonly Role[] = [...chosen, ...preserved];
   if (finalRoles.length === 0) {
     return { ok: false, message: "Choose at least one — seller, buyer, or both." };
+  }
+  if (!withinRoleCap(finalRoles)) {
+    return { ok: false, message: `An account may hold at most ${MAX_ACCOUNT_ROLES} roles.` };
   }
 
   const primary = finalRoles.includes(account.role) ? account.role : (finalRoles[0] as Role);

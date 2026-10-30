@@ -17,6 +17,8 @@ import {
   RESERVED_ROLES,
   isReservedRole,
   adminAllocatableRoles,
+  MAX_ACCOUNT_ROLES,
+  withinRoleCap,
   type Account,
 } from "@shared/domain/accounts";
 import {
@@ -160,6 +162,22 @@ describe("multi-role accounts", () => {
     expect(can(staffInvestor, "view-deal-material", NOW).allowed).toBe(true);
     // A plain investor without certification still cannot.
     expect(can(account({ role: "investor" }), "view-deal-material", NOW).allowed).toBe(false);
+  });
+});
+
+describe("the per-account role cap", () => {
+  it("is three", () => {
+    expect(MAX_ACCOUNT_ROLES).toBe(3);
+  });
+
+  it("accepts up to three roles and refuses a fourth", () => {
+    expect(withinRoleCap(["seller"])).toBe(true);
+    expect(withinRoleCap(["seller", "investor", "funder"])).toBe(true);
+    expect(withinRoleCap(["seller", "investor", "funder", "partner"])).toBe(false);
+  });
+
+  it("counts distinct roles, so a repeat does not eat the allowance", () => {
+    expect(withinRoleCap(["seller", "seller", "investor", "funder"])).toBe(true);
   });
 });
 

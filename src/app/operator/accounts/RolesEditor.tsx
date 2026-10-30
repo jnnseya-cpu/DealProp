@@ -41,6 +41,7 @@ export function RolesEditor({
       <summary className="cursor-pointer text-[13px] text-ink-400 transition-colors hover:text-ink-200">
         Allocate roles
       </summary>
+      <p className="mt-2 text-[11px] text-ink-500">Up to three roles per account.</p>
       <form action={submit} className="mt-3 space-y-3 rounded-lg border hairline bg-surface-2 px-4 py-3">
         <input type="hidden" name="id" value={id} />
         <div className="flex flex-wrap gap-x-4 gap-y-2">

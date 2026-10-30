@@ -37,7 +37,7 @@ export function NewAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) 
       </div>
       <Field
         label="Additional roles"
-        hint="One account, as many roles as you allocate. Estate agent and lender are allocated here — never at self-service sign-up."
+        hint="One account, up to three roles in total. Estate agent and lender are not allocatable here — they come from the person's own sign-up."
       >
         <div className="flex flex-wrap gap-x-4 gap-y-2">
           {roleOptions.map((r) => (
