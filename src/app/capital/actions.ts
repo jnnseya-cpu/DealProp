@@ -13,7 +13,7 @@ import {
   requiredText,
   textList,
 } from "@shared/formFields";
-import { MAX_FUNDER_REQUIRED_RETURN_BPS, withinReturnCap, type FunderKind, type FundingBox } from "@shared/domain/matching";
+import { returnCapFor, withinReturnCap, type FunderKind, type FundingBox } from "@shared/domain/matching";
 import type { JurisdictionCode, PropertyType } from "@shared/domain/types";
 import {
   deleteFundingBox,
@@ -94,13 +94,19 @@ export async function saveFundingBoxAction(
       throw new Error("Maximum term must be at or above the minimum term");
     }
 
+    // Flip appetite decides the cap, so it is read before the rate is checked.
+    const flip = {
+      acceptsRefurbishment: checkbox(formData.get("acceptsRefurbishment")),
+      acceptsDevelopment: checkbox(formData.get("acceptsDevelopment")),
+    };
     const requiredReturnBps = requiredPercent(formData.get("requiredReturn"), "Required return");
-    if (!withinReturnCap(requiredReturnBps)) {
-      // The platform caps the cost of capital it will list. Above it the mandate
-      // is refused rather than stored — Lode does not carry capital priced in the
-      // territory responsible lending exists to prevent.
+    if (!withinReturnCap(requiredReturnBps, flip)) {
+      // The platform caps the cost of capital it will list. Above the cap the
+      // mandate is refused rather than stored — Lode does not carry capital
+      // priced in the territory responsible lending exists to prevent. A flip
+      // mandate (refurbishment or development) carries the higher ceiling.
       throw new Error(
-        `Required return must be no more than ${MAX_FUNDER_REQUIRED_RETURN_BPS / 100}% a year`,
+        `Required return must be no more than ${returnCapFor(flip) / 100}% a year`,
       );
     }
 
@@ -151,8 +157,8 @@ export async function saveFundingBoxAction(
       maxLtvBps: requiredPercent(formData.get("maxLtv"), "Maximum LTV"),
       minTermMonths,
       maxTermMonths,
-      acceptsRefurbishment: checkbox(formData.get("acceptsRefurbishment")),
-      acceptsDevelopment: checkbox(formData.get("acceptsDevelopment")),
+      acceptsRefurbishment: flip.acceptsRefurbishment,
+      acceptsDevelopment: flip.acceptsDevelopment,
       requiresFirstCharge: checkbox(formData.get("requiresFirstCharge")),
       minBorrowerCompletedDeals: requiredInteger(
         formData.get("minBorrowerCompletedDeals"),

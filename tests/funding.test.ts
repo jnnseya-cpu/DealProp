@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { bps, fromMajor, pct } from "@shared/money";
-import { MAX_FUNDER_REQUIRED_RETURN_BPS, withinReturnCap } from "@shared/domain/matching";
+import {
+  MAX_FLIP_FUNDER_REQUIRED_RETURN_BPS,
+  MAX_FUNDER_REQUIRED_RETURN_BPS,
+  returnCapFor,
+  withinReturnCap,
+} from "@shared/domain/matching";
 import { appraise } from "@shared/domain/economics";
 import type { DealInputs, FinanceTerms, PropertyFacts, SellerProfile } from "@shared/domain/types";
 import { borrowingCost, compareOffers, looksMispriced, netAdvance } from "@shared/domain/borrowing";
@@ -514,17 +519,32 @@ describe("comparing the offers received", () => {
  * drift apart.
  */
 describe("the funder return cap", () => {
-  it("is 15%", () => {
+  const standard = { acceptsRefurbishment: false, acceptsDevelopment: false };
+  const refurb = { acceptsRefurbishment: true, acceptsDevelopment: false };
+  const dev = { acceptsRefurbishment: false, acceptsDevelopment: true };
+
+  it("is 15% standard, 20% for a flip", () => {
     expect(MAX_FUNDER_REQUIRED_RETURN_BPS).toBe(pct(15));
-    expect(MAX_FUNDER_REQUIRED_RETURN_BPS).toBe(1500);
+    expect(MAX_FLIP_FUNDER_REQUIRED_RETURN_BPS).toBe(pct(20));
+    expect(returnCapFor(standard)).toBe(pct(15));
+    expect(returnCapFor(refurb)).toBe(pct(20));
+    expect(returnCapFor(dev)).toBe(pct(20));
   });
 
-  it("accepts a mandate at or below the cap and refuses one above it", () => {
+  it("accepts a mandate at or below its cap and refuses one above it", () => {
     // No floor: a funder may price as keenly as they like.
-    expect(withinReturnCap(pct(7))).toBe(true);
-    expect(withinReturnCap(pct(15))).toBe(true);
-    expect(withinReturnCap(bps(1))).toBe(true);
-    expect(withinReturnCap(bps(1501))).toBe(false);
-    expect(withinReturnCap(pct(24))).toBe(false);
+    expect(withinReturnCap(pct(5), standard)).toBe(true);
+    expect(withinReturnCap(pct(15), standard)).toBe(true);
+    expect(withinReturnCap(bps(1), standard)).toBe(true);
+    expect(withinReturnCap(bps(1501), standard)).toBe(false);
+    expect(withinReturnCap(pct(24), standard)).toBe(false);
+  });
+
+  it("lets a flip mandate reach the higher ceiling, but no further", () => {
+    expect(withinReturnCap(pct(18), refurb)).toBe(true);
+    expect(withinReturnCap(pct(20), dev)).toBe(true);
+    expect(withinReturnCap(bps(2001), refurb)).toBe(false);
+    // The same 18% is refused on a standard mandate.
+    expect(withinReturnCap(pct(18), standard)).toBe(false);
   });
 });

@@ -80,23 +80,40 @@ export type FunderKind =
   | "development-lender";
 
 /**
- * The minimum annual required return a funding mandate may carry.
+ * The most an annual required return a funding mandate may carry.
  *
- * A business and conduct decision: the capital section does not list mandates
- * priced above 15% a year. It keeps the platform's cost of capital in credible
- * secured-lending territory and well clear of the rates responsible lending
- * exists to prevent — the 2–5% a month a distressed borrower gets quoted is
- * 24–60% a year, and Lode will not carry a mandate reaching for that. There is
- * deliberately no floor: a funder may price as keenly as they like, and the
- * "from 7%" in the marketing is indicative, never a minimum. Enforced where a
- * mandate is saved, so one above the cap is refused rather than stored. Held
- * here as the single source, because a threshold written into a form and a
- * validator separately eventually disagree.
+ * A business and conduct decision: the capital section does not list capital
+ * priced above these ceilings. Standard secured lending caps at 15% a year; a
+ * mandate that funds a flip — refurbishment or development, higher risk and
+ * shorter term — may reach 20%. Both sit well clear of the rates responsible
+ * lending exists to prevent (the 2–5% a month a distressed borrower is quoted
+ * is 24–60% a year, which Lode will not carry). There is deliberately no floor:
+ * a funder may price as keenly as they like, so the 5–15% in the marketing is
+ * indicative, never a minimum. Enforced where a mandate is saved, so one above
+ * its cap is refused rather than stored. Held here as the single source,
+ * because a threshold written into a form and a validator separately eventually
+ * disagree.
  */
 export const MAX_FUNDER_REQUIRED_RETURN_BPS: Bps = pct(15);
 
-export function withinReturnCap(requiredReturnBps: Bps): boolean {
-  return requiredReturnBps <= MAX_FUNDER_REQUIRED_RETURN_BPS;
+/** The higher ceiling a flip mandate (refurbishment or development) may reach. */
+export const MAX_FLIP_FUNDER_REQUIRED_RETURN_BPS: Bps = pct(20);
+
+/** The appetite that earns the higher cap — a mandate funding a flip. */
+export interface FlipAppetite {
+  readonly acceptsRefurbishment: boolean;
+  readonly acceptsDevelopment: boolean;
+}
+
+/** The cap that applies to this mandate: the higher one where it funds a flip. */
+export function returnCapFor(flip: FlipAppetite): Bps {
+  return flip.acceptsRefurbishment || flip.acceptsDevelopment
+    ? MAX_FLIP_FUNDER_REQUIRED_RETURN_BPS
+    : MAX_FUNDER_REQUIRED_RETURN_BPS;
+}
+
+export function withinReturnCap(requiredReturnBps: Bps, flip: FlipAppetite): boolean {
+  return requiredReturnBps <= returnCapFor(flip);
 }
 
 export interface FundingBox {
