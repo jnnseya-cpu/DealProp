@@ -93,7 +93,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Policies | `/legal/[slug]` | Privacy, cookies, terms, complaints, outreach — data-driven, no dead links |
 | Buy Boxes | `/invest` | Investor mandates, each shown against the deals it matches |
 | Funding Boxes | `/capital` | Capital mandates, each shown against the deals it funds |
-| Sign up | `/join` | Public self-service sign-up — seller, buyer/investor, flipper (buyer + seller), capital provider or agent; staff roles can never be chosen, and a fresh account sees nothing it has not certified for. An account holds a set of roles, so one person can be several things; `connectedParty` (admin-set only) marks Lode or a connected party acting as a principal and is disclosed to sellers |
+| Sign up | `/join` | Public self-service sign-up — seller, buyer/investor, or flipper (buyer + seller) only. One account per person: it holds a set of roles, so one person is several things without a second account. Estate agent (`partner`) and lender (`funder`) are vetted, so they are admin-allocated (`SELF_SERVICE_ROLES` vs `ADMIN_ALLOCATED_ROLES`), as are staff roles; an admin allocates roles on the operator accounts page. A fresh account sees nothing it has not certified for. `connectedParty` (admin-set only) marks Lode or a connected party acting as a principal and is disclosed to sellers |
 | Your account | `/account` | The command centre: one home per role that assembles your own surfaces — submissions, mandates, readiness, listings, billing — scoped by `can()` |
 | Sign in | `/operator` | Named account, or the shared password as bootstrap |
 | Accounts | `/operator/accounts` | Create, disable, see certification status |

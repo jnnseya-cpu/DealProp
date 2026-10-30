@@ -18,8 +18,6 @@ const OPTIONS: readonly { readonly value: string; readonly label: string; readon
   { value: "seller", label: "I'm selling a property", blurb: "Get a fair cash offer. Selling to us is free — no agent, no fees." },
   { value: "investor", label: "I'm a buyer / investor", blurb: "See graded opportunities and track your readiness. Deal material unlocks once you certify." },
   { value: "flipper", label: "I flip property (buy and sell)", blurb: "Both at once: buy opportunities and sell on. One account, buyer and seller." },
-  { value: "funder", label: "I'm a lender / capital provider", blurb: "Fund screened acquisitions, secured on UK property. For qualifying investors." },
-  { value: "partner", label: "I'm an estate agent / auctioneer", blurb: "List your own stock and refer instructions you can't complete." },
 ];
 
 export function JoinForm({ defaultRole }: { defaultRole?: Role }) {

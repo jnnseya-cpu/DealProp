@@ -553,14 +553,27 @@ export const ALL_ROLES: readonly Role[] = [
 /**
  * The roles a visitor may give themselves at public sign-up.
  *
- * Staff roles (`admin`, `operator`) are never here: a privilege that reaches
- * seller data or the whole platform is granted by a named administrator, never
- * claimed by whoever filled in a form. The self-service grants are all
- * least-privilege and own-scoped, and the two that can reach a financial
- * promotion (investor, funder) still see nothing until they certify (§FPO) —
- * so self-registration widens who can sign up, never what a fresh account sees.
+ * Deliberately only seller and buyer/investor (a flipper is both at once, on the
+ * one account). Two kinds of role are NOT here:
+ *
+ *  - Staff (`admin`, `operator`): a privilege that reaches seller data or the
+ *    whole platform is granted by a named administrator, never claimed on a form.
+ *  - Estate agent (`partner`) and lender (`funder`): a firm that publishes stock
+ *    and a party that lends money are vetted before they act, so they are
+ *    allocated by an administrator ({@link ADMIN_ALLOCATED_ROLES}), not
+ *    self-declared. A person still has only ONE account — the admin adds the
+ *    role to it rather than a second account being created.
  */
-export const SELF_SERVICE_ROLES: readonly Role[] = ["seller", "investor", "funder", "partner"];
+export const SELF_SERVICE_ROLES: readonly Role[] = ["seller", "investor"];
+
+/**
+ * The external roles only an administrator may allocate.
+ *
+ * An estate agent publishes other people's property and a lender advances money
+ * — both are relationships Lode vets, so neither can be claimed at sign-up. An
+ * admin adds them to the person's single existing account.
+ */
+export const ADMIN_ALLOCATED_ROLES: readonly Role[] = ["funder", "partner"];
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Administrator",

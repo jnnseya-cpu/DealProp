@@ -65,7 +65,7 @@ export default async function PartnersPage() {
             <Link href="/appraise" className="transition-colors hover:text-ink-100">Appraisal</Link>
             <Link href="/sell" className="transition-colors hover:text-ink-100">Selling</Link>
             <Link href="/operator" className="hidden transition-colors hover:text-ink-100 sm:block">Sign in</Link>
-            <Button href="/join?role=partner" size="sm" variant="primary">Create account</Button>
+            <Button href="mailto:contact@lodeprop.com?subject=Agent%20account%20request" size="sm" variant="primary">Request agent access</Button>
           </nav>
         }
       />
@@ -273,7 +273,7 @@ export default async function PartnersPage() {
         </section>
 
         <div className="mt-12 flex flex-wrap items-center gap-3 border-t hairline pt-8">
-          <Button href="/join?role=partner" variant="primary">Create your agent account</Button>
+          <Button href="mailto:contact@lodeprop.com?subject=Agent%20account%20request" variant="primary">Request an agent account</Button>
           <Button href="/sell">Send a seller to their options</Button>
           <Button href="/appraise">Appraise a deal</Button>
         </div>

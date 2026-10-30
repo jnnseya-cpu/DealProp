@@ -1,10 +1,11 @@
 import { OperatorNav } from "@/app/operator/OperatorNav";
 import { SiteHeader } from "@/app/components/chrome";
 import { requireOperator } from "@/app/operator/guard";
-import { certificationStatus, publicAccount, ROLE_LABELS } from "@shared/domain/accounts";
+import { accountRoles, certificationStatus, publicAccount, ROLE_LABELS } from "@shared/domain/accounts";
 import { listAccounts } from "@backend/store/repository";
 import { NewAccountForm } from "./NewAccountForm";
 import { AccountControls } from "./AccountControls";
+import { RolesEditor } from "./RolesEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -104,6 +105,12 @@ export default async function AccountsPage() {
                         {status.reason}
                       </p>
                     )}
+                    <RolesEditor
+                      id={a.id}
+                      roles={accountRoles(a)}
+                      connectedParty={a.connectedParty === true}
+                      canGrantStaff={canCreateAdmin}
+                    />
                   </div>
                   <AccountControls id={a.id} disabled={a.disabled} />
                 </div>

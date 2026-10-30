@@ -28,13 +28,26 @@ export function NewAccountForm({ canCreateAdmin }: { canCreateAdmin: boolean }) 
         </Field>
       </div>
       <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Role">
+        <Field label="Primary role">
           <Select name="role" options={roleOptions} defaultValue="investor" />
         </Field>
         <Field label="Password" hint="At least 12 characters. Length beats symbols.">
           <TextInput name="password" type="password" required autoComplete="new-password" />
         </Field>
       </div>
+      <Field
+        label="Additional roles"
+        hint="One account, as many roles as you allocate. Estate agent and lender are allocated here — never at self-service sign-up."
+      >
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          {roleOptions.map((r) => (
+            <label key={r.value} className="flex items-center gap-2 text-sm text-ink-200">
+              <input type="checkbox" name="extraRoles" value={r.value} className="h-4 w-4 accent-lode-400" />
+              {r.label}
+            </label>
+          ))}
+        </div>
+      </Field>
       <Field
         label="Connected party"
         hint="Mark this account as Lode or a party connected to Lode acting as a principal (buyer, flipper or funder). Sellers are shown a disclosure wherever it takes part. Never set at self-service sign-up."

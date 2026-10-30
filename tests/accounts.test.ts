@@ -14,6 +14,7 @@ import {
   publicAccount,
   ROLE_LABELS,
   SELF_SERVICE_ROLES,
+  ADMIN_ALLOCATED_ROLES,
   type Account,
 } from "@shared/domain/accounts";
 import {
@@ -96,15 +97,22 @@ describe("roles", () => {
     }
   });
 
-  it("never offers a staff role at public sign-up", () => {
-    // The security invariant behind self-registration: a form can widen who
-    // signs up, never what they are. admin and operator are granted by a named
-    // administrator, never claimed.
-    expect(SELF_SERVICE_ROLES).not.toContain("admin");
-    expect(SELF_SERVICE_ROLES).not.toContain("operator");
-    expect([...SELF_SERVICE_ROLES].sort()).toEqual(["funder", "investor", "partner", "seller"]);
-    // Every self-service role is a real role.
-    for (const role of SELF_SERVICE_ROLES) expect(ALL_ROLES).toContain(role);
+  it("self-service is only seller and buyer; agent, lender and staff are admin-allocated", () => {
+    // A form can widen who signs up, never what they are. Staff (admin,
+    // operator) and the vetted roles (estate agent, lender) are allocated by an
+    // administrator — a person declares themselves neither the house nor a
+    // regulated firm on a sign-up form.
+    expect([...SELF_SERVICE_ROLES].sort()).toEqual(["investor", "seller"]);
+    for (const banned of ["admin", "operator", "funder", "partner"] as const) {
+      expect(SELF_SERVICE_ROLES).not.toContain(banned);
+    }
+    // The two vetted external roles are the admin-allocated set.
+    expect([...ADMIN_ALLOCATED_ROLES].sort()).toEqual(["funder", "partner"]);
+    // Self-service and admin-allocated never overlap, and both are real roles.
+    for (const role of [...SELF_SERVICE_ROLES, ...ADMIN_ALLOCATED_ROLES]) {
+      expect(ALL_ROLES).toContain(role);
+    }
+    for (const role of SELF_SERVICE_ROLES) expect(ADMIN_ALLOCATED_ROLES).not.toContain(role);
   });
 });
 
