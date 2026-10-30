@@ -6,11 +6,13 @@ import { BarList, Meter } from "@/app/components/charts";
 import { currentViewer } from "@/app/operator/guard";
 import {
   CONNECTED_PARTY_DISCLOSURE,
+  accountRoles,
   can,
   certificationStatus,
   isConnectedParty,
   ROLE_LABELS,
 } from "@shared/domain/accounts";
+import { RolesSelfForm } from "./RolesSelfForm";
 import { listDealsForOwner } from "@backend/store/repository";
 import { buyerPassport } from "@shared/domain/passport";
 import { fromMajor } from "@shared/money";
@@ -294,6 +296,13 @@ export default async function AccountHome() {
                   Partner with Lode
                 </Button>
               </div>
+            </Panel>
+          )}
+
+          {/* Everyone: self-service control of your own roles — admin never needed. */}
+          {!isStaff && (
+            <Panel eyebrow="Roles" title="What you do on Lode">
+              <RolesSelfForm roles={accountRoles(account)} />
             </Panel>
           )}
 
