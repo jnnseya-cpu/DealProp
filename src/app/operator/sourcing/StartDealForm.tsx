@@ -93,6 +93,11 @@ export function StartDealForm({ lead }: { lead: SourcedLead }) {
         <input type="hidden" name="subjectName" value={lead.subjectName ?? ""} />
         <input type="hidden" name="contactForService" value={lead.contactForService ?? ""} />
         <input type="hidden" name="signal" value={lead.signalKey} />
+        {/* Carried so the action can suppress this lead from future runs once it
+            becomes a deal — the address key for a property, the notice URL for a
+            notice. */}
+        <input type="hidden" name="addressKey" value={lead.addressKey ?? ""} />
+        <input type="hidden" name="sourceUrl" value={lead.sourceUrl ?? ""} />
 
         <p className="text-[13px] leading-relaxed text-ink-400">
           {lead.propertyAddress ?? lead.postcode}

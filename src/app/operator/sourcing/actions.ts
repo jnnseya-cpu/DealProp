@@ -537,6 +537,26 @@ export async function startDealFromLead(
       : `Started from a probate lead${subjectName !== "" ? ` (estate of ${subjectName})` : ""} at ${postcode}.`,
   });
 
+  // Now that it is a deal in the pipeline, suppress the raw lead from future
+  // runs — the same key printing uses, so a lead already being worked does not
+  // reappear in the search. Best-effort: a suppression miss must not undo a
+  // created deal, and it is idempotent if the lead was already contacted.
+  if (LEAD_SIGNALS.has(signal as LeadSignal)) {
+    const key = leadContactKey({
+      signalKey: signal as LeadSignal,
+      ...(formData.get("addressKey") ? { addressKey: String(formData.get("addressKey")) } : {}),
+      ...(formData.get("sourceUrl") ? { sourceUrl: String(formData.get("sourceUrl")) } : {}),
+    });
+    if (key !== undefined) {
+      await markContactedLead({
+        key,
+        signalKey: signal as LeadSignal,
+        contactedAt: new Date().toISOString(),
+        by: author?.email ?? "operator",
+      }).catch(() => undefined);
+    }
+  }
+
   redirect(`/deals/${id}/seller-checks`);
 }
 

@@ -74,7 +74,8 @@ export default async function SourcingPage() {
   };
   const worklistById = new Map(worklist.map((p) => [p.id, p]));
   const contactedRows: readonly ContactedRow[] = contacted.map((c) => {
-    const address = worklistById.get(c.key)?.lead.propertyAddress;
+    const stored = worklistById.get(c.key);
+    const address = stored?.lead.propertyAddress;
     const isNotice = /^https?:\/\//i.test(c.key);
     return {
       key: c.key,
@@ -84,6 +85,9 @@ export default async function SourcingPage() {
       title: CONTACTED_TITLE[c.signalKey],
       ...(address !== undefined ? { address } : {}),
       ...(isNotice ? { noticeUrl: c.key } : {}),
+      // A warehoused (prepared-but-unsold) lead is still here with its facts, so
+      // a deal can be started from it even though it is suppressed from search.
+      ...(stored?.lead.postcode !== undefined ? { lead: stored.lead } : {}),
     };
   });
 

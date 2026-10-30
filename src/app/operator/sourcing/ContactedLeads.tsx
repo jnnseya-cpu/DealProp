@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import { restoreAllContactedAction, restoreContactedLeadAction } from "./actions";
-import type { LeadSignal } from "@shared/domain/sourcedLead";
+import { StartDealForm } from "./StartDealForm";
+import type { LeadSignal, SourcedLead } from "@shared/domain/sourcedLead";
 
 /**
  * The leads already written to, kept out of the search results but shown here so
@@ -26,6 +27,11 @@ export interface ContactedRow {
   readonly address?: string;
   /** The public notice URL, where the key is one (probate / insolvency). */
   readonly noticeUrl?: string;
+  /**
+   * The stored lead, where it is warehoused (prepared-but-unsold). Present means
+   * a deal can be started from it here, even though it is suppressed from search.
+   */
+  readonly lead?: SourcedLead;
 }
 
 export function ContactedLeads({ items }: { items: readonly ContactedRow[] }) {
@@ -34,10 +40,8 @@ export function ContactedLeads({ items }: { items: readonly ContactedRow[] }) {
       <RestoreAllForm count={items.length} />
       <ul className="mt-4 space-y-3">
       {items.map((row) => (
-        <li
-          key={row.key}
-          className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 rounded-2xl border hairline bg-surface-1 px-5 py-3"
-        >
+        <li key={row.key} className="rounded-2xl border hairline bg-surface-1 px-5 py-3">
+         <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
           <div className="min-w-0">
             <p className="text-sm text-ink-200">{row.title}</p>
             {row.address !== undefined && (
@@ -61,6 +65,8 @@ export function ContactedLeads({ items }: { items: readonly ContactedRow[] }) {
             </p>
           </div>
           <RestoreForm leadKey={row.key} />
+         </div>
+          {row.lead !== undefined && <StartDealForm lead={row.lead} />}
         </li>
       ))}
       </ul>
