@@ -82,17 +82,21 @@ export type FunderKind =
 /**
  * The minimum annual required return a funding mandate may carry.
  *
- * A business decision, not a regulatory one: the capital section does not list
- * mandates priced below 8%. It is the funder's own hurdle rate — not a return
- * the platform promises anyone — and it is enforced where a mandate is saved,
- * so a mandate below the floor is refused rather than stored and silently
- * unmatched. Held here as the single source, because a threshold written into
- * a form and a validator separately eventually disagree.
+ * A business and conduct decision: the capital section does not list mandates
+ * priced above 15% a year. It keeps the platform's cost of capital in credible
+ * secured-lending territory and well clear of the rates responsible lending
+ * exists to prevent — the 2–5% a month a distressed borrower gets quoted is
+ * 24–60% a year, and Lode will not carry a mandate reaching for that. There is
+ * deliberately no floor: a funder may price as keenly as they like, and the
+ * "from 7%" in the marketing is indicative, never a minimum. Enforced where a
+ * mandate is saved, so one above the cap is refused rather than stored. Held
+ * here as the single source, because a threshold written into a form and a
+ * validator separately eventually disagree.
  */
-export const MIN_FUNDER_REQUIRED_RETURN_BPS: Bps = pct(8);
+export const MAX_FUNDER_REQUIRED_RETURN_BPS: Bps = pct(15);
 
-export function meetsReturnFloor(requiredReturnBps: Bps): boolean {
-  return requiredReturnBps >= MIN_FUNDER_REQUIRED_RETURN_BPS;
+export function withinReturnCap(requiredReturnBps: Bps): boolean {
+  return requiredReturnBps <= MAX_FUNDER_REQUIRED_RETURN_BPS;
 }
 
 export interface FundingBox {

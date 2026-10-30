@@ -13,7 +13,7 @@ import {
   requiredText,
   textList,
 } from "@shared/formFields";
-import { MIN_FUNDER_REQUIRED_RETURN_BPS, meetsReturnFloor, type FunderKind, type FundingBox } from "@shared/domain/matching";
+import { MAX_FUNDER_REQUIRED_RETURN_BPS, withinReturnCap, type FunderKind, type FundingBox } from "@shared/domain/matching";
 import type { JurisdictionCode, PropertyType } from "@shared/domain/types";
 import {
   deleteFundingBox,
@@ -95,12 +95,12 @@ export async function saveFundingBoxAction(
     }
 
     const requiredReturnBps = requiredPercent(formData.get("requiredReturn"), "Required return");
-    if (!meetsReturnFloor(requiredReturnBps)) {
-      // The platform does not list capital below its return floor. The funder's
-      // own hurdle, not a promise we make — but below it the mandate is refused
-      // rather than stored where it would quietly match nothing worth matching.
+    if (!withinReturnCap(requiredReturnBps)) {
+      // The platform caps the cost of capital it will list. Above it the mandate
+      // is refused rather than stored — Lode does not carry capital priced in the
+      // territory responsible lending exists to prevent.
       throw new Error(
-        `Required return must be at least ${MIN_FUNDER_REQUIRED_RETURN_BPS / 100}%`,
+        `Required return must be no more than ${MAX_FUNDER_REQUIRED_RETURN_BPS / 100}% a year`,
       );
     }
 

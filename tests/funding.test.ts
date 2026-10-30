@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bps, fromMajor, pct } from "@shared/money";
-import { MIN_FUNDER_REQUIRED_RETURN_BPS, meetsReturnFloor } from "@shared/domain/matching";
+import { MAX_FUNDER_REQUIRED_RETURN_BPS, withinReturnCap } from "@shared/domain/matching";
 import { appraise } from "@shared/domain/economics";
 import type { DealInputs, FinanceTerms, PropertyFacts, SellerProfile } from "@shared/domain/types";
 import { borrowingCost, compareOffers, looksMispriced, netAdvance } from "@shared/domain/borrowing";
@@ -513,16 +513,18 @@ describe("comparing the offers received", () => {
  * mandate is saved. Held as one constant so the form and the validator cannot
  * drift apart.
  */
-describe("the funder return floor", () => {
-  it("is 8%", () => {
-    expect(MIN_FUNDER_REQUIRED_RETURN_BPS).toBe(pct(8));
-    expect(MIN_FUNDER_REQUIRED_RETURN_BPS).toBe(800);
+describe("the funder return cap", () => {
+  it("is 15%", () => {
+    expect(MAX_FUNDER_REQUIRED_RETURN_BPS).toBe(pct(15));
+    expect(MAX_FUNDER_REQUIRED_RETURN_BPS).toBe(1500);
   });
 
-  it("accepts a mandate at or above the floor and refuses one below it", () => {
-    expect(meetsReturnFloor(pct(8))).toBe(true);
-    expect(meetsReturnFloor(pct(12))).toBe(true);
-    expect(meetsReturnFloor(bps(799))).toBe(false);
-    expect(meetsReturnFloor(pct(7.9))).toBe(false);
+  it("accepts a mandate at or below the cap and refuses one above it", () => {
+    // No floor: a funder may price as keenly as they like.
+    expect(withinReturnCap(pct(7))).toBe(true);
+    expect(withinReturnCap(pct(15))).toBe(true);
+    expect(withinReturnCap(bps(1))).toBe(true);
+    expect(withinReturnCap(bps(1501))).toBe(false);
+    expect(withinReturnCap(pct(24))).toBe(false);
   });
 });
