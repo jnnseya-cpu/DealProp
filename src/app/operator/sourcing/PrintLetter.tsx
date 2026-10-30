@@ -126,7 +126,7 @@ export function PrintLetter({ lead, signatureUrl }: { lead: SourcedLead; signatu
         `.txt{white-space:pre-wrap}` +
         `.lh{display:flex;align-items:center;gap:8px;margin-bottom:10mm}` +
         `.wm{font:600 20px/1 Georgia,serif;letter-spacing:.02em;color:#1a1a1a}` +
-        `.sig{display:block;height:40px;margin:2mm 0 1mm}` +
+        `.sig{display:block;height:28px;margin:2mm 0 1mm}` +
         `</style></head><body>` +
         letterhead +
         `<div class="txt">${esc(head)}</div>` +
