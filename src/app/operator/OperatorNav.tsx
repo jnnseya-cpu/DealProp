@@ -36,6 +36,7 @@ const DESTINATIONS: readonly NavItem[] = [
   { href: "/operator/blog", label: "Blog" },
   { href: "/operator/audit", label: "Audit" },
   { href: "/operator/conduct", label: "Conduct" },
+  { href: "/operator/permissions", label: "Permissions" },
   { href: "/operator/settings", label: "Config" },
 ];
 
