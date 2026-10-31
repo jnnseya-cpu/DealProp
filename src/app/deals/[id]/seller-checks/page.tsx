@@ -5,7 +5,7 @@ import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
 import { getDeal } from "@backend/store/repository";
 import { sellerDueDiligence, SELLER_CHECK_VALID_MONTHS } from "@shared/domain/sellerDueDiligence";
-import { AuthorityForm, IdentityForm, RiskForm } from "./Forms";
+import { AuthorityForm, IdentityForm, RiskForm, SafeguardsForm } from "./Forms";
 import { InventoryForm } from "./InventoryForm";
 import {
   categoryDefect,
@@ -206,6 +206,22 @@ export default async function SellerChecksPage({ params }: { params: Promise<{ i
               {...(checks?.enhancedMeasures !== undefined
                 ? { measures: checks.enhancedMeasures }
                 : {})}
+            />
+          </div>
+        </Panel>
+
+        <Panel className="mt-6" eyebrow="Seller safeguards" title="What clears a protection block">
+          <p className="text-[13px] leading-[1.65] text-ink-300">
+            Seller Protection blocks a deal to keep a consumer seller safe — a below-market price
+            with no independent advice, a vulnerability, time pressure. Those answers were only ever
+            captured when the seller submitted. After you have spoken to the seller, record what they
+            told you here; the protection engine re-runs on it, and a block lifts where an answer
+            clears it. Leaving an answer blank keeps it cautious — recording only ever adds evidence.
+          </p>
+          <div className="mt-4 border-t hairline pt-4">
+            <SafeguardsForm
+              dealId={record.id}
+              {...(record.seller.screening !== undefined ? { screening: record.seller.screening } : {})}
             />
           </div>
         </Panel>

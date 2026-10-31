@@ -5,9 +5,11 @@ import {
   recordAuthorityAction,
   recordIdentityAction,
   recordRiskAction,
+  recordSafeguardsAction,
   type CheckResult,
 } from "./actions";
 import { ENHANCED_TRIGGERS, SELLER_KINDS } from "@shared/domain/sellerDueDiligence";
+import type { SellerScreening } from "@shared/domain/types";
 
 const FIELD = "mt-2 w-full px-3 py-2";
 const SUBMIT =
@@ -107,6 +109,91 @@ export function AuthorityForm({
       />
       <button type="submit" disabled={pending} className={SUBMIT}>
         {pending ? "Recording…" : "Record the authority to sell"}
+      </button>
+      <Status result={result} />
+    </form>
+  );
+}
+
+const SAFEGUARD_QUESTIONS: readonly { name: keyof SellerScreening; label: string }[] = [
+  { name: "hasIndependentLegalAdvice", label: "Taking independent legal advice on the structure" },
+  { name: "hasReceivedIndependentValuation", label: "Has an independent valuation" },
+  { name: "isSoleDecisionMaker", label: "Is the only person who decides on the sale" },
+  { name: "reportsFinancialDistress", label: "Under financial pressure to sell" },
+  { name: "reportsHealthOrCapacityConcern", label: "A health or capacity concern is present" },
+  { name: "isUnderTimePressureFromThirdParty", label: "Being pressed to sell by someone else" },
+];
+
+const AGE_OPTIONS: readonly { value: string; label: string }[] = [
+  { value: "under-65", label: "Under 65" },
+  { value: "65-79", label: "65–79" },
+  { value: "80-plus", label: "80 or over" },
+  { value: "undisclosed", label: "Not disclosed" },
+];
+
+function triValue(v: boolean | undefined): "yes" | "no" | "" {
+  return v === true ? "yes" : v === false ? "no" : "";
+}
+
+/**
+ * Record the protection safeguards after speaking to the seller.
+ *
+ * This is what clears a Seller Protection block: the engine reads these
+ * answers, and a block such as "independent legal advice not evidenced" lifts
+ * only when the matching answer is positively recorded. A blank stays
+ * "unanswered", which the engine still treats as caution — so this records
+ * evidence, it does not override the safeguard.
+ */
+export function SafeguardsForm({
+  dealId,
+  screening,
+}: {
+  dealId: string;
+  screening?: SellerScreening;
+}) {
+  const [result, submit, pending] = useActionState<CheckResult | undefined, FormData>(
+    recordSafeguardsAction,
+    undefined,
+  );
+  const current = screening ?? {};
+
+  return (
+    <form action={submit}>
+      <input type="hidden" name="dealId" value={dealId} />
+      <ul className="space-y-3">
+        {SAFEGUARD_QUESTIONS.map((q) => {
+          const value = triValue(current[q.name] as boolean | undefined);
+          return (
+            <li key={q.name} className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[13px] leading-[1.5] text-ink-300">{q.label}</span>
+              <span className="flex gap-3">
+                {[
+                  { v: "yes", l: "Yes" },
+                  { v: "no", l: "No" },
+                  { v: "", l: "Unknown" },
+                ].map((o) => (
+                  <label key={o.v} className="flex items-center gap-1.5 text-[13px] text-ink-200">
+                    <input type="radio" name={q.name} value={o.v} defaultChecked={value === o.v} />
+                    {o.l}
+                  </label>
+                ))}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <label htmlFor="ageBand" className="eyebrow mt-4 block">
+        Seller age band
+      </label>
+      <select id="ageBand" name="ageBand" defaultValue={current.ageBand ?? "undisclosed"} className={FIELD}>
+        {AGE_OPTIONS.map((a) => (
+          <option key={a.value} value={a.value}>
+            {a.label}
+          </option>
+        ))}
+      </select>
+      <button type="submit" disabled={pending} className={SUBMIT}>
+        {pending ? "Recording…" : "Record the safeguards"}
       </button>
       <Status result={result} />
     </form>

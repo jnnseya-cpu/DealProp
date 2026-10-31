@@ -174,6 +174,14 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
                   </li>
                 ))}
             </ul>
+            <p className="mt-4 border-t hairline pt-3.5 text-[13px] leading-[1.6] text-ink-300">
+              This is a safeguard to clear, not a rejection. Once you have spoken to the seller,
+              record what they told you on the{" "}
+              <Link href={`/deals/${record.id}/seller-checks`} className="text-lode-300 underline-offset-2 hover:underline">
+                seller-checks page
+              </Link>{" "}
+              and this re-runs — a block lifts where an answer clears it.
+            </p>
             </div>
           </div>
         )}

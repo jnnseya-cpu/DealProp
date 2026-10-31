@@ -11,6 +11,7 @@ import {
   type SellerDueDiligence,
   type SellerKind,
 } from "@shared/domain/sellerDueDiligence";
+import type { SellerScreening } from "@shared/domain/types";
 
 /**
  * Recording the seller's due diligence.
@@ -115,6 +116,78 @@ export async function recordAuthorityAction(
     }),
     "authority to sell",
   );
+}
+
+/** yes / no / unanswered — unanswered stays undefined so caution is never lowered by a blank. */
+function tri(raw: FormDataEntryValue | null): boolean | undefined {
+  const v = String(raw ?? "");
+  if (v === "yes") return true;
+  if (v === "no") return false;
+  return undefined;
+}
+
+const AGE_BANDS = new Set(["under-65", "65-79", "80-plus", "undisclosed"]);
+
+/**
+ * Record the seller's protection safeguards, as a named operator.
+ *
+ * This is the clear-path the block banner promised and did not have: the
+ * vulnerability screening that Seller Protection reads (independent legal
+ * advice, an independent valuation, who decides, pressure, capacity, age) was
+ * only ever set by the seller at /sell. An operator who has spoken to the
+ * seller and confirmed these now records them here, against their own name, and
+ * the protection engine re-runs on the answers — which is how a block lifts.
+ *
+ * It does not weaken the safeguard: it records evidence, with an author and a
+ * date in the append-only trail. A blank stays "unanswered", which the engine
+ * still treats as caution — so this can only clear a flag by positively
+ * recording the thing that clears it, never by leaving it empty.
+ */
+export async function recordSafeguardsAction(
+  _previous: CheckResult | undefined,
+  formData: FormData,
+): Promise<CheckResult> {
+  const dealId = String(formData.get("dealId") ?? "").trim();
+  const viewer = await requirePermission("view-seller-data", `/deals/${dealId}/seller-checks`);
+  const account = viewerAccount(viewer);
+  if (account === undefined) {
+    return {
+      ok: false,
+      message:
+        "Confirming a seller's safeguards is somebody stating they checked. The shared operator password is nobody in particular — sign in with your own account.",
+    };
+  }
+
+  const record = await getDeal(dealId);
+  if (record === undefined) return { ok: false, message: "No such deal." };
+
+  const ageRaw = String(formData.get("ageBand") ?? "undisclosed");
+  const screening: SellerScreening = {
+    hasIndependentLegalAdvice: tri(formData.get("hasIndependentLegalAdvice")),
+    hasReceivedIndependentValuation: tri(formData.get("hasReceivedIndependentValuation")),
+    isSoleDecisionMaker: tri(formData.get("isSoleDecisionMaker")),
+    reportsFinancialDistress: tri(formData.get("reportsFinancialDistress")),
+    reportsHealthOrCapacityConcern: tri(formData.get("reportsHealthOrCapacityConcern")),
+    isUnderTimePressureFromThirdParty: tri(formData.get("isUnderTimePressureFromThirdParty")),
+    ageBand: (AGE_BANDS.has(ageRaw) ? ageRaw : "undisclosed") as SellerScreening["ageBand"],
+  };
+
+  // Protection reads record.inputs; the seller profile is shown elsewhere. Keep
+  // both in step so the block re-runs on exactly what was recorded.
+  const seller = { ...record.seller, screening };
+  await saveDeal({ ...record, seller, inputs: { ...record.inputs, seller } });
+  await audit("seller-checks-recorded", {
+    account,
+    subject: dealId,
+    detail: "seller protection safeguards",
+  });
+  revalidatePath(`/deals/${dealId}/seller-checks`);
+  revalidatePath(`/deals/${dealId}`);
+  revalidatePath(`/opportunities/${dealId}`);
+  return {
+    ok: true,
+    message: `Recorded against ${account.name}. Seller Protection re-runs on these answers — a block lifts only where an answer clears it.`,
+  };
 }
 
 export async function recordRiskAction(
