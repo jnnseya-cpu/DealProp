@@ -21,7 +21,8 @@ import type {
 } from "@shared/domain/types";
 import { allSituations } from "@shared/domain/motivation";
 import { newToken } from "@backend/auth/tokens";
-import { saveDeal } from "@backend/store/repository";
+import { getDeal, saveDeal } from "@backend/store/repository";
+import { audit } from "@backend/audit";
 import { cookies } from "next/headers";
 import { readSession, SESSION_COOKIE } from "@backend/auth/session";
 import { callerFrom, consume } from "@backend/rateLimit";
@@ -98,6 +99,63 @@ function ageBand(raw: FormDataEntryValue | null): AgeBand {
   return AGE_BANDS.find((band) => band === raw) ?? "undisclosed";
 }
 
+/**
+ * Parse the intake answers from a form.
+ *
+ * Shared by the first submission and by a later correction, so the two cannot
+ * drift — a field the correction form forgot to validate the same way would be
+ * a field a seller could set to something the submission form forbids. Strict
+ * and total: anything unrecognised is rejected, never defaulted.
+ */
+function parseEnquiryAnswers(formData: FormData): IntakeAnswers {
+  const priorities = formData
+    .getAll("priorities")
+    .filter((p): p is string => typeof p === "string")
+    .filter((p): p is SellerPriority => PRIORITIES.has(p as SellerPriority));
+
+  const knownIssues = formData
+    .getAll("issues")
+    .filter((i): i is string => typeof i === "string")
+    .filter((i): i is PropertyIssue => ISSUES.has(i as PropertyIssue));
+
+  const leaseYears = optionalNumber(formData.get("leaseYearsRemaining"));
+
+  return {
+    situation: requireOneOf<SellerSituation>(formData.get("situation"), SITUATIONS, "situation"),
+    priorities,
+    narrative: String(formData.get("narrative") ?? "").slice(0, 2_000),
+    postcodeArea: String(formData.get("postcodeArea") ?? "").toUpperCase().slice(0, 8),
+    locality: String(formData.get("locality") ?? "").slice(0, 80),
+    jurisdiction: requireOneOf<JurisdictionCode>(formData.get("jurisdiction"), JURISDICTIONS, "jurisdiction"),
+    propertyType: requireOneOf<PropertyType>(formData.get("propertyType"), PROPERTY_TYPES, "propertyType"),
+    tenure: requireOneOf<Tenure>(formData.get("tenure"), TENURES, "tenure"),
+    bedrooms: optionalNumber(formData.get("bedrooms")) ?? 3,
+    occupancy: "unknown",
+    ...(leaseYears !== undefined ? { leaseYearsRemaining: leaseYears } : {}),
+    knownIssues,
+    sellerValuation: requiredMoney(formData.get("sellerValuation"), "Estimated value"),
+    ...(optionalMoney(formData.get("currentAsking")) !== undefined
+      ? { currentAsking: optionalMoney(formData.get("currentAsking")) }
+      : {}),
+    condition: requireOneOf<PropertyCondition>(formData.get("condition"), CONDITIONS, "condition"),
+    ...(optionalNumber(formData.get("targetDays")) !== undefined
+      ? { targetDays: optionalNumber(formData.get("targetDays")) }
+      : {}),
+    ...(optionalMoney(formData.get("priceExpectation")) !== undefined
+      ? { priceExpectation: optionalMoney(formData.get("priceExpectation")) }
+      : {}),
+    screening: {
+      hasIndependentLegalAdvice: triState(formData.get("hasIndependentLegalAdvice")),
+      hasReceivedIndependentValuation: triState(formData.get("hasReceivedIndependentValuation")),
+      isSoleDecisionMaker: triState(formData.get("isSoleDecisionMaker")),
+      reportsFinancialDistress: triState(formData.get("reportsFinancialDistress")),
+      reportsHealthOrCapacityConcern: triState(formData.get("reportsHealthOrCapacityConcern")),
+      isUnderTimePressureFromThirdParty: triState(formData.get("isUnderTimePressureFromThirdParty")),
+      ageBand: ageBand(formData.get("ageBand")),
+    },
+  };
+}
+
 export async function submitEnquiry(formData: FormData): Promise<void> {
   /*
     A public form that writes a record, so it is a free way to fill the
@@ -127,64 +185,7 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
     throw error;
   }
 
-  const priorities = formData
-    .getAll("priorities")
-    .filter((p): p is string => typeof p === "string")
-    .filter((p): p is SellerPriority => PRIORITIES.has(p as SellerPriority));
-
-  const knownIssues = formData
-    .getAll("issues")
-    .filter((i): i is string => typeof i === "string")
-    .filter((i): i is PropertyIssue => ISSUES.has(i as PropertyIssue));
-
-  const leaseYears = optionalNumber(formData.get("leaseYearsRemaining"));
-
-  const answers: IntakeAnswers = {
-    situation: requireOneOf<SellerSituation>(formData.get("situation"), SITUATIONS, "situation"),
-    priorities,
-    narrative: String(formData.get("narrative") ?? "").slice(0, 2_000),
-    postcodeArea: String(formData.get("postcodeArea") ?? "").toUpperCase().slice(0, 8),
-    locality: String(formData.get("locality") ?? "").slice(0, 80),
-    jurisdiction: requireOneOf<JurisdictionCode>(
-      formData.get("jurisdiction"),
-      JURISDICTIONS,
-      "jurisdiction",
-    ),
-    propertyType: requireOneOf<PropertyType>(
-      formData.get("propertyType"),
-      PROPERTY_TYPES,
-      "propertyType",
-    ),
-    tenure: requireOneOf<Tenure>(formData.get("tenure"), TENURES, "tenure"),
-    bedrooms: optionalNumber(formData.get("bedrooms")) ?? 3,
-    occupancy: "unknown",
-    ...(leaseYears !== undefined ? { leaseYearsRemaining: leaseYears } : {}),
-    knownIssues,
-    sellerValuation: requiredMoney(formData.get("sellerValuation"), "Estimated value"),
-    ...(optionalMoney(formData.get("currentAsking")) !== undefined
-      ? { currentAsking: optionalMoney(formData.get("currentAsking")) }
-      : {}),
-    condition: requireOneOf<PropertyCondition>(
-      formData.get("condition"),
-      CONDITIONS,
-      "condition",
-    ),
-    ...(optionalNumber(formData.get("targetDays")) !== undefined
-      ? { targetDays: optionalNumber(formData.get("targetDays")) }
-      : {}),
-    ...(optionalMoney(formData.get("priceExpectation")) !== undefined
-      ? { priceExpectation: optionalMoney(formData.get("priceExpectation")) }
-      : {}),
-    screening: {
-      hasIndependentLegalAdvice: triState(formData.get("hasIndependentLegalAdvice")),
-      hasReceivedIndependentValuation: triState(formData.get("hasReceivedIndependentValuation")),
-      isSoleDecisionMaker: triState(formData.get("isSoleDecisionMaker")),
-      reportsFinancialDistress: triState(formData.get("reportsFinancialDistress")),
-      reportsHealthOrCapacityConcern: triState(formData.get("reportsHealthOrCapacityConcern")),
-      isUnderTimePressureFromThirdParty: triState(formData.get("isUnderTimePressureFromThirdParty")),
-      ageBand: ageBand(formData.get("ageBand")),
-    },
-  };
+  const answers = parseEnquiryAnswers(formData);
 
   const intake = buildIntake(answers);
 
@@ -282,6 +283,66 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
   });
 
   redirect(`/sell/${id}`);
+}
+
+/**
+ * A seller corrects their own enquiry, with no account.
+ *
+ * The deal id is the capability: it is a 32-byte CSPRNG token the seller holds
+ * from their result link, so holding it is proof the submission is theirs — the
+ * same "manage your booking without logging in" model. No operator sign-in and
+ * no account are required, which is why this stays in the public-by-design set.
+ *
+ * Three guards make it safe. It edits only a deal whose origin is a seller
+ * submission (an `enq-` deal), so the public endpoint can never be used to
+ * rewrite an operator-sourced lead even with its id. It refuses once the deal
+ * has progressed past marketing, because a seller rewriting a funded deal is a
+ * different and supervised event. And it changes only the seller's own
+ * answers — every figure is re-derived by `buildIntake` and the engine, never
+ * taken from the form — so a corrected enquiry is re-appraised and re-screened
+ * rather than hand-edited.
+ */
+export async function correctEnquiry(formData: FormData): Promise<void> {
+  const gate = consume("intake", callerFrom(await nextHeaders()));
+  if (!gate.allowed) redirect("/sell?slow-down=1");
+
+  const id = String(formData.get("id") ?? "");
+  const existing = await getDeal(id);
+  // Only a seller's own submission, and only while it is still early. A missing
+  // deal, a sourced lead, or a progressed deal all redirect without editing —
+  // the capability link is for correcting an enquiry, nothing more.
+  if (existing === undefined) redirect("/sell");
+  const isSellerSubmission = existing.origin?.via === "sell" || existing.id.startsWith("enq-");
+  if (!isSellerSubmission) redirect(`/sell/${id}`);
+  if (existing.status === "funded" || existing.status === "completed" || existing.status === "withdrawn") {
+    redirect(`/sell/${id}?locked=1`);
+  }
+
+  const answers = parseEnquiryAnswers(formData);
+  const intake = buildIntake(answers);
+
+  // Replace only what the seller answered. Everything the operator or the
+  // platform established — the reference, the created date, the origin, any
+  // seller checks, the consent record, the inventory confirmation, the status —
+  // is preserved. The id never changes, so the seller's link keeps working.
+  await saveDeal({
+    ...existing,
+    property: intake.property,
+    seller: intake.seller,
+    inputs: {
+      ...existing.inputs,
+      property: intake.property,
+      seller: intake.seller,
+      purchasePrice: intake.property.openMarketValue,
+    },
+  });
+
+  await audit("mandate-saved", {
+    subject: existing.id,
+    detail: `${existing.reference}: the seller corrected their enquiry through the capability link.`,
+  });
+
+  redirect(`/sell/${id}?updated=1`);
 }
 
 /** Small non-cryptographic hash, used only to make ids unguessable-ish. */

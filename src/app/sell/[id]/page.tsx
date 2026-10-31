@@ -10,6 +10,7 @@ import { scoreDeal } from "@shared/domain/dealScore";
 import { countInterestedBuyers } from "@shared/domain/matching";
 import { getJurisdiction, isDealReady } from "@shared/domain/jurisdictions";
 import { gbp, percent } from "@shared/format";
+import { CorrectionForm } from "./CorrectionForm";
 import { SiteHeader, TradeReferrals } from "@/app/components/chrome";
 import type { DealInputs, PropertyFacts, SellerProfile } from "@shared/domain/types";
 import type { Money } from "@shared/money";
@@ -33,10 +34,13 @@ export const dynamic = "force-dynamic";
 
 export default async function SellerOptionsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const query = (await searchParams) ?? {};
   const record = await getDeal(id);
   if (record === undefined) notFound();
 
@@ -73,6 +77,18 @@ export default async function SellerOptionsPage({
           <span className="text-ink-500"> · </span>
           {property.locality}
         </h1>
+
+        {query.updated === "1" && (
+          <p className="mt-4 rounded-lg border-l-2 border-emerald-500 bg-surface-1 px-5 py-3 text-sm text-ink-200">
+            Your details are updated, and the figures below have been worked out again.
+          </p>
+        )}
+        {query.locked === "1" && (
+          <p className="mt-4 rounded-lg border-l-2 border-amber-500 bg-surface-1 px-5 py-3 text-sm text-ink-200">
+            This enquiry has moved too far along to change online. Reply to our last message and a
+            named person will update it with you.
+          </p>
+        )}
 
         {!isDealReady(property.jurisdiction) && (
           <Callout tone="amber" title="We cannot give you figures for this nation yet">
@@ -133,6 +149,8 @@ export default async function SellerOptionsPage({
           <Safeguards flags={protection.flags.filter((f) => f.severity === "caution")} />
         )}
         <Obligations pack={pack} />
+
+        <CorrectionForm id={record.id} property={property} seller={seller} />
       </div>
       <SiteFooter />
     </main>
