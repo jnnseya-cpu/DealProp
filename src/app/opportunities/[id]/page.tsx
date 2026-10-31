@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge, Panel, SiteHeader, Stat, scoreTone } from "@/app/components/chrome";
-import { requirePermission, viewerAccount } from "@/app/operator/guard";
+import { SiteFooter } from "@/app/components/SiteFooter";
+import { currentViewer, viewerAccount } from "@/app/operator/guard";
 import { quoteRevealForDeal } from "@backend/billing/reveal";
 import { listDealImages } from "@backend/store/repository";
 import { gbp, titleCase } from "@shared/format";
@@ -26,8 +27,11 @@ export const metadata = { title: "Opportunity — Lode" };
  */
 export default async function OpportunityPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const viewer = await requirePermission("view-deal-material", `/opportunities/${id}`);
-  const account = viewerAccount(viewer);
+  // Public to view; the viewer is read, not required. A guest sees the closed
+  // pack and the price, and signs in only to open it.
+  const viewer = await currentViewer();
+  const account = viewer !== undefined ? viewerAccount(viewer) : undefined;
+  const isGuest = account === undefined;
 
   const offer = await quoteRevealForDeal(id, account);
   if (offer === undefined) notFound();
@@ -119,6 +123,18 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
 
             {quote.chargeable ? (
               <OpenForm dealId={id} price={gbp(quote.price)} />
+            ) : isGuest ? (
+              <p className="mt-4 border-t hairline pt-4 text-[13px] leading-[1.6] text-ink-300">
+                Opening an opportunity is a purchase by a named, graded buyer.{" "}
+                <Link href="/join" className="text-lode-300 underline-offset-2 hover:underline">
+                  Create an account
+                </Link>{" "}
+                or{" "}
+                <Link href="/operator" className="text-lode-300 underline-offset-2 hover:underline">
+                  sign in
+                </Link>{" "}
+                to open it — the price is {gbp(card.revealPrice)}.
+              </p>
             ) : (
               <ul className="mt-4 space-y-2.5 border-t hairline pt-4">
                 {quote.blockers.map((blocker) => (
@@ -343,6 +359,7 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
           </ul>
         </Panel>
       </div>
+      <SiteFooter />
     </main>
   );
 }

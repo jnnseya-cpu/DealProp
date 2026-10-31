@@ -47,7 +47,6 @@ export default function robots(): MetadataRoute.Robots {
   const disallow = [
     "/deals",
     "/invest",
-    "/opportunities",
     "/portfolio",
     "/capital",
     "/operator",

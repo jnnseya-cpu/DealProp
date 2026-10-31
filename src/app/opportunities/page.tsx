@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Badge, Panel, SiteHeader, scoreTone } from "@/app/components/chrome";
-import { requirePermission, viewerAccount } from "@/app/operator/guard";
-import { offersFor } from "@backend/billing/reveal";
+import { SiteFooter } from "@/app/components/SiteFooter";
+import { currentViewer, viewerAccount } from "@/app/operator/guard";
+import { browseOffers, offersFor } from "@backend/billing/reveal";
 import { listDealImages, pageDeals } from "@backend/store/repository";
 import { gbp, titleCase } from "@shared/format";
 import { REVEAL_GUARANTEE } from "@shared/domain/reveal";
@@ -36,25 +37,35 @@ export const metadata = {
  * those is absent by construction rather than by omission.
  */
 export default async function OpportunitiesPage() {
-  const viewer = await requirePermission("view-deal-material", "/opportunities");
-  const account = viewerAccount(viewer);
+  // Public to browse. A logged-out visitor sees the same closed cards — no
+  // address, no seller situation, no return figure — and signs in only to open
+  // one. The viewer is read but not required; `account` is undefined for a
+  // guest and for the shared operator password alike.
+  const viewer = await currentViewer();
+  const account = viewer !== undefined ? viewerAccount(viewer) : undefined;
+  const isGuest = account === undefined;
 
   // Bounded. Each row costs an appraisal, a score, a material report, a
   // due-diligence report and a passport grading — about 0.16ms, which is
   // nothing at four deals and 1.6 seconds of blocking CPU at ten thousand.
   const page = await pageDeals(BROWSE_SIZE);
-  const offers = account === undefined ? [] : await offersFor(page.rows, account);
+  const offers = account === undefined ? browseOffers(page.rows) : await offersFor(page.rows, account);
 
   // Whether each shown opportunity has a photo, so the card can lead with one.
   // A set of ids with at least one photo; the bytes are fetched by the browser
   // from the serving route, which re-checks permission.
-  const withPhoto = new Set<string>(
-    (
-      await Promise.all(
-        offers.map(async (o) => ((await listDealImages(o.record.id)).length > 0 ? o.record.id : "")),
-      )
-    ).filter((id) => id !== ""),
-  );
+  // No photos for a guest: the image bytes are served by a route that does its
+  // own per-account permission check, so a logged-out browser cannot load them
+  // anyway. Skipping them keeps the guest card clean rather than broken.
+  const withPhoto = isGuest
+    ? new Set<string>()
+    : new Set<string>(
+        (
+          await Promise.all(
+            offers.map(async (o) => ((await listDealImages(o.record.id)).length > 0 ? o.record.id : "")),
+          )
+        ).filter((id) => id !== ""),
+      );
 
   const openable = offers.filter((o) => o.quote.chargeable || o.opened !== undefined);
   const unconfirmed = offers.filter((o) => !o.quote.chargeable && o.opened === undefined);
@@ -76,7 +87,9 @@ export default async function OpportunitiesPage() {
         <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
           {offers.length === 0
             ? "Nothing on the market yet"
-            : `${openable.length} you can open, ${unconfirmed.length} not yet confirmed`}
+            : isGuest
+              ? `${offers.length} ${offers.length === 1 ? "opportunity" : "opportunities"} on the market`
+              : `${openable.length} you can open, ${unconfirmed.length} not yet confirmed`}
         </h1>
         <p className="mt-4 max-w-[42rem] text-[14px] leading-[1.6] text-ink-400">
           Every opportunity states who confirmed it is for sale. Where nobody has, it says so — and
@@ -98,10 +111,15 @@ export default async function OpportunitiesPage() {
           </p>
         )}
 
-        {account === undefined && (
-          <p className="mt-6 border-l-2 border-amber-500/80 py-1 pl-4 text-[13px] leading-[1.65] text-amber-300">
-            Signed in with the shared operator password, which is nobody in particular. Opening an
-            opportunity is a purchase by a named person, so sign in with an account to see prices.
+        {isGuest && (
+          <p className="mt-6 border-l-2 border-lode-500/80 py-1 pl-4 text-[13px] leading-[1.65] text-ink-300">
+            Browsing as a guest — every card here is all anyone sees without opening it: no address,
+            no seller situation, no return figure. Opening one is a purchase by a named, graded
+            buyer, so{" "}
+            <Link href="/join" className="text-lode-300 underline-offset-2 hover:underline">create an account</Link>{" "}
+            or{" "}
+            <Link href="/operator" className="text-lode-300 underline-offset-2 hover:underline">sign in</Link>{" "}
+            to open an opportunity.
           </p>
         )}
 
@@ -144,9 +162,9 @@ export default async function OpportunitiesPage() {
                   </Badge>
                   {opened !== undefined ? (
                     <Badge tone="neutral">Open to you</Badge>
-                  ) : card.openable ? (
+                  ) : isGuest || card.openable ? (
                     <span className="tnum text-[13px] text-lode-300">
-                      {gbp(card.revealPrice)} to open
+                      {gbp(card.revealPrice)} to open{isGuest ? " · sign in" : ""}
                     </span>
                   ) : (
                     <span className="text-[13px] text-ink-500">Not available to open</span>
@@ -168,6 +186,7 @@ export default async function OpportunitiesPage() {
           </ul>
         </Panel>
       </div>
+      <SiteFooter />
     </main>
   );
 }

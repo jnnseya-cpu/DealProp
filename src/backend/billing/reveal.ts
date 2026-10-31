@@ -100,6 +100,23 @@ export async function offersFor(
   return rankOpportunities(records.map((record) => offerFor(record, opened, account, now)));
 }
 
+/**
+ * The same offers for a logged-out visitor browsing the marketplace.
+ *
+ * `offerFor` already takes no account — the passport is simply absent and
+ * nothing has been opened — so a guest sees the identical closed cards, ranked
+ * the identical way, with every reveal shown as something only a signed-in,
+ * graded buyer can actually open. No seller data is in a card by construction
+ * (see `opportunityCard`), which is what makes this safe to render with no
+ * login. Synchronous because there is no per-account reveal history to read.
+ */
+export function browseOffers(
+  records: readonly DealRecord[],
+  now: Date = new Date(),
+): readonly RevealOffer[] {
+  return rankOpportunities(records.map((record) => offerFor(record, [], undefined, now)));
+}
+
 function offerFor(
   record: DealRecord,
   opened: readonly RevealRecord[],
