@@ -212,6 +212,7 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
     createdAt: new Date().toISOString(),
     property: intake.property,
     seller: intake.seller,
+    origin: { via: "sell", note: "public sell form", at: new Date().toISOString() },
     ...(ownerAccountId !== undefined ? { ownerAccountId } : {}),
     // The enquiry carries no agreed price yet: the routes page derives what an
     // investor could pay. A placeholder price keeps the record shape valid and

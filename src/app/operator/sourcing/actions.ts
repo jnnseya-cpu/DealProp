@@ -540,6 +540,7 @@ export async function startDealFromLead(
     createdAt: new Date().toISOString(),
     property: intake.property,
     seller: intake.seller,
+    origin: { via: "sourcing", note: signal, at: new Date().toISOString() },
     ...(sellerChecks !== undefined ? { sellerChecks } : {}),
     inputs: {
       property: intake.property,

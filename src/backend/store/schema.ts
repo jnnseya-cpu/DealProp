@@ -27,6 +27,7 @@ import type {
 import type { InventoryCategory, InventoryItem, ConfirmedBy } from "@shared/domain/inventory";
 import type { MaterialRecord } from "@shared/domain/materialInformation";
 import type { SellerDueDiligence } from "@shared/domain/sellerDueDiligence";
+import type { DealOrigin } from "@shared/domain/dealOrigin";
 import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { HoldingFacts } from "@shared/domain/portfolio";
 import type { RefundTrigger } from "@shared/domain/reveal";
@@ -108,6 +109,13 @@ export interface DealRecord {
    * which is a different thing entirely.
    */
   readonly holding?: HoldingFacts;
+  /**
+   * How the deal entered the pipeline — a seller submission, a sourced lead, or
+   * demo data. Recorded at creation so "why is this here, I did not add it" is
+   * answered on the deal rather than inferred. Absent on deals created before
+   * it was tracked, where `dealOriginLabel` derives a best-effort answer.
+   */
+  readonly origin?: DealOrigin;
   /**
    * Where this opportunity came from, and whether anybody with authority over
    * the property has said it is for sale.

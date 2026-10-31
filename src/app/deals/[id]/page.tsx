@@ -13,6 +13,7 @@ import { buildCloseReport } from "@shared/domain/completion";
 import { matchBuyBox, matchFundingBox, rankMatches, type MatchResult } from "@shared/domain/matching";
 import { dealRevenue } from "@shared/domain/revenue";
 import { referTradePartners } from "@shared/domain/partners";
+import { dealOriginLabel } from "@shared/domain/dealOrigin";
 import { SignOutButton } from "@/app/operator/SignOutButton";
 import { add } from "@shared/money";
 import { gbp, gbpSigned, months, percent } from "@shared/format";
@@ -45,6 +46,12 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
     ...(viewerAccount(viewer) !== undefined ? { account: viewerAccount(viewer) } : {}),
     subject: record.id,
     detail: record.reference,
+  });
+
+  const origin = dealOriginLabel({
+    ...(record.origin !== undefined ? { origin: record.origin } : {}),
+    id: record.id,
+    ...(record.seller.narrative !== undefined ? { narrative: record.seller.narrative } : {}),
   });
 
   const working = toWorkingDeal(record.inputs);
@@ -128,6 +135,7 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
           {record.property.postcodeArea} · {record.property.tenure} ·{" "}
           {diagnostics.situationLabel} · {months(working.inputs.holdMonths)} hold
         </p>
+        <p className="mt-1.5 text-[12px] text-ink-500">{origin}</p>
 
         {working.modelled && working.note !== undefined && (
           <p className="mt-5 border-l-2 border-amber-500/60 py-1 pl-4 text-[13px] leading-[1.6] text-amber-200/85">
@@ -151,6 +159,9 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
             <p className="text-[13px] leading-[1.65] text-ink-200">
               This deal cannot be shown to capital, matched to any mandate, or packaged until every
               item below is evidenced and a human reviewer has signed off.
+            </p>
+            <p className="mt-2 text-[12px] leading-[1.6] text-ink-400">
+              <span className="text-ink-500">Where this came from:</span> {origin}
             </p>
             <ul className="mt-4 space-y-3.5">
               {scored.protection.flags
