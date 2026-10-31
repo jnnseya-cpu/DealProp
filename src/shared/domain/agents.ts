@@ -12,6 +12,7 @@ import type { DirectorBriefing } from "@shared/domain/director";
 import type { FundingEvidence, ReadinessReport } from "@shared/domain/fundingReadiness";
 import type { FundingBox, MatchResult } from "@shared/domain/matching";
 import type { OfferComparisonReport, OfferTerms } from "@shared/domain/offers";
+import type { DueDiligenceReport } from "@shared/domain/sellerDueDiligence";
 import type { DealStatus } from "@shared/domain/types";
 
 /**
@@ -428,6 +429,8 @@ export interface AgentContext {
   readonly milestones: readonly Milestone[];
   /** Absent where no conditions plan has been adopted. */
   readonly close?: CloseReport;
+  /** The seller's due-diligence state, where any checks are recorded or not. */
+  readonly sellerDD?: DueDiligenceReport;
   readonly decisions: readonly AgentDecision[];
   readonly now: Date;
 }
@@ -653,6 +656,35 @@ const intakeObserver: Observer = (c) => {
         }),
       );
     }
+  }
+
+  // §12.1 / the Money Laundering Regulations: who owns it, whether they may
+  // sell it, and that they are who they say are not facts to take on trust. The
+  // deal's seller due diligence already decides this; the Intake Agent surfaces
+  // it as a task so an unverified counterparty is visible on the board rather
+  // than only on the seller-checks page. A proposal, not a gate — the marketing
+  // block enforces it elsewhere; a named person records the review here.
+  if (c.sellerDD !== undefined && !c.sellerDD.mayGoToMarket) {
+    const n = c.sellerDD.blockers.length;
+    out.push(
+      propose(agent, {
+        key: "counterparty-unverified",
+        severity: "action",
+        headline: `The seller is not yet verified — ${n} check${n === 1 ? "" : "s"} outstanding.`,
+        detail:
+          "Who owns the property, whether they may sell it, and that they are who they say cannot be " +
+          "assumed. Verify from the title number on the deal: the register names the proprietor and that " +
+          "name is screened. With no provider connected nothing clears automatically — run the checks you " +
+          "use and record them, because an inconclusive result is not a pass.",
+        evidence: c.sellerDD.checks
+          .filter((k) => k.blocking && !k.held)
+          .map((k) => `${k.label}: ${k.detail}`),
+        assumptions: [],
+        confidence: "recorded",
+        capability: "propose-task",
+        action: { effect: "record-review", label: "Record the verification review" },
+      }),
+    );
   }
 
   if (c.modelled) {

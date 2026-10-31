@@ -180,6 +180,16 @@ export function StartDealForm({ lead }: { lead: StartDealLead }) {
           </label>
         </div>
 
+        <label className="mt-3 block text-[12px] text-ink-400">
+          Title number <span className="text-ink-600">— optional, verifies id &amp; address in one line</span>
+          <input
+            type="text"
+            name="titleNumber"
+            placeholder="e.g. WM123456"
+            className="mt-1 w-full rounded-md border hairline bg-surface-1 px-2.5 py-1.5 text-sm text-ink-100"
+          />
+        </label>
+
         <button
           type="submit"
           disabled={pending}

@@ -7,6 +7,7 @@ import { fundingReadiness } from "@shared/domain/fundingReadiness";
 import { classifyRoute } from "@shared/domain/regulatoryRoute";
 import { matchFundingBox, rankMatches } from "@shared/domain/matching";
 import { compareRecordedOffers } from "@shared/domain/offers";
+import { sellerDueDiligence } from "@shared/domain/sellerDueDiligence";
 import { runDealDirector } from "@shared/domain/director";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
 import {
@@ -95,6 +96,10 @@ export async function buildAgentContext(
     // No plan, no close report. A close score computed from an empty milestone
     // list is zero, which reads as "nothing done" rather than "not started".
     ...(milestones.length > 0 ? { close: buildCloseReport(milestones) } : {}),
+    // The seller's due diligence — identity, authority to sell, screening —
+    // computed from whatever is recorded (absent reads as unchecked, never
+    // clear), so the Intake Agent can surface an unverified counterparty.
+    sellerDD: sellerDueDiligence(record.sellerChecks, now),
     decisions,
     now,
   };

@@ -14,6 +14,7 @@ import { fundingReadiness, type FundingEvidence } from "@shared/domain/fundingRe
 import { classifyRoute, type BorrowerFacts } from "@shared/domain/regulatoryRoute";
 import { matchFundingBox, rankMatches, type FundingBox } from "@shared/domain/matching";
 import { compareRecordedOffers, type OfferTerms } from "@shared/domain/offers";
+import { sellerDueDiligence } from "@shared/domain/sellerDueDiligence";
 import { runDealDirector } from "@shared/domain/director";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
 import {
@@ -153,6 +154,7 @@ interface Options {
   readonly boxes?: readonly FundingBox[];
   readonly milestones?: readonly Milestone[];
   readonly decisions?: readonly AgentDecision[];
+  readonly sellerDD?: AgentContext["sellerDD"];
   readonly now?: Date;
 }
 
@@ -203,6 +205,7 @@ function context(options: Options = {}): AgentContext {
     ),
     milestones,
     ...(milestones.length > 0 ? { close: buildCloseReport(milestones) } : {}),
+    ...(options.sellerDD !== undefined ? { sellerDD: options.sellerDD } : {}),
     decisions: options.decisions ?? [],
     now: options.now ?? NOW,
   };
@@ -434,6 +437,18 @@ describe("Intake Agent", () => {
     const modelled = proposals(run, "intake").find((p) => p.key === "intake:price-modelled");
     expect(modelled).toBeDefined();
     expect(modelled?.confidence).toBe("modelled");
+  });
+
+  it("surfaces an unverified counterparty as a task for a named person", () => {
+    // An unchecked seller (nothing recorded) cannot go to market. The Intake
+    // Agent raises it as a reviewable task — not a gate, and with no provider it
+    // asks for a manual check rather than clearing anything.
+    const run = runAgents(context({ sellerDD: sellerDueDiligence(undefined, NOW) }));
+    const p = proposals(run, "intake").find((x) => x.key === "intake:counterparty-unverified");
+    expect(p).toBeDefined();
+    expect(p?.action.effect).toBe("record-review");
+    expect(p?.severity).toBe("action");
+    expect(p?.evidence.length).toBeGreaterThan(0);
   });
 });
 

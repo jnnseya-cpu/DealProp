@@ -24,6 +24,8 @@ import { draftProbateLetter } from "@shared/domain/probateLetter";
 import { draftInsolvencyLetter } from "@shared/domain/insolvencyLetter";
 import { enrichAddress } from "@backend/discovery/enrich";
 import { leadContactKey } from "@shared/domain/sourcedLead";
+import { runCounterpartyVerification } from "@backend/verification";
+import type { SellerDueDiligence } from "@shared/domain/sellerDueDiligence";
 import type { FlipEvidence, LeadSignal, SourcedLead } from "@shared/domain/sourcedLead";
 import type { JurisdictionCode, PropertyType, SellerSituation, Tenure } from "@shared/domain/types";
 
@@ -447,6 +449,10 @@ export async function startDealFromLead(
   const address = String(formData.get("address") ?? "").trim();
   const subjectName = String(formData.get("subjectName") ?? "").trim();
   const contact = String(formData.get("contactForService") ?? "").trim();
+  // The one line that drives verification: a title number. It is optional —
+  // a deal starts without it — but given one, the register names the owner and
+  // that name is screened, both folded into the seller checks below.
+  const titleNumber = String(formData.get("titleNumber") ?? "").trim();
   const signal = String(formData.get("signal") ?? "probate-notice");
   const pounds = Number(formData.get("estimatedValue"));
   const propertyTypeRaw = String(formData.get("propertyType") ?? "");
@@ -513,12 +519,28 @@ export async function startDealFromLead(
 
   const intake = buildIntake(answers);
   const id = `deal-${newToken()}`;
+
+  // Verify id and address from the one line. The register names the owner and
+  // that name is screened; with no key configured every part comes back
+  // inconclusive and writes nothing, so the deal still starts — the seller
+  // simply reads as unchecked, which is the correct and honest default.
+  const verification = await runCounterpartyVerification({
+    dealId: id,
+    ...(titleNumber !== "" ? { titleNumber } : {}),
+    requestedBy: author?.name ?? "operator",
+  });
+  const sellerChecks: SellerDueDiligence | undefined =
+    Object.keys(verification.sellerUpdate).length > 0
+      ? { kind: "individual", ...verification.sellerUpdate }
+      : undefined;
+
   await saveDeal({
     id,
     reference: `LODE-${dealReference()}`,
     createdAt: new Date().toISOString(),
     property: intake.property,
     seller: intake.seller,
+    ...(sellerChecks !== undefined ? { sellerChecks } : {}),
     inputs: {
       property: intake.property,
       seller: intake.seller,
