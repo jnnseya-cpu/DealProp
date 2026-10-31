@@ -429,6 +429,28 @@ export function SellForm() {
           </p>
         </div>
 
+        {/* How to reach the seller. Without this the enquiry is one-way and
+            nobody can respond to a person who asked for help. Name plus at
+            least one of email or phone; server-enforced. */}
+        <div className="mt-6 rounded-xl border hairline bg-surface-1 px-5 py-4">
+          <p className="eyebrow">How we reach you</p>
+          <p className="mt-2 text-xs leading-relaxed text-ink-400">
+            So we can send you your options and talk them through. We never sell or share your
+            details, and you can ask us to delete them at any time.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Field label="Your name">
+              <Input name="contactName" placeholder="Jane Smith" required maxLength={120} />
+            </Field>
+            <Field label="Email">
+              <Input name="contactEmail" type="email" placeholder="you@example.com" required maxLength={200} />
+            </Field>
+            <Field label="Phone" hint="Optional — if you would rather we called.">
+              <Input name="contactPhone" type="tel" placeholder="07… or 01…" maxLength={40} />
+            </Field>
+          </div>
+        </div>
+
         {/* Consent — recorded with the enquiry. Both are required, server-enforced. */}
         <div className="mt-6 rounded-xl border hairline bg-surface-1 px-5 py-4">
           <p className="eyebrow">How we use your information</p>

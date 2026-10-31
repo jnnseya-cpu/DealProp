@@ -184,6 +184,30 @@ describe("sealing a deal", () => {
     });
   });
 
+  it("seals the seller's contact details, on both copies, and restores them", () => {
+    withKey(() => {
+      const base = deal();
+      const withContact: DealRecord = {
+        ...base,
+        seller: { ...base.seller, contact: { name: "Jane Smith", email: "jane@example.com", phone: "07700900900" } },
+        inputs: {
+          ...base.inputs,
+          seller: { ...base.inputs.seller, contact: { name: "Jane Smith", email: "jane@example.com", phone: "07700900900" } },
+        },
+      } as DealRecord;
+
+      const out = sealDeal(withContact);
+      // The seller's name, mailbox and number must not survive in plaintext —
+      // on either copy of the seller.
+      const haystack = strings(out).join(" ").toLowerCase();
+      for (const term of ["jane smith", "jane@example.com", "07700900900"]) {
+        expect(haystack.includes(term), `"${term}" survived sealing`).toBe(false);
+      }
+      // And it comes back exactly.
+      expect(openDeal(out)).toEqual(withContact);
+    });
+  });
+
   it("restores the record exactly", () => {
     withKey(() => {
       const original = deal();

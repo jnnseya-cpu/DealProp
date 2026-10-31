@@ -15,6 +15,7 @@ import type {
   JurisdictionCode,
   PropertyIssue,
   PropertyType,
+  SellerContact,
   SellerPriority,
   SellerSituation,
   Tenure,
@@ -156,6 +157,30 @@ function parseEnquiryAnswers(formData: FormData): IntakeAnswers {
   };
 }
 
+/**
+ * Parse the seller's contact details.
+ *
+ * Without a way to reach them the enquiry is one-way, so a name and at least
+ * one of email or phone are required. Returns a problem key rather than
+ * throwing, because these actions redirect on failure (there is a distressed
+ * seller at the other end, not a form that wants a stack trace).
+ */
+function parseContact(formData: FormData): { contact?: SellerContact; problem?: string } {
+  const name = String(formData.get("contactName") ?? "").trim().slice(0, 120);
+  const email = String(formData.get("contactEmail") ?? "").trim().toLowerCase().slice(0, 200);
+  const phone = String(formData.get("contactPhone") ?? "").trim().slice(0, 40);
+  if (name === "") return { problem: "name" };
+  if (email === "" && phone === "") return { problem: "channel" };
+  if (email !== "" && !email.includes("@")) return { problem: "email" };
+  return {
+    contact: {
+      name,
+      ...(email !== "" ? { email } : {}),
+      ...(phone !== "" ? { phone } : {}),
+    },
+  };
+}
+
 export async function submitEnquiry(formData: FormData): Promise<void> {
   /*
     A public form that writes a record, so it is a free way to fill the
@@ -185,9 +210,15 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
     throw error;
   }
 
+  const { contact, problem } = parseContact(formData);
+  if (problem !== undefined) redirect("/sell?needs-contact=1");
+
   const answers = parseEnquiryAnswers(formData);
 
   const intake = buildIntake(answers);
+  // Carry the contact onto the seller on both copies (profile and inputs), so
+  // it is sealed and reproducible like the rest of the seller.
+  const seller = contact !== undefined ? { ...intake.seller, contact } : intake.seller;
 
   // Tie the submission to a seller account where one is signed in, so it shows
   // on their dashboard. Read straight from the signed session cookie, not
@@ -212,7 +243,7 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
     reference: `LODE-${referenceSuffix()}`,
     createdAt: new Date().toISOString(),
     property: intake.property,
-    seller: intake.seller,
+    seller,
     origin: { via: "sell", note: "public sell form", at: new Date().toISOString() },
     ...(ownerAccountId !== undefined ? { ownerAccountId } : {}),
     // The enquiry carries no agreed price yet: the routes page derives what an
@@ -220,7 +251,7 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
     // is never shown to the seller.
     inputs: {
       property: intake.property,
-      seller: intake.seller,
+      seller,
       purchasePrice: intake.property.openMarketValue,
       buyerOwnsOtherProperty: true,
       buyerIsCompany: true,
@@ -318,8 +349,12 @@ export async function correctEnquiry(formData: FormData): Promise<void> {
     redirect(`/sell/${id}?locked=1`);
   }
 
+  const { contact, problem } = parseContact(formData);
+  if (problem !== undefined) redirect(`/sell/${id}?needs-contact=1`);
+
   const answers = parseEnquiryAnswers(formData);
   const intake = buildIntake(answers);
+  const seller = contact !== undefined ? { ...intake.seller, contact } : intake.seller;
 
   // Replace only what the seller answered. Everything the operator or the
   // platform established — the reference, the created date, the origin, any
@@ -328,11 +363,11 @@ export async function correctEnquiry(formData: FormData): Promise<void> {
   await saveDeal({
     ...existing,
     property: intake.property,
-    seller: intake.seller,
+    seller,
     inputs: {
       ...existing.inputs,
       property: intake.property,
-      seller: intake.seller,
+      seller,
       purchasePrice: intake.property.openMarketValue,
     },
   });

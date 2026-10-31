@@ -49,9 +49,25 @@ export type SellerSituation =
 /** What the seller is actually optimising for. Not every seller wants price. */
 export type SellerPriority = "speed" | "certainty" | "price" | "convenience" | "flexibility";
 
+/**
+ * How to reach the seller who submitted the enquiry.
+ *
+ * Without this there is no way to respond to somebody who asked for help — the
+ * enquiry is one-way. It is the seller's own personal data, sealed at rest the
+ * same as their situation, and shown only behind the seller-data permission.
+ * At least a name and one of email or phone are captured so a reply is possible.
+ */
+export interface SellerContact {
+  readonly name?: string;
+  readonly email?: string;
+  readonly phone?: string;
+}
+
 export interface SellerProfile {
   readonly situation: SellerSituation;
   readonly priorities: readonly SellerPriority[];
+  /** How to reach the seller. Absent on sourced leads (nobody was spoken to). */
+  readonly contact?: SellerContact;
   /** Seller's own stated deadline, in days. Undefined means no deadline given. */
   readonly targetDays?: number;
   /** Seller's own price expectation, if stated. Deliberately optional. */

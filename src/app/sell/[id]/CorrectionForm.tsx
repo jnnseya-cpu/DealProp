@@ -228,6 +228,21 @@ export function CorrectionForm({
           <textarea name="narrative" rows={3} defaultValue={seller.narrative ?? ""} maxLength={2000} className={field} />
         </label>
 
+        <div className="grid gap-4 border-t hairline pt-4 sm:grid-cols-3">
+          <label className="block text-[13px] text-ink-300">
+            Your name
+            <input type="text" name="contactName" defaultValue={seller.contact?.name ?? ""} required maxLength={120} className={field} />
+          </label>
+          <label className="block text-[13px] text-ink-300">
+            Email
+            <input type="email" name="contactEmail" defaultValue={seller.contact?.email ?? ""} required maxLength={200} className={field} />
+          </label>
+          <label className="block text-[13px] text-ink-300">
+            Phone <span className="text-ink-600">(optional)</span>
+            <input type="tel" name="contactPhone" defaultValue={seller.contact?.phone ?? ""} maxLength={40} className={field} />
+          </label>
+        </div>
+
         <fieldset className="space-y-3 border-t hairline pt-4">
           <legend className="text-[13px] text-ink-300">
             A few questions so we look after you properly

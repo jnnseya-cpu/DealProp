@@ -39,6 +39,9 @@ import type { DealRecord, Store } from "@backend/store/schema";
 /** The screening answers, stored as one encrypted JSON blob. */
 const SCREENING = "screening" as const;
 
+/** The seller's contact details, stored as one encrypted JSON blob. */
+const CONTACT = "contact" as const;
+
 /**
  * The seller appears twice in a `DealRecord` and both copies are real.
  *
@@ -53,15 +56,23 @@ type SellerLike = {
   situation?: unknown;
   narrative?: string;
   screening?: unknown;
+  contact?: unknown;
 };
 
 function sealSeller<T extends SellerLike>(seller: T, key: Buffer): T {
   const narrative = seller.narrative;
   const screening = seller[SCREENING];
   const situation = seller.situation;
+  const contact = seller[CONTACT];
 
   return {
     ...seller,
+    // The seller's own name and mailbox/number. Sealed as one blob for the same
+    // reason as the screening: field by field would leak whether a phone was
+    // given at all, and a contact detail is the plainest identifier there is.
+    ...(contact !== undefined && !(typeof contact === "object" && contact !== null && "sealed" in contact)
+      ? { [CONTACT]: { sealed: encrypt(JSON.stringify(contact), key) } }
+      : {}),
     // "repossession-threat", "divorce", "probate", "bereavement". Neither
     // engine filters on it in SQL — checked, not assumed — so encrypting it
     // costs nothing, and of the three fields it is the one that most plainly
@@ -78,21 +89,26 @@ function sealSeller<T extends SellerLike>(seller: T, key: Buffer): T {
   };
 }
 
+function openBlob(value: unknown, key: Buffer | undefined): unknown {
+  return value !== null &&
+    typeof value === "object" &&
+    "sealed" in value &&
+    typeof (value as { sealed: unknown }).sealed === "string"
+    ? (JSON.parse(decrypt((value as { sealed: string }).sealed, key)) as unknown)
+    : value;
+}
+
 function openSeller<T extends SellerLike>(seller: T, key: Buffer | undefined): T {
   const narrative = seller.narrative;
   const screening: unknown = seller[SCREENING];
   const situation = seller.situation;
+  const contact: unknown = seller[CONTACT];
 
   const opened =
     narrative !== undefined && isEncrypted(narrative) ? decrypt(narrative, key) : narrative;
 
-  const unsealed =
-    screening !== null &&
-    typeof screening === "object" &&
-    "sealed" in screening &&
-    typeof (screening as { sealed: unknown }).sealed === "string"
-      ? (JSON.parse(decrypt((screening as { sealed: string }).sealed, key)) as unknown)
-      : screening;
+  const unsealed = openBlob(screening, key);
+  const openedContact = openBlob(contact, key);
 
   return {
     ...seller,
@@ -101,6 +117,7 @@ function openSeller<T extends SellerLike>(seller: T, key: Buffer | undefined): T
       : {}),
     ...(opened !== undefined ? { narrative: opened } : {}),
     ...(unsealed !== undefined ? { [SCREENING]: unsealed } : {}),
+    ...(openedContact !== undefined ? { [CONTACT]: openedContact } : {}),
   };
 }
 

@@ -136,6 +136,27 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
           {diagnostics.situationLabel} · {months(working.inputs.holdMonths)} hold
         </p>
         <p className="mt-1.5 text-[12px] text-ink-500">{origin}</p>
+        {record.seller.contact !== undefined && (
+          <p className="mt-2 text-[13px] text-ink-300">
+            <span className="text-ink-500">Contact:</span> {record.seller.contact.name ?? "—"}
+            {record.seller.contact.email !== undefined && record.seller.contact.email !== "" && (
+              <>
+                {" · "}
+                <a href={`mailto:${record.seller.contact.email}`} className="text-lode-300 underline-offset-2 hover:underline">
+                  {record.seller.contact.email}
+                </a>
+              </>
+            )}
+            {record.seller.contact.phone !== undefined && record.seller.contact.phone !== "" && (
+              <>
+                {" · "}
+                <a href={`tel:${record.seller.contact.phone.replace(/\s+/g, "")}`} className="text-lode-300 underline-offset-2 hover:underline">
+                  {record.seller.contact.phone}
+                </a>
+              </>
+            )}
+          </p>
+        )}
 
         {working.modelled && working.note !== undefined && (
           <p className="mt-5 border-l-2 border-amber-500/60 py-1 pl-4 text-[13px] leading-[1.6] text-amber-200/85">
