@@ -29,7 +29,7 @@ const PUBLIC_BY_DESIGN: Readonly<Record<string, string>> = {
   "newsletter/actions.ts":
     "Double opt-in. A subscriber has no account by design, and consent is the record.",
   "sell/actions.ts":
-    "A seller has no account and never will. Rate limited instead, and the result is a capability URL.",
+    "Public seller enquiry: nobody is signed in by definition, like sign-up. It may mint a least-privilege seller account (role 'seller') from the details given and sign them in, or attach to a session, or fall back to a capability URL — never reads an existing session to decide whether it may run. Rate limited.",
   "operator/actions.ts": "Sign-in and sign-out themselves, which cannot require being signed in.",
   "join/actions.ts":
     "Self-service sign-up. Nobody is signed in yet by definition. Rate limited, the role is restricted to the self-service set on the server, and it mints only a least-privilege account.",

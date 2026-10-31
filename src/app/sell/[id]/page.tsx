@@ -78,6 +78,26 @@ export default async function SellerOptionsPage({
           {property.locality}
         </h1>
 
+        {query.welcome === "1" && (
+          <p className="mt-4 rounded-lg border-l-2 border-emerald-500 bg-surface-1 px-5 py-3 text-sm text-ink-200">
+            Your free account is set up and you&rsquo;re signed in. Everything you submit is tracked
+            in{" "}
+            <a href="/account" className="text-lode-300 underline-offset-2 hover:underline">
+              your dashboard
+            </a>
+            .
+          </p>
+        )}
+        {query["account-exists"] === "1" && (
+          <p className="mt-4 rounded-lg border-l-2 border-amber-500 bg-surface-1 px-5 py-3 text-sm text-ink-200">
+            An account already exists for that email. We&rsquo;ve saved this submission to the link
+            above — {" "}
+            <a href="/operator?next=%2Faccount" className="text-lode-300 underline-offset-2 hover:underline">
+              sign in
+            </a>{" "}
+            to see all your submissions together.
+          </p>
+        )}
         {query.updated === "1" && (
           <p className="mt-4 rounded-lg border-l-2 border-emerald-500 bg-surface-1 px-5 py-3 text-sm text-ink-200">
             Your details are updated, and the figures below have been worked out again.

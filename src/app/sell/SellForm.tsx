@@ -98,6 +98,10 @@ export function SellForm() {
     const params = new URLSearchParams(window.location.search);
     if (params.has("needs-consent")) {
       setNotice("Please confirm both boxes at the end before sending — we can't take an enquiry without them.");
+    } else if (params.has("needs-contact")) {
+      setNotice("We need a name and an email so we can set up your account and send you your options.");
+    } else if (params.has("weak-password")) {
+      setNotice("Please choose a password of at least 12 characters, then send again.");
     } else if (params.has("slow-down")) {
       setNotice("That came through very quickly. Give it a moment and try again.");
     }
@@ -447,6 +451,28 @@ export function SellForm() {
             </Field>
             <Field label="Phone" hint="Optional — if you would rather we called.">
               <Input name="contactPhone" type="tel" placeholder="07… or 01…" maxLength={40} />
+            </Field>
+          </div>
+
+          {/* The password sets up a free account from these details, so a seller
+              is a named login with a dashboard rather than a link we hope they
+              keep. A returning seller types their existing password and is
+              simply signed in. Server-enforced: minimum 12 characters, and a
+              wrong password for an existing email never attaches to it. */}
+          <div className="mt-4">
+            <Field
+              label="Create a password"
+              hint="This sets up your free account so you can sign in, track this submission and manage everything in one place. Used Lode before? Enter your existing password to sign in."
+            >
+              <Input
+                name="sellerPassword"
+                type="password"
+                placeholder="At least 12 characters"
+                required
+                minLength={12}
+                maxLength={512}
+                autoComplete="new-password"
+              />
             </Field>
           </div>
         </div>

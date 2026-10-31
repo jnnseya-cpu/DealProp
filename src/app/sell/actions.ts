@@ -1,6 +1,6 @@
 "use server";
 
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { bps, fromMajor, ZERO } from "@shared/money";
 import {
@@ -21,11 +21,14 @@ import type {
   Tenure,
 } from "@shared/domain/types";
 import { allSituations } from "@shared/domain/motivation";
+import type { Account } from "@shared/domain/accounts";
 import { newToken } from "@backend/auth/tokens";
-import { getDeal, saveDeal } from "@backend/store/repository";
+import { findAccountByEmail, getDeal, saveAccount, saveDeal } from "@backend/store/repository";
 import { audit } from "@backend/audit";
 import { cookies } from "next/headers";
-import { readSession, SESSION_COOKIE } from "@backend/auth/session";
+import { createSession, readSession, SESSION_COOKIE, SESSION_SECONDS } from "@backend/auth/session";
+import { cookieScope } from "@backend/auth/cookie";
+import { hashPassword, passwordProblem, verifyPassword } from "@backend/auth/password";
 import { callerFrom, consume } from "@backend/rateLimit";
 import { headers as nextHeaders } from "next/headers";
 
@@ -181,6 +184,105 @@ function parseContact(formData: FormData): { contact?: SellerContact; problem?: 
   };
 }
 
+/**
+ * Sign a person in by minting their session cookie.
+ *
+ * The same shape and scope as sign-up (`join/actions.ts`): httpOnly, secure in
+ * production, lax, and `cookieScope()` so one cookie spans the apex and the www
+ * host rather than making a seller sign in again when they move between them.
+ */
+async function signInAs(
+  jar: Awaited<ReturnType<typeof cookies>>,
+  accountId: string,
+  secret: string,
+): Promise<void> {
+  jar.set(SESSION_COOKIE, await createSession(accountId, secret), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: SESSION_SECONDS,
+    ...cookieScope(),
+  });
+}
+
+/**
+ * Resolve the seller account this enquiry belongs to, creating one if need be.
+ *
+ * A seller is a first-class account holder, not anonymous "supply": the person
+ * at the other end of a sale we negotiate must be a named, reachable account
+ * with a dashboard, not a capability link we hope they kept. So when nobody is
+ * signed in and we have an email and a password, this creates a least-privilege
+ * `seller` account and signs them in — a conventional login from the first
+ * second. A returning seller who types their existing password is signed into
+ * the account they already have. The capability link is kept as the no-account
+ * fallback (no email, no password, or no signing secret), so the /sell flow
+ * never slams shut on someone who will not make an account.
+ *
+ * The existing-email case is handled the one safe way: an account is only
+ * linked, and a session only minted, when the submitted password *proves*
+ * ownership. A wrong password never attaches this enquiry to somebody else's
+ * account and never signs anyone in — it falls through to the capability link,
+ * and the caller tells them an account already exists so they can sign in.
+ */
+async function resolveSellerAccount(
+  jar: Awaited<ReturnType<typeof cookies>>,
+  contact: SellerContact | undefined,
+  password: string,
+): Promise<{
+  ownerAccountId?: string;
+  outcome: "signed-in" | "account-exists" | "weak-password" | "none";
+}> {
+  // Attribution for an already-signed-in person: read straight from the signed
+  // session cookie (HMAC-verified by readSession), not through the page guard —
+  // this is attribution, not authorisation, and the form stays public.
+  const secret = process.env.OPERATOR_SECRET;
+  const claims = await readSession(jar.get(SESSION_COOKIE)?.value, secret);
+  if (claims?.accountId !== undefined) return { ownerAccountId: claims.accountId, outcome: "none" };
+
+  const email = contact?.email;
+  // No email, no password, or no signing secret: nothing to make an account
+  // from, or no way to mint a session. Fall back to the capability link.
+  if (email === undefined || password === "" || secret === undefined || secret === "") {
+    return { outcome: "none" };
+  }
+
+  const existing = await findAccountByEmail(email);
+  if (existing === undefined) {
+    // A new account is about to be created, so the password must meet the floor.
+    // (A returning seller below is verified against the hash they already have,
+    // where the floor was applied when they first set it.)
+    if (passwordProblem(password) !== undefined) return { outcome: "weak-password" };
+    const { hash, salt } = await hashPassword(password);
+    const account: Account = {
+      id: `acc-${randomUUID()}`,
+      email,
+      name: contact?.name ?? "",
+      role: "seller",
+      passwordHash: hash,
+      passwordSalt: salt,
+      createdAt: new Date().toISOString(),
+    };
+    await saveAccount(account);
+    await audit("account-created", {
+      account,
+      subject: `account:${account.id}`,
+      detail: "Seller account created from the public sell enquiry form.",
+    });
+    await signInAs(jar, account.id, secret);
+    return { ownerAccountId: account.id, outcome: "signed-in" };
+  }
+
+  // An account already exists for this email. Link and sign in ONLY with a
+  // password that proves ownership — otherwise this enquiry stays a capability
+  // link under nobody's account, and the caller points them at sign-in.
+  if (await verifyPassword(password, existing.passwordHash, existing.passwordSalt)) {
+    await signInAs(jar, existing.id, secret);
+    return { ownerAccountId: existing.id, outcome: "signed-in" };
+  }
+  return { outcome: "account-exists" };
+}
+
 export async function submitEnquiry(formData: FormData): Promise<void> {
   /*
     A public form that writes a record, so it is a free way to fill the
@@ -213,22 +315,23 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
   const { contact, problem } = parseContact(formData);
   if (problem !== undefined) redirect("/sell?needs-contact=1");
 
+  // Make the seller a first-class account holder. When nobody is signed in, the
+  // name, email and password they just gave create (or sign them into) a seller
+  // account, so the person we go on to deal with is a named login with a
+  // dashboard — not anonymous supply behind a link. A wrong password for an
+  // existing email never attaches this enquiry to it; it falls through to the
+  // capability link and we tell them to sign in.
+  const sessionJar = await cookies();
+  const sellerPassword = String(formData.get("sellerPassword") ?? "");
+  const { ownerAccountId, outcome } = await resolveSellerAccount(sessionJar, contact, sellerPassword);
+  if (outcome === "weak-password") redirect("/sell?weak-password=1");
+
   const answers = parseEnquiryAnswers(formData);
 
   const intake = buildIntake(answers);
   // Carry the contact onto the seller on both copies (profile and inputs), so
   // it is sealed and reproducible like the rest of the seller.
   const seller = contact !== undefined ? { ...intake.seller, contact } : intake.seller;
-
-  // Tie the submission to a seller account where one is signed in, so it shows
-  // on their dashboard. Read straight from the signed session cookie, not
-  // through the page guard: this is attribution, not authorisation — the form
-  // stays open to everyone (public by design) and the capability link below is
-  // the way back either way. The id is HMAC-verified by readSession, so it is
-  // authentic even though nothing here gates on it.
-  const sessionJar = await cookies();
-  const claims = await readSession(sessionJar.get(SESSION_COOKIE)?.value, process.env.OPERATOR_SECRET);
-  const ownerAccountId = claims?.accountId;
 
   // The URL this returns is the seller's only way back to their own result and
   // it carries their situation, their figures and the safeguards raised on
@@ -313,7 +416,12 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
     status: "new",
   });
 
-  redirect(`/sell/${id}`);
+  // Signed-in sellers land on their options with a note that an account now
+  // exists; a clash on an existing email sends them to the same options but
+  // points them at sign-in to see every submission together.
+  const suffix =
+    outcome === "signed-in" ? "?welcome=1" : outcome === "account-exists" ? "?account-exists=1" : "";
+  redirect(`/sell/${id}${suffix}`);
 }
 
 /**
