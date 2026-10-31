@@ -6,9 +6,15 @@ import { matchBuyBox, MATCH_HORIZON } from "@shared/domain/matching";
 import { STRUCTURE_LABELS } from "@shared/domain/strategies";
 import { gbp, percent } from "@shared/format";
 import { SiteHeader, scoreBg } from "@/app/components/chrome";
+import { SiteFooter } from "@/app/components/SiteFooter";
 import { BarList } from "@/app/components/charts";
 import { MandateControls } from "@/app/components/mandate";
-import { requireMandateManagement, viewerAccount, viewerManagesAllMandates } from "@/app/operator/guard";
+import {
+  currentViewer,
+  requireMandateManagement,
+  viewerAccount,
+  viewerManagesAllMandates,
+} from "@/app/operator/guard";
 import { SignOutButton } from "@/app/operator/SignOutButton";
 import { BuyBoxForm } from "./BuyBoxForm";
 import { removeBuyBox, setBuyBoxActive } from "./actions";
@@ -30,6 +36,39 @@ export const metadata = {
  * run it against the pipeline in front of the person who wrote it.
  */
 export default async function InvestPage() {
+  // Public to preview. A guest can build a Buy Box and see how many
+  // opportunities match it right now; saving it and seeing the matches needs a
+  // free account. Signed-in behaviour is unchanged below.
+  if ((await currentViewer()) === undefined) {
+    return (
+      <main className="min-h-screen pb-24">
+        <SiteHeader
+          trailing={
+            <nav className="flex items-center gap-6 text-sm text-ink-400">
+              <Link href="/opportunities" className="transition hover:text-ink-100">Opportunities</Link>
+              <Link href="/join?role=investor" className="transition hover:text-ink-100">Create account</Link>
+            </nav>
+          }
+        />
+        <div className="mx-auto max-w-2xl px-6 py-10">
+          <p className="eyebrow">Buy Boxes</p>
+          <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
+            Tell us what you buy. See what matches.
+          </h1>
+          <p className="mt-4 max-w-[42rem] text-[14px] leading-[1.6] text-ink-400">
+            Set the criteria for the deals you want, and see how many opportunities on the market
+            meet them right now — no account needed to look. To save the mandate and get alerted as
+            new ones arrive, create a free account.
+          </p>
+          <div className="mt-9">
+            <BuyBoxForm preview />
+          </div>
+        </div>
+        <SiteFooter />
+      </main>
+    );
+  }
+
   const viewer = await requireMandateManagement("/invest");
   // A bounded page rather than the whole table. Every row here is scored and
   // then matched against every mandate, so an unbounded read is an unbounded

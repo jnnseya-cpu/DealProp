@@ -16,6 +16,8 @@ import {
   Toggle,
 } from "@/app/components/mandate";
 import { saveFundingBoxAction } from "./actions";
+import { previewFundingBox } from "./preview";
+import Link from "next/link";
 
 const JURISDICTIONS = [
   { value: "GB-ENG", label: "England" },
@@ -39,21 +41,33 @@ const FUNDER_KINDS = Object.entries(FUNDER_KIND_LABELS).map(([value, label]) => 
   label,
 }));
 
-export function FundingBoxForm({ box }: { box?: FundingBox }) {
+export function FundingBoxForm({ box, preview = false }: { box?: FundingBox; preview?: boolean }) {
   const editing = box !== undefined;
 
   return (
     <MandateForm
-      action={saveFundingBoxAction}
-      title={editing ? `Edit ${box.funderName}` : "Add a Funding Box"}
+      action={preview ? previewFundingBox : saveFundingBoxAction}
+      title={preview ? "Try a Funding Box" : editing ? `Edit ${box.funderName}` : "Add a Funding Box"}
       summary={
-        editing
-          ? "Changes take effect immediately for every deal matched from now on."
-          : "What this lender will lend or invest against, and on what terms. A wrong figure here produces silence rather than an error, and silence reads as no capital available."
+        preview
+          ? "Set what you would lend against and see how many deals fit it right now. Saving it and being matched takes a free account and lender verification."
+          : editing
+            ? "Changes take effect immediately for every deal matched from now on."
+            : "What this lender will lend or invest against, and on what terms. A wrong figure here produces silence rather than an error, and silence reads as no capital available."
       }
-      openByDefault={editing}
+      openByDefault={editing || preview}
+      {...(preview ? { submitLabel: "Preview matches", pendingLabel: "Matching…" } : {})}
     >
       {editing && <input type="hidden" name="id" value={box.id} />}
+      {preview && (
+        <p className="rounded-lg border-l-2 border-lode-500/70 bg-surface-2 px-4 py-3 text-[13px] leading-relaxed text-ink-300">
+          This is a preview — nothing is saved.{" "}
+          <Link href="/join?role=funder" className="text-lode-300 underline-offset-2 hover:underline">
+            Create a free account
+          </Link>{" "}
+          to save this Funding Box. Deals are matched once we have verified you as a lender.
+        </p>
+      )}
 
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label="Lender name">

@@ -114,17 +114,19 @@ export async function middleware(request: NextRequest) {
  */
 const GATED: readonly string[] = [
   "/deals",
-  "/invest",
   "/portfolio",
-  "/capital",
   // Certification attaches to a signed-in person, so the page behind it is
   // gated too — otherwise the form would accept a statement from nobody.
   "/account",
 ];
-// `/opportunities` is deliberately NOT gated: the marketplace is public to
-// browse. Every card is a closed shape — no address, no seller situation, no
-// return figure (see `opportunityCard`) — and opening one is still a purchase
-// by a signed-in, graded buyer, so the gate sits at the reveal, not the door.
+// `/opportunities`, `/invest` and `/capital` are deliberately NOT gated: the
+// marketplace is public to browse, and a buyer or lender can build a mandate
+// and preview how many deals match it with no account. Nothing public leaks —
+// opportunity cards are closed shapes, and a preview returns only a count.
+// Saving a mandate, opening an opportunity, and seeing matches each still
+// require a signed-in (and, for a lender, verified) account, so every gate
+// sits at the action, not at the door. The per-page code and the server
+// actions enforce that; this list is only the coarse middleware layer.
 
 export const config = {
   /*

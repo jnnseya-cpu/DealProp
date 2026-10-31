@@ -11,9 +11,15 @@ import {
 import { add } from "@shared/money";
 import { gbp, months, percent } from "@shared/format";
 import { SiteHeader, scoreBg } from "@/app/components/chrome";
+import { SiteFooter } from "@/app/components/SiteFooter";
 import { BarList } from "@/app/components/charts";
 import { MandateControls } from "@/app/components/mandate";
-import { requireMandateManagement, viewerAccount, viewerManagesAllMandates } from "@/app/operator/guard";
+import {
+  currentViewer,
+  requireMandateManagement,
+  viewerAccount,
+  viewerManagesAllMandates,
+} from "@/app/operator/guard";
 import { SignOutButton } from "@/app/operator/SignOutButton";
 import { FundingBoxForm } from "./FundingBoxForm";
 import { removeFundingBox, setFundingBoxActive } from "./actions";
@@ -34,6 +40,39 @@ export const metadata = {
  * data rather than from a claim.
  */
 export default async function CapitalPage() {
+  // Public to preview. A guest can build a Funding Box and see how many deals
+  // fit its terms right now; saving it and being matched needs a free account
+  // and lender verification. Signed-in behaviour is unchanged below.
+  if ((await currentViewer()) === undefined) {
+    return (
+      <main className="min-h-screen pb-24">
+        <SiteHeader
+          trailing={
+            <nav className="flex items-center gap-6 text-sm text-ink-400">
+              <Link href="/opportunities" className="transition hover:text-ink-100">Opportunities</Link>
+              <Link href="/join?role=funder" className="transition hover:text-ink-100">Create account</Link>
+            </nav>
+          }
+        />
+        <div className="mx-auto max-w-2xl px-6 py-10">
+          <p className="eyebrow">Funding Boxes</p>
+          <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">
+            Tell us what you fund. See what fits.
+          </h1>
+          <p className="mt-4 max-w-[42rem] text-[14px] leading-[1.6] text-ink-400">
+            Set the terms you lend or invest against, and see how many deals on the pipeline fit
+            them right now — no account needed to look. To save the mandate and be matched, create a
+            free account; capital is only advertised once we have verified the lender.
+          </p>
+          <div className="mt-9">
+            <FundingBoxForm preview />
+          </div>
+        </div>
+        <SiteFooter />
+      </main>
+    );
+  }
+
   const viewer = await requireMandateManagement("/capital");
   // Bounded for the same reason as /invest: every row is scored and then run
   // against every mandate, so an unbounded read is unbounded blocking CPU.

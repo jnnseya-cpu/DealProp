@@ -2,19 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { newToken } from "@backend/auth/tokens";
-import {
-  checkbox,
-  type BoxFormResult,
-  requireManyOf,
-  requiredInteger,
-  requiredMoney,
-  requiredPercent,
-  requiredText,
-  textList,
-} from "@shared/formFields";
+import type { BoxFormResult } from "@shared/formFields";
 import type { BuyBox } from "@shared/domain/matching";
-import { ALL_STRUCTURES } from "@shared/domain/strategies";
-import type { JurisdictionCode, PropertyType, StructureKind } from "@shared/domain/types";
+import { parseBuyBoxFields } from "./parse";
 import { deleteBuyBox, getBuyBox, listBuyBoxes, saveBuyBox } from "@backend/store/repository";
 import { requireMandateManagement, viewerAccount } from "@/app/operator/guard";
 import { canManageMandate } from "@shared/domain/accounts";
@@ -41,18 +31,6 @@ import { withinLimit } from "@shared/domain/entitlements";
  * buyer demand shown to sellers, which nobody unauthenticated may author.
  */
 
-const JURISDICTIONS = new Set<string>(["GB-ENG", "GB-SCT", "GB-WLS", "GB-NIR", "US-GEN"]);
-const PROPERTY_TYPES = new Set<string>([
-  "house",
-  "flat",
-  "bungalow",
-  "hmo",
-  "commercial",
-  "mixed-use",
-  "land",
-]);
-const STRUCTURES = new Set<string>(ALL_STRUCTURES);
-
 export async function saveBuyBoxAction(
   _previous: BoxFormResult | undefined,
   formData: FormData,
@@ -60,14 +38,6 @@ export async function saveBuyBoxAction(
   const viewer = await requireMandateManagement("/invest");
 
   try {
-    const minPrice = requiredMoney(formData.get("minPrice"), "Minimum price");
-    const maxPrice = requiredMoney(formData.get("maxPrice"), "Maximum price");
-    if (maxPrice < minPrice) {
-      // Checked here rather than trusted from the form, because an inverted
-      // range silently matches nothing and looks like "no deals available".
-      throw new Error("Maximum price must be at or above the minimum price");
-    }
-
     const id = idFrom(formData.get("id"));
     const existing = id !== undefined ? await getBuyBox(id) : undefined;
     const owner = viewerAccount(viewer);
@@ -102,43 +72,9 @@ export async function saveBuyBoxAction(
         : owner !== undefined
           ? { ownerAccountId: owner.id }
           : {}),
-      investorName: requiredText(formData.get("investorName"), "Investor name"),
-      jurisdictions: requireManyOf<JurisdictionCode>(
-        formData.getAll("jurisdictions"),
-        JURISDICTIONS,
-        "jurisdiction",
-      ),
-      localities: textList(formData.get("localities")),
-      propertyTypes: requireManyOf<PropertyType>(
-        formData.getAll("propertyTypes"),
-        PROPERTY_TYPES,
-        "property type",
-      ),
-      minPrice,
-      maxPrice,
-      minBedrooms: requiredInteger(formData.get("minBedrooms"), "Minimum bedrooms", {
-        min: 0,
-        max: 20,
-      }),
-      minMarginBps: requiredPercent(formData.get("minMargin"), "Minimum margin"),
-      maxRefurbishment: requiredMoney(formData.get("maxRefurbishment"), "Maximum refurbishment"),
-      acceptsRefurbishment: checkbox(formData.get("acceptsRefurbishment")),
-      minYieldBps: requiredPercent(formData.get("minYield"), "Minimum yield"),
-      maxCompletionDays: requiredInteger(
-        formData.get("maxCompletionDays"),
-        "Maximum completion days",
-        { min: 1, max: 365 },
-      ),
-      acceptableStructures: requireManyOf<StructureKind>(
-        formData.getAll("acceptableStructures"),
-        STRUCTURES,
-        "structure",
-      ),
-      minDealScore: requiredInteger(formData.get("minDealScore"), "Minimum Deal Score", {
-        min: 0,
-        max: 100,
-      }),
-      active: checkbox(formData.get("active")),
+      // The criteria themselves — parsed by the same function the public
+      // preview uses, so a saved mandate and a previewed one mean the same thing.
+      ...parseBuyBoxFields(formData),
     };
 
     await saveBuyBox(box);

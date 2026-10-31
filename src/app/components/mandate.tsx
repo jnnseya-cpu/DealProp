@@ -125,12 +125,16 @@ export function MandateForm({
   summary,
   children,
   openByDefault = false,
+  submitLabel = "Save mandate",
+  pendingLabel = "Saving…",
 }: {
   action: (previous: BoxFormResult | undefined, formData: FormData) => Promise<BoxFormResult>;
   title: string;
   summary: string;
   children: React.ReactNode;
   openByDefault?: boolean;
+  submitLabel?: string;
+  pendingLabel?: string;
 }) {
   const [state, formAction, pending] = useActionState<BoxFormResult | undefined, FormData>(
     action,
@@ -183,7 +187,7 @@ export function MandateForm({
         disabled={pending}
         className="mt-6 inline-flex h-9.5 items-center justify-center gap-2 rounded-md bg-lode-400 px-4 text-sm font-medium text-ink-950 transition-colors hover:bg-lode-300 active:bg-lode-500 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {pending ? "Saving…" : "Save mandate"}
+        {pending ? pendingLabel : submitLabel}
       </button>
     </form>
   );

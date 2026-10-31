@@ -46,9 +46,7 @@ const READS_FOR_A_MODEL: readonly string[] = [
 export default function robots(): MetadataRoute.Robots {
   const disallow = [
     "/deals",
-    "/invest",
     "/portfolio",
-    "/capital",
     "/operator",
     "/account",
     "/sell/",

@@ -33,6 +33,10 @@ const PUBLIC_BY_DESIGN: Readonly<Record<string, string>> = {
   "operator/actions.ts": "Sign-in and sign-out themselves, which cannot require being signed in.",
   "join/actions.ts":
     "Self-service sign-up. Nobody is signed in yet by definition. Rate limited, the role is restricted to the self-service set on the server, and it mints only a least-privilege account.",
+  "invest/preview.ts":
+    "Public mandate preview. Writes nothing and returns only a match COUNT — no address, no seller, no per-deal figure. Rate limited. Saving a Buy Box is the account-gated action in actions.ts.",
+  "capital/preview.ts":
+    "Public mandate preview. Writes nothing and returns only a count of deals fitting the terms. Rate limited. Saving a Funding Box, and being matched, is account- and verification-gated in actions.ts.",
 };
 
 /**

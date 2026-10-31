@@ -11,6 +11,8 @@ import {
   Toggle,
 } from "@/app/components/mandate";
 import { saveBuyBoxAction } from "./actions";
+import { previewBuyBox } from "./preview";
+import Link from "next/link";
 
 const JURISDICTIONS = [
   { value: "GB-ENG", label: "England" },
@@ -37,21 +39,33 @@ const STRUCTURES = ALL_STRUCTURES.map((s) => ({ value: s, label: STRUCTURE_LABEL
  * Editing an existing mandate re-renders this with `box` set; the hidden id is
  * what makes the save an update rather than a duplicate.
  */
-export function BuyBoxForm({ box }: { box?: BuyBox }) {
+export function BuyBoxForm({ box, preview = false }: { box?: BuyBox; preview?: boolean }) {
   const editing = box !== undefined;
 
   return (
     <MandateForm
-      action={saveBuyBoxAction}
-      title={editing ? `Edit ${box.investorName}` : "Add a Buy Box"}
+      action={preview ? previewBuyBox : saveBuyBoxAction}
+      title={preview ? "Try a Buy Box" : editing ? `Edit ${box.investorName}` : "Add a Buy Box"}
       summary={
-        editing
-          ? "Changes take effect immediately, including in the buyer count sellers are shown."
-          : "What this investor will buy. Sellers are told how many mandates their property meets, so these criteria are a statement made to the public."
+        preview
+          ? "Set what you would buy and see how many opportunities match it right now. Saving it and getting alerts takes a free account."
+          : editing
+            ? "Changes take effect immediately, including in the buyer count sellers are shown."
+            : "What this investor will buy. Sellers are told how many mandates their property meets, so these criteria are a statement made to the public."
       }
-      openByDefault={editing}
+      openByDefault={editing || preview}
+      {...(preview ? { submitLabel: "Preview matches", pendingLabel: "Matching…" } : {})}
     >
       {editing && <input type="hidden" name="id" value={box.id} />}
+      {preview && (
+        <p className="rounded-lg border-l-2 border-lode-500/70 bg-surface-2 px-4 py-3 text-[13px] leading-relaxed text-ink-300">
+          This is a preview — nothing is saved.{" "}
+          <Link href="/join?role=investor" className="text-lode-300 underline-offset-2 hover:underline">
+            Create a free account
+          </Link>{" "}
+          to save this Buy Box, see the matches, and get alerted as new ones arrive.
+        </p>
+      )}
 
       <Field label="Investor name">
         <TextInput name="investorName" required defaultValue={box?.investorName} maxLength={120} />

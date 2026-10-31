@@ -42,7 +42,7 @@ const APP = path.join(process.cwd(), "src", "app");
  * a signed-in operator reading a margin is not a financial promotion, and the
  * figures are the point of those pages.
  */
-const GATED = ["deals", "invest", "capital", "account", "portfolio", "operator", "api"];
+const GATED = ["deals", "account", "portfolio", "operator", "api"];
 
 async function publicSources(): Promise<string[]> {
   const out: string[] = [];
