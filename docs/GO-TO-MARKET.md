@@ -208,7 +208,7 @@ The channel is **professional gatekeepers**, not consumers:
 | Probate solicitors | High | Law Society find-a-solicitor, filtered to Birmingham + probate | Free property options report for their client, in 48h |
 | Will writers / STEP members | Medium | STEP UK directory | Same |
 | House clearance firms | High | Google Maps, ~40 in Birmingham | Referral relationship; they see empty properties first |
-| Estate agents (expired listings) | High | Rightmove/Zoopla withdrawn stock, contact agent | "We buy your fall-throughs" |
+| Estate agents (expired listings) | High | Rightmove/Zoopla withdrawn stock, contact agent | "A cash buyer for your fall-throughs" |
 | Auction houses (unsold lots) | Medium | Bond Wolfe, SDL — post-auction unsold list | Direct approach to the vendor via the auctioneer |
 | Letting agents (landlord exits) | High | Local branch visits | Referral fee where lawful |
 

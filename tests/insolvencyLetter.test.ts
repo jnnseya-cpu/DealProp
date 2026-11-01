@@ -39,8 +39,12 @@ describe("the insolvency letter is addressed to the office-holder, never the deb
     expect(letter).toContain("expression of interest, not an offer");
   });
 
-  it("states the purchase carries no fee or commission to the estate", () => {
+  it("states the introduction carries no fee or commission to the estate, and that the buyer pays", () => {
     expect(letter.toLowerCase()).toContain("no fee or commission payable to the estate");
+    // We introduce a cash buyer to the office-holder; we are not the buyer.
+    expect(letter.toLowerCase()).toContain("our fee is paid by the buyer");
+    expect(letter.toLowerCase()).toContain("we do not buy the property ourselves");
+    expect(letter.toLowerCase()).not.toContain("we are the buyer");
   });
 
   it("states the data source, the lawful basis and the ICO registration", () => {

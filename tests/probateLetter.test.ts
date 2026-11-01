@@ -41,9 +41,13 @@ describe("the probate letter carries everything a lawful postal approach needs",
     expect(letter).toContain("ZA232345");
   });
 
-  it("states there is nothing for the estate to pay us", () => {
+  it("states there is nothing for the estate to pay us, and that the buyer pays our fee", () => {
     expect(letter).toContain("nothing for the estate to pay us");
     expect(letter.toLowerCase()).toContain("no commission");
+    // We introduce a cash buyer; we are not the buyer (Lode never owns).
+    expect(letter.toLowerCase()).toContain("our fee is paid by the buyer");
+    expect(letter.toLowerCase()).toContain("we do not buy the property ourselves");
+    expect(letter.toLowerCase()).not.toContain("we are the buyer");
   });
 
   it("steers the reader to independent advice and more than one valuation", () => {

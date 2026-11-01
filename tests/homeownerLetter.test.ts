@@ -32,9 +32,14 @@ describe("the homeowner letter is addressed to the property, holds no name, and 
     expect(letter.toLowerCase()).toContain("speed and certainty");
   });
 
-  it("states that selling to us is free, with no fee or commission", () => {
-    expect(letter.toLowerCase()).toContain("selling to us is free to you");
+  it("states the sale is free to the seller, paid by the buyer, not Lode the buyer", () => {
+    expect(letter.toLowerCase()).toContain("this is free to you");
     expect(letter.toLowerCase()).toContain("no commission and no fee");
+    // The fee is the buyer's, and we introduce a buyer rather than being one.
+    expect(letter.toLowerCase()).toContain("our fee is paid by the buyer");
+    expect(letter.toLowerCase()).toContain("we do not buy the property ourselves");
+    // The old principal-buyer claim must be gone — it was false (we never own).
+    expect(letter.toLowerCase()).not.toContain("we are the buyer");
   });
 
   it("names the sender and gives a one-line opt-out", () => {
