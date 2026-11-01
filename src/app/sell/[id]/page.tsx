@@ -11,6 +11,7 @@ import { countInterestedBuyers } from "@shared/domain/matching";
 import { getJurisdiction, isDealReady } from "@shared/domain/jurisdictions";
 import { gbp, percent } from "@shared/format";
 import { CorrectionForm } from "./CorrectionForm";
+import { ListingSection } from "./ListingSection";
 import { SiteHeader, TradeReferrals } from "@/app/components/chrome";
 import type { DealInputs, PropertyFacts, SellerProfile } from "@shared/domain/types";
 import type { Money } from "@shared/money";
@@ -169,6 +170,19 @@ export default async function SellerOptionsPage({
           <Safeguards flags={protection.flags.filter((f) => f.severity === "caution")} />
         )}
         <Obligations pack={pack} />
+
+        <ListingSection
+          id={record.id}
+          property={property}
+          material={record.material}
+          notice={
+            query.listing === "updated"
+              ? "updated"
+              : query.listing === "needs-detail"
+                ? "needs-detail"
+                : undefined
+          }
+        />
 
         <CorrectionForm id={record.id} property={property} seller={seller} />
       </div>

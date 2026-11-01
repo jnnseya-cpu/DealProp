@@ -10,6 +10,11 @@ import {
   requiredMoney,
 } from "@shared/formFields";
 import { buildIntake, type IntakeAnswers, type PropertyCondition } from "@shared/domain/intake";
+import {
+  itemsFor,
+  type Knowledge,
+  type MaterialRecord,
+} from "@shared/domain/materialInformation";
 import { ConsentNotGiven, recordEnquiryConsent } from "@shared/domain/sellerConsent";
 import type {
   JurisdictionCode,
@@ -486,6 +491,73 @@ export async function correctEnquiry(formData: FormData): Promise<void> {
   });
 
   redirect(`/sell/${id}?updated=1`);
+}
+
+/**
+ * A seller fills in the material information a buyer must be told, with no
+ * account — the self-serve half of getting a property listed.
+ *
+ * The Consumer Protection from Unfair Trading Regulations make Part A
+ * (`materialInformation.ts` §66) a precondition of marketing at all, and that
+ * information is the owner's own knowledge: the tenure, the council-tax band,
+ * the lease terms. So the seller can provide it directly, one item at a time,
+ * through the same capability link that lets them correct their enquiry — the
+ * deal id is the capability, which is why this stays public by design.
+ *
+ * What this deliberately does NOT do is clear the seller's identity, ownership
+ * or AML checks. Those are `sellerDueDiligence.ts` (§67), they are a check Lode
+ * performs rather than a claim the seller makes, and `quoteReveal()` keeps the
+ * listing shut until they are done. A seller cannot verify themselves, and this
+ * never lets them try — it only records the material facts, which is the part
+ * that is genuinely theirs to state.
+ */
+export async function recordSellerMaterial(formData: FormData): Promise<void> {
+  const gate = consume("intake", callerFrom(await nextHeaders()));
+  if (!gate.allowed) redirect("/sell?slow-down=1");
+
+  const id = String(formData.get("id") ?? "");
+  const existing = await getDeal(id);
+  if (existing === undefined) redirect("/sell");
+  const isSellerSubmission = existing.origin?.via === "sell" || existing.id.startsWith("enq-");
+  if (!isSellerSubmission) redirect(`/sell/${id}`);
+  if (existing.status === "funded" || existing.status === "completed" || existing.status === "withdrawn") {
+    redirect(`/sell/${id}?locked=1`);
+  }
+
+  // The item must be one that actually applies to this property — so the form
+  // cannot record a leasehold-only disclosure against a freehold, or an item
+  // that does not exist at all.
+  const key = String(formData.get("key") ?? "").trim();
+  const item = itemsFor(existing.property).find((i) => i.key === key);
+  if (item === undefined) redirect(`/sell/${id}#listing`);
+
+  const state = String(formData.get("state") ?? "").trim();
+  const text = String(formData.get("text") ?? "").trim().slice(0, 600);
+
+  let knowledge: Knowledge;
+  if (state === "stated") {
+    if (text === "") redirect(`/sell/${id}?listing=needs-detail#listing`);
+    knowledge = { state: "stated", value: text };
+  } else if (state === "not-applicable") {
+    if (text === "") redirect(`/sell/${id}?listing=needs-detail#listing`);
+    knowledge = { state: "not-applicable", why: text };
+  } else if (state === "not-known") {
+    // The owner was asked — they are the owner — and does not know. That is a
+    // true "not known", honestly attributed, which is exactly the distinction
+    // §66 draws between "nobody looked" and "we asked and could not find out".
+    knowledge = { state: "not-known", whoWasAsked: "The owner, in their own listing" };
+  } else {
+    redirect(`/sell/${id}#listing`);
+  }
+
+  const material: MaterialRecord = { ...(existing.material ?? {}), [key]: knowledge };
+  await saveDeal({ ...existing, material });
+  await audit("material-information-recorded", {
+    subject: existing.id,
+    detail: `${existing.reference}: ${key} · ${state} · recorded by the seller through the listing form.`,
+  });
+
+  redirect(`/sell/${id}?listing=updated#listing`);
 }
 
 /** Small non-cryptographic hash, used only to make ids unguessable-ish. */
