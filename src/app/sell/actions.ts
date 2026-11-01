@@ -16,6 +16,7 @@ import {
   type MaterialRecord,
 } from "@shared/domain/materialInformation";
 import { ConsentNotGiven, recordEnquiryConsent } from "@shared/domain/sellerConsent";
+import type { ResaleConsent } from "@shared/domain/reseller";
 import type {
   JurisdictionCode,
   PropertyIssue,
@@ -558,6 +559,46 @@ export async function recordSellerMaterial(formData: FormData): Promise<void> {
   });
 
   redirect(`/sell/${id}?listing=updated#listing`);
+}
+
+/**
+ * The owner opts their listing in or out of the reseller network, with no
+ * account.
+ *
+ * Reselling is a partner marketing the owner's property onward for a fee, and
+ * it is the owner's property to instruct on — so it happens only on the owner's
+ * recorded authority, granted here through the same capability link. A general
+ * authority ("vetted partners may market this"), because the owner is opting
+ * into the network rather than naming a firm; `mayResell()` still requires the
+ * reseller's own AML and redress on top. The consent is withdrawable the same
+ * way, and withdrawing it removes the authority rather than flagging it.
+ */
+export async function setResaleConsent(formData: FormData): Promise<void> {
+  const gate = consume("intake", callerFrom(await nextHeaders()));
+  if (!gate.allowed) redirect("/sell?slow-down=1");
+
+  const id = String(formData.get("id") ?? "");
+  const existing = await getDeal(id);
+  if (existing === undefined) redirect("/sell");
+  const isSellerSubmission = existing.origin?.via === "sell" || existing.id.startsWith("enq-");
+  if (!isSellerSubmission) redirect(`/sell/${id}`);
+  if (existing.status === "funded" || existing.status === "completed" || existing.status === "withdrawn") {
+    redirect(`/sell/${id}?locked=1`);
+  }
+
+  const allow = formData.get("allow") === "yes";
+  const grantedBy = existing.seller.contact?.name?.trim() || "The owner";
+  const resaleConsent: ResaleConsent | undefined = allow
+    ? { grantedAt: new Date().toISOString(), grantedBy }
+    : undefined;
+
+  await saveDeal({ ...existing, resaleConsent });
+  await audit("resale-consent-recorded", {
+    subject: existing.id,
+    detail: `${existing.reference}: the owner ${allow ? "authorised" : "withdrew authority for"} vetted partners to market this listing.`,
+  });
+
+  redirect(`/sell/${id}?listing=${allow ? "resale-on" : "resale-off"}#listing`);
 }
 
 /** Small non-cryptographic hash, used only to make ids unguessable-ish. */

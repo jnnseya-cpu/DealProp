@@ -28,6 +28,7 @@ import type { InventoryCategory, InventoryItem, ConfirmedBy } from "@shared/doma
 import type { MaterialRecord } from "@shared/domain/materialInformation";
 import type { SellerDueDiligence } from "@shared/domain/sellerDueDiligence";
 import type { DealOrigin } from "@shared/domain/dealOrigin";
+import type { ResaleConsent } from "@shared/domain/reseller";
 import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { HoldingFacts } from "@shared/domain/portfolio";
 import type { RefundTrigger } from "@shared/domain/reveal";
@@ -116,6 +117,13 @@ export interface DealRecord {
    * it was tracked, where `dealOriginLabel` derives a best-effort answer.
    */
   readonly origin?: DealOrigin;
+  /**
+   * The owner's authority for the marketplace's vetted partners to market this
+   * listing onward (the reseller / sub-agent capability). Absent unless the
+   * owner has opted in through their capability link; `mayResell` refuses
+   * without it, because it is the owner's property to instruct on.
+   */
+  readonly resaleConsent?: ResaleConsent;
   /**
    * Where this opportunity came from, and whether anybody with authority over
    * the property has said it is for sale.
@@ -869,6 +877,7 @@ export type AuditAction =
   | "opportunity-refunded"
   | "passport-evidence-recorded"
   | "material-information-recorded"
+  | "resale-consent-recorded"
   | "seller-checks-recorded"
   | "payout-recipient-recorded"
   | "payout-made"

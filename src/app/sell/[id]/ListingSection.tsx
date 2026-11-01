@@ -1,7 +1,8 @@
 import { materialInformation } from "@shared/domain/materialInformation";
 import type { MaterialRecord } from "@shared/domain/materialInformation";
+import type { ResaleConsent } from "@shared/domain/reseller";
 import type { PropertyFacts } from "@shared/domain/types";
-import { recordSellerMaterial } from "../actions";
+import { recordSellerMaterial, setResaleConsent } from "../actions";
 
 /**
  * The seller's self-serve route to a live listing.
@@ -20,14 +21,17 @@ export function ListingSection({
   id,
   property,
   material,
+  resaleConsent,
   notice,
 }: {
   id: string;
   property: PropertyFacts;
   material: MaterialRecord | undefined;
-  notice?: "updated" | "needs-detail";
+  resaleConsent: ResaleConsent | undefined;
+  notice?: "updated" | "needs-detail" | "resale-on" | "resale-off";
 }) {
   const report = materialInformation(property, material ?? {});
+  const resaleAllowed = resaleConsent !== undefined;
 
   return (
     <section id="listing" className="mt-14 scroll-mt-6">
@@ -49,6 +53,16 @@ export function ListingSection({
       {notice === "needs-detail" && (
         <p className="mt-4 rounded-lg border-l-2 border-amber-500 bg-surface-1 px-5 py-3 text-sm text-ink-200">
           Add the detail for what you were recording, then save it again.
+        </p>
+      )}
+      {notice === "resale-on" && (
+        <p className="mt-4 rounded-lg border-l-2 border-emerald-500 bg-surface-1 px-5 py-3 text-sm text-ink-200">
+          Vetted partners may now help market your property. You can withdraw that at any time below.
+        </p>
+      )}
+      {notice === "resale-off" && (
+        <p className="mt-4 rounded-lg border-l-2 border-ink-500 bg-surface-1 px-5 py-3 text-sm text-ink-200">
+          Partners can no longer market your property. Only Lode will.
         </p>
       )}
 
@@ -127,6 +141,42 @@ export function ListingSection({
             </div>
           </form>
         ))}
+      </div>
+
+      {/* Reseller authority — the owner's to give, and to take back. */}
+      <div className="mt-6 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="eyebrow">Let partners help sell it</p>
+          <span
+            className={`rounded border px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] ${
+              resaleAllowed
+                ? "border-emerald-600/45 bg-emerald-500/10 text-emerald-300"
+                : "border-ink-700 text-ink-500"
+            }`}
+          >
+            {resaleAllowed ? "Allowed" : "Not allowed"}
+          </span>
+        </div>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-400">
+          As well as Lode, you can allow vetted partners — regulated agents — to market your
+          property to their own buyers. You stay in control of the sale and there is nothing extra
+          for you to pay; the partner is paid out of their own arrangement, never by you. You can
+          change this whenever you like.
+        </p>
+        <form action={setResaleConsent} className="mt-4">
+          <input type="hidden" name="id" value={id} />
+          <input type="hidden" name="allow" value={resaleAllowed ? "no" : "yes"} />
+          <button
+            type="submit"
+            className={`inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-medium transition-colors ${
+              resaleAllowed
+                ? "border hairline bg-surface-2 text-ink-200 hover:border-ink-500"
+                : "bg-lode-400 text-ink-950 hover:bg-lode-300 active:bg-lode-500"
+            }`}
+          >
+            {resaleAllowed ? "Withdraw partner access" : "Allow partners to market it"}
+          </button>
+        </form>
       </div>
     </section>
   );

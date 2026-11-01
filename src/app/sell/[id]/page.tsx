@@ -175,12 +175,17 @@ export default async function SellerOptionsPage({
           id={record.id}
           property={property}
           material={record.material}
+          resaleConsent={record.resaleConsent}
           notice={
             query.listing === "updated"
               ? "updated"
               : query.listing === "needs-detail"
                 ? "needs-detail"
-                : undefined
+                : query.listing === "resale-on"
+                  ? "resale-on"
+                  : query.listing === "resale-off"
+                    ? "resale-off"
+                    : undefined
           }
         />
 
