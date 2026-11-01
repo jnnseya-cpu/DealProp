@@ -136,24 +136,41 @@ export default async function FeesPage({ params }: { params: Promise<{ id: strin
         {/* --- the seller's side ----------------------------------------- */}
         <Panel
           className="mt-6"
-          eyebrow="The seller pays once"
-          title="What the seller signed, and who else they are instructed to"
+          eyebrow={agreement !== undefined ? "The seller pays once" : "Selling to us is free"}
+          title={
+            agreement !== undefined
+              ? "What the seller signed, and who else they are instructed to"
+              : "The seller pays nothing on this deal"
+          }
           action={
-            agreement !== undefined && !boundElsewhere ? (
+            agreement === undefined ? (
+              <Badge tone="good">Free to the seller</Badge>
+            ) : !boundElsewhere ? (
               <Badge tone="good">Clear</Badge>
             ) : (
-              <Badge tone="warn">{agreement === undefined ? "Nothing signed" : "Bound elsewhere"}</Badge>
+              <Badge tone="warn">Bound elsewhere</Badge>
             )
           }
         >
-          <p className="text-[13px] leading-[1.65] text-ink-300">
-            The seller pays a percentage of the price achieved, on completion and at no other
-            point. Two things have to be true before it may be raised. They have to have signed
-            for it — a percentage nobody agreed to is not a fee. And they must not still be
-            instructed under sole agency or sole selling rights, where their existing agent is
-            paid on a sale whoever introduced the buyer: charging on top of that makes them pay
-            twice for one completion.
-          </p>
+          {agreement === undefined ? (
+            <p className="text-[13px] leading-[1.65] text-ink-300">
+              This is a sell-to-us deal: the seller takes a cash offer and pays no fee, no
+              commission and nothing to an agent. A seller fee exists on one route only — where the
+              seller instead instructs us to sell their property <em>for</em> them. If that is what
+              they have chosen, record the signed agency terms below and a seller success fee will
+              apply; until then there is nothing for the seller to pay, and no seller line appears
+              against this deal.
+            </p>
+          ) : (
+            <p className="text-[13px] leading-[1.65] text-ink-300">
+              The seller pays a percentage of the price achieved, on completion and at no other
+              point. Two things have to be true before it may be raised. They have to have signed
+              for it — a percentage nobody agreed to is not a fee. And they must not still be
+              instructed under sole agency or sole selling rights, where their existing agent is
+              paid on a sale whoever introduced the buyer: charging on top of that makes them pay
+              twice for one completion.
+            </p>
+          )}
 
           <div className="mt-4 border-t hairline pt-4">
             {agreement !== undefined && (

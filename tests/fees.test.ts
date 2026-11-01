@@ -220,14 +220,34 @@ describe("the seller success fee", () => {
     expect(toMajor(managed)).toBe(2_500);
   });
 
-  it("refuses without a signed agreement", () => {
-    const unsigned = fee("seller-success-fee", context({ sellerAgreement: undefined }));
-    expect(unsigned.chargeable).toBe(false);
-    expect(unsigned.blockers.map((b) => b.reason).join(" ")).toContain("has not signed");
+  it("is not modelled at all on a sell-to-us deal (no agency instruction)", () => {
+    // The seller fee is an agency fee: it exists only where the seller signed to
+    // sell THROUGH us. With no agreement the deal is sell-to-us / cash, the
+    // seller pays nothing, and the line must not appear — a blocked "£x · paid
+    // by the seller" against a seller promised "no agent, no commission, no
+    // fees" is itself a misleading display, not a safe placeholder.
+    const keys = chargeableFees(context({ sellerAgreement: undefined })).map(
+      (f) => f.definition.key,
+    );
+    expect(keys).not.toContain("seller-success-fee");
 
-    // The amount is still quoted, because showing a seller what it would cost
-    // is not charging them.
-    expect(unsigned.amount).toBeGreaterThan(ZERO);
+    // And its amount never lands in the blocked total on such a deal.
+    const position = feePosition(
+      context({ sellerAgreement: undefined, permissionsHeld: [], status: "new", disclosure: undefined }),
+    );
+    expect(position.fees.map((f) => f.definition.key)).not.toContain("seller-success-fee");
+  });
+
+  it("appears, and is then gated as normal, once the seller signs the agency terms", () => {
+    // Signing the agency terms is what turns a free sell-to-us deal into a
+    // sell-through-us one. Now the fee is modelled — and blocked by the usual
+    // disclosure, stage and permission checks until they clear.
+    const signed = fee(
+      "seller-success-fee",
+      context({ status: "new", disclosure: undefined, permissionsHeld: [] }),
+    );
+    expect(signed.chargeable).toBe(false);
+    expect(signed.amount).toBeGreaterThan(ZERO);
   });
 
   it("refuses while the seller is bound to another agent, and says why", () => {

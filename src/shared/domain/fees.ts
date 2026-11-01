@@ -237,6 +237,31 @@ export function feeDefinition(key: FeeKey): FeeDefinition {
 }
 
 /**
+ * Whether a fee is even modelled on this deal — a different question from
+ * whether it may be charged.
+ *
+ * The seller-success-fee is an AGENCY fee: it exists only where the seller has
+ * instructed us to sell their property *for* them, which is exactly what signing
+ * the agency terms records. The other route — selling *to* us for cash — is free
+ * to the seller, and the overwhelming majority of deals (every `/sell` enquiry)
+ * are on it. On those, the seller fee is not modelled at all, rather than
+ * modelled-but-blocked: a blocked "£1,317 · paid by the seller" standing against
+ * a person we promised "no agent, no commission, no fees" is itself the kind of
+ * misleading display the CPRs catch, even though it could never be collected.
+ *
+ * So the presence of a signed `sellerAgreement` is the switch. No agreement →
+ * this is a sell-to-us (or not-yet-agency) deal and the seller pays nothing, so
+ * the line does not appear. An agreement → the seller chose to sell through us,
+ * and the fee is modelled (and then gated by the usual disclosure, stage,
+ * instruction and permission checks). Every other fee is on the buyer or the
+ * lender and applies to any deal.
+ */
+export function feeApplies(definition: FeeDefinition, context: FeeContext): boolean {
+  if (definition.key === "seller-success-fee") return context.sellerAgreement !== undefined;
+  return true;
+}
+
+/**
  * What the site may say to a seller about what they will pay.
  *
  * The footer said "we do not charge sellers" on every page of a platform whose
@@ -476,7 +501,9 @@ export function feeAmount(key: FeeKey, context: FeeAmountContext): Money {
 }
 
 export function chargeableFees(context: FeeContext): readonly ChargeableFee[] {
-  return FEE_DEFINITIONS.map((definition): ChargeableFee => {
+  // Only the fees that apply to this deal at all. A sell-to-us deal carries no
+  // seller fee to model, let alone to block (see `feeApplies`).
+  return FEE_DEFINITIONS.filter((definition) => feeApplies(definition, context)).map((definition): ChargeableFee => {
     const amount = feeAmount(definition.key, context);
     const blockers: FeeBlocker[] = [];
     const alreadyRaised = context.raised.includes(definition.key);
