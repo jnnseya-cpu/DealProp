@@ -82,16 +82,16 @@ Cuts are defined once in `src/shared/domain/pricing.ts` and charged once in
 | T5 | Seller instructs Lode to **sell for them** (agency) | Seller | Seller success fee (0.60%, £1,250–£7,500) | **Built** |
 | T6 | Agent/auctioneer lists & the platform wins them work | Partner | Provider commission (auctioneer 10%) | **Built** |
 | T7 | **Reseller** takes a listed property and sells onward | Reseller + buyer | Reseller commission | **Gap — undefined** |
-| T0 | Any of the above where a side is the **house account** | — | **£0 — we do not charge ourselves** | **Gap — see §5c** |
+| T0 | Any of the above where a side is a **fee-exempt account** (house, or admin-comped) | — | **£0** | **Gap — see §5c** |
 
 **The default route is free to the seller** (T1/T2/T3): the seller sells to a
 cash buyer we introduce and pays nothing — the buyer, lender or flipper is our
 payer. The seller only pays on T5, where they chose to have us sell *for* them.
 
-**The house account pays nothing on any of them** (T0): where Lode's own
-connected account is the buyer, flipper or lister, there is no cut to charge,
-because the payer and the payee are the same party. It also holds no paid
-membership — its plan entitlement is granted, not bought.
+**A fee-exempt account pays nothing on any of them** (T0): a house account (the
+payer and payee are the same party) or an account an admin has comped. No cut,
+and no paid membership — its plan entitlement is granted, not bought. The grant
+and its controls are §5c.
 
 ---
 
@@ -146,44 +146,49 @@ is not negotiable.**
 
 ---
 
-## 5c. The house account — Lode participating in its own market
+## 5c. Fee-exempt accounts — and the house account
 
-An admin may allocate roles to an account and mark it as Lode or a connected
-party (`connectedParty` in `accounts.ts`). That account can **sell, buy and
-flip like any other user, free of every fee and membership.** This is Booking.com
-listing its own property, or Uber Eats running a house kitchen — legitimate, and
-common in a marketplace — but in property it is only legitimate under three
-rules, which are compliance requirements, not options:
+An admin can make an account **fee-free**: it sells, buys and flips like anyone
+else but pays no cut and no membership. There are two cases, and they carry
+different rules. Both still compete **at the same level** — a fee-exempt account
+passes **every gate in §4** like everyone (identity- and funds-checked before it
+can reach a seller, closed-shape card until reveal, no seller data as a buyer per
+§16). Its *only* privilege is price: no earlier sight of a deal, no queue-jump,
+no data edge. An account that could see what others cannot is self-preferencing,
+and that is the abuse these rules exist to prevent.
 
-1. **It competes at the same level — one privilege only: price.** The house
-   account passes **every gate in §4** like anyone else: it is identity- and
-   funds-checked before it can reach a seller as a buyer, it sees only the
-   closed-shape card until it clears reveal, and as a buyer it **never** gets
-   seller confidential data (investors/funders hold no `view-seller-data`, §16 —
-   and a connected buyer is still a buyer). Its *only* advantage over a real user
-   is that it pays £0. No earlier sight of a deal, no queue-jump, no data edge.
-   A house account that could see what others cannot is self-preferencing, and
-   that is the abuse this rule exists to prevent.
+### The grant itself (both cases)
+Fee-exemption is an **admin-only, evidenced grant** — never self-service, never a
+bare boolean. It records who granted it, when, why, and optionally an expiry, is
+written to the append-only audit trail (the shape of a manual money movement,
+§32), and is revocable. It is a real economic privilege — a fee-free buyer keeps
+what a paying buyer hands Lode as a cut, so in a competitive bid it can net more —
+so it is deliberate, bounded and recorded, not a quiet switch.
 
-2. **Its participation is always disclosed.** Wherever the house account takes
-   part in a deal facing a seller, the seller is told they are dealing with the
-   house, not an independent party — `CONNECTED_PARTY_DISCLOSURE` already carries
-   the exact words, and it is a CPR/fair-dealing requirement. Never settable at
-   self-service sign-up; only an admin marks an account connected.
+### Case A — an ordinary third party, comped
+A genuinely independent account the admin chooses not to charge (a launch
+partner, a VIP). The seller is **not** dealing with the house, so there is **no
+connected-party disclosure** — the buyer is independent and only Lode's own
+economics change. The controls that matter are internal: the audited grant above
+and the same-level fairness rule.
 
-3. **It is counted honestly.** A house buy-mandate must not inflate the public
-   "verified buyers" supply figures a seller reads (§59, `supply.ts`). Either it
-   is excluded from those counts or it is shown as the house — never passed off
-   as independent demand.
+### Case B — the house account (Lode or a connected party)
+The admin also marks it `connectedParty`. Everything in Case A applies, **plus**:
 
-**What is built:** the `connectedParty` flag, the disclosure, admin role
-allocation, and the gates it must pass. **What is the gap:** the fee exemption
-itself and the free membership — today a connected party is still priced like a
-customer. The clean derivation (no new flag, no stored `isFree`): a
-connected-party payer resolves to a £0 charge in `charging.ts`/`fees.ts`, and to
-full plan entitlement in `entitlements.ts` — both *derived* from
-`isConnectedParty()`, the same way entitlement is already derived rather than
-stored (§26). And `supply.ts` must learn to exclude or label house mandates.
+1. **Always disclosed to the seller.** Wherever it faces a seller, the seller is
+   told they are dealing with the house, not an independent party
+   (`CONNECTED_PARTY_DISCLOSURE`). This is the difference from Case A.
+2. **Counted honestly.** A house buy-mandate must not inflate the public
+   "verified buyers" figure a seller reads (§59, `supply.ts`) — excluded, or
+   shown as the house.
+
+**What is built:** the `connectedParty` flag and its disclosure, admin role
+allocation, and the gates every fee-exempt account must still pass. **The gap:**
+the fee-exemption grant itself (an evidenced, audited, admin-only, revocable
+field on the account), and the derivation — a fee-exempt payer, whether by grant
+or by `isConnectedParty()`, resolves to a £0 charge in `charging.ts`/`fees.ts`
+and full entitlement in `entitlements.ts`, derived not stored (§26) — plus
+`supply.ts` labelling or excluding house mandates.
 
 ---
 
@@ -208,10 +213,12 @@ stored (§26). And `supply.ts` must learn to exclude or label house mandates.
    reply into a consented, verifiable listing — reusing the `/sell` path, not a
    parallel one.
 
-5. **House-account fee exemption + free membership (§5c).** A connected-party
-   payer derives to a £0 charge and full entitlement, and `supply.ts` excludes
-   or labels house mandates. Derived from the existing `connectedParty` flag —
-   no new stored status, and the disclosure/gates are already built.
+5. **Fee-exemption (§5c).** An admin-only, evidenced, audited, revocable grant
+   (who/when/why/expiry) that **any** account may receive; a fee-exempt payer —
+   by grant or by `isConnectedParty()` — derives to a £0 charge and full
+   entitlement. For the house case, `supply.ts` also labels/excludes its
+   mandates. The `connectedParty` flag, disclosure and gates already exist; the
+   grant and the derivation are new.
 
 ---
 
@@ -222,10 +229,10 @@ before the money:
 
 1. **Self-serve listing path** (gap #1) — the foundation; nothing else is a real
    marketplace without it.
-2. **House-account fee exemption + free membership** (gap #5) — small and
-   self-contained: derive £0 charge and full entitlement from `connectedParty`,
-   and label/exclude house mandates in `supply.ts`. The disclosure and gates
-   already exist, so this is the cleanest early win.
+2. **Fee-exemption** (gap #5) — an admin-only, evidenced, audited grant any
+   account may hold; a fee-exempt payer (by grant or `connectedParty`) derives to
+   £0 and full entitlement; house mandates labelled/excluded in `supply.ts`.
+   Self-contained, and the disclosure/gates already exist.
 3. **Reseller commission in `pricing.ts`** (gap #3) — small, unblocks the role.
 4. **Reseller / sub-agent capability** (gap #2) — authority + own AML/redress +
    closed-shape-only, built on the reveal and fee machinery that already exists.
@@ -246,5 +253,6 @@ No cut is wired before its gate.
 - Pricing lives only in `pricing.ts`; the audit trail stays append-only; seller
   data stays encrypted and behind `view-seller-data`.
 - The §12 prohibitions register and the boundary/authorisation tests still hold.
-- The house account's only privilege is price. It never gets a data, timing or
-  queue advantage, and its participation is always disclosed to the seller.
+- A fee-exempt account's only privilege is price — never a data, timing or queue
+  advantage. The grant is admin-only and audited. The house account's
+  participation is additionally always disclosed to the seller.
