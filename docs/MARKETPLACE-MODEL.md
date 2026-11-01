@@ -182,17 +182,17 @@ The admin also marks it `connectedParty`. Everything in Case A applies, **plus**
    "verified buyers" figure a seller reads (§59, `supply.ts`) — excluded, or
    shown as the house.
 
-**What is built:** the `connectedParty` flag and its disclosure, admin role
-allocation, and the gates every fee-exempt account must still pass. **The gap:**
-the fee-exemption grant itself (an evidenced, audited, admin-only, revocable
-field on the account), and the derivation — a fee-exempt payer, whether by grant
-or by `isConnectedParty()`, resolves to a £0 charge in `charging.ts`/`fees.ts`
-and full entitlement in `entitlements.ts`, derived not stored (§26) — plus
-`supply.ts` labelling or excluding house mandates.
+**✅ Built.** `FeeExemption` + `isFeeExempt()` in `accounts.ts` (connected party
+OR a current admin grant), derived not stored (§26). A fee-exempt account
+derives the full entitlement free (`backend/billing/entitlement.ts`) and opens
+opportunities for £0 (`backend/billing/reveal.ts`); `publicBuyBoxes()` leaves the
+house out of the seller-facing "verified buyers" count. The grant is admin-only,
+reasoned, optionally time-boxed, audited and revocable (`setFeeExemption`,
+`FeeExemptionForm`). The disclosure and the same-level gates are unchanged.
 
 ---
 
-## 6. The gaps — four now closed, one open
+## 6. The gaps — all closed
 
 1. **Self-serve listing path (5a). ✅ Built.** A seller provides the material
    information (§66) themselves through their capability link
@@ -205,9 +205,10 @@ and full entitlement in `entitlements.ts`, derived not stored (§26) — plus
    refuses unless the owner has authorised it (`ResaleConsent`, set by the owner
    on `sell/[id]`) **and** the reseller holds their own verified AML + redress
    (reusing `sourcerComplianceProblem`); it takes and returns no seller data, so
-   a reseller works from the closed-shape card. *Follow-up:* the reseller's
-   acting surface (browsing consented listings, managing their buyer) and wiring
-   the 20% into the per-deal invoice engine.
+   a reseller works from the closed-shape card. A reseller takes a consented
+   listing on from the opportunity page (`takeOnListingAction`, `ResellerPanel`),
+   and Lode's 20% is a computed, gated per-deal cut (`resellerInvoice`) shown on
+   the Fees page.
 
 3. **Reseller commission (T7, money). ✅ Built.** `resellerCommission` / 20% of
    the reseller's fee in `pricing.ts`, pinned by test.
@@ -218,32 +219,28 @@ and full entitlement in `entitlements.ts`, derived not stored (§26) — plus
    agent confirmation on a cold lead is refused. Reuses the confirmation
    machinery, not a parallel path.
 
-5. **Fee-exemption (§5c). ⬜ Open.** An admin-only, evidenced, audited, revocable grant
-   (who/when/why/expiry) that **any** account may receive; a fee-exempt payer —
-   by grant or by `isConnectedParty()` — derives to a £0 charge and full
-   entitlement. For the house case, `supply.ts` also labels/excludes its
-   mandates. The `connectedParty` flag, disclosure and gates already exist; the
-   grant and the derivation are new.
+5. **Fee-exemption (§5c). ✅ Built.** An admin-only, evidenced, audited, revocable
+   grant (who/when/why/expiry) that **any** account may receive; a fee-exempt
+   account — by grant or `isConnectedParty()` — derives the full entitlement free
+   and opens opportunities for £0, and `publicBuyBoxes()` leaves the house out of
+   the seller-facing buyer count. See §5c.
 
 ---
 
-## 7. Build order — status
+## 7. Build order — complete
 
-Gaps #1–#4 are done (closed in that dependency order, each shipped with tests
-and the gates wired before the money). What remains:
+Every gap is built, in dependency order, each shipped with tests and its gate
+wired before the money: self-serve listing → reseller commission → reseller
+capability → consent bridge → fee-exemption → reseller acting surface + cut.
 
-- **Fee-exemption** (gap #5) — an admin-only, evidenced, audited grant any
-  account may hold; a fee-exempt payer (by grant or `connectedParty`) derives to
-  £0 and full entitlement; house mandates labelled/excluded in `supply.ts`.
-  Self-contained, and the disclosure/gates already exist.
-- **Reseller acting surface** (follow-up to #2) — the reseller browsing
-  consented listings and managing their buyer, and the 20% as a per-deal invoice
-  line in `fees.ts` (a new FeeKey with payer "reseller"), once the reseller's
-  end-to-end transaction is modelled.
+The pattern held throughout: UI → validation → server action (self-authorising)
+→ domain logic → store → the cut in `fees.ts`/`pricing.ts` → tests → verify the
+route renders. No cut was wired before its gate.
 
-Each step: UI → validation → server action (self-authorising) → domain logic →
-store → the cut in `fees.ts`/`pricing.ts` → tests → verify the route renders.
-No cut is wired before its gate.
+One honest boundary remains by design, not omission: seller identity and
+ownership (§67) stay a Lode check — a seller cannot clear their own AML — so a
+self-served listing still waits on that check and Lode's permissions before it
+goes live. That is the law, not a gap.
 
 ---
 
