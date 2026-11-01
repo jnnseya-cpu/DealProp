@@ -750,6 +750,41 @@ export function assignmentMarginFeeHeadline(): string {
   );
 }
 
+/* ---------------------------------- the reseller / sub-agent commission */
+
+/**
+ * What a reseller pays Lode for selling a property Lode listed.
+ *
+ * A reseller takes a property already on the marketplace and markets it onward
+ * to their own buyer for their own fee. They did not source the deal — Lode's
+ * listing is the supply they are monetising — so Lode takes a share of the fee
+ * they earn on it. It is the same principle as the assignment margin: a cut of
+ * the intermediary's PROFIT, never of the property price, because the buyer's
+ * money for the property itself is not ours to take a percentage of.
+ *
+ * The share is deliberately a little above the assignment margin's 15%: a
+ * flipper who assigns sourced a deal and carried the lock-in risk, whereas a
+ * reseller is handed a finished listing and only has to find a buyer, so Lode's
+ * contribution to the outcome — and therefore its share — is larger. It sits
+ * below the regulated-introducer rates. Due on completion of the onward sale,
+ * the stage the reseller's fee is received. One number, here and nowhere else.
+ */
+export const RESELLER_COMMISSION_BPS: Bps = pct(20);
+
+/** The cut on a reseller's fee. Zero where the reseller earns nothing. */
+export function resellerCommission(resellerFee: Money): Money {
+  if (resellerFee <= 0) return ZERO;
+  return applyBps(resellerFee, RESELLER_COMMISSION_BPS);
+}
+
+/** The reseller's headline, stated from the rate so no page restates it. */
+export function resellerCommissionHeadline(): string {
+  return (
+    `${percent(RESELLER_COMMISSION_BPS, 0)} of your own fee on the onward sale — ` +
+    `a share of what you earn, never of the property price — due on completion`
+  );
+}
+
 export function successFeeBand(service: SellerService): SuccessFeeBand {
   const found = SUCCESS_FEE_BANDS.find((b) => b.service === service);
   if (found === undefined) throw new Error(`No success fee band for "${service}".`);

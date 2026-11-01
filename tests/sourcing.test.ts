@@ -13,6 +13,9 @@ import {
   assignmentMarginFee,
   ASSIGNMENT_MARGIN_FEE_BPS,
   assignmentMarginFeeHeadline,
+  resellerCommission,
+  RESELLER_COMMISSION_BPS,
+  resellerCommissionHeadline,
   sourcingFee,
   sourcingFeeBand,
   SOURCING_FEE_BANDS,
@@ -246,5 +249,34 @@ describe("the assignment margin fee", () => {
     expect(headline).toMatch(/15%/);
     expect(headline).toMatch(/margin/);
     expect(headline).toMatch(/completion/);
+  });
+});
+
+describe("the reseller commission", () => {
+  it("takes a share of the reseller's fee, not of the price", () => {
+    // A reseller earns a £8,000 fee on the onward sale: Lode takes 20% of that
+    // £8,000, never a percentage of the sale price itself.
+    expect(RESELLER_COMMISSION_BPS).toBe(pct(20));
+    expect(toMajor(resellerCommission(fromMajor(8_000)))).toBe(1_600);
+  });
+
+  it("is above the assignment margin, because the reseller sourced nothing", () => {
+    // The reseller monetises Lode's listing without carrying the sourcing or
+    // the lock-in, so Lode's share is larger than the flipper's assignment cut.
+    expect(RESELLER_COMMISSION_BPS).toBeGreaterThan(ASSIGNMENT_MARGIN_FEE_BPS);
+  });
+
+  it("is zero where the reseller earns nothing", () => {
+    expect(resellerCommission(ZERO)).toBe(ZERO);
+    expect(resellerCommission(neg(fromMajor(2_000)))).toBe(ZERO);
+  });
+
+  it("states its rate from the constant, on the fee, due on completion", () => {
+    const headline = resellerCommissionHeadline();
+    expect(headline).toMatch(/20%/);
+    expect(headline).toMatch(/fee/);
+    expect(headline).toMatch(/completion/);
+    // It must never imply a cut of the whole price.
+    expect(headline).toMatch(/never of the property price/);
   });
 });
