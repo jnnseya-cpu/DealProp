@@ -7,7 +7,10 @@ import { quoteRevealForDeal } from "@backend/billing/reveal";
 import { listDealImages } from "@backend/store/repository";
 import { gbp, titleCase } from "@shared/format";
 import { REVEAL_GUARANTEE, SELLER_RESPONSE_DAYS } from "@shared/domain/reveal";
+import { mayResell } from "@shared/domain/reseller";
+import { toMajor } from "@shared/money";
 import { OpenForm, RefundForm } from "./Forms";
+import { ResellerPanel } from "./ResellerPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +41,18 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
 
   const { card, quote, opened, passport, score, material } = offer;
   const photos = await listDealImages(id);
+
+  // Reselling: shown only where the owner has opened the listing to partners.
+  // Works from the closed card alone — no seller data. A reseller who holds
+  // verified AML + redress may take it on; one who does not sees why not.
+  const record = offer.record;
+  const resellOpen = !isGuest && record.resaleConsent !== undefined;
+  const resellDecision =
+    account !== undefined
+      ? mayResell({ compliance: account.sourcerCompliance, resaleConsent: record.resaleConsent })
+      : undefined;
+  const resale = record.resale;
+  const resaleMine = resale !== undefined && account !== undefined && resale.resellerAccountId === account.id;
 
   return (
     <main className="min-h-screen pb-24">
@@ -358,6 +373,17 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
             ))}
           </ul>
         </Panel>
+
+        {resellOpen && resellDecision !== undefined && (
+          <ResellerPanel
+            dealId={id}
+            allowed={resellDecision.allowed}
+            reason={resellDecision.reason}
+            terms={resellDecision.terms}
+            takenByOther={resale !== undefined && !resaleMine}
+            {...(resaleMine && resale !== undefined ? { mine: toMajor(resale.feeAgreed) } : {})}
+          />
+        )}
       </div>
       <SiteFooter />
     </main>

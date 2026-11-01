@@ -1,6 +1,9 @@
 import type { SourcerCompliance } from "@shared/domain/accounts";
 import { sourcerComplianceProblem } from "@shared/domain/fees";
-import { resellerCommissionHeadline } from "@shared/domain/pricing";
+import { resellerCommission, resellerCommissionHeadline } from "@shared/domain/pricing";
+import { permissionDefinition, type PermissionKey } from "@shared/domain/permissions";
+import type { DealStatus } from "@shared/domain/types";
+import { type Money } from "@shared/money";
 
 /**
  * Who may resell a property, and on what terms.
@@ -87,5 +90,74 @@ export function mayResell(input: {
     reason: `You may market this listing. Lode's cut is ${terms}.`,
     blockers: [],
     terms,
+  };
+}
+
+/**
+ * A reseller's engagement on a listing, recorded once they take it on.
+ *
+ * The reseller agrees their own fee on the onward sale; Lode's cut is a share
+ * of that, never of the property price. Recorded on the deal so the cut can be
+ * computed and invoiced on completion.
+ */
+export interface ResaleArrangement {
+  readonly resellerAccountId: string;
+  readonly resellerName: string;
+  /** The reseller's own fee on the onward sale — the base Lode takes a share of. */
+  readonly feeAgreed: Money;
+  readonly engagedAt: string;
+}
+
+/** Lode's cut needs its own supervision, like every other introduction fee. */
+const RESELLER_FEE_PERMISSIONS: readonly PermissionKey[] = ["estate-agency-aml"];
+
+export interface ResellerInvoice {
+  /** Lode's cut — a share of the reseller's fee. */
+  readonly amount: Money;
+  /** True where it may be invoiced now. */
+  readonly chargeable: boolean;
+  /** Everything in the way, worst first. Empty when chargeable. */
+  readonly blockers: readonly string[];
+  readonly terms: string;
+}
+
+/**
+ * Lode's cut on a reseller's completed onward sale, and whether it may be
+ * raised yet.
+ *
+ * The same shape as the fee engine's other cuts: a permission Lode must hold,
+ * a stage the money is due at (completion, never earlier), and once-only. The
+ * amount is `resellerCommission` of the reseller's agreed fee.
+ */
+export function resellerInvoice(input: {
+  readonly arrangement: ResaleArrangement;
+  readonly permissionsHeld: readonly PermissionKey[];
+  readonly status: DealStatus;
+  readonly alreadyRaised?: boolean;
+}): ResellerInvoice {
+  const amount = resellerCommission(input.arrangement.feeAgreed);
+  const blockers: string[] = [];
+
+  for (const key of RESELLER_FEE_PERMISSIONS) {
+    if (input.permissionsHeld.includes(key)) continue;
+    const permission = permissionDefinition(key);
+    blockers.push(
+      `${permission.label} is not recorded as held. Obtain it from ${permission.regulator} and record the ${permission.evidenceLabel.toLowerCase()}.`,
+    );
+  }
+  if (input.status !== "completed") {
+    blockers.push(
+      `The onward sale has not completed (the deal is "${input.status}"). The cut is due on completion and at no earlier point.`,
+    );
+  }
+  if (input.alreadyRaised === true) {
+    blockers.push("It has already been raised against this deal.");
+  }
+
+  return {
+    amount,
+    chargeable: blockers.length === 0,
+    blockers,
+    terms: resellerCommissionHeadline(),
   };
 }

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { mayResell, type ResaleConsent } from "@shared/domain/reseller";
+import {
+  mayResell,
+  resellerInvoice,
+  type ResaleArrangement,
+  type ResaleConsent,
+} from "@shared/domain/reseller";
 import type { SourcerCompliance } from "@shared/domain/accounts";
+import type { PermissionKey } from "@shared/domain/permissions";
+import { fromMajor, toMajor } from "@shared/money";
 
 /**
  * The reseller / sub-agent capability.
@@ -62,5 +69,42 @@ describe("who may resell", () => {
     const decision = mayResell({ compliance: undefined, resaleConsent: undefined, now: NOW });
     expect(decision.allowed).toBe(false);
     expect(decision.blockers).toHaveLength(2);
+  });
+});
+
+describe("the reseller's cut", () => {
+  const arrangement: ResaleArrangement = {
+    resellerAccountId: "acc-1",
+    resellerName: "A. Okafor",
+    feeAgreed: fromMajor(8_000),
+    engagedAt: "2026-05-01T00:00:00.000Z",
+  };
+  const AML: readonly PermissionKey[] = ["estate-agency-aml"];
+
+  it("is 20% of the reseller's fee, due on a completed sale", () => {
+    const invoice = resellerInvoice({ arrangement, permissionsHeld: AML, status: "completed" });
+    expect(invoice.chargeable).toBe(true);
+    expect(toMajor(invoice.amount)).toBe(1_600);
+    expect(invoice.terms).toMatch(/20%/);
+  });
+
+  it("is blocked without Lode's estate-agency supervision", () => {
+    const invoice = resellerInvoice({ arrangement, permissionsHeld: [], status: "completed" });
+    expect(invoice.chargeable).toBe(false);
+    expect(invoice.blockers.join(" ")).toContain("Estate agency");
+    // The amount is still computed — blocked is not zero, it is unraisable.
+    expect(toMajor(invoice.amount)).toBe(1_600);
+  });
+
+  it("is not due before the onward sale completes", () => {
+    for (const status of ["new", "qualified", "in-market", "funded"] as const) {
+      expect(resellerInvoice({ arrangement, permissionsHeld: AML, status }).chargeable, status).toBe(false);
+    }
+  });
+
+  it("refuses once already raised", () => {
+    const invoice = resellerInvoice({ arrangement, permissionsHeld: AML, status: "completed", alreadyRaised: true });
+    expect(invoice.chargeable).toBe(false);
+    expect(invoice.blockers.join(" ")).toContain("already been raised");
   });
 });

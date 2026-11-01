@@ -1,9 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requirePermission, viewerAccount } from "@/app/operator/guard";
+import { currentViewer, requirePermission, viewerAccount } from "@/app/operator/guard";
 import { claimRevealRefund, openOpportunity } from "@backend/billing/reveal";
 import { REFUND_REASONS, type RefundTrigger } from "@shared/domain/reveal";
+import { mayResell, type ResaleArrangement } from "@shared/domain/reseller";
+import { optionalMoney } from "@shared/formFields";
+import { ZERO } from "@shared/money";
+import { getDeal, saveDeal } from "@backend/store/repository";
+import { audit } from "@backend/audit";
 
 /**
  * Opening an opportunity, and claiming the fee back.
@@ -69,4 +74,56 @@ export async function claimRefundAction(
   );
   if (result.ok) revalidatePath(`/opportunities/${dealId}`);
   return result;
+}
+
+/**
+ * A reseller takes on a listing they may market.
+ *
+ * Gated by `mayResell`: the owner must have authorised reselling and the
+ * reseller must hold their own verified AML + redress. Records the reseller's
+ * agreed fee on the deal (Lode's cut is a share of it), seeing only the
+ * closed-shape card — this action never reads seller data. It is its own POST
+ * endpoint and decides for itself who is asking (`currentViewer`), so it does
+ * not borrow the buyer's `view-deal-material` gate, which a reseller need not
+ * hold.
+ */
+export async function takeOnListingAction(
+  _previous: OpenResult | undefined,
+  formData: FormData,
+): Promise<OpenResult> {
+  const dealId = String(formData.get("dealId") ?? "").trim();
+  const viewer = await currentViewer();
+  const account = viewer !== undefined ? viewerAccount(viewer) : undefined;
+  if (account === undefined) {
+    return { ok: false, message: "Taking on a listing is done by a named account. Sign in with one." };
+  }
+
+  const record = await getDeal(dealId);
+  if (record === undefined) return { ok: false, message: "No such opportunity." };
+
+  const decision = mayResell({
+    compliance: account.sourcerCompliance,
+    resaleConsent: record.resaleConsent,
+  });
+  if (!decision.allowed) return { ok: false, message: decision.reason };
+
+  const feeAgreed = optionalMoney(formData.get("feeAgreed"));
+  if (feeAgreed === undefined || feeAgreed <= ZERO) {
+    return { ok: false, message: "State the fee you will charge on the onward sale — Lode's cut is a share of it." };
+  }
+
+  const arrangement: ResaleArrangement = {
+    resellerAccountId: account.id,
+    resellerName: account.name,
+    feeAgreed,
+    engagedAt: new Date().toISOString(),
+  };
+  await saveDeal({ ...record, resale: arrangement });
+  await audit("mandate-saved", {
+    account,
+    subject: dealId,
+    detail: `${record.reference}: ${account.name} took on the listing to resell, fee agreed ${feeAgreed} pence.`,
+  });
+  revalidatePath(`/opportunities/${dealId}`);
+  return { ok: true, message: "You have taken this on. Lode's cut is due on completion of the onward sale." };
 }

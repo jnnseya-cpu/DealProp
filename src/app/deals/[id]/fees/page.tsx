@@ -17,6 +17,7 @@ import {
 } from "./Forms";
 import { bindsSellerElsewhere } from "@shared/domain/fees";
 import { successFeeBand } from "@shared/domain/pricing";
+import { resellerInvoice } from "@shared/domain/reseller";
 
 export const dynamic = "force-dynamic";
 
@@ -265,6 +266,36 @@ export default async function FeesPage({ params }: { params: Promise<{ id: strin
             </article>
           ))}
         </div>
+
+        {/* --- the reseller's cut, where a partner took the listing on ----- */}
+        {record.resale !== undefined && (() => {
+          const invoice = resellerInvoice({
+            arrangement: record.resale,
+            permissionsHeld: permissions.held.map((h) => h.key),
+            status: record.status,
+          });
+          return (
+            <Panel
+              className="mt-8"
+              eyebrow="Reseller"
+              title="A partner is marketing this listing"
+              action={<Badge tone={invoice.chargeable ? "good" : "warn"}>{gbp(invoice.amount)}</Badge>}
+            >
+              <p className="text-[13px] leading-[1.65] text-ink-300">
+                {record.resale.resellerName} took this on, with a fee of {gbp(record.resale.feeAgreed)}{" "}
+                on the onward sale. Lode&rsquo;s cut is a share of that fee — {gbp(invoice.amount)} —
+                never of the property price, due on completion.
+              </p>
+              {!invoice.chargeable && (
+                <ul className="mt-3.5 space-y-2.5 border-t hairline pt-3.5">
+                  {invoice.blockers.map((b) => (
+                    <li key={b} className="text-[13px] leading-[1.6] text-ink-400">{b}</li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+          );
+        })()}
 
         {/* --- what has been raised --------------------------------------- */}
         {raised.length > 0 && (

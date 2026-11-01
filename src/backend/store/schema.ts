@@ -28,7 +28,7 @@ import type { InventoryCategory, InventoryItem, ConfirmedBy } from "@shared/doma
 import type { MaterialRecord } from "@shared/domain/materialInformation";
 import type { SellerDueDiligence } from "@shared/domain/sellerDueDiligence";
 import type { DealOrigin } from "@shared/domain/dealOrigin";
-import type { ResaleConsent } from "@shared/domain/reseller";
+import type { ResaleArrangement, ResaleConsent } from "@shared/domain/reseller";
 import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { HoldingFacts } from "@shared/domain/portfolio";
 import type { RefundTrigger } from "@shared/domain/reveal";
@@ -124,6 +124,12 @@ export interface DealRecord {
    * without it, because it is the owner's property to instruct on.
    */
   readonly resaleConsent?: ResaleConsent;
+  /**
+   * A reseller's engagement on this listing, once they take it on under the
+   * owner's authority. Carries the reseller's agreed fee, which Lode's cut
+   * (`resellerInvoice`) is a share of. Absent until a reseller engages.
+   */
+  readonly resale?: ResaleArrangement;
   /**
    * Where this opportunity came from, and whether anybody with authority over
    * the property has said it is for sale.
