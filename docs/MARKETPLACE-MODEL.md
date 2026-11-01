@@ -192,28 +192,33 @@ and full entitlement in `entitlements.ts`, derived not stored (§26) — plus
 
 ---
 
-## 6. What is genuinely new (the gaps)
+## 6. The gaps — four now closed, one open
 
-1. **Self-serve listing path (5a).** A seller takes their own property all the
-   way to a live listing: attest material information, confirm/verify ownership,
-   auto-list when clear. Foundation for everything else. *Chosen as the likely
-   first build.*
+1. **Self-serve listing path (5a). ✅ Built.** A seller provides the material
+   information (§66) themselves through their capability link
+   (`recordSellerMaterial`, `sell/[id]/ListingSection.tsx`). The honest half:
+   identity and ownership (§67) stay a Lode check — a seller cannot clear their
+   own AML — so the listing goes live only once that check and Lode's permissions
+   are also in place. `quoteReveal` enforces the rest unchanged.
 
-2. **Reseller / sub-agent (T7, role).** Let a user take a *listed* property and
-   market it onward for a cut. The legally heaviest piece:
-   - they act as an estate agent → need their **own** AML + redress;
-   - they need the **original owner's authority** to re-market;
-   - they may see **only the closed-shape card**, never the seller's
-     confidential data;
-   - a new commission in `pricing.ts`, gated like the flipper's 15%.
+2. **Reseller / sub-agent (T7, role). ✅ Core built.** `reseller.ts` `mayResell`
+   refuses unless the owner has authorised it (`ResaleConsent`, set by the owner
+   on `sell/[id]`) **and** the reseller holds their own verified AML + redress
+   (reusing `sourcerComplianceProblem`); it takes and returns no seller data, so
+   a reseller works from the closed-shape card. *Follow-up:* the reseller's
+   acting surface (browsing consented listings, managing their buyer) and wiring
+   the 20% into the per-deal invoice engine.
 
-3. **Reseller commission (T7, money).** Define and pin it, with its own test.
+3. **Reseller commission (T7, money). ✅ Built.** `resellerCommission` / 20% of
+   the reseller's fee in `pricing.ts`, pinned by test.
 
-4. **Consent bridge (5b → 5a).** The mechanism that turns a positive letter
-   reply into a consented, verifiable listing — reusing the `/sell` path, not a
-   parallel one.
+4. **Consent bridge (5b → 5a). ✅ Built.** `outreachConsent.ts`
+   `awaitingOwnerConsent` makes the §5b state explicit; a sourced lead is listed
+   only on the owner's reply recorded as an owner confirmation, and an
+   agent confirmation on a cold lead is refused. Reuses the confirmation
+   machinery, not a parallel path.
 
-5. **Fee-exemption (§5c).** An admin-only, evidenced, audited, revocable grant
+5. **Fee-exemption (§5c). ⬜ Open.** An admin-only, evidenced, audited, revocable grant
    (who/when/why/expiry) that **any** account may receive; a fee-exempt payer —
    by grant or by `isConnectedParty()` — derives to a £0 charge and full
    entitlement. For the house case, `supply.ts` also labels/excludes its
@@ -222,21 +227,19 @@ and full entitlement in `entitlements.ts`, derived not stored (§26) — plus
 
 ---
 
-## 7. Proposed build order
+## 7. Build order — status
 
-Dependency-first, each shippable on its own, each with tests and the gates wired
-before the money:
+Gaps #1–#4 are done (closed in that dependency order, each shipped with tests
+and the gates wired before the money). What remains:
 
-1. **Self-serve listing path** (gap #1) — the foundation; nothing else is a real
-   marketplace without it.
-2. **Fee-exemption** (gap #5) — an admin-only, evidenced, audited grant any
-   account may hold; a fee-exempt payer (by grant or `connectedParty`) derives to
-   £0 and full entitlement; house mandates labelled/excluded in `supply.ts`.
-   Self-contained, and the disclosure/gates already exist.
-3. **Reseller commission in `pricing.ts`** (gap #3) — small, unblocks the role.
-4. **Reseller / sub-agent capability** (gap #2) — authority + own AML/redress +
-   closed-shape-only, built on the reveal and fee machinery that already exists.
-5. **Consent bridge** (gap #4) — connect the outreach reply to the listing path.
+- **Fee-exemption** (gap #5) — an admin-only, evidenced, audited grant any
+  account may hold; a fee-exempt payer (by grant or `connectedParty`) derives to
+  £0 and full entitlement; house mandates labelled/excluded in `supply.ts`.
+  Self-contained, and the disclosure/gates already exist.
+- **Reseller acting surface** (follow-up to #2) — the reseller browsing
+  consented listings and managing their buyer, and the 20% as a per-deal invoice
+  line in `fees.ts` (a new FeeKey with payer "reseller"), once the reseller's
+  end-to-end transaction is modelled.
 
 Each step: UI → validation → server action (self-authorising) → domain logic →
 store → the cut in `fees.ts`/`pricing.ts` → tests → verify the route renders.
