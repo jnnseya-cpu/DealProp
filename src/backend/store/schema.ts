@@ -630,8 +630,15 @@ export interface StoredImportedListing {
 export interface DealFee {
   readonly id: string;
   readonly dealId: string;
-  readonly feeKey: FeeKey;
-  readonly payer: FeePayer;
+  /**
+   * The fee. The engine's own keys, plus `reseller-commission` — Lode's cut of
+   * a reseller's fee, which is computed by `resellerInvoice` rather than the
+   * `FEE_DEFINITIONS` catalogue (it is a share of a third party's fee, not a
+   * line in the deal's own economics), so it is widened here rather than added
+   * to `FeeKey`.
+   */
+  readonly feeKey: FeeKey | "reseller-commission";
+  readonly payer: FeePayer | "reseller";
   /** Pence, as invoiced. Frozen at the moment it was raised. */
   readonly amount: Money;
   /** The basis stated to the payer, verbatim. */

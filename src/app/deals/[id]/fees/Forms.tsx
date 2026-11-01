@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import {
   raiseFeeAction,
+  raiseResellerCutAction,
   recordDisclosureAction,
   recordInstructionAction,
   recordSellerAgreementAction,
@@ -165,6 +166,37 @@ export function InstructionForm({
       </label>
       <button type="submit" disabled={pending} className={SUBMIT}>
         {pending ? "Recording…" : "Record what the seller said"}
+      </button>
+      <Status result={result} />
+    </form>
+  );
+}
+
+export function RaiseResellerForm({ dealId }: { dealId: string }) {
+  const [result, submit, pending] = useActionState<FeeResult | undefined, FormData>(
+    raiseResellerCutAction,
+    undefined,
+  );
+
+  return (
+    <form action={submit} className="mt-3.5 border-t hairline pt-3.5">
+      <input type="hidden" name="dealId" value={dealId} />
+      <label htmlFor="reseller-note" className="eyebrow">
+        Your reason
+      </label>
+      <input
+        id="reseller-note"
+        name="note"
+        required
+        placeholder="The reseller's completed onward sale."
+        className="mt-2 w-full px-3 py-2"
+      />
+      <button
+        type="submit"
+        disabled={pending}
+        className="mt-3 inline-flex h-9 items-center rounded-md bg-lode-400 px-4 text-sm font-medium text-ink-950 transition-colors hover:bg-lode-300"
+      >
+        {pending ? "Raising…" : "Raise the reseller cut"}
       </button>
       <Status result={result} />
     </form>

@@ -12,6 +12,7 @@ import {
   DisclosureForm,
   InstructionForm,
   RaiseFeeForm,
+  RaiseResellerForm,
   SellerAgreementForm,
   VoidFeeForm,
 } from "./Forms";
@@ -269,24 +270,38 @@ export default async function FeesPage({ params }: { params: Promise<{ id: strin
 
         {/* --- the reseller's cut, where a partner took the listing on ----- */}
         {record.resale !== undefined && (() => {
+          const resale = record.resale;
+          const resellerRaised = live.some((f) => f.feeKey === "reseller-commission");
           const invoice = resellerInvoice({
-            arrangement: record.resale,
+            arrangement: resale,
             permissionsHeld: permissions.held.map((h) => h.key),
             status: record.status,
+            alreadyRaised: resellerRaised,
           });
           return (
             <Panel
               className="mt-8"
               eyebrow="Reseller"
               title="A partner is marketing this listing"
-              action={<Badge tone={invoice.chargeable ? "good" : "warn"}>{gbp(invoice.amount)}</Badge>}
+              action={
+                <Badge tone={resellerRaised ? "neutral" : invoice.chargeable ? "good" : "warn"}>
+                  {resellerRaised ? "Raised" : gbp(invoice.amount)}
+                </Badge>
+              }
             >
               <p className="text-[13px] leading-[1.65] text-ink-300">
-                {record.resale.resellerName} took this on, with a fee of {gbp(record.resale.feeAgreed)}{" "}
-                on the onward sale. Lode&rsquo;s cut is a share of that fee — {gbp(invoice.amount)} —
-                never of the property price, due on completion.
+                {resale.resellerName} took this on, with a fee of {gbp(resale.feeAgreed)} on the
+                onward sale. Lode&rsquo;s cut is a share of that fee — {gbp(invoice.amount)} — never
+                of the property price, due on completion.
               </p>
-              {!invoice.chargeable && (
+              {resellerRaised ? (
+                <p className="mt-3.5 border-t hairline pt-3.5 text-[13px] leading-[1.6] text-ink-400">
+                  The cut has been raised. It appears below with the other raised fees, where it can
+                  be voided.
+                </p>
+              ) : invoice.chargeable ? (
+                <RaiseResellerForm dealId={record.id} />
+              ) : (
                 <ul className="mt-3.5 space-y-2.5 border-t hairline pt-3.5">
                   {invoice.blockers.map((b) => (
                     <li key={b} className="text-[13px] leading-[1.6] text-ink-400">{b}</li>

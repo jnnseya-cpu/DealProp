@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import {
   raiseFee,
+  raiseResellerCut,
   recordExistingInstruction,
   recordFeeDisclosure,
   recordSellerAgreement,
@@ -122,6 +123,17 @@ export async function raiseFeeAction(
 
   const actor = await actorFor(dealId);
   const result = await raiseFee(dealId, feeKey, String(formData.get("note") ?? ""), actor);
+  if (result.ok) revalidatePath(`/deals/${dealId}/fees`);
+  return result;
+}
+
+export async function raiseResellerCutAction(
+  _previous: FeeResult | undefined,
+  formData: FormData,
+): Promise<FeeResult> {
+  const dealId = String(formData.get("dealId") ?? "").trim();
+  const actor = await actorFor(dealId);
+  const result = await raiseResellerCut(dealId, String(formData.get("note") ?? ""), actor);
   if (result.ok) revalidatePath(`/deals/${dealId}/fees`);
   return result;
 }

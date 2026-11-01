@@ -12,6 +12,7 @@ import {
   type SellerAgreement,
 } from "@shared/domain/fees";
 import type { SellerService } from "@shared/domain/pricing";
+import { resellerInvoice } from "@shared/domain/reseller";
 import { authoriseDecision, type Actor } from "@shared/domain/agents";
 import { permissionsHeld } from "@backend/permissions";
 import { audit } from "@backend/audit";
@@ -65,7 +66,10 @@ async function buildPosition(record: DealRecord): Promise<FeeView> {
       ...(record.existingInstruction !== undefined
         ? { existingInstruction: record.existingInstruction }
         : {}),
-      raised: live.map((f) => f.feeKey),
+      // The reseller cut is not one of the engine's catalogue fees, so it is
+      // filtered out of the keys the position reasons about (it is raised and
+      // voided through its own path below).
+      raised: live.map((f) => f.feeKey).filter((k): k is FeeKey => k !== "reseller-commission"),
     }),
   };
 }
@@ -264,6 +268,70 @@ export async function raiseFee(
   });
 
   return { ok: true, message: `${definition.label} raised, against ${actor.name}.` };
+}
+
+/**
+ * Raise Lode's cut on a reseller's engagement.
+ *
+ * Its own path rather than the catalogue `raiseFee`, because the reseller cut is
+ * computed by `resellerInvoice` (a share of the reseller's fee) rather than a
+ * `FEE_DEFINITIONS` line. Same controls as every other fee: a named person
+ * (never the shared password), the amount recomputed on the server, the stage
+ * and permission gates, and once-only — the store rejects a second live
+ * `reseller-commission` on the deal.
+ */
+export async function raiseResellerCut(
+  dealId: string,
+  note: string,
+  actor: Actor,
+): Promise<FeeOutcome> {
+  const authorisation = authoriseDecision(actor, note);
+  if (!authorisation.ok) return { ok: false, message: authorisation.reason };
+  if (actor.kind !== "account") return { ok: false, message: authorisation.reason };
+
+  const record = await getDeal(dealId);
+  if (record === undefined) return { ok: false, message: "No such deal." };
+  if (record.resale === undefined) {
+    return { ok: false, message: "No reseller has taken this listing on, so there is no cut to raise." };
+  }
+
+  const live = (await listDealFees(dealId)).filter((f) => f.voidedAt === undefined);
+  const alreadyRaised = live.some((f) => f.feeKey === "reseller-commission");
+  const invoice = resellerInvoice({
+    arrangement: record.resale,
+    permissionsHeld: permissionsHeld(),
+    status: record.status,
+    alreadyRaised,
+  });
+  if (!invoice.chargeable) {
+    return { ok: false, message: `The reseller cut cannot be raised: ${invoice.blockers.join(" ")}` };
+  }
+
+  const fee: DealFee = {
+    id: randomUUID(),
+    dealId,
+    feeKey: "reseller-commission",
+    payer: "reseller",
+    amount: invoice.amount,
+    basis: `${record.resale.resellerName} markets the listing for a fee; Lode takes ${invoice.terms}.`,
+    raisedAt: new Date().toISOString(),
+    raisedByAccountId: actor.id,
+    raisedByName: actor.name,
+    permissionsAtRaise: [...permissionsHeld()],
+    note: note.trim(),
+  };
+
+  const written = await raiseDealFee(fee);
+  if (!written) {
+    return { ok: false, message: "The reseller cut is already live on this deal. Nothing was raised again." };
+  }
+
+  await audit("fee-raised", {
+    account: { id: actor.id, email: actor.email },
+    subject: dealId,
+    detail: `reseller-commission · ${invoice.amount} pence · ${fee.note}`,
+  });
+  return { ok: true, message: `Reseller cut raised, against ${actor.name}.` };
 }
 
 export async function voidFee(

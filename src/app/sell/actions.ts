@@ -15,6 +15,11 @@ import {
   type Knowledge,
   type MaterialRecord,
 } from "@shared/domain/materialInformation";
+import {
+  SELLER_KINDS,
+  type SellerDueDiligence,
+  type SellerKind,
+} from "@shared/domain/sellerDueDiligence";
 import { ConsentNotGiven, recordEnquiryConsent } from "@shared/domain/sellerConsent";
 import type { ResaleConsent } from "@shared/domain/reseller";
 import type {
@@ -599,6 +604,57 @@ export async function setResaleConsent(formData: FormData): Promise<void> {
   });
 
   redirect(`/sell/${id}?listing=${allow ? "resale-on" : "resale-off"}#listing`);
+}
+
+/**
+ * A seller tells us who they are and their authority to sell, with no account.
+ *
+ * The Money Laundering Regulations make us check the seller — who they are, that
+ * they may sell it, who is behind them (§67). That check is ours to perform and
+ * a seller cannot clear it themselves; what they CAN do is give us a head start
+ * by stating their kind and their authority in their own words, through the same
+ * capability link. So this records exactly that and no more: the seller's `kind`
+ * and their stated authority. It never writes a verification timestamp — the
+ * identity, screening and authority checks stay unheld until a named person at
+ * Lode records them (`/deals/[id]/seller-checks`), which is the law and is why
+ * the form says so plainly rather than implying the seller has cleared anything.
+ */
+export async function recordSellerDetails(formData: FormData): Promise<void> {
+  const gate = consume("intake", callerFrom(await nextHeaders()));
+  if (!gate.allowed) redirect("/sell?slow-down=1");
+
+  const id = String(formData.get("id") ?? "");
+  const existing = await getDeal(id);
+  if (existing === undefined) redirect("/sell");
+  const isSellerSubmission = existing.origin?.via === "sell" || existing.id.startsWith("enq-");
+  if (!isSellerSubmission) redirect(`/sell/${id}`);
+  if (existing.status === "funded" || existing.status === "completed" || existing.status === "withdrawn") {
+    redirect(`/sell/${id}?locked=1`);
+  }
+
+  const kindRaw = String(formData.get("kind") ?? "").trim();
+  const kind = SELLER_KINDS.find((k) => k.kind === kindRaw)?.kind;
+  if (kind === undefined) redirect(`/sell/${id}#about`);
+
+  const authority = String(formData.get("authority") ?? "").trim().slice(0, 600);
+
+  // Merge onto any existing checks so a Lode-recorded verification is preserved.
+  // Crucially, no *-VerifiedAt / screenedAt / authorityEvidencedAt is set here:
+  // those are Lode's to record, and the seller stating their authority is a
+  // claim to be verified, not the evidence itself.
+  const sellerChecks: SellerDueDiligence = {
+    ...(existing.sellerChecks ?? {}),
+    kind: kind as SellerKind,
+    ...(authority !== "" ? { authorityEvidence: authority } : {}),
+  };
+
+  await saveDeal({ ...existing, sellerChecks });
+  await audit("seller-checks-recorded", {
+    subject: existing.id,
+    detail: `${existing.reference}: the seller described themselves as ${kind}${authority !== "" ? " and stated their authority" : ""} through the listing form. Verification still pending.`,
+  });
+
+  redirect(`/sell/${id}?about=updated#about`);
 }
 
 /** Small non-cryptographic hash, used only to make ids unguessable-ish. */

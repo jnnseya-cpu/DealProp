@@ -12,6 +12,7 @@ import { getJurisdiction, isDealReady } from "@shared/domain/jurisdictions";
 import { gbp, percent } from "@shared/format";
 import { CorrectionForm } from "./CorrectionForm";
 import { ListingSection } from "./ListingSection";
+import { SellerDetailsSection } from "./SellerDetailsSection";
 import { SiteHeader, TradeReferrals } from "@/app/components/chrome";
 import type { DealInputs, PropertyFacts, SellerProfile } from "@shared/domain/types";
 import type { Money } from "@shared/money";
@@ -187,6 +188,12 @@ export default async function SellerOptionsPage({
                     ? "resale-off"
                     : undefined
           }
+        />
+
+        <SellerDetailsSection
+          id={record.id}
+          checks={record.sellerChecks}
+          notice={query.about === "updated"}
         />
 
         <CorrectionForm id={record.id} property={property} seller={seller} />
