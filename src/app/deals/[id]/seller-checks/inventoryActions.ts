@@ -5,6 +5,7 @@ import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { getDeal, saveDeal } from "@backend/store/repository";
 import { audit } from "@backend/audit";
 import { CATEGORIES, type ConfirmedBy, type InventoryCategory } from "@shared/domain/inventory";
+import { isOutreachSourced } from "@shared/domain/outreachConsent";
 
 /**
  * Recording that somebody said the property is for sale.
@@ -55,6 +56,19 @@ export async function recordConfirmationAction(
 
   const definition = CATEGORIES.find((c) => c.category === category);
   const by: ConfirmedBy | undefined = definition?.requiresConfirmationBy;
+
+  // A lead from our own outreach is listed only on the OWNER's reply. We never
+  // instructed an agent on a cold-sourced probate or homeowner lead, so an
+  // "instructed-agent" confirmation against one is a fiction, not a shortcut —
+  // refuse it, and point the operator at recording the owner's reply instead.
+  if (by === "instructed-agent" && isOutreachSourced(record.origin)) {
+    return {
+      ok: false,
+      message:
+        "This lead came from our own outreach — no agent instructed us. It is listed only on the " +
+        "owner's own reply. Record it as owner-verified, with what the owner actually told you.",
+    };
+  }
 
   // AI-discovered is the one category that takes no confirmation, and setting
   // it has to be able to clear one — a property wrongly marked owner-verified

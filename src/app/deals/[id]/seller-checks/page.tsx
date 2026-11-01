@@ -12,6 +12,7 @@ import {
   categoryDefinition,
   saleIsConfirmed,
 } from "@shared/domain/inventory";
+import { awaitingOwnerConsent, OWNER_REPLY_GUIDANCE } from "@shared/domain/outreachConsent";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,8 @@ export default async function SellerChecksPage({ params }: { params: Promise<{ i
   const category = item === undefined ? undefined : categoryDefinition(item.category);
   const defect = item === undefined ? undefined : categoryDefect(item);
   const confirmed = saleIsConfirmed(item);
+  // §5b: a letter-sourced lead is not a listing until the owner has replied.
+  const awaitingConsent = awaitingOwnerConsent({ origin: record.origin, inventory: item });
 
   return (
     <main className="min-h-screen pb-20">
@@ -111,6 +114,12 @@ export default async function SellerChecksPage({ params }: { params: Promise<{ i
             sale. A buyer who pays to open an opportunity and finds an owner who never agreed has
             been sold nothing, and they only discover that after paying.
           </p>
+
+          {awaitingConsent && (
+            <p className="mt-3.5 border-l-2 border-amber-500/80 py-1 pl-4 text-[13px] leading-[1.65] text-amber-200">
+              {OWNER_REPLY_GUIDANCE}
+            </p>
+          )}
 
           {item !== undefined && (
             <p
