@@ -11,6 +11,7 @@ import {
   MAX_ACCOUNT_ROLES,
   withinRoleCap,
   type Account,
+  type FeeExemption,
   type Role,
   type SourcerCompliance,
 } from "@shared/domain/accounts";
@@ -207,6 +208,74 @@ export async function setAccountRoles(
   });
   revalidatePath("/operator/accounts");
   return { ok: true, message: "Roles updated." };
+}
+
+/**
+ * Grant or revoke an account's fee exemption.
+ *
+ * The house/comp mechanism: a named administrator makes an account free of every
+ * fee and membership. It is a real economic privilege — a fee-free account keeps
+ * what a paying one hands Lode as a cut — so it is deliberate and recorded: a
+ * reason is required, an expiry is optional, and the grant carries the admin's
+ * own name. Never the shared operator password, because a privilege nobody is
+ * accountable for is the one most likely to be abused. It changes price only;
+ * the account still passes every gate like anyone else.
+ */
+export async function setFeeExemption(
+  _previous: BoxFormResult | undefined,
+  formData: FormData,
+): Promise<BoxFormResult> {
+  const viewer = await currentViewer();
+  if (viewer === undefined) return { ok: false, message: "Sign in first." };
+  if (viewer.kind !== "account" || viewer.account.role !== "admin") {
+    return {
+      ok: false,
+      message:
+        "Only a named administrator may grant or revoke a fee exemption — the shared operator password is nobody in particular.",
+    };
+  }
+
+  const id = String(formData.get("id") ?? "");
+  const account = await getAccount(id);
+  if (account === undefined) return { ok: false, message: "No such account." };
+
+  const grant = formData.get("grant") === "yes";
+  const { feeExemption: _existing, ...rest } = account;
+
+  if (!grant) {
+    await saveAccount({ ...rest });
+    await audit("account-created", {
+      account: viewer.account,
+      subject: id,
+      detail: `Fee exemption revoked for ${account.email}.`,
+    });
+    revalidatePath("/operator/accounts");
+    return { ok: true, message: "Fee exemption revoked. The account is charged like any other." };
+  }
+
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (reason === "") {
+    return {
+      ok: false,
+      message: "Give a reason. A fee-free account is an economic privilege and the grant is recorded.",
+    };
+  }
+  const expiresAt = String(formData.get("expiresAt") ?? "").trim();
+
+  const feeExemption: FeeExemption = {
+    grantedAt: new Date().toISOString(),
+    grantedBy: viewer.account.name,
+    reason: reason.slice(0, 300),
+    ...(expiresAt !== "" ? { expiresAt } : {}),
+  };
+  await saveAccount({ ...rest, feeExemption });
+  await audit("account-created", {
+    account: viewer.account,
+    subject: id,
+    detail: `Fee exemption granted to ${account.email}${expiresAt !== "" ? ` until ${expiresAt}` : ""}: ${reason.slice(0, 120)}`,
+  });
+  revalidatePath("/operator/accounts");
+  return { ok: true, message: "Fee exemption granted. The account pays no fee or membership." };
 }
 
 /**

@@ -211,6 +211,32 @@ export interface Account {
    * on by `assignmentMarginFeeStatement()` in `fees.ts`; absent until recorded.
    */
   readonly sourcerCompliance?: SourcerCompliance;
+  /**
+   * An admin's grant that this account pays no fee and no membership.
+   *
+   * The marketplace's house/comp mechanism: Lode's own participating account, or
+   * an account an admin chooses to comp (a launch partner, a VIP). It is an
+   * evidenced grant, never a bare flag — a named admin, a reason, and an
+   * optional expiry — written to the audit trail and revocable, because a
+   * fee-free account keeps what a paying one hands Lode as a cut and so carries a
+   * real competitive edge. It changes only price: the account still passes every
+   * gate (identity, funding, reveal, grading) like anyone else. Absent by
+   * default, and never settable at self-service sign-up.
+   */
+  readonly feeExemption?: FeeExemption;
+}
+
+/**
+ * An admin's fee-exemption grant. Evidenced and revocable, the shape of a manual
+ * money movement (§32): somebody named decided it, for a reason, on a date.
+ */
+export interface FeeExemption {
+  readonly grantedAt: string;
+  /** The named admin who granted it — never the shared operator password. */
+  readonly grantedBy: string;
+  readonly reason: string;
+  /** ISO date it lapses, where one is set. Absent means no expiry. */
+  readonly expiresAt?: string;
 }
 
 /**
@@ -279,6 +305,8 @@ export interface PublicAccount {
    * credential — no secret, so safe to render on the operator surface.
    */
   readonly sourcerCompliance?: SourcerCompliance;
+  /** An admin's fee-exemption grant, carried so an operator can see and manage it. */
+  readonly feeExemption?: FeeExemption;
 }
 
 /** Strips the credential. Use wherever an account crosses a boundary. */
@@ -293,6 +321,7 @@ export function publicAccount(account: Account): PublicAccount {
     disabled: account.disabledAt !== undefined,
     ...(account.certification !== undefined ? { certification: account.certification } : {}),
     ...(account.sourcerCompliance !== undefined ? { sourcerCompliance: account.sourcerCompliance } : {}),
+    ...(account.feeExemption !== undefined ? { feeExemption: account.feeExemption } : {}),
   };
 }
 
@@ -311,6 +340,31 @@ export function accountRoles(account: Pick<Account, "role" | "roles">): readonly
 /** Whether this account is Lode or a connected party acting as a principal. */
 export function isConnectedParty(account: Pick<Account, "connectedParty">): boolean {
   return account.connectedParty === true;
+}
+
+/** Whether a fee-exemption grant is still in force at this instant. */
+export function feeExemptionCurrent(exemption: FeeExemption | undefined, now: Date): boolean {
+  if (exemption === undefined) return false;
+  if (exemption.expiresAt === undefined) return true;
+  const expiry = new Date(exemption.expiresAt);
+  if (Number.isNaN(expiry.getTime())) return false;
+  return now.getTime() < expiry.getTime();
+}
+
+/**
+ * Whether this account pays nothing — no fee, no membership.
+ *
+ * True for Lode's own connected account (the house always plays free) and for
+ * any account an admin has comped with a current grant. The one place the
+ * question is answered, so the entitlement seam, the reveal seam and the supply
+ * count all read the same rule. It decides price and nothing else — every gate
+ * still applies.
+ */
+export function isFeeExempt(
+  account: Pick<Account, "connectedParty" | "feeExemption">,
+  now: Date = new Date(),
+): boolean {
+  return isConnectedParty(account) || feeExemptionCurrent(account.feeExemption, now);
 }
 
 /**

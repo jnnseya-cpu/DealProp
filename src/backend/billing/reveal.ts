@@ -18,7 +18,8 @@ import {
   refundReveal,
 } from "@backend/store/repository";
 import { audit } from "@backend/audit";
-import type { Account } from "@shared/domain/accounts";
+import { isFeeExempt, type Account } from "@shared/domain/accounts";
+import { ZERO } from "@shared/money";
 import { buyerPassport, type Passport } from "@shared/domain/passport";
 import {
   materialInformation,
@@ -215,8 +216,13 @@ export async function openOpportunity(
     return { ok: false, message: offer.quote.blockers.map((b) => b.reason).join(" ") };
   }
 
-  const reference = paymentReference.trim();
-  if (reference === "") {
+  // A fee-exempt account passes every reveal gate above like anyone else — the
+  // only difference is price. It opens for nothing, recorded at £0 with a
+  // "comped" reference rather than a payment reference, because there was no
+  // payment to reference.
+  const exempt = isFeeExempt(account);
+  const reference = exempt ? "comped" : paymentReference.trim();
+  if (!exempt && reference === "") {
     return {
       ok: false,
       message: "No payment reference, so there is nothing to record against. Nothing was opened.",
@@ -229,7 +235,9 @@ export async function openOpportunity(
     accountId: account.id,
     opportunity: offer.quote.opportunity,
     // The catalogue price at the moment of sale, frozen. Not read back later.
-    paid: offer.quote.price,
+    // Zero for a fee-exempt account: nothing was charged, so nothing is owed or
+    // refundable.
+    paid: exempt ? ZERO : offer.quote.price,
     paidAt: new Date().toISOString(),
     categoryAtPurchase: inventoryOf(offer.record).category,
     disclosureShown: offer.quote.disclosure,

@@ -1,5 +1,6 @@
 import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import { withinPlan } from "@shared/domain/entitlements";
+import { isConnectedParty } from "@shared/domain/accounts";
 import { listBuyBoxes, listFundingBoxes } from "@backend/store/repository";
 import { entitlementsForAccount } from "@backend/billing/entitlement";
 import { getAccount } from "@backend/store/repository";
@@ -31,6 +32,7 @@ import { getAccount } from "@backend/store/repository";
 async function coverageFor<T extends { readonly id: string; readonly ownerAccountId?: string }>(
   items: readonly T[],
   limitOf: (entitlements: Awaited<ReturnType<typeof entitlementsForAccount>>) => number | "unlimited",
+  options?: { readonly excludeHouse?: boolean },
 ): Promise<readonly T[]> {
   const owned = new Map<string, T[]>();
   const unowned: T[] = [];
@@ -53,6 +55,11 @@ async function coverageFor<T extends { readonly id: string; readonly ownerAccoun
     // stop counting rather than counting forever.
     if (account === undefined || account.disabledAt !== undefined) continue;
 
+    // The house is not independent demand. When a seller-facing count is being
+    // built, a connected-party account's mandates are left out rather than
+    // passed off as other buyers wanting their property (§5c rule 3).
+    if (options?.excludeHouse === true && isConnectedParty(account)) continue;
+
     const entitlements = await entitlementsForAccount(account);
     covered.push(...withinPlan(list, limitOf(entitlements)).covered);
   }
@@ -62,6 +69,17 @@ async function coverageFor<T extends { readonly id: string; readonly ownerAccoun
 
 export async function coveredBuyBoxes(): Promise<readonly BuyBox[]> {
   return coverageFor(await listBuyBoxes(), (e) => e.maxBuyBoxes);
+}
+
+/**
+ * Covered Buy Boxes with the house left out — independent demand only.
+ *
+ * For the figure a seller reads ("N verified buyers are looking"). A
+ * connected-party account's mandates are real, but presenting them to a seller
+ * as other interested buyers would be passing the house off as the market.
+ */
+export async function publicBuyBoxes(): Promise<readonly BuyBox[]> {
+  return coverageFor(await listBuyBoxes(), (e) => e.maxBuyBoxes, { excludeHouse: true });
 }
 
 export async function coveredFundingBoxes(): Promise<readonly FundingBox[]> {

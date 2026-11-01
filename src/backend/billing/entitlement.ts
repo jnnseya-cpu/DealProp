@@ -1,4 +1,4 @@
-import type { Account } from "@shared/domain/accounts";
+import { isFeeExempt, type Account } from "@shared/domain/accounts";
 import { entitlementsFor, type Entitlements } from "@shared/domain/entitlements";
 import { PLANS } from "@shared/domain/pricing";
 import { getSubscription } from "@backend/store/repository";
@@ -24,7 +24,7 @@ import { getSubscription } from "@backend/store/repository";
  * this is only ever called after a permission check has already passed.
  */
 
-function staffEntitlements(): Entitlements {
+function fullEntitlements(reason: string): Entitlements {
   const widest = PLANS.reduce((best, candidate) =>
     candidate.limits.memorandaPerPeriod > best.limits.memorandaPerPeriod ? candidate : best,
   );
@@ -36,12 +36,18 @@ function staffEntitlements(): Entitlements {
     billedPlanId: widest.id,
     status: "active",
     mayExtractValue: true,
-    reason: "Staff access. Plan limits apply to customers, not to the people running the platform.",
+    reason,
   };
 }
 
+function staffEntitlements(): Entitlements {
+  return fullEntitlements(
+    "Staff access. Plan limits apply to customers, not to the people running the platform.",
+  );
+}
+
 export async function entitlementsForAccount(
-  account: Pick<Account, "id" | "role"> | undefined,
+  account: Pick<Account, "id" | "role" | "connectedParty" | "feeExemption"> | undefined,
   /**
    * The instant to decide against.
    *
@@ -56,6 +62,15 @@ export async function entitlementsForAccount(
 ): Promise<Entitlements> {
   if (account === undefined) return staffEntitlements();
   if (account.role === "admin" || account.role === "operator") return staffEntitlements();
+
+  // A fee-exempt account — the house, or an admin-comped account — pays no
+  // membership and gets the full entitlement, derived here rather than stored as
+  // a flag (§26), on the same terms as everything else about entitlement.
+  if (isFeeExempt(account, now)) {
+    return fullEntitlements(
+      "Fee-exempt account — full entitlement, nothing billed. Granted by an administrator; it changes price, not the gates.",
+    );
+  }
 
   return entitlementsFor(await getSubscription(account.id), now);
 }

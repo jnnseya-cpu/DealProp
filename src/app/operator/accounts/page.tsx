@@ -7,6 +7,7 @@ import { NewAccountForm } from "./NewAccountForm";
 import { AccountControls } from "./AccountControls";
 import { RolesEditor } from "./RolesEditor";
 import { VerifySourcerForm } from "./VerifySourcerForm";
+import { FeeExemptionForm } from "./FeeExemptionForm";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +91,11 @@ export default async function AccountsPage() {
                           Connected party
                         </span>
                       )}
+                      {a.feeExemption !== undefined && (
+                        <span className="rounded border border-emerald-600/45 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-emerald-300">
+                          Fee-free
+                        </span>
+                      )}
                       {a.disabled && (
                         <span className="rounded-md border border-ink-700 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.12em] text-ink-500">
                           Disabled
@@ -114,6 +120,9 @@ export default async function AccountsPage() {
                     />
                     {a.sourcerCompliance !== undefined && (
                       <VerifySourcerForm id={a.id} compliance={a.sourcerCompliance} />
+                    )}
+                    {canCreateAdmin && (
+                      <FeeExemptionForm id={a.id} exemption={a.feeExemption} />
                     )}
                   </div>
                   <AccountControls id={a.id} disabled={a.disabled} />
