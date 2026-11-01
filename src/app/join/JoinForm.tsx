@@ -15,7 +15,7 @@ import type { Role } from "@shared/domain/accounts";
  */
 /** The form's choices. `value` is what the server reads; "flipper" is a buyer + seller. */
 const OPTIONS: readonly { readonly value: string; readonly label: string; readonly blurb: string }[] = [
-  { value: "seller", label: "I'm a seller", blurb: "Get a fair cash offer. Selling to us is free — no agent, no fees." },
+  { value: "seller", label: "I'm a seller", blurb: "A fair cash offer from a buyer we introduce. Free to you — the buyer pays our fee, not you." },
   { value: "investor", label: "I'm a buyer", blurb: "See graded opportunities and track your readiness. Deal material unlocks once you certify." },
   { value: "flipper", label: "I'm a sourcer / flipper", blurb: "Buy, refurbish and sell, or source a deal and assign it on for a margin without buying. One account, buyer and seller." },
   { value: "funder", label: "I'm a lender", blurb: "Fund screened acquisitions, secured on UK property. For qualifying lenders." },

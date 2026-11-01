@@ -136,7 +136,7 @@ export default async function FeesPage({ params }: { params: Promise<{ id: strin
         {/* --- the seller's side ----------------------------------------- */}
         <Panel
           className="mt-6"
-          eyebrow={agreement !== undefined ? "The seller pays once" : "Selling to us is free"}
+          eyebrow={agreement !== undefined ? "The seller pays once" : "The buyer pays our fee"}
           title={
             agreement !== undefined
               ? "What the seller signed, and who else they are instructed to"
@@ -154,12 +154,12 @@ export default async function FeesPage({ params }: { params: Promise<{ id: strin
         >
           {agreement === undefined ? (
             <p className="text-[13px] leading-[1.65] text-ink-300">
-              This is a sell-to-us deal: the seller takes a cash offer and pays no fee, no
-              commission and nothing to an agent. A seller fee exists on one route only — where the
-              seller instead instructs us to sell their property <em>for</em> them. If that is what
-              they have chosen, record the signed agency terms below and a seller success fee will
-              apply; until then there is nothing for the seller to pay, and no seller line appears
-              against this deal.
+              On this deal the seller sells to a cash buyer we introduce and pays nothing — our fee
+              comes from the buyer, not from them (we never own the property). A seller fee exists on
+              one route only — where the seller instead instructs us to sell their property{" "}
+              <em>for</em> them, an agency sale. If that is what they have chosen, record the signed
+              agency terms below and a seller success fee will apply; until then there is nothing for
+              the seller to pay, and no seller line appears against this deal.
             </p>
           ) : (
             <p className="text-[13px] leading-[1.65] text-ink-300">

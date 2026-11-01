@@ -170,7 +170,8 @@ export default async function AccountHome() {
           {isSeller && !isStaff && (
             <Panel eyebrow="Your property" title="Sell a property">
               <p className="text-[13px] leading-relaxed text-ink-300">
-                A fair cash offer, direct. Selling to us is free — no agent, no commission, no fees.
+                A fair cash offer from a vetted buyer we introduce — free to you, because the buyer
+                pays our fee, not you.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button href="/sell" variant="primary" size="sm">
