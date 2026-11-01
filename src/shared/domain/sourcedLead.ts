@@ -88,6 +88,26 @@ export function leadContactKey(
 }
 
 /**
+ * Whether this lead still needs an office-holder address before it can be
+ * posted.
+ *
+ * Only the probate and insolvency letters go to an office-holder (the executor's
+ * contact for service, or the trustee / Official Receiver) — a prepared-but-
+ * unsold letter is already addressed to "The Homeowner" at the property. The
+ * recipient is extracted from the notice where it is published; where it is not,
+ * the operator reads the notice and pastes it. This is the same condition
+ * `PrintLetter` nudges on, lifted out so the worklist can show it at a glance
+ * without opening each letter — and never a licence to invent an address, only
+ * to flag that one is still owed.
+ */
+export function leadNeedsAddress(
+  lead: Pick<SourcedLead, "signalKey" | "contactForService">,
+): boolean {
+  const officeHolder = lead.signalKey === "probate-notice" || lead.signalKey === "owner-insolvent";
+  return officeHolder && (lead.contactForService ?? "").trim() === "";
+}
+
+/**
  * A completed nearby refurbishment, as market evidence — not a lead.
  *
  * A flip someone else already did tells you the finished value the street will

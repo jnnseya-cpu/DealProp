@@ -8,6 +8,7 @@ import {
   type SourcingFacts,
 } from "@shared/domain/sourcing";
 import { resolveCitation } from "@shared/domain/citations";
+import { leadNeedsAddress, type SourcedLead } from "@shared/domain/sourcedLead";
 import { feeAmount, feeDefinition } from "@shared/domain/fees";
 import {
   assignmentMarginFee,
@@ -278,5 +279,33 @@ describe("the reseller commission", () => {
     expect(headline).toMatch(/completion/);
     // It must never imply a cut of the whole price.
     expect(headline).toMatch(/never of the property price/);
+  });
+});
+
+describe("a lead that still needs an address", () => {
+  const lead = (over: Partial<SourcedLead>): SourcedLead => ({
+    signalKey: "probate-notice",
+    label: "Probate",
+    summary: "",
+    strength: "strong",
+    heightenedProtection: true,
+    provenance: { sourceKey: "gazette-deceased", asOf: "2026-06-01T00:00:00.000Z" },
+    lawfulNextStep: "Write by post.",
+    ...over,
+  });
+
+  it("flags an office-holder letter with no contact resolved", () => {
+    expect(leadNeedsAddress(lead({ signalKey: "probate-notice", contactForService: undefined }))).toBe(true);
+    expect(leadNeedsAddress(lead({ signalKey: "owner-insolvent", contactForService: "" }))).toBe(true);
+  });
+
+  it("does not flag one whose contact for service is resolved", () => {
+    expect(
+      leadNeedsAddress(lead({ signalKey: "probate-notice", contactForService: "Wards Solicitors, Bristol, BS1 2PH" })),
+    ).toBe(false);
+  });
+
+  it("never flags a prepared-but-unsold lead — its letter goes to The Homeowner", () => {
+    expect(leadNeedsAddress(lead({ signalKey: "prepared-but-unsold", contactForService: undefined }))).toBe(false);
   });
 });
