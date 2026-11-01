@@ -1,4 +1,5 @@
 import { SELLER_KINDS, type SellerDueDiligence } from "@shared/domain/sellerDueDiligence";
+import type { StatedIdentity } from "@shared/domain/types";
 import { recordSellerDetails } from "../actions";
 
 /**
@@ -12,10 +13,12 @@ import { recordSellerDetails } from "../actions";
 export function SellerDetailsSection({
   id,
   checks,
+  identity,
   notice,
 }: {
   id: string;
   checks: SellerDueDiligence | undefined;
+  identity: StatedIdentity | undefined;
   notice?: boolean;
 }) {
   return (
@@ -52,6 +55,32 @@ export function SellerDetailsSection({
             ))}
           </select>
         </label>
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="block text-sm text-ink-200">Your full legal name</span>
+            <input
+              name="legalName"
+              defaultValue={identity?.legalName ?? ""}
+              maxLength={160}
+              placeholder="As it appears on your ID"
+              className="mt-2 w-full rounded-xl border hairline bg-surface-2 px-4 py-3 text-sm text-ink-100 placeholder:text-ink-500 focus:border-lode-500/60 focus:outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="block text-sm text-ink-200">Date of birth</span>
+            <input
+              type="date"
+              name="dateOfBirth"
+              defaultValue={identity?.dateOfBirth ?? ""}
+              className="mt-2 w-full rounded-xl border hairline bg-surface-2 px-4 py-3 text-sm text-ink-100 focus:border-lode-500/60 focus:outline-none"
+            />
+          </label>
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-ink-500">
+          We ask for these because an identity check is run against them. They&rsquo;re kept
+          encrypted and used only to verify who you are.
+        </p>
 
         <label className="mt-5 block">
           <span className="block text-sm text-ink-200">Your authority to sell</span>

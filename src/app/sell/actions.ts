@@ -29,6 +29,7 @@ import type {
   SellerContact,
   SellerPriority,
   SellerSituation,
+  StatedIdentity,
   Tenure,
 } from "@shared/domain/types";
 import { allSituations } from "@shared/domain/motivation";
@@ -637,6 +638,8 @@ export async function recordSellerDetails(formData: FormData): Promise<void> {
   if (kind === undefined) redirect(`/sell/${id}#about`);
 
   const authority = String(formData.get("authority") ?? "").trim().slice(0, 600);
+  const legalName = String(formData.get("legalName") ?? "").trim().slice(0, 160);
+  const dateOfBirth = String(formData.get("dateOfBirth") ?? "").trim().slice(0, 10);
 
   // Merge onto any existing checks so a Lode-recorded verification is preserved.
   // Crucially, no *-VerifiedAt / screenedAt / authorityEvidencedAt is set here:
@@ -648,10 +651,28 @@ export async function recordSellerDetails(formData: FormData): Promise<void> {
     ...(authority !== "" ? { authorityEvidence: authority } : {}),
   };
 
-  await saveDeal({ ...existing, sellerChecks });
+  // The identity attributes an AML check is run against, stated by the seller.
+  // Set on both seller copies so sealing covers them (like the contact), and
+  // only where something was given, so an empty submission records nothing.
+  const statedIdentity: StatedIdentity | undefined =
+    legalName !== "" || dateOfBirth !== ""
+      ? {
+          ...(legalName !== "" ? { legalName } : {}),
+          ...(dateOfBirth !== "" ? { dateOfBirth } : {}),
+        }
+      : undefined;
+  const withIdentity = <T extends { statedIdentity?: StatedIdentity }>(seller: T): T =>
+    statedIdentity !== undefined ? { ...seller, statedIdentity } : seller;
+
+  await saveDeal({
+    ...existing,
+    sellerChecks,
+    seller: withIdentity(existing.seller),
+    inputs: { ...existing.inputs, seller: withIdentity(existing.inputs.seller) },
+  });
   await audit("seller-checks-recorded", {
     subject: existing.id,
-    detail: `${existing.reference}: the seller described themselves as ${kind}${authority !== "" ? " and stated their authority" : ""} through the listing form. Verification still pending.`,
+    detail: `${existing.reference}: the seller described themselves as ${kind}${authority !== "" ? ", stated their authority" : ""}${statedIdentity !== undefined ? " and gave identity details" : ""} through the listing form. Verification still pending.`,
   });
 
   redirect(`/sell/${id}?about=updated#about`);

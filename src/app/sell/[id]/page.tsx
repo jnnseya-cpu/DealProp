@@ -193,6 +193,7 @@ export default async function SellerOptionsPage({
         <SellerDetailsSection
           id={record.id}
           checks={record.sellerChecks}
+          identity={seller.statedIdentity}
           notice={query.about === "updated"}
         />
 

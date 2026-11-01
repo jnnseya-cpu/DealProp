@@ -42,6 +42,9 @@ const SCREENING = "screening" as const;
 /** The seller's contact details, stored as one encrypted JSON blob. */
 const CONTACT = "contact" as const;
 
+/** The seller's stated identity (legal name, date of birth), one encrypted blob. */
+const STATED_IDENTITY = "statedIdentity" as const;
+
 /**
  * The seller appears twice in a `DealRecord` and both copies are real.
  *
@@ -57,6 +60,7 @@ type SellerLike = {
   narrative?: string;
   screening?: unknown;
   contact?: unknown;
+  statedIdentity?: unknown;
 };
 
 function sealSeller<T extends SellerLike>(seller: T, key: Buffer): T {
@@ -64,6 +68,7 @@ function sealSeller<T extends SellerLike>(seller: T, key: Buffer): T {
   const screening = seller[SCREENING];
   const situation = seller.situation;
   const contact = seller[CONTACT];
+  const statedIdentity = seller[STATED_IDENTITY];
 
   return {
     ...seller,
@@ -72,6 +77,12 @@ function sealSeller<T extends SellerLike>(seller: T, key: Buffer): T {
     // given at all, and a contact detail is the plainest identifier there is.
     ...(contact !== undefined && !(typeof contact === "object" && contact !== null && "sealed" in contact)
       ? { [CONTACT]: { sealed: encrypt(JSON.stringify(contact), key) } }
+      : {}),
+    // Legal name and date of birth, sealed as one blob for the same reason — a
+    // date of birth is identity data and does not belong in plaintext.
+    ...(statedIdentity !== undefined &&
+    !(typeof statedIdentity === "object" && statedIdentity !== null && "sealed" in statedIdentity)
+      ? { [STATED_IDENTITY]: { sealed: encrypt(JSON.stringify(statedIdentity), key) } }
       : {}),
     // "repossession-threat", "divorce", "probate", "bereavement". Neither
     // engine filters on it in SQL — checked, not assumed — so encrypting it
@@ -103,12 +114,14 @@ function openSeller<T extends SellerLike>(seller: T, key: Buffer | undefined): T
   const screening: unknown = seller[SCREENING];
   const situation = seller.situation;
   const contact: unknown = seller[CONTACT];
+  const statedIdentity: unknown = seller[STATED_IDENTITY];
 
   const opened =
     narrative !== undefined && isEncrypted(narrative) ? decrypt(narrative, key) : narrative;
 
   const unsealed = openBlob(screening, key);
   const openedContact = openBlob(contact, key);
+  const openedIdentity = openBlob(statedIdentity, key);
 
   return {
     ...seller,
@@ -118,6 +131,7 @@ function openSeller<T extends SellerLike>(seller: T, key: Buffer | undefined): T
     ...(opened !== undefined ? { narrative: opened } : {}),
     ...(unsealed !== undefined ? { [SCREENING]: unsealed } : {}),
     ...(openedContact !== undefined ? { [CONTACT]: openedContact } : {}),
+    ...(openedIdentity !== undefined ? { [STATED_IDENTITY]: openedIdentity } : {}),
   };
 }
 

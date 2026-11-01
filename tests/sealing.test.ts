@@ -208,6 +208,27 @@ describe("sealing a deal", () => {
     });
   });
 
+  it("seals the seller's stated identity, on both copies, and restores it", () => {
+    withKey(() => {
+      const base = deal();
+      const identity = { legalName: "Jonathan Archibald Smith", dateOfBirth: "1961-03-04" };
+      const withIdentity: DealRecord = {
+        ...base,
+        seller: { ...base.seller, statedIdentity: identity },
+        inputs: { ...base.inputs, seller: { ...base.inputs.seller, statedIdentity: identity } },
+      } as DealRecord;
+
+      const out = sealDeal(withIdentity);
+      // A legal name and a date of birth are identity data; neither may survive
+      // in plaintext, on either copy of the seller.
+      const haystack = strings(out).join(" ").toLowerCase();
+      for (const term of ["jonathan archibald smith", "1961-03-04"]) {
+        expect(haystack.includes(term), `"${term}" survived sealing`).toBe(false);
+      }
+      expect(openDeal(out)).toEqual(withIdentity);
+    });
+  });
+
   it("restores the record exactly", () => {
     withKey(() => {
       const original = deal();

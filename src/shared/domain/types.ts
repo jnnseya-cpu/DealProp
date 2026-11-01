@@ -63,11 +63,28 @@ export interface SellerContact {
   readonly phone?: string;
 }
 
+/**
+ * Identity the seller states about themselves, for Lode to verify.
+ *
+ * The two attributes an identity/AML check is run against: the full legal name
+ * and the date of birth. It is the seller's own claim, collected to give the
+ * verification a head start — it never stands in for the check itself, which is
+ * Lode's to perform (§67). Sensitive personal data, so it is sealed at rest like
+ * the contact and the screening answers.
+ */
+export interface StatedIdentity {
+  readonly legalName?: string;
+  /** ISO date (YYYY-MM-DD), as the seller gave it. */
+  readonly dateOfBirth?: string;
+}
+
 export interface SellerProfile {
   readonly situation: SellerSituation;
   readonly priorities: readonly SellerPriority[];
   /** How to reach the seller. Absent on sourced leads (nobody was spoken to). */
   readonly contact?: SellerContact;
+  /** Identity the seller stated about themselves, for Lode to verify (§67). */
+  readonly statedIdentity?: StatedIdentity;
   /** Seller's own stated deadline, in days. Undefined means no deadline given. */
   readonly targetDays?: number;
   /** Seller's own price expectation, if stated. Deliberately optional. */

@@ -179,6 +179,26 @@ export default async function SellerChecksPage({ params }: { params: Promise<{ i
         </Panel>
 
         <Panel className="mt-6" eyebrow="Who are they" title="Identity and screening">
+          {record.seller.statedIdentity !== undefined &&
+            (record.seller.statedIdentity.legalName !== undefined ||
+              record.seller.statedIdentity.dateOfBirth !== undefined) && (
+              <p className="mb-3.5 border-l-2 border-lode-400/70 py-1 pl-4 text-[13px] leading-[1.65] text-ink-200">
+                The seller stated:{" "}
+                {record.seller.statedIdentity.legalName !== undefined && (
+                  <span className="text-ink-100">{record.seller.statedIdentity.legalName}</span>
+                )}
+                {record.seller.statedIdentity.dateOfBirth !== undefined && (
+                  <span className="text-ink-300">
+                    {record.seller.statedIdentity.legalName !== undefined ? ", born " : "born "}
+                    {record.seller.statedIdentity.dateOfBirth}
+                  </span>
+                )}
+                .
+                <span className="mt-1 block font-mono text-[11px] text-ink-500">
+                  Their own claim, to be verified — recording identity below is what sets the check.
+                </span>
+              </p>
+            )}
           <IdentityForm
             dealId={record.id}
             {...(checks?.kind !== undefined ? { kind: checks.kind } : {})}
