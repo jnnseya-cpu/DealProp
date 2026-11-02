@@ -112,9 +112,9 @@ export function PrintLetter({ lead, signatureUrl }: { lead: SourcedLead; signatu
     const letterhead =
       `<div class="lh">` +
       `<svg width="30" height="30" viewBox="0 0 26 26" fill="none">` +
-      `<path d="M13 2 3 8v10l10 6 10-6V8L13 2Z" stroke="#c9a44e" stroke-width="1.3"/>` +
-      `<path d="M8 11.5 13 8.5l5 3v5.5l-5 3-5-3v-5.5Z" fill="#c9a44e" fill-opacity="0.22"/>` +
-      `<path d="M13 8.5v9M8 11.5l10 5.5M18 11.5 8 17" stroke="#c9a44e" stroke-width="0.9" stroke-opacity="0.75"/>` +
+      `<path d="M13 2 3 8v10l10 6 10-6V8L13 2Z" stroke="#d4af37" stroke-width="1.3"/>` +
+      `<path d="M8 11.5 13 8.5l5 3v5.5l-5 3-5-3v-5.5Z" fill="#d4af37" fill-opacity="0.22"/>` +
+      `<path d="M13 8.5v9M8 11.5l10 5.5M18 11.5 8 17" stroke="#d4af37" stroke-width="0.9" stroke-opacity="0.75"/>` +
       `</svg><span class="wm">Lode</span></div>`;
 
     const sigImg = sig === "" ? "" : `<img class="sig" src="${sig}" alt="Signature">`;

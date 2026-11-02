@@ -44,13 +44,18 @@
   --color-surface-3: #1a1e25;
 
   /* --- accent ----------------------------------------------------------- */
-  /* Metallic rather than yellow: lower chroma, so it reads as brass on ink. */
-  --color-lode-50: #fbf6ea;
-  --color-lode-200: #ecdcb0;
-  --color-lode-300: #dcc07d;
-  --color-lode-400: #c9a44e;
-  --color-lode-500: #ad8834;
-  --color-lode-600: #8a6a26;
+  /* The brand gold, anchored on #d4af37 — the gold of the Lode mark's vein. A
+     true metallic gold rather than a neon yellow, so it still reads as a
+     precious metal on ink and never as a highlighter. The scale lightens for a
+     button's hover (300) and darkens for its press (500); 600 is for hairline
+     accents. Chosen in the brand review; the PWA accent and the print golds
+     track it. */
+  --color-lode-50: #faf4e0;
+  --color-lode-200: #efdca4;
+  --color-lode-300: #e3c76e;
+  --color-lode-400: #d4af37;
+  --color-lode-500: #b08f2b;
+  --color-lode-600: #8a6e20;
 
   /* --- type ------------------------------------------------------------- */
   /* `*-loaded` is set by next/font in the root layout. The stacks after it

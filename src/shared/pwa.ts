@@ -28,7 +28,7 @@ export const PWA_COLOURS = {
   /** `--color-ink-400`. */
   muted: "#737b8a",
   /** `--color-lode-400`. */
-  accent: "#c9a44e",
+  accent: "#d4af37",
 } as const;
 
 export interface IosDevice {
