@@ -61,7 +61,7 @@ describe("the insolvency letter is addressed to the office-holder, never the deb
       debtorName: "A Person",
       today: "2026-10-27",
     });
-    expect(thin).toContain("c/o the trustee or Official Receiver named in the notice");
+    expect(thin).toContain("[the trustee's or Official Receiver's name and address — paste from the notice before posting]");
     expect(thin).toContain("[registered office address]");
     expect(thin).toContain("[contact email]");
   });

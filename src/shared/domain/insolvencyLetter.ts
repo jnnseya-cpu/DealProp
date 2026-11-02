@@ -66,7 +66,7 @@ export function draftInsolvencyLetter(input: InsolvencyLetterInput): string {
       ? input.officeHolder
       : input.court !== undefined && input.court !== ""
         ? `The Official Receiver for ${input.court}\n[complete the Official Receiver office address — see gov.uk]`
-        : "c/o the trustee or Official Receiver named in the notice";
+        : "[the trustee's or Official Receiver's name and address — paste from the notice before posting]";
 
   const subject =
     input.propertyAddress !== undefined && input.propertyAddress !== ""

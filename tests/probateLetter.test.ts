@@ -68,5 +68,8 @@ describe("the probate letter carries everything a lawful postal approach needs",
     });
     expect(thin).toContain("[registered office address]");
     expect(thin).toContain("[contact email]");
+    // With no office-holder resolved, the recipient is a visible fill-in, never a
+    // soft line that reads as a postable address.
+    expect(thin).toContain("[office-holder's name and address — paste from the notice before posting]");
   });
 });

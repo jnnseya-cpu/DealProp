@@ -62,10 +62,14 @@ export function draftProbateLetter(input: ProbateLetterInput): string {
   const email = orPlaceholder(s.contactEmail, "contact email");
   const phoneLine = s.contactPhone !== undefined ? ` or ${s.contactPhone}` : "";
 
+  // Where no contact for service has been resolved, this is a bracketed fill-in
+  // like every other gap the operator must complete — never a soft line that
+  // reads as finished prose, because that is how a letter goes out with no real
+  // address to post it to. The operator pastes the office-holder from the notice.
   const recipientBlock =
     input.recipientContact !== undefined && input.recipientContact !== ""
       ? input.recipientContact
-      : "c/o the contact for service named in the notice";
+      : "[office-holder's name and address — paste from the notice before posting]";
 
   const reLine =
     input.propertyAddress !== undefined && input.propertyAddress !== ""
