@@ -159,13 +159,14 @@ function Leads({ leads, signatureUrl }: { leads: readonly SourcedLead[]; signatu
     <section className="mt-10">
       <h2 className="eyebrow">{leads.length} lead{leads.length === 1 ? "" : "s"} to investigate</h2>
       {needing > 0 && (
-        <p className="mt-2 flex items-center gap-2 text-sm text-ink-400">
-          <span className="rounded border border-amber-600/45 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-amber-300">
-            {needing} need an address
+        <p className="mt-2 flex items-start gap-2 text-sm text-ink-400">
+          <span className="mt-0.5 shrink-0 rounded border border-ink-700 bg-ink-850 px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-ink-300">
+            {needing} office-holder{needing === 1 ? "" : "s"} to resolve
           </span>
           <span>
-            — open the notice on each and paste the office-holder before posting. The address is in
-            the notice; it is never invented.
+            — the executor or trustee is read from each notice automatically when you open its
+            letter, so these fill in on their own. Only where the Gazette blocks the automatic read
+            do you open the notice (one tap) and paste the address. It is never invented.
           </span>
         </p>
       )}
@@ -176,8 +177,8 @@ function Leads({ leads, signatureUrl }: { leads: readonly SourcedLead[]; signatu
               <p className="font-display text-base text-ink-100">
                 {lead.label}
                 {leadNeedsAddress(lead) && (
-                  <span className="ml-2 rounded border border-amber-600/45 bg-amber-500/10 px-1.5 py-0.5 align-middle font-mono text-[9px] font-medium uppercase tracking-[0.08em] text-amber-300">
-                    Needs address
+                  <span className="ml-2 rounded border border-ink-700 bg-ink-850 px-1.5 py-0.5 align-middle font-mono text-[9px] font-medium uppercase tracking-[0.08em] text-ink-400">
+                    Office-holder on open
                   </span>
                 )}
               </p>
