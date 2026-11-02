@@ -47,12 +47,13 @@ describe("the insolvency letter is addressed to the office-holder, never the deb
     expect(letter.toLowerCase()).not.toContain("we are the buyer");
   });
 
-  it("states the data source, the lawful basis and the ICO registration", () => {
+  it("states the data source and the lawful basis (rights/ICO line removed by request)", () => {
     expect(letter).toContain("The Gazette");
     expect(letter).toContain("Open Government Licence");
     expect(letter).toContain("legitimate interest");
-    expect(letter).toContain("right to object");
-    expect(letter).toContain("ZA232345");
+    expect(letter).not.toContain("right to object");
+    expect(letter).not.toContain("ZA232345");
+    expect(letter).not.toContain("Information Commissioner");
   });
 
   it("falls back to a bracketed recipient and placeholders when details are missing", () => {

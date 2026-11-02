@@ -52,7 +52,9 @@ describe("the homeowner letter is addressed to the property, holds no name, and 
     expect(letter).toContain("Price Paid Data");
     expect(letter).toContain("legitimate interest");
     expect(letter).toContain("hold no personal information about you");
-    expect(letter).toContain("232345");
+    // The rights/ICO line was removed by request.
+    expect(letter).not.toContain("232345");
+    expect(letter).not.toContain("Information Commissioner");
   });
 
   it("shows bracketed placeholders where a sender detail is missing", () => {

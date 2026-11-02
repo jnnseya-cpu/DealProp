@@ -82,10 +82,6 @@ export function draftProbateLetter(input: ProbateLetterInput): string {
       : "";
 
   const reg = registrationLine(s);
-  const icoSentence =
-    s.icoRegistration !== undefined
-      ? ` We are registered with the Information Commissioner's Office, registration ${s.icoRegistration}.`
-      : "";
   const dpContact = s.dataProtectionContact ?? s.contactEmail;
   const dpSentence =
     dpContact !== undefined ? ` Our data protection contact is ${dpContact}.` : "";
@@ -121,7 +117,7 @@ export function draftProbateLetter(input: ProbateLetterInput): string {
     `If the estate may wish to explore this, you can reach us at ${email}${phoneLine}. If you would prefer we did not write again, one line to the same address is enough and we will remove these details immediately.`,
     "",
     "How we hold your information",
-    `We identified this estate solely from the notice in The Gazette, published under the Open Government Licence. We rely on our legitimate interest in contacting personal representatives who may wish to sell, to see whether an introduction to a cash buyer would help — balanced against your interests, which is why this is by letter, never automated, and stops the moment you ask. You have the right to object and to ask us to erase your information.${icoSentence}${dpSentence}`,
+    `We identified this estate solely from the notice in The Gazette, published under the Open Government Licence. We rely on our legitimate interest in contacting personal representatives who may wish to sell, to see whether an introduction to a cash buyer would help — balanced against your interests, which is why this is by letter, never automated, and stops the moment you ask.${dpSentence}`,
     "",
     "Yours faithfully",
     "",

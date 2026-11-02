@@ -61,10 +61,6 @@ export function draftHomeownerLetter(input: HomeownerLetterInput): string {
   ];
 
   const reg = registrationLine(s);
-  const icoSentence =
-    s.icoRegistration !== undefined
-      ? ` We are registered with the Information Commissioner's Office, registration ${s.icoRegistration}.`
-      : "";
   const dpContact = s.dataProtectionContact ?? s.contactEmail;
   const dpSentence = dpContact !== undefined ? ` Our data protection contact is ${dpContact}.` : "";
 
@@ -95,7 +91,7 @@ export function draftHomeownerLetter(input: HomeownerLetterInput): string {
     `If it is of interest, you can reach us at ${email}${phoneLine}. If you would prefer not to hear from us again, one line to the same address is enough and we will not write to this property again.`,
     "",
     "How we identified this property",
-    `We wrote to this address, not to you by name, and we hold no personal information about you. The property was identified from public open data — the Energy Performance of Buildings Register and HM Land Registry Price Paid Data — which together indicate a property that was prepared for sale without a sale being registered since. We rely on our legitimate interest in approaching potential sellers to see whether an introduction to one of the cash buyers we work with would help, balanced against your interests, and it stops the moment you ask us to. You may object at any time.${icoSentence}${dpSentence}`,
+    `We wrote to this address, not to you by name, and we hold no personal information about you. The property was identified from public open data — the Energy Performance of Buildings Register and HM Land Registry Price Paid Data — which together indicate a property that was prepared for sale without a sale being registered since. We rely on our legitimate interest in approaching potential sellers to see whether an introduction to one of the cash buyers we work with would help, balanced against your interests, and it stops the moment you ask us to.${dpSentence}`,
     "",
     "Yours faithfully",
     "",

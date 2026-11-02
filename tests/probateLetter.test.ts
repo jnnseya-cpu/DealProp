@@ -35,10 +35,11 @@ describe("the probate letter carries everything a lawful postal approach needs",
     expect(letter).toContain("legitimate interest");
   });
 
-  it("gives the right to object, a one-line opt-out, and the ICO registration", () => {
-    expect(letter).toContain("right to object");
+  it("carries a one-line opt-out, and no longer the rights/ICO line (removed by request)", () => {
     expect(letter.toLowerCase()).toContain("did not write again");
-    expect(letter).toContain("ZA232345");
+    expect(letter).not.toContain("right to object");
+    expect(letter).not.toContain("ZA232345");
+    expect(letter).not.toContain("Information Commissioner");
   });
 
   it("states there is nothing for the estate to pay us, and that the buyer pays our fee", () => {

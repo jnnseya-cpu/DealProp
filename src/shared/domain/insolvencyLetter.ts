@@ -74,10 +74,6 @@ export function draftInsolvencyLetter(input: InsolvencyLetterInput): string {
       : `Re: The bankruptcy of ${input.debtorName}`;
 
   const reg = registrationLine(s);
-  const icoSentence =
-    s.icoRegistration !== undefined
-      ? ` We are registered with the Information Commissioner's Office, registration ${s.icoRegistration}.`
-      : "";
   const dpContact = s.dataProtectionContact ?? s.contactEmail;
   const dpSentence = dpContact !== undefined ? ` Our data protection contact is ${dpContact}.` : "";
 
@@ -109,7 +105,7 @@ export function draftInsolvencyLetter(input: InsolvencyLetterInput): string {
     `If a property in the estate is to be marketed or sold, we would be glad to be considered. You can reach us at ${email}${phoneLine}. If you would prefer we did not write again, one line to the same address is enough.`,
     "",
     "How we hold your information",
-    `We identified this matter solely from the notice in The Gazette, published under the Open Government Licence, and this approach is to you as the appointed office-holder in your professional capacity. We rely on our legitimate interest in being considered, as an introducer of vetted cash buyers, in the realisation of estate property, balanced against your interests, and it stops the moment you ask. You have the right to object and to ask us to erase your information.${icoSentence}${dpSentence}`,
+    `We identified this matter solely from the notice in The Gazette, published under the Open Government Licence, and this approach is to you as the appointed office-holder in your professional capacity. We rely on our legitimate interest in being considered, as an introducer of vetted cash buyers, in the realisation of estate property, balanced against your interests, and it stops the moment you ask.${dpSentence}`,
     "",
     "Yours faithfully",
     "",
