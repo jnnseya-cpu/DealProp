@@ -4,6 +4,7 @@ import {
   GAZETTE_SOURCE,
   fetchNotice,
   fetchNoticeDetail,
+  executorFromHtml,
   fetchNotices,
   isPublisherContact,
   noticeIdUrl,
@@ -456,5 +457,59 @@ describe("a category label is not a name, so it yields no lead", () => {
   it("keeps a real name", () => {
     expect(parseInsolvencyNotice({ id: "n3", title: "James Daniels", publishedAt: "2026-10-01" }))
       .toMatchObject({ debtorName: "James Daniels" });
+  });
+});
+
+describe("the executor is read from the notice page when the graph does not expose it", () => {
+  // The real deceased-estates page layout (the fields a live notice prints).
+  const page = (executorBlock: string): string =>
+    `<h2>Deceased Estates</h2>
+     <h3>Details of the deceased</h3>
+     <dl><dt>Deceased Surname:</dt><dd>Harrison</dd></dl>
+     <h3>Last address of the deceased</h3>
+     <dl><dt>Address Line 1:</dt><dd>53 Treherne Road</dd>
+     <dt>Town:</dt><dd>Coventry</dd>
+     <dt>Postcode:</dt><dd>CV6 3EB</dd></dl>
+     <h3>Details of the Executor/Administrator</h3>
+     <dl>${executorBlock}</dl>
+     <h3>Legal information</h3>
+     <p>Notice is hereby given pursuant to section 27 ...</p>`;
+
+  it("reads a company executor and its address", () => {
+    const html = page(
+      `<dt>Executor/Administrator Company Name:</dt><dd>Co-operative Legal Services Limited</dd>
+       <dt>Address 1:</dt><dd>650 Aztec West, Almondsbury</dd>
+       <dt>Town:</dt><dd>Bristol</dd>
+       <dt>Postcode:</dt><dd>BS32 4SD</dd>`,
+    );
+    const contact = executorFromHtml(html);
+    expect(contact).toContain("Co-operative Legal Services Limited");
+    expect(contact).toContain("650 Aztec West");
+    expect(contact).toContain("Bristol");
+    expect(contact).toContain("BS32 4SD");
+    // Never the deceased's own address.
+    expect(contact).not.toContain("Treherne");
+    expect(contact).not.toContain("CV6 3EB");
+  });
+
+  it("reads an individual executor", () => {
+    const html = page(
+      `<dt>Executor/Administrator Title:</dt><dd>Mr</dd>
+       <dt>Executor/Administrator First name:</dt><dd>John</dd>
+       <dt>Executor/Administrator Surname:</dt><dd>Smith</dd>
+       <dt>Address 1:</dt><dd>12 High Street</dd>
+       <dt>Town:</dt><dd>Leeds</dd>
+       <dt>Postcode:</dt><dd>LS1 1AA</dd>`,
+    );
+    const contact = executorFromHtml(html);
+    expect(contact).toContain("John Smith");
+    expect(contact).toContain("12 High Street");
+    expect(contact).toContain("LS1 1AA");
+  });
+
+  it("returns nothing when there is no executor block or no postcode", () => {
+    expect(executorFromHtml("<p>nothing useful here</p>")).toBeUndefined();
+    const noPostcode = page(`<dt>Executor/Administrator Company Name:</dt><dd>Some Firm</dd>`);
+    expect(executorFromHtml(noPostcode)).toBeUndefined();
   });
 });

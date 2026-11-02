@@ -614,11 +614,102 @@ function contactFromNode(
 }
 
 /**
+ * The executor/administrator a notice's own HTML page prints, as a fallback.
+ *
+ * The JSON-LD graph does not always expose the office-holder in a shape the
+ * parser above can read — some deceased-estates notices resolve to nothing, or
+ * to the publisher. But every such notice's human page prints the recipient in
+ * a labelled block ("Details of the Executor/Administrator" → "Executor/
+ * Administrator Company Name" / "Surname" etc., then "Address 1", "Town",
+ * "Postcode"). This reads that block, and ONLY that block — it is sliced out of
+ * the deceased's own details, which appear earlier and must never be mistaken
+ * for the recipient. It is extraction, not inference: it returns the labelled
+ * values verbatim or nothing, requires a real name and a UK postcode before it
+ * will accept anything, and the publisher guard still applies.
+ */
+export function executorFromHtml(html: string): string | undefined {
+  const text = html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&#0?39;|&apos;|&rsquo;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Slice out ONLY the executor/administrator section — never the deceased's.
+  const heading = /Details of the Executor\s*\/\s*Administrator/i.exec(text);
+  if (heading === null) return undefined;
+  const after = text.slice(heading.index + heading[0].length);
+  const endIdx = after.search(/Legal information|Notice is hereby given|Details of the/i);
+  const section = endIdx === -1 ? after : after.slice(0, endIdx);
+
+  const LABELS = [
+    "Executor/Administrator Title",
+    "Executor/Administrator First name",
+    "Executor/Administrator Middle name\\(s\\)",
+    "Executor/Administrator Surname",
+    "Executor/Administrator Company Name",
+    "Address 1",
+    "Address 2",
+    "Address 3",
+    "Town",
+    "County",
+    "Postcode",
+  ];
+  const boundary = LABELS.join("|");
+  const val = (label: string): string | undefined => {
+    const re = new RegExp(`${label}\\s*:?\\s*(.*?)\\s*(?=(?:${boundary})\\s*:?|$)`, "i");
+    const v = re.exec(section)?.[1]?.trim();
+    return v !== undefined && v !== "" ? v : undefined;
+  };
+
+  const company = val("Executor/Administrator Company Name");
+  const person = [
+    val("Executor/Administrator Title"),
+    val("Executor/Administrator First name"),
+    val("Executor/Administrator Middle name\\(s\\)"),
+    val("Executor/Administrator Surname"),
+  ]
+    .filter((p): p is string => p !== undefined)
+    .join(" ")
+    .trim();
+  const name = company ?? (person !== "" ? person : undefined);
+
+  const postcode = val("Postcode");
+  const address = [val("Address 1"), val("Address 2"), val("Address 3"), val("Town"), val("County"), postcode]
+    .filter((p): p is string => p !== undefined && p !== "")
+    .join(", ");
+
+  // Accept only a real recipient: a name and a genuine UK postcode. Anything
+  // short of that is treated as "not found" so the operator pastes it instead.
+  if (name === undefined || name.length < 2) return undefined;
+  if (postcode === undefined || UK_POSTCODE.exec(postcode) === null) return undefined;
+
+  const contact = `${name} — ${address}`;
+  return isPublisherContact(contact) ? undefined : contact;
+}
+
+/** Fetch the notice's human page and read the executor block from it. */
+async function fetchExecutorFromPage(fetcher: Fetcher, noticeUrl: string): Promise<string | undefined> {
+  // The human page, not the identifier URI — the id URI returns JSON-LD, the
+  // page prints the labelled executor block. Derive one from the other.
+  const pageUrl = noticeUrl.replace("/id/notice/", "/notice/");
+  const result = await fetcher.get(GAZETTE_SOURCE, pageUrl, { headers: { accept: "text/html" } });
+  if (!result.ok || result.body === undefined) return undefined;
+  return executorFromHtml(result.body);
+}
+
+/**
  * Read one notice's own page for the contact for service and claim deadline.
  *
  * Licence- and host-gated by the Fetcher like every Gazette read. Used to
  * enrich a probate lead with the lawful contact, so the operator never leaves
  * Lode to find who to write to. Only called for a bounded number of leads.
+ *
+ * The JSON-LD graph is read first; where it names no office-holder we can use,
+ * the notice's own HTML page is read as a fallback (executorFromHtml), because
+ * the page prints the recipient even on notices whose graph does not expose it.
  */
 export async function fetchNoticeDetail(
   fetcher: Fetcher,
@@ -638,12 +729,20 @@ export async function fetchNoticeDetail(
   if (!result.ok || result.body === undefined) return { ok: false, reason: result.reason };
 
   try {
-    return {
-      ok: true,
-      value: parseNoticeDetail(JSON.parse(result.body)),
-      reason: "ok",
-      provenance: provenanceOf(result),
-    };
+    const detail = parseNoticeDetail(JSON.parse(result.body));
+    if (detail.contactForService === undefined) {
+      // The graph named no usable office-holder — read it from the page.
+      const fromPage = await fetchExecutorFromPage(fetcher, noticeUrl);
+      if (fromPage !== undefined) {
+        return {
+          ok: true,
+          value: { ...detail, contactForService: fromPage },
+          reason: "ok",
+          provenance: provenanceOf(result),
+        };
+      }
+    }
+    return { ok: true, value: detail, reason: "ok", provenance: provenanceOf(result) };
   } catch {
     return { ok: false, reason: "The notice detail could not be read as JSON." };
   }
