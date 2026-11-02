@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { resolveLetter, markLeadContacted } from "./actions";
 import { leadContactKey, type SourcedLead } from "@shared/domain/sourcedLead";
+import { LODE_MARK_SVG } from "@shared/brandMark";
 
 /**
  * Review, complete and print the letter to a lead's office-holder.
@@ -107,15 +108,10 @@ export function PrintLetter({ lead, signatureUrl }: { lead: SourcedLead; signatu
           ? `${window.location.origin}${signatureUrl}`
           : signatureUrl;
 
-    // The Lode mark as a letterhead — inline SVG so it prints with no network
-    // dependency. Colour is the brand gold (globals.css --color-lode-400).
-    const letterhead =
-      `<div class="lh">` +
-      `<svg width="30" height="30" viewBox="0 0 26 26" fill="none">` +
-      `<path d="M13 2 3 8v10l10 6 10-6V8L13 2Z" stroke="#d4af37" stroke-width="1.3"/>` +
-      `<path d="M8 11.5 13 8.5l5 3v5.5l-5 3-5-3v-5.5Z" fill="#d4af37" fill-opacity="0.22"/>` +
-      `<path d="M13 8.5v9M8 11.5l10 5.5M18 11.5 8 17" stroke="#d4af37" stroke-width="0.9" stroke-opacity="0.75"/>` +
-      `</svg><span class="wm">Lode</span></div>`;
+    // The Lode mark as a letterhead — the shared brand artwork, inline so it
+    // prints with no network dependency. One definition in @shared/brandMark;
+    // on white paper the near-black nugget reads without a chip.
+    const letterhead = `<div class="lh">${LODE_MARK_SVG}<span class="wm">Lode</span></div>`;
 
     const sigImg = sig === "" ? "" : `<img class="sig" src="${sig}" alt="Signature">`;
 
@@ -125,6 +121,7 @@ export function PrintLetter({ lead, signatureUrl }: { lead: SourcedLead; signatu
         `body{font:12pt/1.55 Georgia,"Times New Roman",serif;color:#111;max-width:170mm}` +
         `.txt{white-space:pre-wrap}` +
         `.lh{display:flex;align-items:center;gap:8px;margin-bottom:10mm}` +
+        `.lh svg{width:30px;height:30px}` +
         `.wm{font:600 20px/1 Georgia,serif;letter-spacing:.02em;color:#1a1a1a}` +
         `.sig{display:block;height:28px;margin:2mm 0 1mm}` +
         `</style></head><body>` +

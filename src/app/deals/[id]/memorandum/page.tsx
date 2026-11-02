@@ -126,7 +126,7 @@ export default async function MemorandumPage({
       <article>
         <header className="memo-head">
           <div className="memo-brand">
-            <Mark size={26} color="#9c6f21" />
+            <Mark size={40} />
             <span className="memo-wordmark">Lode</span>
           </div>
           <p className="memo-kicker">Investment memorandum</p>

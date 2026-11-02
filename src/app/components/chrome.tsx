@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LODE_CHIP, LODE_MARK_SVG } from "@shared/brandMark";
 import type { TradeReferralReport } from "@shared/domain/partners";
 import type { Verdict } from "@shared/domain/types";
 
@@ -30,18 +31,31 @@ export function scoreBg(value: number): string {
   return "bg-red-500";
 }
 
-export function Mark({ size = 22, color = "var(--color-lode-400)" }: { size?: number; color?: string }) {
+/**
+ * The Lode mark.
+ *
+ * The artwork is the ore nugget with its gold vein, defined once in
+ * `@shared/brandMark` and drawn here from a data URI so it needs no font and is
+ * byte-identical to the printed letterhead and the app icon. It is never
+ * recoloured — the body is near-black — so on a dark surface pass `chip` to sit
+ * it on a light tile and keep it legible. Previously four hand-drawn copies of
+ * the mark drifted apart; this is the single screen copy.
+ */
+export function Mark({ size = 22, chip = false }: { size?: number; chip?: boolean }) {
+  const src = `data:image/svg+xml;utf8,${encodeURIComponent(LODE_MARK_SVG)}`;
+  const img = (
+    // eslint-disable-next-line @next/next/no-img-element -- a data-URI SVG, no network request to optimise
+    <img src={src} width={size} height={size} alt="" aria-hidden draggable={false} />
+  );
+  if (!chip) return img;
+  const pad = Math.max(2, Math.round(size * 0.2));
   return (
-    <svg width={size} height={size} viewBox="0 0 26 26" fill="none" aria-hidden>
-      <path d="M13 2 3 8v10l10 6 10-6V8L13 2Z" stroke={color} strokeWidth="1.3" />
-      <path d="M8 11.5 13 8.5l5 3v5.5l-5 3-5-3v-5.5Z" fill={color} fillOpacity="0.22" />
-      <path
-        d="M13 8.5v9M8 11.5l10 5.5M18 11.5 8 17"
-        stroke={color}
-        strokeWidth="0.9"
-        strokeOpacity="0.75"
-      />
-    </svg>
+    <span
+      className="inline-flex shrink-0 items-center justify-center"
+      style={{ background: LODE_CHIP, borderRadius: Math.round(size * 0.3) + pad, padding: pad }}
+    >
+      {img}
+    </span>
   );
 }
 
@@ -109,7 +123,7 @@ export function SiteHeader({
       <div className={`mx-auto flex ${width} items-center justify-between gap-6 px-6 py-3`}>
         <div className="flex min-w-0 items-center gap-3.5">
           <Link href={back} className="flex shrink-0 items-center gap-2.5">
-            <Mark size={19} />
+            <Mark size={21} chip />
             <span className="font-display text-[17px] tracking-[-0.01em] text-ink-100">Lode</span>
           </Link>
           {children}

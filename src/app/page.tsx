@@ -205,7 +205,7 @@ function Nav() {
     <nav className="app-header sticky top-0 z-50 border-b hairline bg-ink-950/85 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-8 px-6 py-3">
         <div className="flex items-center gap-2.5">
-          <Mark size={19} />
+          <Mark size={21} chip />
           <span className="font-display text-[17px] tracking-[-0.01em] text-ink-100">Lode</span>
         </div>
         <LandingNav />
@@ -423,7 +423,7 @@ function OSConsole({
         {/* application chrome */}
         <div className="flex items-center justify-between gap-3 border-b hairline bg-ink-950/60 px-4 py-2.5">
           <div className="flex min-w-0 items-center gap-2.5 text-[12px] text-ink-400">
-            <Mark size={15} />
+            <Mark size={15} chip />
             <span className="text-ink-200">Pipeline</span>
             <span className="text-ink-600">/</span>
             <span className="truncate font-mono text-[11px] text-ink-300">{subject}</span>

@@ -26,19 +26,21 @@ import {
   splashPath,
   splashPixels,
 } from "../src/shared/pwa";
+import { LODE_CHIP, LODE_LOGO_SVG, LODE_MARK_SVG } from "../src/shared/brandMark";
 
-const { background: INK_950, foreground: INK_100, muted: INK_400, accent: LODE_400 } =
-  PWA_COLOURS;
+const { background: INK_950, foreground: INK_100, muted: INK_400 } = PWA_COLOURS;
 
 const ROOT = path.join(process.cwd(), "public");
 
-/** The mark, as inline SVG so it scales cleanly to any density. */
+/**
+ * The mark, from the single brand source, sized for this canvas.
+ *
+ * The artwork carries its own colours (a near-black nugget with a gold vein),
+ * so it is never recoloured. On a dark ground it would disappear, which is why
+ * the icon canvas is the light chip and the splash sits it on a chip.
+ */
 function mark(size: number): string {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 26 26" fill="none">
-    <path d="M13 2 3 8v10l10 6 10-6V8L13 2Z" stroke="${LODE_400}" stroke-width="1.3"/>
-    <path d="M8 11.5 13 8.5l5 3v5.5l-5 3-5-3v-5.5Z" fill="${LODE_400}" fill-opacity="0.22"/>
-    <path d="M13 8.5v9M8 11.5l10 5.5M18 11.5 8 17" stroke="${LODE_400}" stroke-width="0.9" stroke-opacity="0.75"/>
-  </svg>`;
+  return LODE_MARK_SVG.replace("<svg ", `<svg width="${size}" height="${size}" `);
 }
 
 /**
@@ -50,8 +52,11 @@ function mark(size: number): string {
  */
 function iconHtml(size: number, { maskable = false }: { maskable?: boolean } = {}): string {
   const inset = maskable ? 0.56 : 0.72;
+  // The nugget is near-black, so the icon ground is the light chip rather than
+  // ink — on ink the mark would be an invisible square. Black mark on a warm
+  // off-white reads at every size from a 512 launcher down to a 32 favicon.
   return `<!doctype html><html><body style="margin:0;width:${size}px;height:${size}px;
-    background:${INK_950};display:flex;align-items:center;justify-content:center;">
+    background:${LODE_CHIP};display:flex;align-items:center;justify-content:center;">
     <div style="width:${Math.round(size * inset)}px;height:${Math.round(size * inset)}px;
       display:flex;align-items:center;justify-content:center;">
       ${mark(Math.round(size * inset))}
@@ -73,13 +78,18 @@ function iconHtml(size: number, { maskable = false }: { maskable?: boolean } = {
  */
 function splashHtml(width: number, height: number): string {
   const markSize = Math.round(Math.min(width, height) * 0.16);
+  const chipPad = Math.round(markSize * 0.2);
   const titleSize = Math.round(Math.min(width, height) * 0.075);
+  // The ground stays ink so the launch does not flash a colour the app does not
+  // use (the manifest and the pinned test require it). The near-black mark sits
+  // on a light chip so it still reads on that ink.
   return `<!doctype html><html><body style="margin:0;width:${width}px;height:${height}px;
     background:${INK_950};overflow:hidden;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     font-family:Georgia,'Times New Roman',serif;">
     <div style="display:flex;flex-direction:column;align-items:center;">
-      ${mark(markSize)}
+      <div style="background:${LODE_CHIP};border-radius:${Math.round(markSize * 0.24) + chipPad}px;
+        padding:${chipPad}px;display:flex;">${mark(markSize)}</div>
       <div style="margin-top:${Math.round(markSize * 0.34)}px;color:${INK_100};
         font-size:${titleSize}px;letter-spacing:-0.01em;">Lode</div>
       <div style="margin-top:${Math.round(titleSize * 0.42)}px;color:${INK_400};
@@ -112,6 +122,13 @@ async function main(): Promise<void> {
   const browser = await chromium.launch({
     executablePath: process.env.CHROMIUM_PATH ?? "/opt/pw-browsers/chromium",
   });
+
+  // The downloadable brand files, written from the single source so the SVGs in
+  // public/brand/ can never drift from what the app and the icons draw.
+  await mkdir(path.join(ROOT, "brand"), { recursive: true });
+  await writeFile(path.join(ROOT, "brand", "lode-mark.svg"), `${LODE_MARK_SVG}\n`);
+  await writeFile(path.join(ROOT, "brand", "lode-logo.svg"), `${LODE_LOGO_SVG}\n`);
+  console.log("brand   brand/lode-mark.svg, brand/lode-logo.svg");
 
   let total = 0;
   for (const icon of PWA_ICONS) {

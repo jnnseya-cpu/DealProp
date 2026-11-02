@@ -28,7 +28,7 @@ export function SiteFooter({ width = "max-w-7xl" }: { width?: string }) {
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1fr]">
           <div>
             <div className="flex items-center gap-2.5">
-              <Mark size={18} />
+              <Mark size={18} chip />
               <span className="font-display text-[16px] text-ink-100">
                 {identity.tradingName ?? "Lode"}
               </span>
