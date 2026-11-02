@@ -361,40 +361,12 @@ describe("sweeping a whole council", () => {
 /* --------------------------------------------------------- runRegisters */
 
 describe("running the public registers through the Fetcher", () => {
-  it("turns a notice with an office-holder into a postable lead", async () => {
-    // The feed carries the name (title) and the addresses (content) on the entry
-    // itself, so no per-notice request is made — the shape of the live feed. A
-    // lead is only produced where the notice names someone to post to.
-    const feed = JSON.stringify({
-      feed: {
-        entry: [
-          {
-            id: "2345-6789",
-            title: "WILFRED SMITH",
-            published: "2026-09-01T00:00:00Z",
-            link: [{ "@rel": "alternate", "@href": "https://www.thegazette.co.uk/notice/2345-6789" }],
-            content:
-              "<div><dl><dt>Address of Deceased</dt><dd>9 Elm Road, Leeds LS1 4DT</dd>" +
-              "<dt>Name and address of Personal Representative</dt><dd>Messrs Example &amp; Co Solicitors, 2 High Street, Leeds LS1 1AA</dd></dl></div>",
-          },
-        ],
-      },
-    });
-    const { fetcher } = fetcherWith({
-      "https://www.thegazette.co.uk/robots.txt": { status: 404 },
-      "https://www.thegazette.co.uk/all-notices/notice/data.json?noticetypes=DEC&results-page-size=50&results-page=1": { body: feed },
-    });
-    const result = await runRegisters({ deceasedCode: "DEC" }, { fetcher, now: NOW });
-    expect(result.leads).toHaveLength(1);
-    expect(result.leads[0]?.signalKey).toBe("probate-notice");
-    expect(result.leads[0]?.postcode).toBe("LS1 4DT");
-    expect(result.leads[0]?.contactForService).toContain("Example & Co");
-    expect(result.leads[0]?.heightenedProtection).toBe(true);
-  });
-
-  it("leaves out a notice with no office-holder to post to", async () => {
-    // The notice gives only the deceased's address — nobody to write to. An
-    // unpostable lead never reaches the results; it is reported, not shown.
+  it("turns fetched notices into leads", async () => {
+    // The feed carries the name (title) and the deceased's address (content) on
+    // the entry itself. The office-holder is NOT in the feed — it is resolved
+    // when the operator opens the letter — so a lead is produced here even
+    // without one; it is never pre-filtered for lacking an address it resolves
+    // later.
     const feed = JSON.stringify({
       feed: {
         entry: [
@@ -413,8 +385,10 @@ describe("running the public registers through the Fetcher", () => {
       "https://www.thegazette.co.uk/all-notices/notice/data.json?noticetypes=DEC&results-page-size=50&results-page=1": { body: feed },
     });
     const result = await runRegisters({ deceasedCode: "DEC" }, { fetcher, now: NOW });
-    expect(result.leads).toHaveLength(0);
-    expect(result.notes.join(" ")).toContain("unpostable");
+    expect(result.leads).toHaveLength(1);
+    expect(result.leads[0]?.signalKey).toBe("probate-notice");
+    expect(result.leads[0]?.postcode).toBe("LS1 4DT");
+    expect(result.leads[0]?.heightenedProtection).toBe(true);
   });
 
   it("fails closed and reports why when a source cannot be reached", async () => {
