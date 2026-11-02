@@ -348,6 +348,13 @@ export async function resolveLetter(input: {
     if (detail.ok && detail.value !== undefined) {
       contactForService = detail.value.contactForService;
       claimDeadline = detail.value.claimDeadline;
+      if (contactForService === undefined) {
+        // The notice was read, but it named no office-holder we can write to —
+        // or the one it named was the Gazette's own publication details, which
+        // the parser rejects. Never guess: ask for the address from the notice.
+        note =
+          "The notice does not give an office-holder's address we can safely use. Open it (one tap) and paste the executor's or trustee's address below — it will fill into the letter.";
+      }
     } else if (/robots/i.test(detail.reason)) {
       // The Gazette's own robots.txt forbids reading its notice data
       // automatically, and we obey it. Not an error to fix — the operator opens

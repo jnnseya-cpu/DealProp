@@ -5,6 +5,7 @@ import {
   fetchNotice,
   fetchNoticeDetail,
   fetchNotices,
+  isPublisherContact,
   noticeIdUrl,
   parseDeceasedEstate,
   parseGazetteFeed,
@@ -327,6 +328,25 @@ describe("a notice's contact for service is read from its JSON-LD", () => {
       parseNoticeDetail({ "@graph": [{ "@id": "n", hasClaimDeadline: "2026-01-01" }] }).contactForService,
     ).toBeUndefined();
     expect(parseNoticeDetail("nope")).toEqual({});
+  });
+
+  it("rejects a contact that resolved to the Gazette's own publication, not the estate", () => {
+    // The failure that would have posted a probate approach to the Gazette's
+    // print room: the representative node resolved to the publication's details.
+    const detail = parseNoticeDetail({
+      "@graph": [
+        { "@id": "n", hasPersonalRepresentative: "pub" },
+        { "@id": "pub", name: "The London Gazette", address: "Norwich, NR7 7WD" },
+      ],
+    });
+    expect(detail.contactForService).toBeUndefined();
+  });
+
+  it("knows the Gazette's own details are never a recipient", () => {
+    expect(isPublisherContact("John Pook — The London Gazette (62368), Norwich, NR7 7WD")).toBe(true);
+    expect(isPublisherContact("The Stationery Office, Norwich")).toBe(true);
+    expect(isPublisherContact("Messrs Example & Co Solicitors, 1 High Street, Nottingham, NG1 1AA")).toBe(false);
+    expect(isPublisherContact(undefined)).toBe(false);
   });
 });
 

@@ -293,6 +293,32 @@ function courtFromContent(content: string | undefined): string | undefined {
 }
 
 /**
+ * Whether a resolved contact is the Gazette's own publication details, not an
+ * estate's address for service.
+ *
+ * Every notice carries its publisher — The Stationery Office at the Gazette's
+ * Norwich office (NR7 7WD) — and its own edition ("The London Gazette (62368)").
+ * A parse that reaches past the personal-representative node, or a notice that
+ * names no representative, can surface *that* as the contact, which would post a
+ * probate approach to the Gazette's print room — a misdirected letter to a body
+ * that has nothing to do with the estate. It is never a real recipient, so it is
+ * rejected and the lead falls back to the operator reading the office-holder from
+ * the notice and pasting it (§37/§40: an address is extracted and verified, never
+ * invented or misdirected). Matches the publication name, its publisher, and the
+ * Norwich publication postcode.
+ */
+export function isPublisherContact(contact: string | undefined): boolean {
+  if (contact === undefined) return false;
+  const s = contact.toLowerCase();
+  return (
+    s.includes("gazette") ||
+    s.includes("the stationery office") ||
+    s.includes("williams lea") ||
+    /\bnr7\s*7wd\b/.test(s)
+  );
+}
+
+/**
  * The office-holder a notice prints in its own content block.
  *
  * Some notices carry, in the same definition list as the address, the person or
@@ -323,7 +349,9 @@ function contactFromContent(content: string | undefined): string | undefined {
       .replace(/\/n/g, " ")
       .replace(/\s+/g, " ")
       .trim();
-    if (value !== "") return value;
+    // A dd that resolves to the Gazette's own publication details is not a
+    // recipient — keep scanning for a real office-holder rather than return it.
+    if (value !== "" && !isPublisherContact(value)) return value;
   }
   return undefined;
 }
@@ -497,7 +525,11 @@ export function parseNoticeDetail(json: unknown): NoticeDetail {
     }
   }
 
-  const contactForService = contactFromNode(repNode, byId);
+  // Reject a contact that resolved to the Gazette's own publication details
+  // rather than the estate's address for service — it would misdirect the letter
+  // to the publisher. The lead then falls back to the operator pasting it.
+  const resolved = contactFromNode(repNode, byId);
+  const contactForService = isPublisherContact(resolved) ? undefined : resolved;
 
   return {
     ...(contactForService !== undefined ? { contactForService } : {}),
