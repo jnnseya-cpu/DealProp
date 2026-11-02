@@ -344,27 +344,36 @@ export async function resolveLetter(input: {
   if (override !== undefined && override !== "") {
     contactForService = override;
   } else if (input.noticeUrl !== "") {
-    const detail = await fetchNoticeDetail(new Fetcher(), input.noticeUrl);
-    if (detail.ok && detail.value !== undefined) {
-      contactForService = detail.value.contactForService;
-      claimDeadline = detail.value.claimDeadline;
-      if (contactForService === undefined) {
-        // The notice was read, but it named no office-holder we can write to —
-        // or the one it named was the Gazette's own publication details, which
-        // the parser rejects. Never guess: ask for the address from the notice.
+    // A lookup failure must never reject the action — that swallowed the real
+    // reason on the client and dead-ended the lead with a generic "could not
+    // reach". Whatever happens, the operator gets a letter, the real reason, and
+    // the paste path.
+    try {
+      const detail = await fetchNoticeDetail(new Fetcher(), input.noticeUrl);
+      if (detail.ok && detail.value !== undefined) {
+        contactForService = detail.value.contactForService;
+        claimDeadline = detail.value.claimDeadline;
+        if (contactForService === undefined) {
+          // The notice was read, but it named no office-holder we can write to —
+          // or the one it named was the Gazette's own publication details, which
+          // the parser rejects. Never guess: ask for the address from the notice.
+          note =
+            "The notice was read, but it gives no office-holder's address we can safely use. Open it (one tap) and paste the executor's or trustee's address below — it will fill into the letter.";
+        }
+      } else if (/robots/i.test(detail.reason)) {
+        // The Gazette's own robots.txt forbids reading its notice data
+        // automatically, and we obey it. Not an error to fix — the operator opens
+        // the notice (permitted) and pastes the office-holder's address.
         note =
-          "The notice does not give an office-holder's address we can safely use. Open it (one tap) and paste the executor's or trustee's address below — it will fill into the letter.";
+          "The Gazette does not allow its notice data to be read automatically. Open the notice (one tap) and paste the office-holder's address below — it will fill into the letter.";
+      } else {
+        // Any other failure (a 404, a redirect, a non-JSON body): surface the
+        // real reason so it is clear whether the notice or our read of it is at fault.
+        note = `The notice could not be read — ${detail.reason} Open it directly, and paste the contact below.`;
       }
-    } else if (/robots/i.test(detail.reason)) {
-      // The Gazette's own robots.txt forbids reading its notice data
-      // automatically, and we obey it. Not an error to fix — the operator opens
-      // the notice (permitted) and pastes the office-holder's address.
-      note =
-        "The Gazette does not allow its notice data to be read automatically. Open the notice (one tap) and paste the office-holder's address below — it will fill into the letter.";
-    } else {
-      // Any other failure (a 404, a redirect, a non-JSON body): surface the
-      // real reason so it is clear whether the notice or our read of it is at fault.
-      note = `The notice could not be read — ${detail.reason} Open it directly, and paste the contact below.`;
+    } catch (error) {
+      const why = error instanceof Error ? error.message : "an unexpected error";
+      note = `The notice could not be read automatically (${why}). Open it (one tap) and paste the office-holder's address below — it will fill into the letter.`;
     }
   }
 
