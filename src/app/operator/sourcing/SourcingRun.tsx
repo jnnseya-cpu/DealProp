@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { runAreaAction, runRegistersAction, type SourcingResult } from "./actions";
 import { PrintLetter } from "./PrintLetter";
 import { StartDealForm } from "./StartDealForm";
@@ -153,11 +153,32 @@ function Flips({ flips }: { flips: readonly FlipEvidence[] }) {
 }
 
 function Leads({ leads, signatureUrl }: { leads: readonly SourcedLead[]; signatureUrl?: string }) {
+  const [showAll, setShowAll] = useState(false);
   if (leads.length === 0) return null;
-  const needing = leads.filter(leadNeedsAddress).length;
+  const inPriority = (l: SourcedLead): boolean =>
+    l.postcode !== undefined && isPriorityArea(l.postcode);
+  const priorityCount = leads.filter(inPriority).length;
+  // Default to the priority area when there are any there, so a national feed
+  // does not bury the region Lode works in; everything stays one click away. If
+  // nothing is in the priority area, show all rather than an empty list.
+  const canFilter = priorityCount > 0 && priorityCount < leads.length;
+  const shown = showAll || !canFilter ? leads : leads.filter(inPriority);
+  const needing = shown.filter(leadNeedsAddress).length;
   return (
     <section className="mt-10">
       <h2 className="eyebrow">{leads.length} lead{leads.length === 1 ? "" : "s"} to investigate</h2>
+      {canFilter && (
+        <p className="mt-2 text-sm text-ink-400">
+          {showAll ? `Showing all ${leads.length}. ` : `Showing ${priorityCount} in your priority area. `}
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            className="text-lode-300 underline-offset-2 hover:underline"
+          >
+            {showAll ? "Priority area only" : `Show all ${leads.length}`}
+          </button>
+        </p>
+      )}
       {needing > 0 && (
         <p className="mt-2 flex items-start gap-2 text-sm text-ink-400">
           <span className="mt-0.5 shrink-0 rounded border border-ink-700 bg-ink-850 px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-ink-300">
@@ -171,7 +192,7 @@ function Leads({ leads, signatureUrl }: { leads: readonly SourcedLead[]; signatu
         </p>
       )}
       <ul className="mt-4 space-y-4">
-        {leads.map((lead, i) => (
+        {shown.map((lead, i) => (
           <li key={`${lead.signalKey}-${lead.addressKey ?? lead.postcode ?? i}`} className="rounded-2xl border hairline bg-surface-1 px-5 py-4">
             <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
               <p className="font-display text-base text-ink-100">

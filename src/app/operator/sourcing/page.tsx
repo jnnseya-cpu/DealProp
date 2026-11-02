@@ -3,6 +3,7 @@ import { SiteHeader } from "@/app/components/chrome";
 import { requirePermission } from "@/app/operator/guard";
 import { getSource } from "@shared/domain/sources";
 import { sourcingReadiness } from "@backend/discovery/sourcingRun";
+import { STALE_MONTHS } from "@backend/discovery/properties";
 import { listContactedLeads, listSourcedProperties } from "@backend/store/repository";
 import type { LeadSignal, ReadinessState } from "@shared/domain/sourcedLead";
 import { signalCoverage } from "@shared/domain/sourcingSignals";
@@ -57,9 +58,23 @@ export default async function SourcingPage() {
   const contacted = await listContactedLeads();
   const contactedKeys = new Set(contacted.map((c) => c.key));
 
+  // A prepared-but-unsold row whose certificate is older than the actionable
+  // window is stale — a long-term owner who got a certificate for a let or a
+  // remortgage, not a recent seller. New runs already exclude these (STALE_MONTHS
+  // in findCandidates); this drops rows saved before that rule from the view, by
+  // the age the lead itself states. It hides, it does not delete.
+  const isStale = (item: { readonly lead: { readonly signalKey: LeadSignal; readonly summary?: string } }): boolean => {
+    if (item.lead.signalKey !== "prepared-but-unsold") return false;
+    const m = /lodged (\d+) months ago/.exec(item.lead.summary ?? "");
+    return m !== null && Number(m[1]) > STALE_MONTHS;
+  };
+
   // Active worklist excludes both what a person set aside and what a letter has
-  // already gone to — the latter keyed by the property's id (its address key).
-  const active = worklist.filter((p) => p.dismissed === undefined && !contactedKeys.has(p.id));
+  // already gone to — the latter keyed by the property's id (its address key) —
+  // and the stale certificates described above.
+  const active = worklist.filter(
+    (p) => p.dismissed === undefined && !contactedKeys.has(p.id) && !isStale(p),
+  );
   const setAside = worklist.filter((p) => p.dismissed !== undefined).length;
 
   // The contacted list spans all three doors. For a prepared-but-unsold property

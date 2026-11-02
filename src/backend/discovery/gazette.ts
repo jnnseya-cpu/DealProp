@@ -357,8 +357,34 @@ function contactFromContent(content: string | undefined): string | undefined {
 }
 
 /**
+ * Titles that are a notice SECTION or CATEGORY label, not a person's or estate's
+ * name — "Bankruptcy Orders", "Deceased Estates", and the like. The feed
+ * occasionally lists one of these as an entry title; taken as a name it becomes
+ * a lead for a person who does not exist ("a bankruptcy order notice names
+ * Bankruptcy Orders"). A record whose whole name is one of these is dropped.
+ */
+const NON_NAME = new Set([
+  "bankruptcy order",
+  "bankruptcy orders",
+  "deceased estate",
+  "deceased estates",
+  "insolvency",
+  "individual insolvency",
+  "personal insolvency",
+  "debt relief order",
+  "debt relief orders",
+  "individual voluntary arrangement",
+  "individual voluntary arrangements",
+  "notice",
+  "notices",
+  "unknown",
+]);
+
+/**
  * The name a notice carries as its title, with a trailing status marker
  * removed where the Gazette appends one ("(deceased)", "(in bankruptcy)").
+ * A title that is a category label rather than a name yields nothing, so no
+ * lead is produced for it.
  */
 function cleanName(title: string | undefined): string | undefined {
   const value = text(title);
@@ -368,7 +394,8 @@ function cleanName(title: string | undefined): string | undefined {
     .replace(/\s*\((?:deceased|in bankruptcy|in liquidation|in administration)\)\s*$/i, "")
     .replace(/\s+/g, " ")
     .trim();
-  return stripped === "" ? undefined : stripped;
+  if (stripped === "" || NON_NAME.has(stripped.toLowerCase())) return undefined;
+  return stripped;
 }
 
 /**

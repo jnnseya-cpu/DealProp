@@ -440,3 +440,21 @@ describe("the connector is bound to the licensed host", () => {
     expect(calls.some((c) => c.includes("data.json"))).toBe(false);
   });
 });
+
+describe("a category label is not a name, so it yields no lead", () => {
+  it("drops a notice whose title is a section heading", () => {
+    // The feed sometimes lists a heading as an entry; taken as a name it becomes
+    // "a bankruptcy order notice names Bankruptcy Orders".
+    expect(
+      parseInsolvencyNotice({ id: "n1", title: "Bankruptcy Orders", publishedAt: "2026-10-01" }),
+    ).toBeUndefined();
+    expect(
+      parseDeceasedEstate({ id: "n2", title: "Deceased Estates", publishedAt: "2026-10-01" }),
+    ).toBeUndefined();
+  });
+
+  it("keeps a real name", () => {
+    expect(parseInsolvencyNotice({ id: "n3", title: "James Daniels", publishedAt: "2026-10-01" }))
+      .toMatchObject({ debtorName: "James Daniels" });
+  });
+});
