@@ -5,6 +5,7 @@ import { draftProbateLetter } from "@shared/domain/probateLetter";
 import { draftInsolvencyLetter } from "@shared/domain/insolvencyLetter";
 import { draftHomeownerLetter } from "@shared/domain/homeownerLetter";
 import { messageOf } from "@backend/report";
+import { leadNeedsAddress } from "@shared/domain/sourcedLead";
 import type {
   FlipEvidence,
   LeadSignal,
@@ -741,9 +742,21 @@ export async function runRegisters(
   // Priority areas float to the top of the national register run — the default
   // West & East Midlands, or a GAZETTE_PRIORITY_AREAS override.
   const priorityAreas = parsePriorityAreas(process.env.GAZETTE_PRIORITY_AREAS) ?? DEFAULT_PRIORITY_AREAS;
-  return {
-    leads: sourceProperties({ deceasedEstates: deceased, insolvencies }, now, priorityAreas),
-    notes,
-    requestsMade: fetcher.requestsMade,
-  };
+  const built = sourceProperties({ deceasedEstates: deceased, insolvencies }, now, priorityAreas);
+
+  // A probate or insolvency lead with no office-holder address has nobody to
+  // post to — the notice named no executor/trustee and gave no address for
+  // service, so the letter could only carry a placeholder. Leave it out of the
+  // results rather than present an unpostable lead. (Prepared-but-unsold leads
+  // write to "The Homeowner" at the property, so they always have an address and
+  // are never affected.)
+  const postable = built.filter((lead) => !leadNeedsAddress(lead));
+  const dropped = built.length - postable.length;
+  if (dropped > 0) {
+    notes.push(
+      `${dropped} notice(s) named no office-holder and gave no address to post to — left out as unpostable.`,
+    );
+  }
+
+  return { leads: postable, notes, requestsMade: fetcher.requestsMade };
 }
