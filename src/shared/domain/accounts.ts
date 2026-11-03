@@ -130,6 +130,23 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   seller: ["manage-own-property"],
 };
 
+/**
+ * A pending email-verification code, as stored on an unverified account.
+ *
+ * The code itself is never stored — only its HMAC under the server secret, so
+ * a leaked store yields nothing usable and a six-digit code cannot be
+ * brute-forced without the secret. Safety comes from the short expiry, the
+ * single use, the attempt cap and sign-up rate limiting, not from code length.
+ */
+export interface PendingEmailCode {
+  /** HMAC of the code under OPERATOR_SECRET. Never the code itself. */
+  readonly codeHash: string;
+  /** ISO-8601 instant the code stops being accepted. */
+  readonly expiresAt: string;
+  /** Wrong codes tried so far, so a guesser is locked out after a few. */
+  readonly attempts: number;
+}
+
 export interface InvestorCertification {
   readonly category: InvestorCategory;
   /** Keys of the criteria the investor said were true of them. Never empty. */
@@ -180,6 +197,26 @@ export interface Account {
   readonly createdAt: string;
   /** Set when access is withdrawn. Disabled accounts keep their audit trail. */
   readonly disabledAt?: string;
+  /**
+   * When the email address was verified by entering the code sent to it at
+   * sign-up. Absent until verified.
+   *
+   * A legacy account created before verification existed carries neither this
+   * nor {@link pendingEmailCode}, and {@link isEmailVerified} treats it as
+   * verified — enforcing a check invented later must not lock out an account
+   * that predates it, and those were created by an operator who already knew
+   * the person.
+   */
+  readonly emailVerifiedAt?: string;
+  /**
+   * The one-time code emailed to the address at sign-up, held hashed, with an
+   * expiry and an attempt count. Present only between sign-up and
+   * verification, and cleared the instant the code is accepted.
+   *
+   * The code is sent ONCE, at sign-up, and never on sign-in: verification
+   * proves the address is real, it is not a second factor on every login.
+   */
+  readonly pendingEmailCode?: PendingEmailCode;
   /**
    * When this account last started a free trial.
    *
@@ -340,6 +377,25 @@ export function accountRoles(account: Pick<Account, "role" | "roles">): readonly
 /** Whether this account is Lode or a connected party acting as a principal. */
 export function isConnectedParty(account: Pick<Account, "connectedParty">): boolean {
   return account.connectedParty === true;
+}
+
+/**
+ * Whether this account has cleared email verification, so it may sign in.
+ *
+ * Three states collapse to two answers:
+ *  - Verified (an `emailVerifiedAt` is recorded) → true.
+ *  - Mid-verification (a `pendingEmailCode` is held, not yet verified) → false.
+ *    This is the only account that cannot sign in: it must enter its code.
+ *  - Legacy (neither field) → true. The account predates verification; locking
+ *    it out to enforce a later rule would be the wrong trade, so it is
+ *    grandfathered. Every new account gets a `pendingEmailCode` at sign-up, so
+ *    nothing created from now on reaches this branch unverified.
+ */
+export function isEmailVerified(
+  account: Pick<Account, "emailVerifiedAt" | "pendingEmailCode">,
+): boolean {
+  if (account.emailVerifiedAt !== undefined) return true;
+  return account.pendingEmailCode === undefined;
 }
 
 /** Whether a fee-exemption grant is still in force at this instant. */

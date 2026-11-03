@@ -54,6 +54,13 @@ export const LIMITS = {
    */
   "sign-up": { requests: 5, windowMs: 60_000 },
   /**
+   * Email-code verification. Its own bucket so guessing at the six-digit code
+   * cannot be hidden inside the sign-up budget, and vice versa. The per-account
+   * attempt cap in `emailVerification.ts` bounds guesses against one account;
+   * this bounds the endpoint against a flood.
+   */
+  "verify-email": { requests: 8, windowMs: 60_000 },
+  /**
    * The payment webhook. High, because a provider legitimately redelivers in
    * bursts and refusing one is money we then have to reconcile by hand. It is
    * a bound against a flood, not a shaping policy.

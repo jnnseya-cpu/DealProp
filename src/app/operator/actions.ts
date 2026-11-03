@@ -12,6 +12,7 @@ import {
 import { createSession, SESSION_COOKIE, SESSION_SECONDS } from "@backend/auth/session";
 import { cookieScope } from "@backend/auth/cookie";
 import { hashPassword, needsRehash, verifyPassword } from "@backend/auth/password";
+import { isEmailVerified } from "@shared/domain/accounts";
 import { findAccountByEmail, saveAccount } from "@backend/store/repository";
 import { audit } from "@backend/audit";
 import { callerFrom, consume } from "@backend/rateLimit";
@@ -68,6 +69,16 @@ export async function signIn(
       // tells an attacker which addresses are real.
       await audit("sign-in-failed", { email });
       return "That email and password do not match an active account.";
+    }
+
+    // Email verification is a precondition of signing in. A newly signed-up
+    // account holds a pending code and cannot sign in until it is entered; a
+    // legacy account that predates verification is grandfathered by
+    // isEmailVerified(). The password was already correct here, so naming the
+    // real reason helps the genuine owner rather than an attacker.
+    if (!isEmailVerified(account)) {
+      await audit("sign-in-failed", { email, detail: "email not verified" });
+      return "Please verify your email before signing in — enter the code we emailed when you signed up.";
     }
 
     // The one moment the plaintext is available, so the one moment a hash made

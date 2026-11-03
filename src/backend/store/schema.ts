@@ -870,6 +870,7 @@ export type AuditAction =
   | "sign-in-failed"
   | "sign-out"
   | "account-created"
+  | "email-verified"
   | "account-disabled"
   | "account-enabled"
   | "certification-given"
