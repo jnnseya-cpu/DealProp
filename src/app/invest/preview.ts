@@ -3,8 +3,7 @@
 import type { BoxFormResult } from "@shared/formFields";
 import type { BuyBox } from "@shared/domain/matching";
 import { matchBuyBox, MATCH_HORIZON } from "@shared/domain/matching";
-import { scoreDeal } from "@shared/domain/dealScore";
-import { toWorkingDeal } from "@shared/domain/workingDeal";
+import { scoreWorkingDeal } from "@shared/domain/dealScore";
 import { pageDeals } from "@backend/store/repository";
 import { consume, callerFrom } from "@backend/rateLimit";
 import { headers as nextHeaders } from "next/headers";
@@ -37,7 +36,7 @@ export async function previewBuyBox(
 
   const page = await pageDeals(MATCH_HORIZON);
   const n = page.rows.filter(
-    (record) => matchBuyBox(box, scoreDeal(toWorkingDeal(record.inputs).inputs)).eligible,
+    (record) => matchBuyBox(box, scoreWorkingDeal(record.inputs)).eligible,
   ).length;
 
   return {

@@ -2,8 +2,7 @@ import Link from "next/link";
 import { Button, Panel, SiteHeader, Stat } from "@/app/components/chrome";
 import { SiteFooter } from "@/app/components/SiteFooter";
 import { listBuyBoxes, listDeals, listFundingBoxes } from "@backend/store/repository";
-import { scoreDeal } from "@shared/domain/dealScore";
-import { toWorkingDeal } from "@shared/domain/workingDeal";
+import { scoreWorkingDeal } from "@shared/domain/dealScore";
 import { supplyPosition } from "@shared/domain/supply";
 import { companyIdentity, identityGaps } from "@shared/domain/identity";
 import { operatorPermissions } from "@backend/permissions";
@@ -45,7 +44,7 @@ export default async function PartnersPage() {
       postcodeArea: d.property.postcodeArea,
       locality: d.property.locality,
       jurisdiction: d.property.jurisdiction,
-      blocked: scoreDeal(toWorkingDeal(d.inputs).inputs).protection.blocked,
+      blocked: scoreWorkingDeal(d.inputs).protection.blocked,
     })),
     {
       buy: buyBoxes.filter((b) => b.active).length,

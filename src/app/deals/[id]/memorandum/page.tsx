@@ -80,7 +80,7 @@ export default async function MemorandumPage({
   });
 
   const working = toWorkingDeal(record.inputs);
-  const briefing = runDealDirector(working.inputs);
+  const briefing = runDealDirector(working.inputs, undefined, { priceAgreed: !working.modelled });
   const close = record.milestones !== undefined ? buildCloseReport(record.milestones) : undefined;
   const partners = referTradePartners(record.property, record.seller);
   const pack = getJurisdiction(record.property.jurisdiction);

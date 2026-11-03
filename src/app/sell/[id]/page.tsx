@@ -217,12 +217,17 @@ async function countBuyers(
   if (boxes.length === 0) return { total: 0, fast: 0 };
   // Scored at the best available route's price, using a conventional funded
   // purchase, because that is the shape most Buy Boxes are written against.
-  const scored = scoreDeal({
-    ...inputs,
-    purchasePrice: price,
-    structure: "cash-purchase",
-    exit: "sell",
-  });
+  const scored = scoreDeal(
+    {
+      ...inputs,
+      purchasePrice: price,
+      structure: "cash-purchase",
+      exit: "sell",
+    },
+    // A seller browsing their own options has agreed nothing; this is a
+    // modelled route price, not an offer accepted below market.
+    { priceAgreed: false },
+  );
   return countInterestedBuyers(boxes, scored);
 }
 

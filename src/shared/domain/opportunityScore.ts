@@ -170,6 +170,12 @@ export interface OpportunityScoreInput {
   readonly item?: InventoryItem;
   /** Documents whose recorded expiry has passed. Stale evidence is not evidence. */
   readonly now: Date;
+  /**
+   * Whether a price has been agreed with the seller. Passed through to Seller
+   * Protection so an unpriced, modelled opportunity is not blocked for a
+   * discount nobody has offered. Defaults to agreed when omitted.
+   */
+  readonly priceAgreed?: boolean;
 }
 
 /**
@@ -211,7 +217,7 @@ function confidenceFrom(
 
 export function scoreOpportunity(input: OpportunityScoreInput): OpportunityScore {
   const evidence = input.evidence ?? {};
-  const deal = scoreDeal(input.inputs);
+  const deal = scoreDeal(input.inputs, { priceAgreed: input.priceAgreed ?? true });
   const uncapped = deal.breakdown.composite;
 
   const used: EvidenceItem[] = [];

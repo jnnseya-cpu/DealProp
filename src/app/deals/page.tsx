@@ -41,7 +41,7 @@ export default async function DealsPage() {
   const rows = records
     .map((record) => {
       const working = toWorkingDeal(record.inputs);
-      const scored = scoreDeal(working.inputs);
+      const scored = scoreDeal(working.inputs, { priceAgreed: !working.modelled });
       return { record, working, scored };
     })
     .sort((a, b) => b.scored.breakdown.composite - a.scored.breakdown.composite);

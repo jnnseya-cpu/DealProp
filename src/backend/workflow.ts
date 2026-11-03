@@ -19,8 +19,9 @@ export async function positionOf(
   record: DealRecord,
   now: Date = new Date(),
 ): Promise<WorkflowPosition> {
-  const inputs = toWorkingDeal(record.inputs).inputs;
-  const scored = scoreDeal(inputs);
+  const working = toWorkingDeal(record.inputs);
+  const inputs = working.inputs;
+  const scored = scoreDeal(inputs, { priceAgreed: !working.modelled });
   const [boxes, reveals] = await Promise.all([listBuyBoxes(), listRevealsForDeal(record.id)]);
 
   const material = materialInformation(inputs.property, record.material ?? {});

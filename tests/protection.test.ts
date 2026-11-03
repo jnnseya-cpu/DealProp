@@ -233,6 +233,58 @@ describe("seller protection — outcome composition", () => {
   });
 });
 
+describe("seller protection — discount flags apply only once a price is agreed", () => {
+  // An unpriced enquiry is modelled at the ceiling a buyer could pay, which sits
+  // far below market by construction. Reading that as an agreed discount blocked
+  // every pre-price lead (the Coventry/Corby leads that scored 35 with no price
+  // agreed). With priceAgreed:false the discount-driven flags must not fire.
+  it("does NOT block an extreme modelled discount when no price is agreed", () => {
+    // £130k against £212k is ~38.7% — an EXTREME discount, a block when agreed.
+    const agreed = assessSellerProtection(deal({ purchase: 130_000, screening: { hasIndependentLegalAdvice: false } }));
+    expect(agreed.blocked).toBe(true); // regression guard: a real agreed acquisition still blocks
+
+    const modelled = assessSellerProtection(
+      deal({ purchase: 130_000, screening: { hasIndependentLegalAdvice: false } }),
+      undefined,
+      { priceAgreed: false },
+    );
+    expect(modelled.blocked).toBe(false);
+    expect(keys(modelled)).not.toContain("extreme-discount");
+    expect(keys(modelled)).not.toContain("high-discount");
+    expect(keys(modelled)).not.toContain("no-independent-advice");
+    expect(keys(modelled)).not.toContain("no-independent-valuation");
+    expect(keys(modelled)).not.toContain("age-and-discount");
+  });
+
+  it("STILL blocks a reported capacity concern even when no price is agreed", () => {
+    // The person-level protections are price-independent: a seller nobody has
+    // priced is no less vulnerable than one who has.
+    const o = assessSellerProtection(
+      deal({ purchase: 130_000, screening: { reportsHealthOrCapacityConcern: true } }),
+      undefined,
+      { priceAgreed: false },
+    );
+    expect(flag(o, "capacity-concern")?.severity).toBe("block");
+    expect(o.blocked).toBe(true);
+  });
+
+  it("STILL blocks reported third-party pressure even when no price is agreed", () => {
+    const o = assessSellerProtection(
+      deal({ purchase: 130_000, screening: { isUnderTimePressureFromThirdParty: true } }),
+      undefined,
+      { priceAgreed: false },
+    );
+    expect(flag(o, "third-party-pressure")?.severity).toBe("block");
+    expect(o.blocked).toBe(true);
+  });
+
+  it("defaults to agreed, so omitting the flag keeps full protection", () => {
+    // The safe direction: a caller that says nothing gets every block it gets today.
+    const o = assessSellerProtection(deal({ purchase: 130_000 }));
+    expect(o.blocked).toBe(true);
+  });
+});
+
 describe("seller protection — public summary never leaks a person's circumstances", () => {
   it("withholds seller-subject flags and publishes only transaction facts", () => {
     // Extreme discount (transaction, publishable) + capacity concern (seller, withheld).

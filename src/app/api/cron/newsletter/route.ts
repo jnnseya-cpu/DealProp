@@ -10,8 +10,7 @@ import {
   type SenderIdentity,
 } from "@shared/domain/newsletter";
 import { listBuyBoxes, listDeals, listFundingBoxes, listSubscribers, markIssueSent } from "@backend/store/repository";
-import { scoreDeal } from "@shared/domain/dealScore";
-import { toWorkingDeal } from "@shared/domain/workingDeal";
+import { scoreWorkingDeal } from "@shared/domain/dealScore";
 
 export const dynamic = "force-dynamic";
 
@@ -197,7 +196,7 @@ async function gatherStats(): Promise<PlatformStats> {
     listBuyBoxes(),
   ]);
 
-  const scored = deals.map((d) => scoreDeal(toWorkingDeal(d.inputs).inputs));
+  const scored = deals.map((d) => scoreWorkingDeal(d.inputs));
   const weekAgo = Date.now() - 7 * 86_400_000;
 
   return {

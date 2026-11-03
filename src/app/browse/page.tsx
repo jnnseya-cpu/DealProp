@@ -66,8 +66,9 @@ export default async function BrowsePage() {
   for (const record of page.rows) {
     if (!OPEN.has(record.status)) continue;
 
-    const inputs = toWorkingDeal(record.inputs).inputs;
-    if (scoreDeal(inputs).protection.blocked) continue;
+    const working = toWorkingDeal(record.inputs);
+    const inputs = working.inputs;
+    if (scoreDeal(inputs, { priceAgreed: !working.modelled }).protection.blocked) continue;
 
     const property = appraise(inputs).inputs.property;
     if (!materialInformation(property, record.material ?? {}).mayMarket) continue;

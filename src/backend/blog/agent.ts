@@ -257,7 +257,7 @@ export async function writeDealPost(
   drafter: Drafter = engineDrafter,
 ): Promise<BlogPost> {
   const working = toWorkingDeal(record.inputs);
-  const briefing = runDealDirector(working.inputs);
+  const briefing = runDealDirector(working.inputs, undefined, { priceAgreed: !working.modelled });
   const appraisal = briefing.scored.appraisal;
   const property = record.property;
   const pack = getJurisdiction(property.jurisdiction);

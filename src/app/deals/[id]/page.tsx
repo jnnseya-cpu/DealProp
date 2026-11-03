@@ -55,7 +55,7 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
   });
 
   const working = toWorkingDeal(record.inputs);
-  const briefing = runDealDirector(working.inputs);
+  const briefing = runDealDirector(working.inputs, undefined, { priceAgreed: !working.modelled });
   const { scored, stack, exits, recycle, strategies, diagnostics } = briefing;
   const a = scored.appraisal;
 

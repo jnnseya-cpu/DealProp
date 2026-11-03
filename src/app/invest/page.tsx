@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { listBuyBoxes, pageDeals } from "@backend/store/repository";
-import { scoreDeal } from "@shared/domain/dealScore";
-import { toWorkingDeal } from "@shared/domain/workingDeal";
+import { scoreWorkingDeal } from "@shared/domain/dealScore";
 import { matchBuyBox, MATCH_HORIZON } from "@shared/domain/matching";
 import { STRUCTURE_LABELS } from "@shared/domain/strategies";
 import { gbp, percent } from "@shared/format";
@@ -85,7 +84,7 @@ export default async function InvestPage() {
 
   const scored = records.map((record) => ({
     record,
-    scored: scoreDeal(toWorkingDeal(record.inputs).inputs),
+    scored: scoreWorkingDeal(record.inputs),
   }));
 
   const rows = boxes

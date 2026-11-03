@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { listFundingBoxes, pageDeals } from "@backend/store/repository";
-import { scoreDeal } from "@shared/domain/dealScore";
-import { toWorkingDeal } from "@shared/domain/workingDeal";
+import { scoreWorkingDeal } from "@shared/domain/dealScore";
 import {
   FUNDER_KIND_LABELS,
   matchFundingBox,
@@ -86,7 +85,7 @@ export default async function CapitalPage() {
 
   const scored = records.map((record) => ({
     record,
-    scored: scoreDeal(toWorkingDeal(record.inputs).inputs),
+    scored: scoreWorkingDeal(record.inputs),
     completedDeals: record.borrowerCompletedDeals,
   }));
 

@@ -4,8 +4,7 @@ import { BarList, type BarDatum } from "@/app/components/charts";
 import { requireOperator } from "@/app/operator/guard";
 import { listAccounts, listBuyBoxes, listDeals, listFundingBoxes } from "@backend/store/repository";
 import { supplyPosition } from "@shared/domain/supply";
-import { scoreDeal } from "@shared/domain/dealScore";
-import { toWorkingDeal } from "@shared/domain/workingDeal";
+import { scoreWorkingDeal } from "@shared/domain/dealScore";
 import type { DealStatus } from "@shared/domain/types";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +37,7 @@ export default async function OperatorDashboard() {
 
   // Score each deal once, the same call the supply position uses for its
   // blocked flag, so the distribution and the headline never disagree.
-  const scored = deals.map((d) => scoreDeal(toWorkingDeal(d.inputs).inputs));
+  const scored = deals.map((d) => scoreWorkingDeal(d.inputs));
 
   const supply = supplyPosition(
     deals.map((d, i) => ({

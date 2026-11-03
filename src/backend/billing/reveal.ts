@@ -125,7 +125,8 @@ function offerFor(
   now: Date,
 ): RevealOffer {
   const item = inventoryOf(record);
-  const inputs = toWorkingDeal(record.inputs).inputs;
+  const working = toWorkingDeal(record.inputs);
+  const inputs = working.inputs;
   const property = appraise(inputs).inputs.property;
   const mine = opened.find((r) => r.dealId === record.id && r.refundedAt === undefined);
 
@@ -178,6 +179,7 @@ function offerFor(
       item,
       ...(record.evidence !== undefined ? { evidence: record.evidence } : {}),
       now,
+      priceAgreed: !working.modelled,
     }),
   };
 }

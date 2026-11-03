@@ -59,7 +59,7 @@ export async function buildAgentContext(
   now: Date = new Date(),
 ): Promise<AgentContext> {
   const working = toWorkingDeal(record.inputs);
-  const briefing = runDealDirector(working.inputs);
+  const briefing = runDealDirector(working.inputs, undefined, { priceAgreed: !working.modelled });
   const appraisal = briefing.scored.appraisal;
 
   const route =

@@ -1,5 +1,6 @@
 import { buildCapitalStack, DEFAULT_PREFERENCES, type CapitalStack, type StackPreferences } from "@shared/domain/capitalStack";
 import { scoreDeal, type DealScoreResult } from "@shared/domain/dealScore";
+import type { ProtectionOptions } from "@shared/domain/protection";
 import { getJurisdiction, isDealReady } from "@shared/domain/jurisdictions";
 import { diagnoseSeller, type SellerDiagnostics } from "@shared/domain/motivation";
 import { buildExitMatrix, capitalRecycle, routeStrategies, type CapitalRecycleResult, type ExitMatrix, type StrategyRouterReport } from "@shared/domain/strategies";
@@ -42,12 +43,13 @@ export interface DirectorBriefing {
 export function runDealDirector(
   inputs: DealInputs,
   stackPrefs: StackPreferences = DEFAULT_PREFERENCES,
+  options?: ProtectionOptions,
 ): DirectorBriefing {
   const pack = getJurisdiction(inputs.property.jurisdiction);
   const jurisdictionReady = isDealReady(inputs.property.jurisdiction);
 
   const diagnostics = diagnoseSeller(inputs.seller, inputs.property);
-  const scored = scoreDeal(inputs);
+  const scored = scoreDeal(inputs, options);
   const strategies = routeStrategies(inputs);
   const exits = buildExitMatrix(inputs);
   const recycle = capitalRecycle(scored.appraisal);

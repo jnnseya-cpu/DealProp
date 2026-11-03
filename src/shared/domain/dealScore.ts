@@ -2,9 +2,10 @@ import { pct, ratioBps, type Bps } from "@shared/money";
 import { getJurisdiction } from "@shared/domain/jurisdictions";
 import { diagnoseSeller } from "@shared/domain/motivation";
 import { runRedTeam, type RedTeamReport } from "@shared/domain/redteam";
-import { assessSellerProtection, type ProtectionOutcome } from "@shared/domain/protection";
+import { assessSellerProtection, type ProtectionOptions, type ProtectionOutcome } from "@shared/domain/protection";
 import type { DealAppraisal, DealInputs, ScoreBreakdown, ScoreComponent, Verdict } from "@shared/domain/types";
 import { appraise } from "@shared/domain/economics";
+import { toWorkingDeal } from "@shared/domain/workingDeal";
 
 /**
  * Deal Score.
@@ -55,11 +56,27 @@ export interface DealScoreResult {
   readonly protection: ProtectionOutcome;
 }
 
-export function scoreDeal(inputs: DealInputs): DealScoreResult {
+/**
+ * Score a stored record's inputs the one correct way.
+ *
+ * A pipeline record arrives unpriced; `toWorkingDeal` prices it at a modelled
+ * ceiling so the appraisal is not nonsense, and this tells the protection
+ * engine the price is only modelled — so a lead with no agreed price is never
+ * blocked for a discount nobody has offered the seller. Every surface that
+ * only needs the score (supply counts, buyer/funder matching, the pipeline
+ * list) uses this instead of wiring the flag by hand, so they cannot drift
+ * apart on whether a given deal is blocked.
+ */
+export function scoreWorkingDeal(inputs: DealInputs): DealScoreResult {
+  const working = toWorkingDeal(inputs);
+  return scoreDeal(working.inputs, { priceAgreed: !working.modelled });
+}
+
+export function scoreDeal(inputs: DealInputs, options?: ProtectionOptions): DealScoreResult {
   const appraisal = appraise(inputs);
   const redTeam = runRedTeam(inputs);
   const diagnostics = diagnoseSeller(inputs.seller, inputs.property);
-  const protection = assessSellerProtection(inputs, diagnostics);
+  const protection = assessSellerProtection(inputs, diagnostics, options);
   const pack = getJurisdiction(inputs.property.jurisdiction);
   const property = inputs.property;
 

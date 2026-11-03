@@ -108,13 +108,44 @@ const HIGH_DISCOUNT_BPS = 2_500;
 /** Discount beyond which the deal is blocked pending human review. */
 const EXTREME_DISCOUNT_BPS = 3_500;
 
+export interface ProtectionOptions {
+  /**
+   * Whether a price has actually been agreed with the seller.
+   *
+   * An unpriced seller enquiry is modelled at the MOST a buyer could pay —
+   * `maxViablePrice` in `workingDeal.ts` — which sits far below market by
+   * construction, because that is what clears a margin. Reading that modelled
+   * ceiling as an agreed discount offered to the seller blocks every pre-price
+   * lead for a discount nobody has proposed to anybody: it is why a freshly
+   * sourced 4-bed with "no price agreed" scored 35 and could not go live.
+   *
+   * So the discount-driven flags and the pre-signing safeguards below apply
+   * only once a price is agreed. The person-level blocks — a reported capacity
+   * concern, reported third-party coercion — fire regardless, because they
+   * protect the person, not the transaction, and a price nobody has set does
+   * not make a vulnerable seller any less vulnerable.
+   *
+   * It defaults to agreed. Omitting it keeps full protection, so only an
+   * explicit "this is still being modelled" relaxes the discount arm — and the
+   * instant a real price is recorded the deal stops being modelled
+   * (`isUnpriced` in `workingDeal.ts` turns false) and full protection returns.
+   * The flag cannot be used to hold an abusive agreed price in a relaxed state.
+   */
+  readonly priceAgreed?: boolean;
+}
+
 export function assessSellerProtection(
   inputs: DealInputs,
   diagnostics?: SellerDiagnostics,
+  options?: ProtectionOptions,
 ): ProtectionOutcome {
   const diag = diagnostics ?? diagnoseSeller(inputs.seller, inputs.property);
   const flags: ProtectionFlag[] = [];
   const disclosures: string[] = [];
+
+  // Default to agreed: the safe direction is full protection, so a caller that
+  // says nothing gets every block it gets today.
+  const priceAgreed = options?.priceAgreed ?? true;
 
   const discountBps = ratioBps(
     sub(inputs.property.openMarketValue, inputs.purchasePrice),
@@ -140,11 +171,14 @@ export function assessSellerProtection(
   // deal before a seller has instructed a solicitor, and collapse the
   // confidence ordering that lets an evidenced deal outrank an unevidenced one.
   const valuationUnverified = screening.hasReceivedIndependentValuation !== true;
+  // No agreed price means no discount has been offered to anyone, so the
+  // discount cannot "matter" yet. Gating it here suppresses every
+  // discount-driven flag below on a modelled deal in one place.
   const discountMatters =
-    discountBps >= HIGH_DISCOUNT_BPS || (valuationUnverified && discountBps > 0);
+    priceAgreed && (discountBps >= HIGH_DISCOUNT_BPS || (valuationUnverified && discountBps > 0));
 
   // --- Discount severity -------------------------------------------------
-  if (discountBps >= EXTREME_DISCOUNT_BPS) {
+  if (priceAgreed && discountBps >= EXTREME_DISCOUNT_BPS) {
     flags.push({
       key: "extreme-discount",
       subject: "transaction",
@@ -153,7 +187,7 @@ export function assessSellerProtection(
       detail: `The modelled price is ${(discountBps / 100).toFixed(1)}% below the estimated open market value. A discount of this size against a consumer seller requires human review before it may be offered.`,
       remedy: "Human reviewer must confirm the valuation evidence and the seller's informed consent.",
     });
-  } else if (discountBps >= HIGH_DISCOUNT_BPS) {
+  } else if (priceAgreed && discountBps >= HIGH_DISCOUNT_BPS) {
     flags.push({
       key: "high-discount",
       subject: "transaction",
@@ -237,7 +271,11 @@ export function assessSellerProtection(
   }
 
   // --- Missing safeguards ------------------------------------------------
-  if (screening.hasIndependentLegalAdvice !== true) {
+  // Only once a price is agreed. There is nothing for a seller to take legal
+  // advice ON, or to value against, before any offer has been made — these are
+  // pre-signing safeguards, and firing them on a modelled enquiry is what
+  // turned every unpriced lead into a block.
+  if (priceAgreed && screening.hasIndependentLegalAdvice !== true) {
     flags.push({
       key: "no-independent-advice",
       subject: "transaction",
@@ -249,7 +287,7 @@ export function assessSellerProtection(
     });
   }
 
-  if (screening.hasReceivedIndependentValuation !== true && discountBps >= HIGH_DISCOUNT_BPS) {
+  if (priceAgreed && screening.hasReceivedIndependentValuation !== true && discountBps >= HIGH_DISCOUNT_BPS) {
     flags.push({
       key: "no-independent-valuation",
       subject: "transaction",

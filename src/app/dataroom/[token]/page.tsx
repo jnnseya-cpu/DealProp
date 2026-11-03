@@ -63,7 +63,7 @@ export default async function DataRoomPage({
   });
 
   const working = toWorkingDeal(record.inputs);
-  const briefing = runDealDirector(working.inputs);
+  const briefing = runDealDirector(working.inputs, undefined, { priceAgreed: !working.modelled });
   const appraisal = briefing.scored.appraisal;
   const metrics = fundingMetrics(appraisal, record.evidence?.committedCash);
   const borrowing = borrowingReport(appraisal);

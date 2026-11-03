@@ -3,8 +3,7 @@
 import type { BoxFormResult } from "@shared/formFields";
 import type { FundingBox } from "@shared/domain/matching";
 import { matchFundingBox, MATCH_HORIZON } from "@shared/domain/matching";
-import { scoreDeal } from "@shared/domain/dealScore";
-import { toWorkingDeal } from "@shared/domain/workingDeal";
+import { scoreWorkingDeal } from "@shared/domain/dealScore";
 import { pageDeals } from "@backend/store/repository";
 import { consume, callerFrom } from "@backend/rateLimit";
 import { headers as nextHeaders } from "next/headers";
@@ -42,7 +41,7 @@ export async function previewFundingBox(
   const n = page.rows.filter((record) => {
     const match = matchFundingBox(
       box,
-      scoreDeal(toWorkingDeal(record.inputs).inputs),
+      scoreWorkingDeal(record.inputs),
       record.borrowerCompletedDeals,
     );
     // Deal-fit: every criterion met except the one about the funder's own

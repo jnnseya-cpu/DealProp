@@ -53,8 +53,8 @@ export default async function AnalysisPage({
   const query = await searchParams;
   const run = (Array.isArray(query.run) ? query.run[0] : query.run) === "1";
 
-  const inputs = toWorkingDeal(record.inputs).inputs;
-  const briefing = runDealDirector(inputs);
+  const working = toWorkingDeal(record.inputs);
+  const briefing = runDealDirector(working.inputs, undefined, { priceAgreed: !working.modelled });
   const a = briefing.scored.appraisal;
 
   // The engine's figures, always shown and free — the deterministic baseline the
@@ -96,7 +96,7 @@ export default async function AnalysisPage({
     try {
       outcome = await runAgent({
         task: `${TASK}\n\nThe deal reference is ${record.reference}.`,
-        tools: dealAgentTools(inputs),
+        tools: dealAgentTools(working.inputs),
         maxSteps: 8,
         signal: controller.signal,
       });

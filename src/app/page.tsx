@@ -6,8 +6,7 @@ import { buildCloseReport } from "@shared/domain/completion";
 import { countInterestedBuyers, matchFundingBox, rankMatches } from "@shared/domain/matching";
 import { SEED_BUY_BOXES, SEED_DEALS, SEED_FUNDING_BOXES } from "@backend/store/seed";
 import { listBuyBoxes, listDeals, listFundingBoxes } from "@backend/store/repository";
-import { scoreDeal } from "@shared/domain/dealScore";
-import { toWorkingDeal } from "@shared/domain/workingDeal";
+import { scoreWorkingDeal } from "@shared/domain/dealScore";
 import {
   focusCoverage,
   LAUNCH_FOCUS,
@@ -105,7 +104,7 @@ export default async function Home() {
       postcodeArea: d.property.postcodeArea,
       locality: d.property.locality,
       jurisdiction: d.property.jurisdiction,
-      blocked: scoreDeal(toWorkingDeal(d.inputs).inputs).protection.blocked,
+      blocked: scoreWorkingDeal(d.inputs).protection.blocked,
     })),
     {
       buy: liveBuyBoxes.filter((b) => b.active).length,
