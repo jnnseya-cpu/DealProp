@@ -169,6 +169,7 @@ export default async function Home() {
       />
       <AudienceBand />
       <Doors />
+      <WhoFor />
       <SupplySection supply={supply} promotion={promotion} />
       <LiveDeal
         briefing={briefing}
@@ -615,6 +616,107 @@ function Doors() {
             </span>
           </Link>
         ))}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Who Lode is for — the plain-English roster of every category of user, and
+ * the boundary of what Lode does.
+ *
+ * The Doors section above is action-first ("walk through your door"); this is
+ * identity-first ("which of these am I"), and it names the two things the doors
+ * leave out. The first is the flipper/sourcer: not a role of its own but a
+ * buyer + seller account (see accounts.ts — ROLE_LABELS has no entry for it on
+ * purpose), so it appears nowhere else on the page though it is one of the most
+ * common people here. The second is the boundary a cautious seller most needs
+ * to hear stated: Lode introduces the parties and prepares the deal, and is
+ * nobody's solicitor, surveyor or lender — every party keeps their own. The one
+ * business Lode is itself regulated for is estate-agency work, which is what
+ * `permissions.ts` gates. No figures here, so nothing to compute — it is a
+ * roster, not a claim.
+ */
+function WhoFor() {
+  const audiences: { who: string; what: string; href: string }[] = [
+    {
+      who: "Sellers",
+      what: "A property to solve, not a price to list. You get costed routes — cash, deferred, JV or assisted sale — and exactly what each one leaves in your pocket.",
+      href: "/sell",
+    },
+    {
+      who: "Buyers & investors",
+      what: "Appraise any deal free, then unlock off-market opportunities whose seller and funding checks are already done — and negotiate through your own agent.",
+      href: "/appraise",
+    },
+    {
+      who: "Flippers & sourcers",
+      what: "Buy and sell on from one account. Assign a deal on for a margin once your own AML supervision and redress-scheme cover are recorded — that part is yours, not ours.",
+      href: "/join",
+    },
+    {
+      who: "Lenders",
+      what: "Post your lending criteria and receive underwritten, downside-modelled, property-backed applications matched to them — decisions, not leads.",
+      href: "/partners#capital",
+    },
+    {
+      who: "Agents & auctioneers",
+      what: "List the instructions you can't close and receive buyers whose identity and funding we've already checked. You keep the client and the instruction.",
+      href: "/partners",
+    },
+    {
+      who: "Conveyancers & surveyors",
+      what: "Join the panel for work that is already transaction-ready, paid only on a completed instruction. We refer work to you — we never do your job for you.",
+      href: "/partners#professionals",
+    },
+  ];
+
+  return (
+    <section id="who" className="border-b hairline">
+      <div className="mx-auto max-w-7xl px-6 py-20">
+        <SectionHead
+          eyebrow="Who it's for"
+          title="One engine. Every side of the deal."
+          lede="Whoever you are in a transaction, you meet the same engine from your own side. Find the one that is you."
+        />
+
+        <div className="mt-14 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {audiences.map((a) => (
+            <Link
+              key={a.who}
+              href={a.href}
+              className="group rounded-xl border hairline bg-surface-1 px-5 py-5 transition-colors hover:bg-surface-2"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-display text-[17px] leading-snug text-ink-100">{a.who}</span>
+                <span
+                  aria-hidden
+                  className="shrink-0 text-ink-600 transition-all group-hover:translate-x-0.5 group-hover:text-lode-300"
+                >
+                  &rarr;
+                </span>
+              </div>
+              <p className="mt-2 text-[13px] leading-[1.6] text-ink-400">{a.what}</p>
+            </Link>
+          ))}
+        </div>
+
+        {/*
+          The boundary, as a left-rule notice rather than a tinted box (house
+          style). This is the sentence a cautious seller needs: Lode is an
+          introducer and deal-preparer, not a replacement for the professionals
+          a sale still requires.
+        */}
+        <p className="mt-8 max-w-[52rem] border-l-2 border-lode-400/70 py-1 pl-4 text-[14px] leading-[1.6] text-ink-300">
+          <span className="text-ink-100">
+            Lode introduces the parties and prepares the deal — it is not your solicitor, surveyor or
+            lender.
+          </span>{" "}
+          Every party keeps their own and instructs their own conveyancer, exactly as in any sale.
+          The one business Lode is itself regulated to carry on is estate-agency work — introducing
+          sellers to buyers — under HMRC anti-money-laundering supervision and a property redress
+          scheme.
+        </p>
       </div>
     </section>
   );
