@@ -26,7 +26,7 @@ const {
   operatorReply,
   closeIntakeConversation,
 } = await import("@backend/intake/service");
-const { getIntakeConversation, listIntakeConversations } = await import("@backend/store/repository");
+const { getIntakeConversation, listIntakeConversations, listAgentRuns } = await import("@backend/store/repository");
 
 afterAll(() => {
   rmSync(SCRATCH, { recursive: true, force: true });
@@ -84,6 +84,26 @@ describe("starting a conversation", () => {
     // The guarantee never reached the seller, even as a drafted reply.
     expect(c.messages).toHaveLength(1);
     expect(c.lastReview?.reviewReasonCodes).toContain("prohibited_claim");
+  });
+
+  it("records a run in the ledger for each qualification (§20.5)", async () => {
+    const safe = await startIntakeConversation("A house to sell in Leeds.", { complete: safeComplete });
+    const safeRuns = await listAgentRuns(safe.id);
+    expect(safeRuns).toHaveLength(1);
+    expect(safeRuns[0]?.kind).toBe("intake-qualification");
+    expect(safeRuns[0]?.agentId).toBe("seller_qualification");
+    expect(safeRuns[0]?.state).toBe("succeeded");
+
+    // A forbidden claim ends the run awaiting a person, with the reason carried.
+    const held = await startIntakeConversation("Will you buy my house?", { complete: prohibitedComplete });
+    const heldRuns = await listAgentRuns(held.id);
+    expect(heldRuns[0]?.state).toBe("awaiting-human");
+    expect(heldRuns[0]?.reasonCodes).toContain("prohibited_claim");
+    expect(heldRuns[0]?.humanReviewRequired).toBe(true);
+
+    // A second seller turn is a second run for the same conversation.
+    await addSellerReply(safe.id, "It's in LS6.", { complete: safeComplete });
+    expect(await listAgentRuns(safe.id)).toHaveLength(2);
   });
 });
 

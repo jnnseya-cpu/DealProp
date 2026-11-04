@@ -29,6 +29,7 @@ import type { MaterialRecord } from "@shared/domain/materialInformation";
 import type { SellerDueDiligence } from "@shared/domain/sellerDueDiligence";
 import type { DealOrigin } from "@shared/domain/dealOrigin";
 import type { IntakeConversation } from "@shared/domain/intakeConversation";
+import type { AgentRunRecord } from "@shared/domain/agentRun";
 import type { PackApproval } from "@shared/domain/packApproval";
 import type { ResaleArrangement, ResaleConsent } from "@shared/domain/reseller";
 import type { PayoutRecipient } from "@shared/domain/payouts";
@@ -429,6 +430,13 @@ export interface Database {
    * empty.
    */
   intakeConversations?: IntakeConversation[];
+  /**
+   * The agent-run ledger (§20.5): a durable record of every agent execution.
+   * Optional so every existing database literal and fixture stays valid;
+   * readers default to empty. A ledger, like the audit trail — never reset by a
+   * reseed.
+   */
+  agentRuns?: AgentRunRecord[];
   dataRoomGrants: DataRoomGrant[];
   pendingCharges: PendingCharge[];
   /**
@@ -1096,6 +1104,15 @@ export interface Store {
   getIntakeConversation(id: string): Promise<IntakeConversation | undefined>;
   /** Upsert by id: a conversation is re-saved whole as each turn is added. */
   saveIntakeConversation(conversation: IntakeConversation): Promise<IntakeConversation>;
+
+  /**
+   * The agent-run ledger (§20.5), most recent first. With a subject id, only
+   * that subject's runs.
+   */
+  listAgentRuns(subjectId?: string): Promise<readonly AgentRunRecord[]>;
+  getAgentRun(id: string): Promise<AgentRunRecord | undefined>;
+  /** Upsert by id: a run is re-saved as it moves through its lifecycle. */
+  saveAgentRun(run: AgentRunRecord): Promise<AgentRunRecord>;
 
   /** Fees raised against a deal, most recent first. */
   listDealFees(dealId: string): Promise<readonly DealFee[]>;

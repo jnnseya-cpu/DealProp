@@ -9,6 +9,7 @@ import type { Subscriber } from "@shared/domain/newsletter";
 import type { DealRecord, Store } from "@backend/store/schema";
 import type { SourcedLead } from "@shared/domain/sourcedLead";
 import type { IntakeConversation } from "@shared/domain/intakeConversation";
+import { beginRun, closeRun, type AgentRunSeed } from "@shared/domain/agentRun";
 import { fileStore } from "@backend/store/fileStore";
 
 /**
@@ -1011,6 +1012,49 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         await store.saveIntakeConversation(conversation({ id: "newer", updatedAt: "2026-06-03T09:00:00.000Z" }));
         const all = await store.listIntakeConversations();
         expect(all.map((c) => c.id)).toEqual(["newer", "older"]);
+      });
+    });
+
+    describe("agent runs (the §20.5 ledger)", () => {
+      // Every test uses a unique subject id and asserts only on that subject, so
+      // it is correct on both engines regardless of whether the reset clears the
+      // ledger (the file store's replaceAll does not touch it, by design).
+      const seed = (id: string, subjectId: string, startedAt = "2026-06-01T09:00:00.000Z") => {
+        const s: AgentRunSeed = {
+          id,
+          kind: "intake-qualification",
+          subjectType: "intake-conversation",
+          subjectId,
+          agentId: "seller_qualification",
+          agentVersion: "intake-1",
+          autonomy: "routine",
+          provider: "none",
+          model: "none",
+          startedAt,
+        };
+        return beginRun(s);
+      };
+
+      it("round-trips a run and fetches it by id", async () => {
+        const run = seed("ar-rt", "subj-rt");
+        await store.saveAgentRun(run);
+        expect(await store.getAgentRun("ar-rt")).toEqual(run);
+      });
+
+      it("upserts by id as the run moves through its lifecycle", async () => {
+        await store.saveAgentRun(seed("ar-up", "subj-up"));
+        await store.saveAgentRun(
+          closeRun(seed("ar-up", "subj-up"), { state: "succeeded", finishedAt: "2026-06-01T09:00:05.000Z", summary: "done" }),
+        );
+        expect((await store.getAgentRun("ar-up"))?.state).toBe("succeeded");
+        expect(await store.listAgentRuns("subj-up")).toHaveLength(1);
+      });
+
+      it("lists a subject's runs, most recent first, and scopes by subject", async () => {
+        await store.saveAgentRun(seed("older", "subj-list", "2026-06-01T09:00:00.000Z"));
+        await store.saveAgentRun(seed("newer", "subj-list", "2026-06-03T09:00:00.000Z"));
+        await store.saveAgentRun(seed("other", "subj-elsewhere"));
+        expect((await store.listAgentRuns("subj-list")).map((r) => r.id)).toEqual(["newer", "older"]);
       });
     });
 

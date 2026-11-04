@@ -9,6 +9,7 @@ import type { DealFee, PayoutRecord, RevealRecord } from "@backend/store/schema"
 import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { IntakeConversation } from "@shared/domain/intakeConversation";
+import type { AgentRunRecord } from "@shared/domain/agentRun";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   availableBalance,
@@ -217,6 +218,17 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS intake_conversations_status
     ON intake_conversations (status, updated_at DESC);
+  -- The agent-run ledger (§20.5): one row per agent execution, stored whole as
+  -- JSONB and re-saved as the run moves through its lifecycle. subject_id is
+  -- lifted out so a subject's runs can be read without scanning every row.
+  CREATE TABLE IF NOT EXISTS agent_runs (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    subject_id text NOT NULL,
+    started_at timestamptz NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS agent_runs_subject
+    ON agent_runs (subject_id, started_at DESC);
   -- Keyed by address, because one mailbox can appear against several
   -- organisations and somebody who asked to be left alone asked once.
   CREATE TABLE IF NOT EXISTS suppressions (
@@ -1256,6 +1268,44 @@ export const postgresStore: Store = {
       [conversation.id, JSON.stringify(conversation), conversation.status, conversation.updatedAt],
     );
     return conversation;
+  },
+
+  async listAgentRuns(subjectId?: string): Promise<readonly AgentRunRecord[]> {
+    await ensureSchema();
+    const { rows } =
+      subjectId === undefined
+        ? await getPool().query<{ data: AgentRunRecord }>(
+            "SELECT data FROM agent_runs ORDER BY started_at DESC",
+          )
+        : await getPool().query<{ data: AgentRunRecord }>(
+            "SELECT data FROM agent_runs WHERE subject_id = $1 ORDER BY started_at DESC",
+            [subjectId],
+          );
+    return rows.map((r) => r.data);
+  },
+
+  async getAgentRun(id: string): Promise<AgentRunRecord | undefined> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: AgentRunRecord }>(
+      "SELECT data FROM agent_runs WHERE id = $1",
+      [id],
+    );
+    return rows[0]?.data;
+  },
+
+  async saveAgentRun(run: AgentRunRecord): Promise<AgentRunRecord> {
+    await ensureSchema();
+    // A whole-record upsert: the run is re-saved as its state changes. The pure
+    // state machine (agentRun.ts) refuses an illegal transition, so a late or
+    // duplicate close is a no-op before it ever reaches here.
+    await getPool().query(
+      `INSERT INTO agent_runs (id, data, subject_id, started_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE
+         SET data = EXCLUDED.data, subject_id = EXCLUDED.subject_id, started_at = EXCLUDED.started_at`,
+      [run.id, JSON.stringify(run), run.subjectId, run.startedAt],
+    );
+    return run;
   },
 
   async listContactedLeads(): Promise<readonly ContactedLead[]> {

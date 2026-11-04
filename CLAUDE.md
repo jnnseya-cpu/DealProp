@@ -47,7 +47,7 @@ seller-facing options cannot disagree.
 `supply`, `permissions`, `fees`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`, `inventory`, `reveal`,
 `passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`, `workflow`, `payouts`, `portfolio`, `screening`,
-`qualification`, `intakeConversation`, `reservation`.
+`qualification`, `intakeConversation`, `reservation`, `agentRun`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -134,6 +134,18 @@ the seller. Public surface `/sell/chat`, review queue `/operator/intake`
 A06 lives here too: an enquiry has no established buyer, so `sell`/`sourcing`
 set `DealInputs.buyerProfileUnknown` and the appraisal is `taxPending` with
 worst-case transfer tax (never understated).
+
+Agent-run ledger: `agentRun.ts` is the pure durable record (spec §20.5) every
+agent execution maps into — the live analysis runtime, the intake qualification
+seam and the deterministic observers — with one lifecycle state machine whose
+transitions are guarded so a finished run is never silently rewritten and a
+newer run supersedes an older one but cannot touch one that already ended. The
+store persists it append-and-upsert in both engines (`agent_runs`), read by
+subject. The intake service records a run on every qualification today;
+wiring the live analysis runtime and an operator Control Room read surface are
+the next increments. No token/cost usage yet (the runtime returns none), no
+work queue, no tenant dimension (single-tenant) — only what a real producer can
+fill, never empty forward-compatibility.
 
 Flipper/sourcer reservation: a property is "taken" by paying to reveal it.
 `reservation.ts` is the pure lock — up to `FLIPPER_SLOTS` (5) holders share one

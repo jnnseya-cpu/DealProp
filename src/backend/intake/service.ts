@@ -1,9 +1,11 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   getIntakeConversation,
+  saveAgentRun,
   saveIntakeConversation,
 } from "@backend/store/repository";
 import { qualifyIntake, type QualifyDeps } from "@backend/intakeAssistant";
+import { beginRun, closeFromIntake } from "@shared/domain/agentRun";
 import { audit } from "@backend/audit";
 import type { QualificationContext } from "@shared/domain/qualification";
 import type {
@@ -80,6 +82,33 @@ async function advance(
   };
 
   const { result, run } = await qualifyIntake(ctx, conversation.messages, deps);
+
+  // Record the run in the durable ledger (§20.5). The input hash is of the
+  // message ids the run read, so a later run on a newer conversation is
+  // distinguishable from this one.
+  const inputHash = createHash("sha256").update(ctx.knownMessageIds.join("|")).digest("hex");
+  const runRecord = closeFromIntake(
+    beginRun({
+      id: randomUUID(),
+      kind: "intake-qualification",
+      subjectType: "intake-conversation",
+      subjectId: conversation.id,
+      agentId: "seller_qualification",
+      agentVersion: run.promptVersion,
+      autonomy: "routine",
+      provider: run.provider,
+      model: run.model,
+      startedAt: run.at,
+      inputHash,
+    }),
+    {
+      humanReviewRequired: run.humanReviewRequired,
+      reasonCodes: run.reviewReasonCodes,
+      repairAttempted: run.repairAttempted,
+    },
+    now(),
+  );
+  await saveAgentRun(runRecord);
 
   const review: IntakeReviewState = {
     recommendedAction: run.recommendedAction,
