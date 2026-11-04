@@ -231,19 +231,19 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
 
         {/* --- what the public record says, from licensed sources ---------- */}
         <Panel
-          eyebrow="Registry signal"
+          eyebrow="Public records"
           title={
             registry.pressure === undefined
-              ? "Nothing read from the public record"
+              ? "Nothing on record for this property yet"
               : `${registry.pressure.score} pressure, ${percent(registry.pressure.confidenceBps, 0)} of the picture`
           }
           className="mt-6"
         >
           {registry.pressure === undefined ? (
             <p className="text-[13px] leading-[1.65] text-ink-400">
-              {registry.reason ?? "Nothing recorded."} GoldMine reads days on market, reductions and
-              agent changes — every one of which can only come from a portal, and no portal permits
-              taking them. This is the same question asked of the sources we are licensed for.
+              We read property data only from sources we are licensed for — HM Land Registry and the
+              Energy Performance register. {registry.reason ?? "Nothing is recorded for this property yet."}{" "}
+              That is an absence, not a red flag.
             </p>
           ) : (
             <>
@@ -272,18 +272,29 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
         </Panel>
 
         {/* --- where this transaction has actually got to ------------------ */}
-        <Panel
-          eyebrow="Transaction"
-          title={`At ${position.at.label.toLowerCase()}`}
-          className="mt-6"
-        >
-          <p className="text-[13px] leading-[1.65] text-ink-300">{position.summary}</p>
-          <p className="mt-2.5 text-[12px] leading-[1.6] text-ink-500">
-            Derived from what is recorded, never from a stage anybody set. A deal with an accepted
-            price and no seller checks is not further on — it is stuck at the check, and the first
-            gap is where it stops.
+        <Panel eyebrow="Progress" title="Where this deal has got to" className="mt-6">
+          <p className="text-[13px] leading-[1.6] text-ink-300">
+            It has reached <span className="text-ink-100">{position.at.label}</span>.
           </p>
-          <ol className="mt-4 space-y-2.5 border-t hairline pt-4">
+          {position.next !== undefined ? (
+            <p className="mt-2 border-l-2 border-lode-400/70 py-1 pl-4 text-[13px] leading-[1.6] text-ink-300">
+              <span className="text-ink-500">Next: </span>
+              {position.next}
+            </p>
+          ) : (
+            <p className="mt-2 text-[13px] leading-[1.6] text-ink-400">
+              This is the end of the workflow — what happens next is the next acquisition.
+            </p>
+          )}
+          <p className="mt-2.5 text-[12px] leading-[1.6] text-ink-500">
+            Each step is proved from what is recorded, not set by hand — the deal sits at the first
+            thing still missing.
+          </p>
+          <details className="mt-4 border-t hairline pt-4">
+            <summary className="cursor-pointer text-xs text-ink-400 transition hover:text-ink-200">
+              All twelve steps
+            </summary>
+            <ol className="mt-3 space-y-2.5">
             {position.stages.map((step) => (
               <li key={step.stage.key} className="text-[13px] leading-[1.6]">
                 <span
@@ -302,7 +313,8 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
                 <span className="text-ink-500">{step.detail}</span>
               </li>
             ))}
-          </ol>
+            </ol>
+          </details>
         </Panel>
 
         {/* --- What would change the answer -------------------------------- */}

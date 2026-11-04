@@ -202,7 +202,7 @@ export function workflowPosition(facts: WorkflowFacts): WorkflowPosition {
       detail: !facts.saleConfirmed
         ? "Nobody with authority has confirmed it is for sale."
         : !facts.sellerChecked
-          ? "The sale is confirmed, but the seller's due diligence is not complete."
+          ? "Confirmed as being for sale, but the seller's due diligence is not complete — we have not yet checked who they are and whether they may sell it."
           : "Confirmed for sale, and the seller checked.",
     },
     "opportunity-protected": {
