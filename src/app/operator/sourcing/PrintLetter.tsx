@@ -4,6 +4,11 @@ import { useState } from "react";
 import { resolveLetter, markLeadContacted } from "./actions";
 import { leadContactKey, type SourcedLead } from "@shared/domain/sourcedLead";
 import { LODE_MARK_SVG } from "@shared/brandMark";
+import { PROBATE_OFFICE_HOLDER_PLACEHOLDER } from "@shared/domain/probateLetter";
+import { INSOLVENCY_OFFICE_HOLDER_PLACEHOLDER } from "@shared/domain/insolvencyLetter";
+
+/** The bracketed recipient lines a draft carries until the office-holder fills it. */
+const PLACEHOLDERS = [PROBATE_OFFICE_HOLDER_PLACEHOLDER, INSOLVENCY_OFFICE_HOLDER_PLACEHOLDER] as const;
 
 /**
  * Review, complete and print the letter to a lead's office-holder.
@@ -66,6 +71,25 @@ export function PrintLetter({ lead, signatureUrl }: { lead: SourcedLead; signatu
   async function applyAddress() {
     const typed = address.trim();
     if (typed === "") return;
+
+    // Complete the letter locally by dropping the pasted office-holder into the
+    // bracketed placeholder the draft already carries. The draft was built on
+    // the server with our own identity; only the recipient line is missing, and
+    // replacing it is a plain string edit. This is the reliable path on purpose
+    // — the paste must work even when the Gazette cannot be read or a server
+    // action cannot run, which is exactly when the operator falls back to it.
+    const current = letter !== "" ? letter : (lead.letterDraft ?? "");
+    const placeholder = PLACEHOLDERS.find((p) => current.includes(p));
+    if (placeholder !== undefined) {
+      setLetter(current.replace(placeholder, typed));
+      setContact(typed);
+      setNote(undefined);
+      return;
+    }
+
+    // No placeholder to fill — the letter was already addressed, or an older
+    // draft shape. Fall back to a server redraw; if that cannot run, say so and
+    // keep the pasted text so nothing is lost.
     setApplying(true);
     try {
       const r = await resolveLetter({

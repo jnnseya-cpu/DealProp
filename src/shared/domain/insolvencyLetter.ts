@@ -18,6 +18,15 @@ import { registrationLine } from "@shared/domain/identity";
  * disclosure is required.
  */
 
+/**
+ * The bracketed recipient line the draft carries until a trustee / Official
+ * Receiver is resolved. Exported so the review surface can complete the letter
+ * by replacing exactly this line with the pasted contact, with no server
+ * round-trip — the manual paste path must work even when the notice cannot be read.
+ */
+export const INSOLVENCY_OFFICE_HOLDER_PLACEHOLDER =
+  "[the trustee's or Official Receiver's name and address — paste from the notice before posting]";
+
 export interface InsolvencyLetterInput {
   readonly sender: CompanyIdentity;
   /** The trustee/Official Receiver named in the notice, where known. */
@@ -66,7 +75,7 @@ export function draftInsolvencyLetter(input: InsolvencyLetterInput): string {
       ? input.officeHolder
       : input.court !== undefined && input.court !== ""
         ? `The Official Receiver for ${input.court}\n[complete the Official Receiver office address — see gov.uk]`
-        : "[the trustee's or Official Receiver's name and address — paste from the notice before posting]";
+        : INSOLVENCY_OFFICE_HOLDER_PLACEHOLDER;
 
   const subject =
     input.propertyAddress !== undefined && input.propertyAddress !== ""

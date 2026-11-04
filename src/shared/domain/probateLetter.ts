@@ -24,6 +24,15 @@ import { registrationLine } from "@shared/domain/identity";
  * letter with a gap where the law requires a disclosure.
  */
 
+/**
+ * The bracketed recipient line the draft carries until an office-holder is
+ * resolved. Exported so the review surface can complete the letter by replacing
+ * exactly this line with the pasted contact — no server round-trip, which is
+ * what makes the manual paste path reliable even when the Gazette cannot be read.
+ */
+export const PROBATE_OFFICE_HOLDER_PLACEHOLDER =
+  "[office-holder's name and address — paste from the notice before posting]";
+
 export interface ProbateLetterInput {
   readonly sender: CompanyIdentity;
   /** The contact for service named in the notice (name and address), if known. */
@@ -69,7 +78,7 @@ export function draftProbateLetter(input: ProbateLetterInput): string {
   const recipientBlock =
     input.recipientContact !== undefined && input.recipientContact !== ""
       ? input.recipientContact
-      : "[office-holder's name and address — paste from the notice before posting]";
+      : PROBATE_OFFICE_HOLDER_PLACEHOLDER;
 
   const reLine =
     input.propertyAddress !== undefined && input.propertyAddress !== ""
