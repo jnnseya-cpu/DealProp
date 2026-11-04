@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteHeader, scoreBg, scoreTone } from "@/app/components/chrome";
@@ -5,14 +6,19 @@ import { BarList, Ring } from "@/app/components/charts";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { audit } from "@backend/audit";
 import { meter } from "@backend/billing/meter";
-import { getDeal } from "@backend/store/repository";
+import { getDeal, saveAgentRun } from "@backend/store/repository";
+import { configuredProvider, providerModel } from "@backend/llm";
 import { runDealDirector } from "@shared/domain/director";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
 import { operationPrice } from "@shared/domain/pricing";
+import { beginRun, closeFailed, closeFromAnalysis } from "@shared/domain/agentRun";
 import { gbp, gbpSigned, percent } from "@shared/format";
 import { runAgent, type AgentOutcome } from "@backend/agent/runtime";
 import { dealAgentTools } from "@backend/agent/dataTools";
 import { describeProvenance } from "@backend/agent/provenance";
+
+const ANALYSIS_MAX_STEPS = 8;
+const ANALYSIS_AGENT_VERSION = "analysis-1";
 
 export const dynamic = "force-dynamic";
 
@@ -91,19 +97,48 @@ export default async function AnalysisPage({
       detail: `${record.reference} (ai-deal-analysis, ${charge.outcome})`,
     });
 
+    // Open a ledger run around the live execution (§20.5). The input hash is of
+    // the deal inputs the agent reads, so a run on a changed deal is
+    // distinguishable from this one. Recorded only once the allowance has been
+    // charged and the agent actually runs — a blocked run returns above.
+    const provider = configuredProvider();
+    let runRecord = beginRun({
+      id: randomUUID(),
+      kind: "live-analysis",
+      subjectType: "deal",
+      subjectId: record.id,
+      agentId: "live-analysis",
+      agentVersion: ANALYSIS_AGENT_VERSION,
+      autonomy: "shadow",
+      provider,
+      model: providerModel(provider),
+      startedAt: new Date().toISOString(),
+      inputHash: createHash("sha256").update(JSON.stringify(record.inputs)).digest("hex"),
+      maxSteps: ANALYSIS_MAX_STEPS,
+    });
+    await saveAgentRun(runRecord);
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 25_000);
     try {
       outcome = await runAgent({
         task: `${TASK}\n\nThe deal reference is ${record.reference}.`,
         tools: dealAgentTools(working.inputs),
-        maxSteps: 8,
+        maxSteps: ANALYSIS_MAX_STEPS,
         signal: controller.signal,
       });
+      runRecord = closeFromAnalysis(
+        runRecord,
+        { complete: outcome.complete, text: outcome.text, toolCalls: outcome.steps.length },
+        new Date().toISOString(),
+      );
     } catch (error) {
       failure = error instanceof Error ? error.message : String(error);
+      // A safe code on the ledger — never the raw exception message.
+      runRecord = closeFailed(runRecord, "runtime-error", new Date().toISOString());
     } finally {
       clearTimeout(timer);
+      await saveAgentRun(runRecord);
     }
   }
 

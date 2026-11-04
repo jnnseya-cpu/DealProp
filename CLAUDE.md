@@ -60,7 +60,8 @@ pipeline, `/deals/[id]` Deal Room, `/deals/[id]/agents` agent board,
 intake, `/operator/intake` (+ `/[id]`) the seller-chat review queue,
 `/invest` Buy Boxes, `/capital` Funding Boxes, `/opportunities` (+ `/[id]`) the
 marketplace, `/account/passport` buyer readiness, `/operator/conduct` the
-prohibitions register, `/newsletter` (+ confirm, unsubscribe), `/operator`
+prohibitions register, `/operator/agents` the agent-run Control Room,
+`/newsletter` (+ confirm, unsubscribe), `/operator`
 sign-in.
 Access control: `src/middleware.ts` gates `/deals`, `/invest`, `/capital`,
 `/account` behind either credential and fails closed without `OPERATOR_SECRET`.
@@ -141,11 +142,12 @@ seam and the deterministic observers — with one lifecycle state machine whose
 transitions are guarded so a finished run is never silently rewritten and a
 newer run supersedes an older one but cannot touch one that already ended. The
 store persists it append-and-upsert in both engines (`agent_runs`), read by
-subject. The intake service records a run on every qualification today;
-wiring the live analysis runtime and an operator Control Room read surface are
-the next increments. No token/cost usage yet (the runtime returns none), no
-work queue, no tenant dimension (single-tenant) — only what a real producer can
-fill, never empty forward-compatibility.
+subject. Two producers record runs today: the intake qualification seam (every
+seller turn) and the live analysis runtime (`/deals/[id]/analysis`); the
+operator Control Room reads the ledger at `/operator/agents` (`view-audit-log`).
+No token/cost usage yet (the runtime returns none), no work queue, no tenant
+dimension (single-tenant) — only what a real producer can fill, never empty
+forward-compatibility.
 
 Flipper/sourcer reservation: a property is "taken" by paying to reveal it.
 `reservation.ts` is the pure lock — up to `FLIPPER_SLOTS` (5) holders share one
