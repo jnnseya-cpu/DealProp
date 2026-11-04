@@ -66,6 +66,52 @@ describe("Fetcher host defences", () => {
     expect(calls).not.toContain("https://evil.example.com/x");
   });
 
+  it("upgrades an http redirect on an allowlisted host to https and follows it", async () => {
+    // The Gazette's linked-data `/id/notice/` dereference 303s to a concrete
+    // representation and emits the Location with an http scheme. Refusing it
+    // broke every notice read; it must be upgraded to https and followed, which
+    // is strictly safer than following http. Found in production on the VPS.
+    const calls: string[] = [];
+    const transport = (async (input: RequestInfo | URL) => {
+      const u = String(input);
+      calls.push(u);
+      if (u.endsWith("/robots.txt")) return new Response("", { status: 200 });
+      if (u === "https://www.thegazette.co.uk/id/notice/1") {
+        // Redirect to the same host over plain http.
+        return new Response("", { status: 303, headers: { location: "http://www.thegazette.co.uk/notice/1/data.json" } });
+      }
+      return new Response("{\"ok\":true}", { status: 200 });
+    }) as unknown as typeof fetch;
+    const fetcher = new Fetcher({ transport, ...quiet });
+
+    const r = await fetcher.get("the-gazette", "https://www.thegazette.co.uk/id/notice/1");
+    expect(r.ok).toBe(true);
+    expect(r.body).toContain("ok");
+    // The upgraded, not the plain-http, URL was fetched.
+    expect(calls).toContain("https://www.thegazette.co.uk/notice/1/data.json");
+    expect(calls).not.toContain("http://www.thegazette.co.uk/notice/1/data.json");
+  });
+
+  it("still refuses an http redirect that leaves the allowlisted host, even after upgrade", async () => {
+    const calls: string[] = [];
+    const transport = (async (input: RequestInfo | URL) => {
+      const u = String(input);
+      calls.push(u);
+      if (u.endsWith("/robots.txt")) return new Response("", { status: 200 });
+      if (u === "https://www.thegazette.co.uk/id/notice/1") {
+        return new Response("", { status: 303, headers: { location: "http://evil.example.com/x" } });
+      }
+      return new Response("SHOULD NOT BE FETCHED", { status: 200 });
+    }) as unknown as typeof fetch;
+    const fetcher = new Fetcher({ transport, ...quiet });
+
+    const r = await fetcher.get("the-gazette", "https://www.thegazette.co.uk/id/notice/1");
+    expect(r.ok).toBe(false);
+    expect(r.outcome).toBe("host-not-allowed");
+    expect(calls).not.toContain("https://evil.example.com/x");
+    expect(calls).not.toContain("http://evil.example.com/x");
+  });
+
   it("refuses when the injected resolver points the host at a private address", async () => {
     const transport = (async (input: RequestInfo | URL) => {
       if (String(input).endsWith("/robots.txt")) return new Response("", { status: 200 });

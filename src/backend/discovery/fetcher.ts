@@ -340,6 +340,15 @@ export class Fetcher {
           } catch {
             return fail("insecure-url", "The redirect pointed at an invalid URL.");
           }
+          // A redirect to plain HTTP is upgraded to HTTPS rather than refused.
+          // Linked-data servers (the Gazette's `/id/notice/` dereference among
+          // them) 303 to a concrete representation and emit the Location with an
+          // http scheme; refusing it broke every notice read, while the old
+          // `redirect: "follow"` had silently followed it. Upgrading is strictly
+          // safer than following http, and the host allowlist, the private-host
+          // block and the no-credentials check below still run on the upgraded
+          // URL — those are the protections that actually matter on a hop.
+          if (nextUrl.protocol === "http:") nextUrl.protocol = "https:";
           const redirectInvalid = validate(nextUrl);
           if (redirectInvalid !== undefined) return redirectInvalid;
           current = nextUrl;
