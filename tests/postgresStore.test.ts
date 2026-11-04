@@ -8,6 +8,7 @@ import type { BuyBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { DealRecord, Store } from "@backend/store/schema";
 import type { SourcedLead } from "@shared/domain/sourcedLead";
+import type { IntakeConversation } from "@shared/domain/intakeConversation";
 import { fileStore } from "@backend/store/fileStore";
 
 /**
@@ -972,6 +973,44 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         await store.saveSourcedProperty(prop({ lastSeenAt: "2026-10-25T00:00:00.000Z" }));
         const all = await store.listSourcedProperties();
         expect(all[0]?.dismissed?.reason).toBe("sold privately");
+      });
+    });
+
+    describe("intake conversations", () => {
+      const conversation = (over: Partial<IntakeConversation> = {}): IntakeConversation => ({
+        id: "conv-1",
+        createdAt: "2026-06-01T09:00:00.000Z",
+        updatedAt: "2026-06-01T09:00:00.000Z",
+        status: "needs-review",
+        messages: [{ id: "m1", from: "seller", text: "A flat to sell.", at: "2026-06-01T09:00:00.000Z" }],
+        ...over,
+      });
+
+      it("is empty to begin with", async () => {
+        expect(await store.listIntakeConversations()).toEqual([]);
+        expect(await store.getIntakeConversation("conv-1")).toBeUndefined();
+      });
+
+      it("round-trips a conversation and fetches it by id", async () => {
+        await store.saveIntakeConversation(conversation());
+        expect(await store.getIntakeConversation("conv-1")).toEqual(conversation());
+      });
+
+      it("upserts by id rather than duplicating, newest first", async () => {
+        await store.saveIntakeConversation(conversation());
+        await store.saveIntakeConversation(
+          conversation({ status: "awaiting-seller", updatedAt: "2026-06-02T09:00:00.000Z" }),
+        );
+        const all = await store.listIntakeConversations();
+        expect(all).toHaveLength(1);
+        expect(all[0]?.status).toBe("awaiting-seller");
+      });
+
+      it("orders the queue by most recently updated", async () => {
+        await store.saveIntakeConversation(conversation({ id: "older", updatedAt: "2026-06-01T09:00:00.000Z" }));
+        await store.saveIntakeConversation(conversation({ id: "newer", updatedAt: "2026-06-03T09:00:00.000Z" }));
+        const all = await store.listIntakeConversations();
+        expect(all.map((c) => c.id)).toEqual(["newer", "older"]);
       });
     });
 

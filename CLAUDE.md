@@ -46,7 +46,8 @@ seller-facing options cannot disagree.
 `negotiation`, `campaign`, `offers`, `agents`, `appraisalRequest`, `identity`,
 `supply`, `permissions`, `fees`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`, `inventory`, `reveal`,
-`passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`, `workflow`, `payouts`, `portfolio`, `screening`.
+`passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`, `workflow`, `payouts`, `portfolio`, `screening`,
+`qualification`, `intakeConversation`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -55,7 +56,8 @@ GB-WLS are excluded from `isDealReady`).
 Pages: `/` landing, `/appraise` free no-signup appraisal, `/partners` agents,
 professionals and capital, `/sell` intake, `/sell/[id]` seller options, `/deals`
 pipeline, `/deals/[id]` Deal Room, `/deals/[id]/agents` agent board,
-`/deals/[id]/memorandum` print pack,
+`/deals/[id]/memorandum` print pack, `/sell/chat` (+ `/[id]`) conversational
+intake, `/operator/intake` (+ `/[id]`) the seller-chat review queue,
 `/invest` Buy Boxes, `/capital` Funding Boxes, `/opportunities` (+ `/[id]`) the
 marketplace, `/account/passport` buyer readiness, `/operator/conduct` the
 prohibitions register, `/newsletter` (+ confirm, unsubscribe), `/operator`
@@ -116,6 +118,22 @@ decision; `/deals/[id]/agents` is the board. The §12 prohibitions are structura
 — four effects and no fifth, `EFFECT_OWNERS` gives the one writing effect to one
 agent, and `authoriseDecision()` refuses the shared operator password. Accepting
 a Terms proposal is what wakes the Due-Diligence Agent.
+
+Intake assistant: §12's conversational first contact. `qualification.ts`
+`reviewQualification()` is the deterministic gate — the LLM proposes facts, a
+draft and an action; this drops any fact citing a message id we do not hold,
+coerces the action to a known enum, scans the draft for a prohibited claim or
+an injection, and sets `safeToAutoReply` only for a clean ask/answer. The model
+seam is `backend/intakeAssistant.ts` (`qualifyIntake`), which fails closed to
+human review on no key, an error, or non-JSON. `backend/intake/service.ts`
+advances a conversation: it appends the assistant's reply ONLY when the gate
+says safe, otherwise the conversation is `needs-review` and nothing is said to
+the seller. Public surface `/sell/chat`, review queue `/operator/intake`
+(`view-seller-data`, a named operator replies/closes). Stored as
+`intakeConversation`s; message text is sealed at rest like `seller.narrative`.
+A06 lives here too: an enquiry has no established buyer, so `sell`/`sourcing`
+set `DealInputs.buyerProfileUnknown` and the appraisal is `taxPending` with
+worst-case transfer tax (never understated).
 
 Acquisition: `negotiation.ts` computes the price band — opening, target,
 walk-away, floor — and `respondTo()` never counters past the ceiling. Seller

@@ -8,6 +8,7 @@ import type { AgentDecision } from "@shared/domain/agents";
 import type { DealFee, PayoutRecord, RevealRecord } from "@backend/store/schema";
 import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { RefundTrigger } from "@shared/domain/reveal";
+import type { IntakeConversation } from "@shared/domain/intakeConversation";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   availableBalance,
@@ -205,6 +206,17 @@ const SCHEMA = `
     data jsonb NOT NULL,
     created_at timestamptz NOT NULL
   );
+  -- Seller-intake conversations with the automated assistant (§12). The whole
+  -- conversation is stored as JSONB and re-saved on each turn; status is lifted
+  -- out so the operator review queue can filter without scanning every row.
+  CREATE TABLE IF NOT EXISTS intake_conversations (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    status text NOT NULL,
+    updated_at timestamptz NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS intake_conversations_status
+    ON intake_conversations (status, updated_at DESC);
   -- Keyed by address, because one mailbox can appear against several
   -- organisations and somebody who asked to be left alone asked once.
   CREATE TABLE IF NOT EXISTS suppressions (
@@ -1213,6 +1225,37 @@ export const postgresStore: Store = {
       );
       return merged;
     });
+  },
+
+  async listIntakeConversations(): Promise<readonly IntakeConversation[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: IntakeConversation }>(
+      "SELECT data FROM intake_conversations ORDER BY updated_at DESC",
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async getIntakeConversation(id: string): Promise<IntakeConversation | undefined> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: IntakeConversation }>(
+      "SELECT data FROM intake_conversations WHERE id = $1",
+      [id],
+    );
+    return rows[0]?.data;
+  },
+
+  async saveIntakeConversation(conversation: IntakeConversation): Promise<IntakeConversation> {
+    await ensureSchema();
+    // A whole-record upsert: the caller appends a turn and re-saves. No merge,
+    // no FOR UPDATE — each save is the authoritative state of the conversation.
+    await getPool().query(
+      `INSERT INTO intake_conversations (id, data, status, updated_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE
+         SET data = EXCLUDED.data, status = EXCLUDED.status, updated_at = EXCLUDED.updated_at`,
+      [conversation.id, JSON.stringify(conversation), conversation.status, conversation.updatedAt],
+    );
+    return conversation;
   },
 
   async listContactedLeads(): Promise<readonly ContactedLead[]> {

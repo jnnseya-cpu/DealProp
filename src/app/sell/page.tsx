@@ -53,6 +53,13 @@ export default function SellPage() {
           </Link>{" "}
           — optional, and you&apos;ll still get a private link to your options either way.
         </p>
+        <p className="mt-3 text-[13px] text-ink-500">
+          Would rather just explain it in your own words?{" "}
+          <Link href="/sell/chat" className="text-lode-300 underline-offset-2 hover:underline">
+            Ask Lode directly
+          </Link>
+          .
+        </p>
       </div>
 
       <SellForm />

@@ -28,6 +28,7 @@ import type { InventoryCategory, InventoryItem, ConfirmedBy } from "@shared/doma
 import type { MaterialRecord } from "@shared/domain/materialInformation";
 import type { SellerDueDiligence } from "@shared/domain/sellerDueDiligence";
 import type { DealOrigin } from "@shared/domain/dealOrigin";
+import type { IntakeConversation } from "@shared/domain/intakeConversation";
 import type { PackApproval } from "@shared/domain/packApproval";
 import type { ResaleArrangement, ResaleConsent } from "@shared/domain/reseller";
 import type { PayoutRecipient } from "@shared/domain/payouts";
@@ -421,6 +422,12 @@ export interface Database {
    */
   contactedLeads?: ContactedLead[];
   outreachMessages: OutreachMessage[];
+  /**
+   * Seller-intake conversations with the automated assistant (§12). Optional so
+   * every existing database literal and fixture stays valid; readers default to
+   * empty.
+   */
+  intakeConversations?: IntakeConversation[];
   dataRoomGrants: DataRoomGrant[];
   pendingCharges: PendingCharge[];
   /**
@@ -910,6 +917,10 @@ export type AuditAction =
   | "payout-failed"
   | "holding-recorded"
   | "sale-confirmation-recorded"
+  | "intake-auto-replied"
+  | "intake-flagged-for-review"
+  | "intake-operator-replied"
+  | "intake-closed"
   | "subscription-comped";
 
 export type SubscriberTokenField = "confirmToken" | "unsubscribeToken";
@@ -1069,6 +1080,12 @@ export interface Store {
   listOutreachMessages(): Promise<readonly OutreachMessage[]>;
   saveOutreachMessage(message: OutreachMessage): Promise<OutreachMessage>;
   listSuppressions(): Promise<readonly Suppression[]>;
+
+  /** Every seller-intake conversation, most recently updated first (§12). */
+  listIntakeConversations(): Promise<readonly IntakeConversation[]>;
+  getIntakeConversation(id: string): Promise<IntakeConversation | undefined>;
+  /** Upsert by id: a conversation is re-saved whole as each turn is added. */
+  saveIntakeConversation(conversation: IntakeConversation): Promise<IntakeConversation>;
 
   /** Fees raised against a deal, most recent first. */
   listDealFees(dealId: string): Promise<readonly DealFee[]>;

@@ -7,6 +7,7 @@ import type { AgentDecision } from "@shared/domain/agents";
 import type { DealFee, PayoutRecord, RevealRecord } from "@backend/store/schema";
 import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { RefundTrigger } from "@shared/domain/reveal";
+import type { IntakeConversation } from "@shared/domain/intakeConversation";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   dueForExpiry,
@@ -101,6 +102,7 @@ function emptyDatabase(): Database {
     importedListings: [],
     contactedLeads: [],
     outreachMessages: [],
+    intakeConversations: [],
     suppressions: [],
     dataRoomGrants: [],
     agentDecisions: [],
@@ -142,6 +144,8 @@ async function readDatabase(): Promise<Database> {
       importedListings: parsed.importedListings ?? [],
       contactedLeads: parsed.contactedLeads ?? [],
       outreachMessages: parsed.outreachMessages ?? [],
+      // Absent in any store written before the intake assistant existed.
+      intakeConversations: parsed.intakeConversations ?? [],
       suppressions: parsed.suppressions ?? [],
       dataRoomGrants: parsed.dataRoomGrants ?? [],
       agentDecisions: parsed.agentDecisions ?? [],
@@ -794,6 +798,26 @@ async function saveSourcedProperty(entry: StoredSourcedProperty): Promise<Stored
   });
 }
 
+async function listIntakeConversations(): Promise<readonly IntakeConversation[]> {
+  const db = await readDatabase();
+  return [...(db.intakeConversations ?? [])].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+async function getIntakeConversation(id: string): Promise<IntakeConversation | undefined> {
+  const db = await readDatabase();
+  return (db.intakeConversations ?? []).find((c) => c.id === id);
+}
+
+async function saveIntakeConversation(conversation: IntakeConversation): Promise<IntakeConversation> {
+  return mutate((db) => {
+    const list = db.intakeConversations ?? (db.intakeConversations = []);
+    const index = list.findIndex((c) => c.id === conversation.id);
+    if (index < 0) list.push(conversation);
+    else list[index] = conversation;
+    return conversation;
+  });
+}
+
 async function listContactedLeads(): Promise<readonly ContactedLead[]> {
   const db = await readDatabase();
   return [...(db.contactedLeads ?? [])].sort((a, b) => b.contactedAt.localeCompare(a.contactedAt));
@@ -1228,6 +1252,9 @@ export const fileStore: Store = {
   saveDiscoveryCandidate,
   listSourcedProperties,
   saveSourcedProperty,
+  listIntakeConversations,
+  getIntakeConversation,
+  saveIntakeConversation,
   listContactedLeads,
   markContactedLead,
   clearContactedLead,

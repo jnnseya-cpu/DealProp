@@ -58,6 +58,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Free appraisal | `/appraise` | True discount, walk-away price and Red Team. No account, nothing stored |
 | Agents and capital | `/partners` | Referral route, what a funder is shown, what we are not supervised for |
 | Seller intake | `/sell` | Situation first, price fourth; screening feeds Seller Protection |
+| Ask Lode (chat) | `/sell/chat` (+ `/[id]`) | Conversational intake; the assistant answers only what the gate clears, else routes to a person |
 | Seller options | `/sell/[id]` | Routes with what the seller receives, when, and what they give up |
 | Pipeline | `/deals` | Every opportunity scored after tax, blocked deals included |
 | Deal Room | `/deals/[id]` | Verdict, full model, Red Team, capital stack, matched mandates |
@@ -76,6 +77,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Portfolio | `/portfolio` | What is held, what it is worth, and when the facility has to be refinanced |
 | Discovery | `/operator/discovery` | Run funder discovery, review candidates, approve or suppress |
 | Sourcing | `/operator/sourcing` | Find motivated sellers from the licensed registers, kept as a worklist — it finds, it never contacts |
+| Intake | `/operator/intake` (+ `/[id]`) | The seller-chat review queue: conversations the assistant held for a person, replied to or closed by a named operator |
 | Import | `/operator/import`, `/account/listings` | Rights-holder 1-click listing import — facts from a page's own structured data, portals refused, photos never taken. Operators see all; verified partners (agents, auctioneers) self-serve their own, with an appraisal hand-off |
 | Outreach | `/operator/outreach` | Draft, approve, send; suppression list |
 | Opt out | `/outreach/opt-out` | One click, no account, no confirmation step |
@@ -120,6 +122,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Revenue | `src/shared/domain/revenue.ts` | Monetisation, permission-gated |
 | Deal Director | `src/shared/domain/director.ts` | Runs everything, returns one position |
 | Seller intake | `src/shared/domain/intake.ts` | Seller answers → engine inputs, with Truth Engine checks |
+| Intake assistant | `src/shared/domain/qualification.ts`, `intakeConversation.ts`; `src/backend/intakeAssistant.ts`, `intake/service.ts` | §12 conversational intake: the LLM proposes, `reviewQualification` decides, the service acts only on what is safe to auto-reply and routes the rest to a person |
 | Seller routes | `src/shared/domain/sellerRoutes.ts` | Inverts the engine: what the *seller* receives |
 | Working deal | `src/shared/domain/workingDeal.ts` | Prices an enquiry that has no agreed price yet |
 | Newsletter | `src/shared/domain/newsletter.ts` | Consent gating, weekly idempotency, issue composition |

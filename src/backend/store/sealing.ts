@@ -1,5 +1,6 @@
 import { decrypt, encrypt, isEncrypted, readKey } from "@backend/crypto/fieldCipher";
 import type { DealRecord, Store } from "@backend/store/schema";
+import type { IntakeConversation } from "@shared/domain/intakeConversation";
 
 /**
  * Encryption applied to the store, rather than to each engine.
@@ -233,6 +234,37 @@ export function openDeal(deal: DealRecord): DealRecord {
 }
 
 /**
+ * A seller-intake conversation, with the message text sealed at rest.
+ *
+ * The turns are free text a seller typed about their own situation — the same
+ * kind of field as `seller.narrative`, and sealed for the same reason. The
+ * status, the reason codes and the timestamps stay plaintext: the status is
+ * filtered on in SQL for the review queue, and none of them identifies a person.
+ */
+function sealConversation(c: IntakeConversation): IntakeConversation {
+  const key = readKey();
+  if (key === undefined) return c;
+  return {
+    ...c,
+    messages: c.messages.map((m) => ({
+      ...m,
+      text: isEncrypted(m.text) ? m.text : encrypt(m.text, key),
+    })),
+  };
+}
+
+function openConversation(c: IntakeConversation): IntakeConversation {
+  const key = readKey();
+  return {
+    ...c,
+    messages: c.messages.map((m) => ({
+      ...m,
+      text: isEncrypted(m.text) ? decrypt(m.text, key) : m.text,
+    })),
+  };
+}
+
+/**
  * The engine, with the two deal fields sealed on the way in and opened on the
  * way out.
  *
@@ -254,6 +286,21 @@ export function sealed(store: Store): Store {
       return deal === undefined ? undefined : openDeal(deal);
     },
     saveDeal: async (deal) => openDeal(await store.saveDeal(sealDeal(deal))),
-    replaceAll: async (db) => store.replaceAll({ ...db, deals: db.deals.map(sealDeal) }),
+    replaceAll: async (db) =>
+      store.replaceAll({
+        ...db,
+        deals: db.deals.map(sealDeal),
+        ...(db.intakeConversations !== undefined
+          ? { intakeConversations: db.intakeConversations.map(sealConversation) }
+          : {}),
+      }),
+    listIntakeConversations: async () =>
+      (await store.listIntakeConversations()).map(openConversation),
+    getIntakeConversation: async (id) => {
+      const c = await store.getIntakeConversation(id);
+      return c === undefined ? undefined : openConversation(c);
+    },
+    saveIntakeConversation: async (c) =>
+      openConversation(await store.saveIntakeConversation(sealConversation(c))),
   };
 }

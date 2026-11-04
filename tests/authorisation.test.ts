@@ -30,6 +30,8 @@ const PUBLIC_BY_DESIGN: Readonly<Record<string, string>> = {
     "Double opt-in. A subscriber has no account by design, and consent is the record.",
   "sell/actions.ts":
     "Public seller enquiry: nobody is signed in by definition, like sign-up. It may mint a least-privilege seller account (role 'seller') from the details given and sign them in, or attach to a session, or fall back to a capability URL — never reads an existing session to decide whether it may run. Rate limited.",
+  "sell/chat/actions.ts":
+    "Public seller chat (§12): a seller has no account by design, exactly as the /sell form takes none. The conversation id is a CSPRNG capability token (a v4 UUID) and the only way back to a conversation; the assistant's reply is gated server-side by reviewQualification, never by the client. The operator side of the same conversations (operator/intake/actions.ts) is permission- and account-gated.",
   "operator/actions.ts": "Sign-in and sign-out themselves, which cannot require being signed in.",
   "join/actions.ts":
     "Self-service sign-up. Nobody is signed in yet by definition. Rate limited, the role is restricted to the self-service set on the server, and it mints only a least-privilege account.",

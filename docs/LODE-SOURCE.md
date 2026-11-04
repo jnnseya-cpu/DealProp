@@ -54,7 +54,7 @@ Legend: **BUILT** / **PARTIAL** (exists, not in the shape asked) / **MISSING** /
 |---|---|---|
 | One coherent position, page renders it | BUILT | `director.ts:runDealDirector` |
 | Source/purpose/permission recorded, address normalised, duplicate check | PARTIAL | `sell/actions.ts`, `sellerConsent.ts`; address is partial (postcode area + locality), dedup not evidenced |
-| Disclosed AI assistant collects facts/priorities/authority | MISSING | intake is a form, not an assistant |
+| Disclosed AI assistant collects facts/priorities/authority | BUILT | `/sell/chat` conversational intake → `intake/service.ts` → `qualifyIntake` gated by `reviewQualification`; the form at `/sell` remains. The assistant discloses it is automated and routes anything unsafe to `/operator/intake` |
 | Rules engine separates fit, completeness, risk | PARTIAL | `motivation.ts` + `protection.ts` flags; not the six §5 outputs |
 | Deterministic appraisal with evidence + missing-input flags | PARTIAL | `economics.ts`, `opportunityScore.ts`; values are inputs, not comparable-derived |
 | Human approves valuation/offers/release | PARTIAL | agents propose; no offer-issue or pack-release gate |
@@ -229,7 +229,7 @@ Legend: **BUILT** / **PARTIAL** (exists, not in the shape asked) / **MISSING** /
 | Cash return; suppress if funding incomplete | PARTIAL | `roiOnCashBps` computed, never suppressed |
 | Seller net estimate; label unknowns | MISSING | no redemption/seller-fee fields in the engine |
 | Versioned jurisdiction tax rules + effective date + assumptions | BUILT | `jurisdictions/gb-eng.ts:stampDutyLandTax` (`asOf`), `profitTax.ts` |
-| Unknown buyer profile → tax pending, no final return | MISSING | always computes from supplied booleans; **A06 not implemented** |
+| Unknown buyer profile → tax pending, no final return | BUILT | `DealInputs.buyerProfileUnknown` → `economics.ts` takes transfer tax at the worst case and sets `DealAppraisal.taxPending`; `director.ts` raises a gating action; set by `sell`/`sourcing` intake (A06) |
 | Don't hard-code a universal SDLT rate | BUILT | band tables per jurisdiction |
 | Income/corp tax excluded from MVP; never "after all tax" | DECISION | engine deducts profit tax (CLAUDE.md #2); never labelled "after all tax", marked requires-review |
 
@@ -312,7 +312,7 @@ Legend: **BUILT** / **PARTIAL** (exists, not in the shape asked) / **MISSING** /
 | Classify free-text opt-outs; STOP webhooks before other jobs | PARTIAL | classification BUILT; no job queue so ordering N/A |
 | Reply pauses sequence + owner task | MISSING | no sequence to pause, no task created; **A03 not implemented** |
 | Re-enrolment needs a new valid event | MISSING | no enrolment concept |
-| AI first-contact rules (identify + automated; can/cannot list) | MISSING | no seller-facing assistant; `agents.ts:FORBIDDEN_ACTS` is a different internal surface |
+| AI first-contact rules (identify + automated; can/cannot list) | BUILT | `intakeAssistant.ts:systemPrompt` states the §9 can/cannot list and that the seller is talking to an automated assistant; `qualification.ts:PROHIBITED` enforces it deterministically regardless of the prompt |
 | Voice/cold-call/live-call deferred | DECISION | no voice channel (consistent with deferral) |
 
 ---
@@ -425,17 +425,17 @@ does not exist. Public intake and most mutations are Next server actions.
 |---|---|---|
 | Six qualification tools | MISSING | implemented tools are deal-analysis/market-data for narration |
 | LLM cannot message / approve offer / query unrestricted contacts | BUILT | no such tool exists; `agents.ts` closed effect set + `FORBIDDEN_ACTS` |
-| Qualification output schema | MISSING | no qualification flow |
-| Schema validation before persistence | MISSING | no LLM-fact persistence path |
-| Citations to message/evidence IDs; reject on missing source | PARTIAL | `provenance.ts` cites source names, not message/evidence IDs |
-| Unknown is null, never zero | PARTIAL | principle present generally; no LLM-extraction layer |
-| Untrusted data can't change tools/policy | PARTIAL | `extract.ts` extraction-only; no injection defence for a (nonexistent) seller-message flow |
+| Qualification output schema | BUILT | `qualification.ts:QualifiedResult` + `reviewQualification` |
+| Schema validation before persistence | BUILT | `reviewQualification` gates the model output; `intake/service.ts` persists only what survives, and acts only on `safeToAutoReply` |
+| Citations to message/evidence IDs; reject on missing source | BUILT | `reviewQualification` checks each fact's `source_message_id` against `knownMessageIds`; an invented source is dropped and forces review (`invented_citation`) |
+| Unknown is null, never zero | BUILT | `qualification.ts:isScalar` keeps null as unknown and never coerces to a number |
+| Untrusted data can't change tools/policy | BUILT | `qualification.ts:PROHIBITED` injection/broadcast scan + `recommendedAction` coerced to a known enum; the service sends nothing the model asked it to send |
 | External URL allowlist | BUILT | `fetcher.ts:SOURCE_HOSTS` |
-| Block private-network targets | MISSING | **no RFC1918/loopback guard** (see Concrete bugs) |
-| Store prompt version/config/sources/output under retention | MISSING | nothing persisted |
+| Block private-network targets | BUILT | `fetcher.ts:isBlockedHost` (RFC1918/loopback/link-local/CGNAT/IPv6) re-checked on every redirect hop |
+| Store prompt version/config/sources/output under retention | PARTIAL | `IntakeRun` records prompt version, provider, model and the gate's outcome, written to the audit trail; the conversation is stored with its review state. No formal retention schedule yet |
 | Masked fixtures | MISSING | none |
-| AI acceptance suite | MISSING | none |
-| Low confidence / failed schema → human review | PARTIAL | confidence→review in the deterministic path only |
+| AI acceptance suite | PARTIAL | `qualification.test.ts`, `intakeAssistant.test.ts`, `intakeConversation.test.ts` cover the gate, the seam and the live service; no adversarial corpus |
+| Low confidence / failed schema → human review | BUILT | `intake/service.ts` leaves anything not safe-to-auto-reply as `needs-review`; surfaced at `/operator/intake` for a named person |
 | No model completion probability / guarantee | BUILT | probability is engine-computed, not model-generated |
 
 ---
@@ -480,7 +480,7 @@ does not exist. Public intake and most mutations are Next server actions.
 | A03 message during nurture → pause + owner task | PARTIAL | reply recorded; no sequence/task |
 | A04 outside geography → no E&W tax/valuation | BUILT | `appraisal.test.ts`, `isDealReady` |
 | A05 two comps → low confidence, review, no auto BMV | MISSING | no comparable engine |
-| A06 unknown tax/works → pending, no final/max | PARTIAL | pending shown; no "approved maximum offer" object |
+| A06 unknown tax/works → pending, no final/max | BUILT (tax) | `buyerProfileUnknown` → worst-case transfer tax + `taxPending` + gating action (A06); a distinct "approved maximum offer" object is still not modelled |
 | A07 §7 illustration figures | MISSING | not pinned; engine can't take the supplied figures |
 | A08 inputs change after approval → invalidate, retain prior, block | MISSING | no approval/content-hash/versioned-pack |
 | A09 high match + expired funds → introduction blocked | PARTIAL | expiry gating exists; not tied to a match→introduction path |

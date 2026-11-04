@@ -3,6 +3,7 @@ import { openDeal, sealDeal, sealed } from "@backend/store/sealing";
 import { decrypt, encrypt, isEncrypted, readKey, MissingKeyError } from "@backend/crypto/fieldCipher";
 import { SEED_DEALS } from "@backend/store/seed";
 import type { DealRecord, Store } from "@backend/store/schema";
+import type { IntakeConversation } from "@shared/domain/intakeConversation";
 
 /** A real 32-byte key, so the tests exercise the real cipher. */
 const KEY = Buffer.alloc(32, 7).toString("base64");
@@ -292,6 +293,43 @@ describe("the sealed store", () => {
       // What a caller gets back.
       const [out] = await wrapped.listDeals();
       expect(out?.seller.narrative).toBe(deal().seller.narrative);
+    });
+  });
+
+  it("seals an intake conversation's message text, and restores it", async () => {
+    await withKeyAsync(async () => {
+      let stored: IntakeConversation | undefined;
+      const fake = {
+        saveIntakeConversation: async (c: IntakeConversation) => {
+          stored = c;
+          return c;
+        },
+        getIntakeConversation: async () => stored,
+        listIntakeConversations: async () => (stored === undefined ? [] : [stored]),
+      } as unknown as Store;
+
+      const conversation: IntakeConversation = {
+        id: "c1",
+        createdAt: "2026-06-01T09:00:00Z",
+        updatedAt: "2026-06-01T09:00:00Z",
+        status: "needs-review",
+        messages: [
+          { id: "m1", from: "seller", text: "My father passed away and I need to sell the house fast.", at: "2026-06-01T09:00:00Z" },
+        ],
+      };
+
+      const wrapped = sealed(fake);
+      await wrapped.saveIntakeConversation(conversation);
+
+      // The seller's words are personal data and must not sit in plaintext.
+      expect(isEncrypted(stored?.messages[0]?.text ?? "")).toBe(true);
+      expect(strings(stored).join(" ")).not.toContain("father passed away");
+
+      // And they come back exactly, on both read paths.
+      const got = await wrapped.getIntakeConversation("c1");
+      expect(got).toEqual(conversation);
+      const [listed] = await wrapped.listIntakeConversations();
+      expect(listed).toEqual(conversation);
     });
   });
 });

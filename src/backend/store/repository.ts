@@ -1,4 +1,5 @@
 import type { BuyBox, FundingBox } from "@shared/domain/matching";
+import type { IntakeConversation } from "@shared/domain/intakeConversation";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { Subscriber } from "@shared/domain/newsletter";
@@ -352,6 +353,18 @@ export async function listSourcedProperties() {
 
 export async function saveSourcedProperty(entry: StoredSourcedProperty) {
   return (await store()).saveSourcedProperty(entry);
+}
+
+export async function listIntakeConversations() {
+  return (await store()).listIntakeConversations();
+}
+
+export async function getIntakeConversation(id: string) {
+  return (await store()).getIntakeConversation(id);
+}
+
+export async function saveIntakeConversation(conversation: IntakeConversation) {
+  return (await store()).saveIntakeConversation(conversation);
 }
 
 export async function listContactedLeads() {

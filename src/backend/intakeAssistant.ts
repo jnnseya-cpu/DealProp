@@ -3,7 +3,9 @@ import {
   reviewQualification,
   type QualificationContext,
   type QualifiedResult,
+  type ReviewReasonCode,
 } from "@shared/domain/qualification";
+import type { IntakeMessage } from "@shared/domain/intakeConversation";
 
 /**
  * The backend seam for the intake assistant (spec §12).
@@ -24,12 +26,12 @@ import {
 
 export const INTAKE_PROMPT_VERSION = "intake-1";
 
-export interface SellerMessage {
-  readonly id: string;
-  readonly from: "seller" | "assistant";
-  readonly text: string;
-  readonly at: string;
-}
+/**
+ * A turn in the conversation, as the assistant sees it. The canonical shape
+ * lives in the shared layer so the seller chat screen can render it too; this
+ * alias keeps the backend seam's existing name.
+ */
+export type SellerMessage = IntakeMessage;
 
 export interface IntakeRun {
   readonly caseId: string;
@@ -38,7 +40,7 @@ export interface IntakeRun {
   readonly model: string;
   readonly recommendedAction: QualifiedResult["recommendedAction"];
   readonly humanReviewRequired: boolean;
-  readonly reviewReasonCodes: readonly string[];
+  readonly reviewReasonCodes: readonly ReviewReasonCode[];
   readonly factsKept: number;
   readonly factsDropped: number;
   readonly safeToAutoReply: boolean;
