@@ -376,6 +376,7 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
             <Panel eyebrow="Returns">
               <div className="grid grid-cols-2 gap-4">
                 <Stat label="Margin on GDV" value={percent(a.marginOnGdvBps)} />
+                <Stat label="Profit on cost" value={percent(a.profitOnCostBps)} />
                 <Stat label="Return on cash" value={percent(a.roiOnCashBps, 0)} />
                 <Stat label="Annualised" value={percent(a.annualisedRoiBps, 0)} />
                 <Stat label="Equity required" value={gbp(a.funding.equityRequired)} />

@@ -292,6 +292,7 @@ export function appraise(inputs: DealInputs): DealAppraisal {
     roiOnCashBps,
     annualisedRoiBps,
     marginOnGdvBps: ratioBps(profit, exit.grossDevelopmentValue),
+    profitOnCostBps: ratioBps(profit, costs.total),
     discountToOmvBps: ratioBps(
       sub(inputs.property.openMarketValue, inputs.purchasePrice),
       inputs.property.openMarketValue,

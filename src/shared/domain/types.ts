@@ -232,6 +232,13 @@ export interface DealAppraisal {
   readonly roiOnCashBps: Bps;
   readonly annualisedRoiBps: Bps;
   readonly marginOnGdvBps: Bps;
+  /**
+   * Profit on cost: profit after tax against total project cost (§7). The
+   * measure a flipper actually judges a deal on — "how much do I make for
+   * every pound I put in" — distinct from margin on GDV, which is against the
+   * finished value. After-tax, like every other figure derived from `profit`.
+   */
+  readonly profitOnCostBps: Bps;
   /** Headline discount: purchase price against open market value. */
   readonly discountToOmvBps: Bps;
   /**

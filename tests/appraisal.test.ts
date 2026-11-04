@@ -152,6 +152,11 @@ describe("the figures it produces", () => {
     const a = appraise(parsed.inputs);
     expect(a.discountToOmvBps).toBeGreaterThan(0);
     expect(a.trueDiscountBps).toBeLessThan(a.discountToOmvBps);
+
+    // Profit on cost is profit against total project cost, and it is a
+    // different number from margin on GDV (cost is not the finished value).
+    expect(Math.abs(a.profitOnCostBps - (a.profit / a.costs.total) * 10_000)).toBeLessThan(2);
+    expect(a.profitOnCostBps).not.toBe(a.marginOnGdvBps);
   });
 });
 
