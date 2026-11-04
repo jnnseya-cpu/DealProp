@@ -822,6 +822,23 @@ async function saveIntakeConversation(conversation: IntakeConversation): Promise
   });
 }
 
+async function saveIntakeConversationIfCurrent(
+  conversation: IntakeConversation,
+  expectedRev: number,
+): Promise<IntakeConversation | undefined> {
+  // Check-and-write inside the single-writer mutate lock, so the comparison and
+  // the save are atomic — a concurrent turn cannot slip between them.
+  return mutate((db) => {
+    const list = db.intakeConversations ?? (db.intakeConversations = []);
+    const index = list.findIndex((c) => c.id === conversation.id);
+    const current = index < 0 ? undefined : list[index];
+    if ((current?.rev ?? 0) !== expectedRev) return undefined;
+    if (index < 0) list.push(conversation);
+    else list[index] = conversation;
+    return conversation;
+  });
+}
+
 async function listAgentRuns(subjectId?: string): Promise<readonly AgentRunRecord[]> {
   const db = await readDatabase();
   const all = db.agentRuns ?? [];
@@ -1281,6 +1298,7 @@ export const fileStore: Store = {
   listIntakeConversations,
   getIntakeConversation,
   saveIntakeConversation,
+  saveIntakeConversationIfCurrent,
   listAgentRuns,
   getAgentRun,
   saveAgentRun,

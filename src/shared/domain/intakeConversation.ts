@@ -58,6 +58,15 @@ export interface IntakeConversation {
   readonly updatedAt: string;
   readonly status: IntakeConversationStatus;
   readonly messages: readonly IntakeMessage[];
+  /**
+   * The input version, bumped on every write. It is the optimistic-concurrency
+   * token: a run that qualified over one version writes back only if the stored
+   * version still matches (spec §20.5). If a newer turn landed while the run was
+   * in flight, the write is refused, the run is superseded, and the latest state
+   * is re-run — a stale result never overwrites newer conversation state.
+   * Absent on records written before versioning; treated as 0.
+   */
+  readonly rev?: number;
   /** The gate's decision on the most recent assistant run, if any. */
   readonly lastReview?: IntakeReviewState;
   /** Set once a named operator has reviewed, replied to, or closed it (§51). */

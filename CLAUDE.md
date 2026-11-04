@@ -145,6 +145,13 @@ store persists it append-and-upsert in both engines (`agent_runs`), read by
 subject. Two producers record runs today: the intake qualification seam (every
 seller turn) and the live analysis runtime (`/deals/[id]/analysis`); the
 operator Control Room reads the ledger at `/operator/agents` (`view-audit-log`).
+AG05: the intake conversation carries a `rev` (input version); a qualification
+run writes back by compare-and-swap, and if a newer turn landed while it was in
+flight the write is refused, the run is `supersede()`d in the ledger and the
+reply is re-run over the current state — a stale result never overwrites newer
+state and no turn is lost. The run is left open through `advance` and closed by
+the caller (to its outcome, or superseded), because a run is not "succeeded"
+until its result was actually applied.
 No token/cost usage yet (the runtime returns none), no work queue, no tenant
 dimension (single-tenant) — only what a real producer can fill, never empty
 forward-compatibility.

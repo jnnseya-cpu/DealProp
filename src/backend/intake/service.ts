@@ -3,9 +3,10 @@ import {
   getIntakeConversation,
   saveAgentRun,
   saveIntakeConversation,
+  saveIntakeConversationIfCurrent,
 } from "@backend/store/repository";
 import { qualifyIntake, type QualifyDeps } from "@backend/intakeAssistant";
-import { beginRun, closeFromIntake } from "@shared/domain/agentRun";
+import { beginRun, closeFromIntake, supersede, type AgentRunRecord } from "@shared/domain/agentRun";
 import { audit } from "@backend/audit";
 import type { QualificationContext } from "@shared/domain/qualification";
 import type {
@@ -65,16 +66,34 @@ function message(from: IntakeMessage["from"], text: string): IntakeMessage {
   return { id: randomUUID(), from, text: text.trim(), at: now() };
 }
 
+interface Advanced {
+  /** The next state of the conversation, if this run's result is applied. */
+  readonly conversation: IntakeConversation;
+  /**
+   * The run record, still OPEN (running). The caller closes it: to its outcome
+   * when the write lands, or superseded when a newer turn won the race. A run
+   * is not "succeeded" until its result was actually applied.
+   */
+  readonly run: AgentRunRecord;
+  /** How to close the run if it is applied. */
+  readonly outcome: {
+    readonly humanReviewRequired: boolean;
+    readonly reasonCodes: readonly string[];
+    readonly repairAttempted: boolean;
+  };
+}
+
 /**
- * Run the assistant over the conversation so far and apply the gate's verdict.
+ * Run the assistant over the conversation so far and compute the next state.
  *
- * Pure-ish: it takes the messages, returns the assistant turn to append (or
- * none) and the review state. Nothing here persists — the caller saves.
+ * Pure of persistence: it runs the model through the gate, opens the run record
+ * and builds the would-be next conversation, and returns them. It does NOT save
+ * the run, close it, or audit — the caller does that only once it knows whether
+ * this result was actually applied. A run whose write loses a concurrency race
+ * is superseded, and must not leave behind a "succeeded" ledger entry or an
+ * "auto-replied" audit for a reply that never landed.
  */
-async function advance(
-  conversation: IntakeConversation,
-  deps: QualifyDeps,
-): Promise<IntakeConversation> {
+async function advance(conversation: IntakeConversation, deps: QualifyDeps): Promise<Advanced> {
   const ctx: QualificationContext = {
     caseId: conversation.id,
     knownMessageIds: conversation.messages.map((m) => m.id),
@@ -83,32 +102,27 @@ async function advance(
 
   const { result, run } = await qualifyIntake(ctx, conversation.messages, deps);
 
-  // Record the run in the durable ledger (§20.5). The input hash is of the
-  // message ids the run read, so a later run on a newer conversation is
-  // distinguishable from this one.
+  // The input hash is of the message ids this run read, so a run over a newer
+  // conversation is distinguishable from this one.
   const inputHash = createHash("sha256").update(ctx.knownMessageIds.join("|")).digest("hex");
-  const runRecord = closeFromIntake(
-    beginRun({
-      id: randomUUID(),
-      kind: "intake-qualification",
-      subjectType: "intake-conversation",
-      subjectId: conversation.id,
-      agentId: "seller_qualification",
-      agentVersion: run.promptVersion,
-      autonomy: "routine",
-      provider: run.provider,
-      model: run.model,
-      startedAt: run.at,
-      inputHash,
-    }),
-    {
-      humanReviewRequired: run.humanReviewRequired,
-      reasonCodes: run.reviewReasonCodes,
-      repairAttempted: run.repairAttempted,
-    },
-    now(),
-  );
-  await saveAgentRun(runRecord);
+  const runRecord = beginRun({
+    id: randomUUID(),
+    kind: "intake-qualification",
+    subjectType: "intake-conversation",
+    subjectId: conversation.id,
+    agentId: "seller_qualification",
+    agentVersion: run.promptVersion,
+    autonomy: "routine",
+    provider: run.provider,
+    model: run.model,
+    startedAt: run.at,
+    inputHash,
+  });
+  const outcome = {
+    humanReviewRequired: run.humanReviewRequired,
+    reasonCodes: run.reviewReasonCodes,
+    repairAttempted: run.repairAttempted,
+  };
 
   const review: IntakeReviewState = {
     recommendedAction: run.recommendedAction,
@@ -122,31 +136,41 @@ async function advance(
 
   if (result.safeToAutoReply && result.draftReply.trim() !== "") {
     const reply = message("assistant", result.draftReply);
-    await audit("intake-auto-replied", {
-      subject: conversation.id,
-      detail: `Assistant replied automatically (${run.provider}/${run.model}).`,
-    });
     return {
-      ...conversation,
-      messages: [...conversation.messages, reply],
-      status: "awaiting-seller",
-      lastReview: review,
-      updatedAt: now(),
+      run: runRecord,
+      outcome,
+      conversation: {
+        ...conversation,
+        messages: [...conversation.messages, reply],
+        status: "awaiting-seller",
+        lastReview: review,
+        updatedAt: now(),
+      },
     };
   }
 
-  // Not safe to answer automatically: hold for a person. Nothing is said to the
-  // seller, and the reasons are recorded for the operator queue.
+  // Not safe to answer automatically: hold for a person.
+  return {
+    run: runRecord,
+    outcome,
+    conversation: { ...conversation, status: "needs-review", lastReview: review, updatedAt: now() },
+  };
+}
+
+/** Audit the outcome of an advance that was actually applied. */
+async function auditApplied(conversation: IntakeConversation): Promise<void> {
+  if (conversation.status === "awaiting-seller") {
+    const review = conversation.lastReview;
+    await audit("intake-auto-replied", {
+      subject: conversation.id,
+      detail: `Assistant replied automatically (${review?.provider ?? "?"}/${review?.model ?? "?"}).`,
+    });
+    return;
+  }
   await audit("intake-flagged-for-review", {
     subject: conversation.id,
-    detail: `Held for review: ${run.reviewReasonCodes.join(", ") || "no safe automatic reply"}.`,
+    detail: `Held for review: ${conversation.lastReview?.reviewReasonCodes.join(", ") || "no safe automatic reply"}.`,
   });
-  return {
-    ...conversation,
-    status: "needs-review",
-    lastReview: review,
-    updatedAt: now(),
-  };
 }
 
 /**
@@ -165,31 +189,62 @@ export async function startIntakeConversation(
     status: "needs-review",
     messages: [first],
   };
-  const advanced = await advance(base, deps);
-  return saveIntakeConversation(advanced);
+  const { conversation, run, outcome } = await advance(base, deps);
+  // A brand-new id has no concurrent writer, so this first write is
+  // unconditional. rev starts at 1.
+  const saved = await saveIntakeConversation({ ...conversation, rev: 1 });
+  await saveAgentRun(closeFromIntake(run, outcome, now()));
+  await auditApplied(saved);
+  return saved;
 }
+
+/** One seller reply cannot spawn an unbounded chain of re-runs under contention. */
+const MAX_ADVANCE_ATTEMPTS = 3;
 
 /**
  * Append a seller's reply and advance the conversation. Returns undefined if
  * the id is unknown; throws if the conversation is already closed.
+ *
+ * If a newer turn lands while this run is in flight (spec §20.5 / AG05), the
+ * compare-and-swap write is refused: the run is superseded in the ledger and
+ * the reply is re-applied over the current state, so a stale result never
+ * overwrites newer conversation state and no turn is lost. Each attempt is its
+ * own run over the latest messages — the latest turn always gets a fresh run.
  */
 export async function addSellerReply(
   id: string,
   text: string,
   deps: QualifyDeps = {},
 ): Promise<IntakeConversation | undefined> {
-  const existing = await getIntakeConversation(id);
-  if (existing === undefined) return undefined;
-  if (existing.status === "closed") {
-    throw new Error("This conversation is closed. Start a new enquiry.");
+  for (let attempt = 0; attempt < MAX_ADVANCE_ATTEMPTS; attempt += 1) {
+    const existing = await getIntakeConversation(id);
+    if (existing === undefined) return undefined;
+    if (existing.status === "closed") {
+      throw new Error("This conversation is closed. Start a new enquiry.");
+    }
+    const expectedRev = existing.rev ?? 0;
+    const withSeller: IntakeConversation = {
+      ...existing,
+      messages: [...existing.messages, message("seller", text)],
+      updatedAt: now(),
+    };
+    const { conversation, run, outcome } = await advance(withSeller, deps);
+    const saved = await saveIntakeConversationIfCurrent(
+      { ...conversation, rev: expectedRev + 1 },
+      expectedRev,
+    );
+    if (saved !== undefined) {
+      await saveAgentRun(closeFromIntake(run, outcome, now()));
+      await auditApplied(saved);
+      return saved;
+    }
+    // A newer turn landed during this run. Its result is stale: record it
+    // superseded and try again over the current state.
+    await saveAgentRun(supersede(run, now()));
   }
-  const withSeller: IntakeConversation = {
-    ...existing,
-    messages: [...existing.messages, message("seller", text)],
-    updatedAt: now(),
-  };
-  const advanced = await advance(withSeller, deps);
-  return saveIntakeConversation(advanced);
+  // Sustained contention beyond the attempt bound — return the current state
+  // rather than clobber it. Nothing stale was applied.
+  return getIntakeConversation(id);
 }
 
 /**
@@ -213,6 +268,9 @@ export async function operatorReply(
     handledBy: operator.name,
     handledAt: now(),
     updatedAt: now(),
+    // Bump the version so an in-flight auto-reply run loses its CAS and is
+    // superseded — the operator has stepped in and has the word.
+    rev: (existing.rev ?? 0) + 1,
   };
   await audit("intake-operator-replied", {
     account: operator,
@@ -236,6 +294,7 @@ export async function closeIntakeConversation(
     handledBy: operator.name,
     handledAt: now(),
     updatedAt: now(),
+    rev: (existing.rev ?? 0) + 1,
     ...(dealId !== undefined ? { dealId } : {}),
   };
   await audit("intake-closed", {

@@ -105,6 +105,36 @@ describe("starting a conversation", () => {
     await addSellerReply(safe.id, "It's in LS6.", { complete: safeComplete });
     expect(await listAgentRuns(safe.id)).toHaveLength(2);
   });
+
+  it("supersedes a stale run when a newer turn lands mid-run, losing no turn (AG05)", async () => {
+    const started = await startIntakeConversation("Inherited a flat.", { complete: safeComplete });
+    const id = started.id;
+
+    // The outer reply's model call, on its first invocation, triggers a
+    // concurrent seller turn — exactly the "a seller replies while a
+    // qualification run is active" race. The outer run then qualified over a
+    // version that is no longer current.
+    let injected = false;
+    const racing = (async () => {
+      if (!injected) {
+        injected = true;
+        await addSellerReply(id, "Actually it's in Leeds.", { complete: safeComplete });
+      }
+      return safeComplete();
+    }) as unknown as typeof import("@backend/llm").complete;
+
+    const result = await addSellerReply(id, "It's leasehold.", { complete: racing });
+
+    // No turn lost: both the concurrent reply and the outer reply are present.
+    const texts = (result?.messages ?? []).map((m) => m.text);
+    expect(texts).toContain("Actually it's in Leeds.");
+    expect(texts).toContain("It's leasehold.");
+
+    // The ledger records the stale run as superseded, alongside the applied runs.
+    const runs = await listAgentRuns(id);
+    expect(runs.some((r) => r.state === "superseded")).toBe(true);
+    expect(runs.some((r) => r.state === "succeeded")).toBe(true);
+  });
 });
 
 describe("continuing and resolving a conversation", () => {

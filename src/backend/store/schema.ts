@@ -1104,6 +1104,18 @@ export interface Store {
   getIntakeConversation(id: string): Promise<IntakeConversation | undefined>;
   /** Upsert by id: a conversation is re-saved whole as each turn is added. */
   saveIntakeConversation(conversation: IntakeConversation): Promise<IntakeConversation>;
+  /**
+   * Compare-and-swap by input version (§20.5): write only if the stored
+   * conversation's `rev` still equals `expectedRev`. Returns the saved record,
+   * or undefined when a newer turn has landed — the caller then supersedes the
+   * stale run and re-runs over the current state. The check and the write are
+   * one operation, because two turns racing is exactly how one clobbers the
+   * other.
+   */
+  saveIntakeConversationIfCurrent(
+    conversation: IntakeConversation,
+    expectedRev: number,
+  ): Promise<IntakeConversation | undefined>;
 
   /**
    * The agent-run ledger (§20.5), most recent first. With a subject id, only

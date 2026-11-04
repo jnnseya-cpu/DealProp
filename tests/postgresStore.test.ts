@@ -1013,6 +1013,26 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         const all = await store.listIntakeConversations();
         expect(all.map((c) => c.id)).toEqual(["newer", "older"]);
       });
+
+      it("compare-and-swaps on the input version (§20.5 / AG05)", async () => {
+        await store.saveIntakeConversation(conversation({ id: "cas-1", rev: 1 }));
+
+        // A stale expected version is refused — nothing is written.
+        const stale = await store.saveIntakeConversationIfCurrent(
+          conversation({ id: "cas-1", rev: 2, status: "awaiting-seller" }),
+          0,
+        );
+        expect(stale).toBeUndefined();
+        expect((await store.getIntakeConversation("cas-1"))?.status).toBe("needs-review");
+
+        // The current expected version applies and advances rev.
+        const applied = await store.saveIntakeConversationIfCurrent(
+          conversation({ id: "cas-1", rev: 2, status: "awaiting-seller" }),
+          1,
+        );
+        expect(applied?.status).toBe("awaiting-seller");
+        expect((await store.getIntakeConversation("cas-1"))?.rev).toBe(2);
+      });
     });
 
     describe("agent runs (the §20.5 ledger)", () => {

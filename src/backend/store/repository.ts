@@ -368,6 +368,13 @@ export async function saveIntakeConversation(conversation: IntakeConversation) {
   return (await store()).saveIntakeConversation(conversation);
 }
 
+export async function saveIntakeConversationIfCurrent(
+  conversation: IntakeConversation,
+  expectedRev: number,
+) {
+  return (await store()).saveIntakeConversationIfCurrent(conversation, expectedRev);
+}
+
 export async function listAgentRuns(subjectId?: string) {
   return (await store()).listAgentRuns(subjectId);
 }

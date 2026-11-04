@@ -1270,6 +1270,24 @@ export const postgresStore: Store = {
     return conversation;
   },
 
+  async saveIntakeConversationIfCurrent(
+    conversation: IntakeConversation,
+    expectedRev: number,
+  ): Promise<IntakeConversation | undefined> {
+    await ensureSchema();
+    // One statement: update only the row whose stored rev still matches. A row
+    // that does not exist or has moved on affects no rows, which is the
+    // conflict signal. rev lives inside the JSONB record, coalesced to 0 for
+    // any conversation written before versioning.
+    const { rowCount } = await getPool().query(
+      `UPDATE intake_conversations
+         SET data = $2, status = $3, updated_at = $4
+       WHERE id = $1 AND COALESCE((data->>'rev')::int, 0) = $5`,
+      [conversation.id, JSON.stringify(conversation), conversation.status, conversation.updatedAt, expectedRev],
+    );
+    return rowCount === 1 ? conversation : undefined;
+  },
+
   async listAgentRuns(subjectId?: string): Promise<readonly AgentRunRecord[]> {
     await ensureSchema();
     const { rows } =

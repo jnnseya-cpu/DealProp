@@ -302,5 +302,9 @@ export function sealed(store: Store): Store {
     },
     saveIntakeConversation: async (c) =>
       openConversation(await store.saveIntakeConversation(sealConversation(c))),
+    saveIntakeConversationIfCurrent: async (c, expectedRev) => {
+      const saved = await store.saveIntakeConversationIfCurrent(sealConversation(c), expectedRev);
+      return saved === undefined ? undefined : openConversation(saved);
+    },
   };
 }
