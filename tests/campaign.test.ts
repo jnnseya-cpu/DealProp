@@ -16,21 +16,30 @@ import {
 
 describe("the send window", () => {
   it("is open in the middle of a working day", () => {
-    // Wednesday 11:00 UTC.
+    // Wednesday 11:00 UTC → 12:00 London (BST).
     expect(windowIsOpen(new Date("2026-08-26T11:00:00Z")).open).toBe(true);
   });
 
-  it("is shut at three on a Sunday morning", () => {
+  it("is shut in the small hours of the weekend", () => {
     // The hour that makes a message unmistakably a bulk send.
     const decision = windowIsOpen(new Date("2026-08-30T03:00:00Z"));
     expect(decision.open).toBe(false);
     expect(decision.nextOpenAt).toBeDefined();
   });
 
-  it("is shut before nine and at five", () => {
-    expect(windowIsOpen(new Date("2026-08-26T08:59:00Z")).open).toBe(false);
-    expect(windowIsOpen(new Date("2026-08-26T17:00:00Z")).open).toBe(false);
-    expect(windowIsOpen(new Date("2026-08-26T16:59:00Z")).open).toBe(true);
+  it("opens at nine and closes at six, in London time (GMT boundary)", () => {
+    // January: London == UTC, so these are the clean boundaries. Wednesday.
+    expect(windowIsOpen(new Date("2026-01-14T08:59:00Z")).open).toBe(false);
+    expect(windowIsOpen(new Date("2026-01-14T09:00:00Z")).open).toBe(true);
+    expect(windowIsOpen(new Date("2026-01-14T17:59:00Z")).open).toBe(true);
+    expect(windowIsOpen(new Date("2026-01-14T18:00:00Z")).open).toBe(false);
+  });
+
+  it("tracks British Summer Time rather than UTC", () => {
+    // August: London == UTC+1. 08:30 UTC is 09:30 London → open.
+    expect(windowIsOpen(new Date("2026-08-26T08:30:00Z")).open).toBe(true);
+    // 17:30 UTC is 18:30 London → shut.
+    expect(windowIsOpen(new Date("2026-08-26T17:30:00Z")).open).toBe(false);
   });
 
   it("is shut at the weekend", () => {
@@ -47,7 +56,7 @@ describe("the send window", () => {
 
   it("uses hours a person would send in", () => {
     expect(BUSINESS_HOURS.startHour).toBe(9);
-    expect(BUSINESS_HOURS.endHour).toBe(17);
+    expect(BUSINESS_HOURS.endHour).toBe(18);
     expect(BUSINESS_HOURS.days).toEqual([1, 2, 3, 4, 5]);
   });
 });

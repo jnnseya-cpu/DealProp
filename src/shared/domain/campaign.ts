@@ -27,14 +27,35 @@ export interface SendWindow {
  */
 export const BUSINESS_HOURS: SendWindow = {
   startHour: 9,
-  endHour: 17,
+  endHour: 18,
   days: [1, 2, 3, 4, 5],
 };
 
-/** ISO weekday, 1 = Monday. */
-function isoWeekday(date: Date): number {
-  const day = date.getUTCDay();
-  return day === 0 ? 7 : day;
+/** The business's timezone. Hours are judged here, not in UTC. */
+const BUSINESS_TZ = "Europe/London";
+
+const WEEKDAY_INDEX: Readonly<Record<string, number>> = {
+  Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7,
+};
+
+/**
+ * The hour (0–23) and ISO weekday (1 = Monday) of an instant, in London time.
+ *
+ * Computed through `Intl` so British Summer Time is handled correctly: a send
+ * judged "business hours" in July must mean 09:00–18:00 as the recipient's
+ * clock reads it, not 08:00–17:00 because the window was pinned to UTC. Still
+ * pure — the instant in, the local parts out.
+ */
+function londonParts(date: Date): { readonly hour: number; readonly weekday: number } {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: BUSINESS_TZ,
+    hour: "2-digit",
+    hourCycle: "h23",
+    weekday: "short",
+  }).formatToParts(date);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const weekday = WEEKDAY_INDEX[parts.find((p) => p.type === "weekday")?.value ?? "Mon"] ?? 1;
+  return { hour, weekday };
 }
 
 export interface WindowDecision {
@@ -45,33 +66,33 @@ export interface WindowDecision {
 }
 
 /**
- * Whether the send window is open.
+ * Whether the send window is open, judged in London time.
  *
- * Times are UTC. The platform is UK-first and UK local time is within an hour
- * of UTC year-round, which is inside the tolerance of "business hours" — a
- * message at 08:00 rather than 09:00 in summer is not the problem this control
- * exists to prevent. Per-recipient timezones need the recipient's timezone,
- * which discovery does not collect, and inventing one would be worse than
- * this.
+ * The window is the recipient's business day as a London clock reads it, so it
+ * holds at 09:00–18:00 local through both GMT and BST rather than drifting an
+ * hour with the season. Per-recipient timezones would need a timezone discovery
+ * does not collect; London is the business's own, and is the right default for
+ * a UK-first platform.
  */
 export function windowIsOpen(now: Date, window: SendWindow = BUSINESS_HOURS): WindowDecision {
-  const day = isoWeekday(now);
-  const hour = now.getUTCHours();
+  const { hour, weekday } = londonParts(now);
 
-  if (window.days.includes(day) && hour >= window.startHour && hour < window.endHour) {
-    return { open: true, reason: `Inside the ${window.startHour}:00–${window.endHour}:00 window.` };
+  if (window.days.includes(weekday) && hour >= window.startHour && hour < window.endHour) {
+    return { open: true, reason: `Inside the ${window.startHour}:00–${window.endHour}:00 London window.` };
   }
 
   const next = new Date(now);
   next.setUTCMinutes(0, 0, 0);
   // Walk forward an hour at a time rather than doing calendar arithmetic: a
-  // fortnight of hours is cheap and the edge cases are somebody else's.
+  // fortnight of hours is cheap and the edge cases are somebody else's. Each
+  // candidate is judged in London time, so a DST change is handled for free.
   for (let i = 0; i < 24 * 14; i += 1) {
     next.setUTCHours(next.getUTCHours() + 1);
-    if (window.days.includes(isoWeekday(next)) && next.getUTCHours() >= window.startHour && next.getUTCHours() < window.endHour) {
+    const at = londonParts(next);
+    if (window.days.includes(at.weekday) && at.hour >= window.startHour && at.hour < window.endHour) {
       return {
         open: false,
-        reason: `Outside business hours — it is ${String(hour).padStart(2, "0")}:00 on day ${day}. Queued rather than sent.`,
+        reason: `Outside business hours — it is ${String(hour).padStart(2, "0")}:00 London on weekday ${weekday}. Queued rather than sent.`,
         nextOpenAt: next.toISOString(),
       };
     }

@@ -65,6 +65,53 @@ export const MAX_REQUESTS_PER_RUN = 60;
 const MAX_BYTES = 2_000_000;
 const TIMEOUT_MS = 15_000;
 
+/** The most redirect hops followed before giving up. Each hop is re-validated. */
+const MAX_REDIRECTS = 5;
+
+/**
+ * Whether a hostname names a private, loopback, link-local or otherwise
+ * internal target that must never be fetched (SSRF defence, §12 "block
+ * private-network targets").
+ *
+ * This is a literal check on the hostname — it blocks an IP literal in a
+ * private range, the IPv6 loopback/ULA/link-local forms, and the internal name
+ * suffixes — so it needs no DNS and runs identically in tests and production.
+ * It catches the blatant vectors: a candidate domain that is itself
+ * `127.0.0.1`, the cloud metadata address `169.254.169.254`, `localhost`, or a
+ * `10.`/`192.168.` literal. It does NOT resolve a public hostname to see
+ * whether DNS points it at a private address (the rebinding case) — that needs
+ * a resolver this pure function deliberately does not reach for; a caller that
+ * wants it passes one through `FetcherOptions.resolveHost`.
+ */
+export function isBlockedHost(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  if (h === "" || h === "localhost") return true;
+  if (h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) return true;
+
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (v4 !== null) {
+    const octets = v4.slice(1, 5).map(Number);
+    if (octets.some((n) => n > 255)) return true; // malformed → refuse
+    const [a, b] = octets as [number, number, number, number];
+    if (a === 0 || a === 127 || a === 10) return true; // this-host, loopback, private
+    if (a === 169 && b === 254) return true; // link-local incl. cloud metadata
+    if (a === 172 && b >= 16 && b <= 31) return true; // private
+    if (a === 192 && b === 168) return true; // private
+    if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT
+    return false;
+  }
+
+  if (h.includes(":")) {
+    if (h === "::1" || h === "::") return true; // loopback, unspecified
+    if (h.startsWith("fe80") || h.startsWith("fc") || h.startsWith("fd")) return true; // link-local, ULA
+    const mapped = /(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(h); // ::ffff:a.b.c.d
+    if (mapped !== null) return isBlockedHost(mapped[1] as string);
+    return false;
+  }
+
+  return false;
+}
+
 export type FetchOutcome =
   | "ok"
   | "no-licence"
@@ -92,6 +139,14 @@ export interface FetcherOptions {
   readonly transport?: typeof fetch;
   readonly now?: () => number;
   readonly sleep?: (ms: number) => Promise<void>;
+  /**
+   * Optional DNS resolver. When provided, every target host is resolved and
+   * the fetch is refused if any address is private/loopback/link-local — the
+   * DNS-rebinding case the literal {@link isBlockedHost} check cannot see. Left
+   * unset in tests (which inject a transport and never touch DNS); a production
+   * caller that wants rebinding protection passes a `node:dns` lookup here.
+   */
+  readonly resolveHost?: (hostname: string) => Promise<readonly string[]>;
 }
 
 /**
@@ -129,6 +184,7 @@ export class Fetcher {
   private readonly transport: typeof fetch;
   private readonly now: () => number;
   private readonly sleep: (ms: number) => Promise<void>;
+  private readonly resolveHost: ((hostname: string) => Promise<readonly string[]>) | undefined;
   private readonly robotsByHost = new Map<string, RobotsRules>();
   private readonly lastRequestByHost = new Map<string, number>();
   private used = 0;
@@ -137,6 +193,7 @@ export class Fetcher {
     this.transport = options.transport ?? fetch;
     this.now = options.now ?? (() => Date.now());
     this.sleep = options.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+    this.resolveHost = options.resolveHost;
   }
 
   /** Requests made so far in this run. */
@@ -174,98 +231,155 @@ export class Fetcher {
       return fail("insecure-url", "Not a valid URL.");
     }
 
-    // 3. Transport and credentials, checked before the host so a credentialed
-    // URL is refused even for an allowlisted host.
-    if (parsed.protocol !== "https:") {
-      return fail("insecure-url", "Only HTTPS is fetched. Plain HTTP is neither private nor authenticated.");
-    }
-    if (parsed.username !== "" || parsed.password !== "") {
-      return fail(
-        "insecure-url",
-        "The URL carries credentials. Reaching content behind a login is exactly what this must not do.",
-      );
-    }
-
-    // 2. Host allowlist.
-    const permitted = SOURCE_HOSTS[sourceKey];
-    if (permitted === undefined) {
-      return fail("host-not-allowed", `No hosts are recorded for source ${sourceKey}.`);
-    }
-    if (permitted === "candidate-domain") {
-      const domain = options.candidateDomain?.toLowerCase();
-      if (domain === undefined || domain === "") {
-        return fail("host-not-allowed", "Reading a funder's own site requires a verified domain to bind the fetch to.");
+    // Gates 2–3, as a closure so every redirect hop is re-validated: the
+    // private-host block, HTTPS, no-credentials and the host allowlist. A
+    // redirect is a fresh target, and a licensed fetch must not be walked onto
+    // another site, a login, or a private address by a 30x.
+    const validate = (u: URL): FetchResult | undefined => {
+      if (u.protocol !== "https:") {
+        return fail("insecure-url", "Only HTTPS is fetched. Plain HTTP is neither private nor authenticated.");
       }
-      if (parsed.hostname.toLowerCase() !== domain && !parsed.hostname.toLowerCase().endsWith(`.${domain}`)) {
+      if (u.username !== "" || u.password !== "") {
         return fail(
-          "host-not-allowed",
-          `${parsed.hostname} is not ${domain}. A licensed fetch must not be walked onto another site by a link or a redirect.`,
+          "insecure-url",
+          "The URL carries credentials. Reaching content behind a login is exactly what this must not do.",
         );
       }
-    } else if (!permitted.includes(parsed.hostname.toLowerCase())) {
-      return fail("host-not-allowed", `${parsed.hostname} is not a published host for ${sourceKey}.`);
-    }
+      if (isBlockedHost(u.hostname)) {
+        return fail(
+          "host-not-allowed",
+          `${u.hostname} is a private, loopback or link-local address and is never fetched.`,
+        );
+      }
+      const permitted = SOURCE_HOSTS[sourceKey];
+      if (permitted === undefined) {
+        return fail("host-not-allowed", `No hosts are recorded for source ${sourceKey}.`);
+      }
+      if (permitted === "candidate-domain") {
+        const domain = options.candidateDomain?.toLowerCase();
+        if (domain === undefined || domain === "") {
+          return fail("host-not-allowed", "Reading a funder's own site requires a verified domain to bind the fetch to.");
+        }
+        if (u.hostname.toLowerCase() !== domain && !u.hostname.toLowerCase().endsWith(`.${domain}`)) {
+          return fail(
+            "host-not-allowed",
+            `${u.hostname} is not ${domain}. A licensed fetch must not be walked onto another site by a link or a redirect.`,
+          );
+        }
+      } else if (!permitted.includes(u.hostname.toLowerCase())) {
+        return fail("host-not-allowed", `${u.hostname} is not a published host for ${sourceKey}.`);
+      }
+      return undefined;
+    };
+
+    // Optional DNS-rebinding check: resolve the host and refuse if it points at
+    // a private address. Only runs where a resolver was injected.
+    const resolveBlocked = async (u: URL): Promise<FetchResult | undefined> => {
+      if (this.resolveHost === undefined) return undefined;
+      let addresses: readonly string[];
+      try {
+        addresses = await this.resolveHost(u.hostname);
+      } catch {
+        return fail("network-error", `${u.hostname} could not be resolved, so it cannot be shown to be safe.`);
+      }
+      if (addresses.some((ip) => isBlockedHost(ip))) {
+        return fail("host-not-allowed", `${u.hostname} resolves to a private or loopback address and is never fetched.`);
+      }
+      return undefined;
+    };
+
+    const invalid = validate(parsed);
+    if (invalid !== undefined) return invalid;
 
     if (this.used >= MAX_REQUESTS_PER_RUN) {
       return fail("budget-exhausted", `A run makes at most ${MAX_REQUESTS_PER_RUN} requests.`);
     }
 
-    // 4. robots.txt.
-    const rules = await this.robotsFor(parsed);
-    const decision = robotsAllows(rules, parsed.pathname);
-    if (!decision.allowed) {
-      return fail("robots-disallowed", `robots.txt: ${decision.reason}`);
-    }
-
-    // 5. Rate limit: the publisher's stated delay or our floor, whichever is slower.
-    await this.pace(parsed.hostname, rules.crawlDelaySeconds);
-
-    // 6. The request itself.
-    try {
-      this.used += 1;
-      const response = await this.transport(parsed.toString(), {
-        headers: {
-          "user-agent": userAgentString(CONTACT_URL),
-          accept: "text/html,application/json;q=0.9,*/*;q=0.1",
-          ...options.headers,
-        },
-        redirect: "follow",
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-
-      if (response.status === 401 || response.status === 403 || response.status === 429) {
-        // An answer, not an obstacle. Nothing here retries or tries another way.
-        return fail(
-          "refused-by-site",
-          `The site answered ${response.status}. That is a refusal and it is respected — no retry, no alternative route.`,
-          response.status,
-        );
-      }
-      if (!response.ok) {
-        return fail("network-error", `The site answered ${response.status}.`, response.status);
+    // The request, following redirects by hand so each hop is re-validated
+    // rather than trusted. `redirect: "manual"` returns the 30x to us.
+    let current = parsed;
+    for (let hop = 0; ; hop += 1) {
+      // 4. robots.txt, for this hop's host and path.
+      const rules = await this.robotsFor(current);
+      const decision = robotsAllows(rules, current.pathname);
+      if (!decision.allowed) {
+        return fail("robots-disallowed", `robots.txt: ${decision.reason}`);
       }
 
-      const length = Number(response.headers.get("content-length") ?? "0");
-      if (length > MAX_BYTES) {
-        return fail("too-large", `${length} bytes is larger than a mandate page and is not read.`);
-      }
+      // 5. Rate limit: the publisher's stated delay or our floor, whichever is slower.
+      await this.pace(current.hostname, rules.crawlDelaySeconds);
 
-      const body = await response.text();
-      if (body.length > MAX_BYTES) {
-        return fail("too-large", "The body exceeded the size a mandate page should be.");
-      }
+      const dnsBlocked = await resolveBlocked(current);
+      if (dnsBlocked !== undefined) return dnsBlocked;
 
-      return {
-        ok: true,
-        outcome: "ok",
-        status: response.status,
-        body,
-        url: parsed.toString(),
-        reason: "Fetched under a recorded licence, permitted by robots.txt and within the rate limit.",
-        fetchedAt: at,
-      };
-    } catch (error) {
-      return fail("network-error", error instanceof Error ? error.message : "Request failed.");
+      // 6. The request itself.
+      try {
+        this.used += 1;
+        const response = await this.transport(current.toString(), {
+          headers: {
+            "user-agent": userAgentString(CONTACT_URL),
+            accept: "text/html,application/json;q=0.9,*/*;q=0.1",
+            ...options.headers,
+          },
+          redirect: "manual",
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+
+        // A redirect: re-validate the destination against every gate before following.
+        if (response.status >= 300 && response.status < 400) {
+          const location = response.headers.get("location");
+          if (location === null || location === "") {
+            return fail("network-error", `A ${response.status} redirect carried no destination.`, response.status);
+          }
+          if (hop >= MAX_REDIRECTS) {
+            return fail("network-error", `More than ${MAX_REDIRECTS} redirects; refusing to follow further.`);
+          }
+          let nextUrl: URL;
+          try {
+            nextUrl = new URL(location, current);
+          } catch {
+            return fail("insecure-url", "The redirect pointed at an invalid URL.");
+          }
+          const redirectInvalid = validate(nextUrl);
+          if (redirectInvalid !== undefined) return redirectInvalid;
+          current = nextUrl;
+          continue;
+        }
+
+        if (response.status === 401 || response.status === 403 || response.status === 429) {
+          // An answer, not an obstacle. Nothing here retries or tries another way.
+          return fail(
+            "refused-by-site",
+            `The site answered ${response.status}. That is a refusal and it is respected — no retry, no alternative route.`,
+            response.status,
+          );
+        }
+        if (!response.ok) {
+          return fail("network-error", `The site answered ${response.status}.`, response.status);
+        }
+
+        const length = Number(response.headers.get("content-length") ?? "0");
+        if (length > MAX_BYTES) {
+          return fail("too-large", `${length} bytes is larger than a mandate page and is not read.`);
+        }
+
+        const body = await response.text();
+        if (body.length > MAX_BYTES) {
+          return fail("too-large", "The body exceeded the size a mandate page should be.");
+        }
+
+        return {
+          ok: true,
+          outcome: "ok",
+          status: response.status,
+          body,
+          url: current.toString(),
+          reason: "Fetched under a recorded licence, permitted by robots.txt and within the rate limit.",
+          fetchedAt: at,
+        };
+      } catch (error) {
+        return fail("network-error", error instanceof Error ? error.message : "Request failed.");
+      }
     }
   }
 
