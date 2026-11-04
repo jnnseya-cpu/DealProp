@@ -250,7 +250,7 @@ describe("whether the reveal may be charged", () => {
     const full = reservationDecision({ kind: "flipper", holds: held, offerAccepted: false, buyingStageReached: false, now });
     const quote = quoteReveal(context({ reservation: full }));
     expect(quote.chargeable).toBe(false);
-    expect(quote.blockers.some((b) => /flippers are already working/i.test(b.reason))).toBe(true);
+    expect(quote.blockers.some((b) => /already working this property/i.test(b.reason))).toBe(true);
 
     // And still charges an investor on the same five-flipper property.
     const investor = reservationDecision({ kind: "investor", holds: held, offerAccepted: false, buyingStageReached: false, now });

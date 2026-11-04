@@ -702,11 +702,11 @@ export interface RevealRecord {
    */
   readonly idempotencyKey: string;
   /**
-   * How the buyer was acting when they took it: a flipper (on a refurbishment
-   * mandate) or an ordinary investor/buyer. Decides who the two-week hold and
-   * the flipper lock count against (§ reservation). Optional so reveals written
-   * before the reservation rule stay valid; a reveal with no kind is not counted
-   * as a flipper hold.
+   * How the buyer was acting when they took it: a flipper (refurbishment
+   * mandate), a sourcer (deal sourcer/reseller) or an ordinary investor/buyer.
+   * Flippers and sourcers are holders — they count against the two-week hold and
+   * the lock; investors do not (§ reservation). Optional so reveals written
+   * before the reservation rule stay valid; a reveal with no kind holds nothing.
    */
   readonly revealerKind?: RevealerKind;
   readonly refundedAt?: string;

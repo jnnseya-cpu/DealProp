@@ -135,13 +135,15 @@ A06 lives here too: an enquiry has no established buyer, so `sell`/`sourcing`
 set `DealInputs.buyerProfileUnknown` and the appraisal is `taxPending` with
 worst-case transfer tax (never understated).
 
-Flipper reservation: a property is "taken" by paying to reveal it.
-`reservation.ts` is the pure lock — up to `FLIPPER_SLOTS` (5) flippers hold it,
-each hold lasting `FLIPPER_HOLD_DAYS` (14); a holder's accepted offer
-(deal funded/completed) locks every other flipper out; investors/buyers are a
+Flipper/sourcer reservation: a property is "taken" by paying to reveal it.
+`reservation.ts` is the pure lock — up to `FLIPPER_SLOTS` (5) holders share one
+pool, each hold lasting `FLIPPER_HOLD_DAYS` (14); a holder's accepted offer
+(deal funded/completed) locks every other holder out; investors/buyers are a
 separate channel, never blocked by holds and open until the buying stage
-(a conveyancer instructed, `evidence.solicitorInstructed`). A flipper is a buyer
-on a refurbishment mandate (`revealerKindFor` reads their active Buy Boxes);
+(a conveyancer instructed, `evidence.solicitorInstructed`). `isHolderKind()`
+names who counts toward the pool: a flipper (a buyer on a refurbishment mandate,
+`revealerKindFor` reads their active Buy Boxes) and a sourcer (a reseller/
+sub-agent with recorded `sourcerCompliance`) both hold; an investor never does.
 `RevealRecord.revealerKind` records which a reveal was, so it counts (or not) as
 a hold. Enforced as a reveal blocker in `billing/reveal.ts` on the
 single-opportunity path (`quoteRevealForDeal` → `openOpportunity`); the browse

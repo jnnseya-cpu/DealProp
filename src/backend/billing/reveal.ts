@@ -20,6 +20,7 @@ import {
   refundReveal,
 } from "@backend/store/repository";
 import {
+  isHolderKind,
   reservationDecision,
   type RevealerKind,
   type ReservationDecision,
@@ -89,17 +90,22 @@ export interface RevealOffer {
 /**
  * How a buyer is acting on an opportunity, for the reservation rules.
  *
- * A flipper is a buyer with an active refurbishment mandate; an ordinary
- * hold/rental buyer is an investor and is never locked out of a property. Read
- * from the account's own Buy Boxes, per the decision that the kind is the
- * buyer's mandate, not a separate role.
+ * A flipper is a buyer with an active refurbishment mandate; a sourcer is a deal
+ * sourcer/reseller, recognised by the sourcer compliance recorded on their
+ * account. Both are holders — they take a slot and are caught by the lock. An
+ * ordinary hold/rental buyer is an investor and is never locked out. The kind is
+ * the buyer's mandate/standing, not a separate role: a refurbishment Buy Box
+ * marks a flipper, and a buyer who is both takes the flipper reading (either way
+ * they hold, so the lock is identical).
  */
 export async function revealerKindFor(account: Account): Promise<RevealerKind> {
   const boxes = await listBuyBoxes();
   const flips = boxes.some(
     (b) => b.ownerAccountId === account.id && b.active && b.acceptsRefurbishment,
   );
-  return flips ? "flipper" : "investor";
+  if (flips) return "flipper";
+  if (account.sourcerCompliance !== undefined) return "sourcer";
+  return "investor";
 }
 
 /** The reservation inputs a deal and its reveals carry, independent of buyer. */
@@ -111,7 +117,7 @@ function reservationSignals(record: DealRecord, dealReveals: readonly RevealReco
     offerAccepted: record.status === "funded" || record.status === "completed",
     buyingStageReached: record.evidence?.solicitorInstructed === true,
     holds: dealReveals
-      .filter((r) => r.revealerKind === "flipper" && r.refundedAt === undefined)
+      .filter((r) => r.revealerKind !== undefined && isHolderKind(r.revealerKind) && r.refundedAt === undefined)
       .map((r) => ({ at: r.paidAt })),
   };
 }

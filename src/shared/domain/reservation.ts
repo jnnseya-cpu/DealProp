@@ -8,20 +8,33 @@
  * back" to the other flippers rather than being locked forever on a stalled run.
  *
  * The moment one holder advances the deal to an accepted offer, the property is
- * locked to every other flipper — the other four are out — and stays locked for
- * the rest of the process. Investors and ordinary buyers are a separate channel
- * and are never affected by any of this; the property stays open to them right
- * up until it enters the buying stage (a conveyancer is instructed), after which
- * it closes to them too.
+ * locked to every other holder — the others are out — and stays locked for the
+ * rest of the process. Investors and ordinary buyers are a separate channel and
+ * are never affected by any of this; the property stays open to them right up
+ * until it enters the buying stage (a conveyancer is instructed), after which it
+ * closes to them too.
  *
- * Who counts as a flipper is decided by their mandate elsewhere (a buyer acting
- * on a refurbishment/development mandate); this module is told the kind and the
- * stage signals and decides the lock. Pure and deterministic: no clock of its
- * own, no store, every input passed in, so the whole lifecycle is unit-tested.
+ * Two kinds of buyer hold a property: a flipper (a buyer on a refurbishment
+ * mandate, buying to refurbish and sell) and a sourcer (a deal sourcer/reseller
+ * packaging it on to their own buyer for a fee). Both are working the deal, so
+ * both take a slot and are caught by the lock; they share the one pool of five.
+ * Which a buyer is is decided by their mandate/compliance elsewhere; this module
+ * is told the kind and the stage signals and decides the lock. Pure and
+ * deterministic: no clock of its own, no store, every input passed in, so the
+ * whole lifecycle is unit-tested.
  */
 
 /** How a buyer is acting on this property, for the reservation rules. */
-export type RevealerKind = "flipper" | "investor";
+export type RevealerKind = "flipper" | "sourcer" | "investor";
+
+/**
+ * Whether this kind holds a property — a flipper or a sourcer, both of whom are
+ * working the deal and share the five-slot pool. An ordinary investor/buyer does
+ * not hold it and is never locked out.
+ */
+export function isHolderKind(kind: RevealerKind): boolean {
+  return kind === "flipper" || kind === "sourcer";
+}
 
 /** The most flippers that may hold one property at once. */
 export const FLIPPER_SLOTS = 5;
@@ -49,7 +62,7 @@ export type ReservationState =
 
 export interface ReservationInputs {
   readonly kind: RevealerKind;
-  /** Existing flipper holds on this property (flipper reveals, not refunded). */
+  /** Existing holds on this property — flipper and sourcer reveals, not refunded. */
   readonly holds: readonly FlipperHold[];
   /** True once a holder reached an accepted offer (deal funded/completed). */
   readonly offerAccepted: boolean;
@@ -100,13 +113,13 @@ export function activeHolds(holds: readonly FlipperHold[], now: string): number 
 export function reservationDecision(inputs: ReservationInputs): ReservationDecision {
   const active = activeHolds(inputs.holds, inputs.now);
 
-  if (inputs.kind === "flipper") {
+  if (isHolderKind(inputs.kind)) {
     if (inputs.offerAccepted) {
       return {
         allowed: false,
         state: "locked-to-flippers",
-        reason: "A flipper has advanced this to an accepted offer, so it is locked to every other flipper until the purchase completes or falls through.",
-        remedy: "Nothing — the property is committed to the flipper who secured it. It stays open to investors and buyers until a conveyancer is instructed.",
+        reason: "A flipper or sourcer has advanced this to an accepted offer, so it is locked to every other flipper and sourcer until the purchase completes or falls through.",
+        remedy: "Nothing — the property is committed to the flipper or sourcer who secured it. It stays open to investors and buyers until a conveyancer is instructed.",
         activeHolds: active,
         slotsRemaining: 0,
       };
@@ -115,8 +128,8 @@ export function reservationDecision(inputs: ReservationInputs): ReservationDecis
       return {
         allowed: false,
         state: "flippers-full",
-        reason: `Five flippers are already working this property. It is held to them for two weeks.`,
-        remedy: "A slot frees up when a holder's two-week window lapses with no accepted offer, and the property reopens to other flippers then. It is open to investors and buyers throughout.",
+        reason: `Five flippers and sourcers are already working this property. It is held to them for two weeks.`,
+        remedy: "A slot frees up when a holder's two-week window lapses with no accepted offer, and the property reopens then. It is open to investors and buyers throughout.",
         activeHolds: active,
         slotsRemaining: 0,
       };
@@ -124,7 +137,7 @@ export function reservationDecision(inputs: ReservationInputs): ReservationDecis
     return {
       allowed: true,
       state: "open",
-      reason: `${active} of ${FLIPPER_SLOTS} flipper slots are taken.`,
+      reason: `${active} of ${FLIPPER_SLOTS} flipper/sourcer slots are taken.`,
       remedy: "",
       activeHolds: active,
       slotsRemaining: FLIPPER_SLOTS - active,

@@ -21,13 +21,13 @@ export const metadata = { title: "Opportunity — Lode" };
 function reservationLine(r: ReservationDecision): string {
   switch (r.state) {
     case "locked-to-flippers":
-      return "A flipper has secured this with an accepted offer — it is locked to other flippers until it completes or falls through. Still open to investors and buyers until a conveyancer is instructed.";
+      return "A flipper or sourcer has secured this with an accepted offer — it is locked to others until it completes or falls through. Still open to investors and buyers until a conveyancer is instructed.";
     case "closed-buying-stage":
       return "This property has entered the buying stage and is closed to new buyers.";
     case "flippers-full":
-      return `All ${FLIPPER_SLOTS} flipper slots are taken; it is held to them for two weeks. Still open to investors and buyers.`;
+      return `All ${FLIPPER_SLOTS} flipper/sourcer slots are taken; it is held to them for two weeks. Still open to investors and buyers.`;
     default:
-      return `${r.activeHolds} of ${FLIPPER_SLOTS} flipper slots taken.`;
+      return `${r.activeHolds} of ${FLIPPER_SLOTS} flipper/sourcer slots taken.`;
   }
 }
 

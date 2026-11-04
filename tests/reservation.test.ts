@@ -3,6 +3,7 @@ import {
   reservationDecision,
   reservationStatus,
   activeHolds,
+  isHolderKind,
   FLIPPER_SLOTS,
   FLIPPER_HOLD_DAYS,
   type FlipperHold,
@@ -60,6 +61,31 @@ describe("a flipper taking a property", () => {
   it("treats an unparseable hold timestamp as active, never freeing a slot on bad data", () => {
     const d = reservationDecision({ ...base, kind: "flipper", holds: holds(FLIPPER_SLOTS, "not-a-date") });
     expect(d.state).toBe("flippers-full");
+  });
+});
+
+describe("a sourcer holds a property like a flipper", () => {
+  it("takes a slot and is refused when the pool of five is full", () => {
+    const open = reservationDecision({ ...base, kind: "sourcer", holds: holds(4) });
+    expect(open.allowed).toBe(true);
+    expect(open.slotsRemaining).toBe(1);
+
+    const full = reservationDecision({ ...base, kind: "sourcer", holds: holds(FLIPPER_SLOTS) });
+    expect(full.allowed).toBe(false);
+    expect(full.state).toBe("flippers-full");
+  });
+
+  it("is locked out, like a flipper, once a holder has an accepted offer", () => {
+    const d = reservationDecision({ ...base, kind: "sourcer", holds: holds(2), offerAccepted: true });
+    expect(d.allowed).toBe(false);
+    expect(d.state).toBe("locked-to-flippers");
+  });
+
+  it("shares the one five-slot pool with flippers", () => {
+    // isHolderKind is what the backend filters the holds on: both kinds count.
+    expect(isHolderKind("flipper")).toBe(true);
+    expect(isHolderKind("sourcer")).toBe(true);
+    expect(isHolderKind("investor")).toBe(false);
   });
 });
 
