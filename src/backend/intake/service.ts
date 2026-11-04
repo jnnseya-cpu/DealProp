@@ -6,7 +6,9 @@ import {
   saveIntakeConversationIfCurrent,
 } from "@backend/store/repository";
 import { qualifyIntake, type QualifyDeps } from "@backend/intakeAssistant";
-import { beginRun, closeFromIntake, supersede, type AgentRunRecord } from "@shared/domain/agentRun";
+import { beginRun, closeFromIntake, closeRun, supersede, type AgentRunRecord } from "@shared/domain/agentRun";
+import { agentPaused } from "@shared/domain/agentControls";
+import { agentPause } from "@backend/agentControls";
 import { audit } from "@backend/audit";
 import type { QualificationContext } from "@shared/domain/qualification";
 import type {
@@ -81,6 +83,8 @@ interface Advanced {
     readonly reasonCodes: readonly string[];
     readonly repairAttempted: boolean;
   };
+  /** True when the run is already terminal (e.g. cancelled by the kill switch). */
+  readonly closed?: boolean;
 }
 
 /**
@@ -99,6 +103,43 @@ async function advance(conversation: IntakeConversation, deps: QualifyDeps): Pro
     knownMessageIds: conversation.messages.map((m) => m.id),
     allowedFields: INTAKE_FIELDS,
   };
+
+  // The kill switch (§20.8): when intake is paused, the model is not called at
+  // all. The seller's turn is held for a person and the would-be run is
+  // recorded cancelled, so the pause is visible rather than a silent non-reply.
+  if (agentPaused(agentPause(), "intake-qualification")) {
+    const at = now();
+    const run = closeRun(
+      beginRun({
+        id: randomUUID(),
+        kind: "intake-qualification",
+        subjectType: "intake-conversation",
+        subjectId: conversation.id,
+        agentId: "seller_qualification",
+        agentVersion: "paused",
+        autonomy: "routine",
+        provider: "none",
+        model: "none",
+        startedAt: at,
+      }),
+      { state: "cancelled", finishedAt: at, reasonCodes: ["agents-paused"], summary: "Agents paused; held for a person." },
+    );
+    const review: IntakeReviewState = {
+      recommendedAction: "escalate_to_human",
+      humanReviewRequired: true,
+      reviewReasonCodes: [],
+      safeToAutoReply: false,
+      provider: "none",
+      model: "none",
+      at,
+    };
+    return {
+      run,
+      closed: true,
+      outcome: { humanReviewRequired: true, reasonCodes: ["agents-paused"], repairAttempted: false },
+      conversation: { ...conversation, status: "needs-review", lastReview: review, updatedAt: at },
+    };
+  }
 
   const { result, run } = await qualifyIntake(ctx, conversation.messages, deps);
 
@@ -189,11 +230,11 @@ export async function startIntakeConversation(
     status: "needs-review",
     messages: [first],
   };
-  const { conversation, run, outcome } = await advance(base, deps);
+  const { conversation, run, outcome, closed } = await advance(base, deps);
   // A brand-new id has no concurrent writer, so this first write is
   // unconditional. rev starts at 1.
   const saved = await saveIntakeConversation({ ...conversation, rev: 1 });
-  await saveAgentRun(closeFromIntake(run, outcome, now()));
+  await saveAgentRun(closed ? run : closeFromIntake(run, outcome, now()));
   await auditApplied(saved);
   return saved;
 }
@@ -228,13 +269,13 @@ export async function addSellerReply(
       messages: [...existing.messages, message("seller", text)],
       updatedAt: now(),
     };
-    const { conversation, run, outcome } = await advance(withSeller, deps);
+    const { conversation, run, outcome, closed } = await advance(withSeller, deps);
     const saved = await saveIntakeConversationIfCurrent(
       { ...conversation, rev: expectedRev + 1 },
       expectedRev,
     );
     if (saved !== undefined) {
-      await saveAgentRun(closeFromIntake(run, outcome, now()));
+      await saveAgentRun(closed ? run : closeFromIntake(run, outcome, now()));
       await auditApplied(saved);
       return saved;
     }

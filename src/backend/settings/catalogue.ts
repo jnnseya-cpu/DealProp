@@ -69,6 +69,7 @@ export const REQUIRED_KEYS: readonly KeySpec[] = [
   // --- AI -----------------------------------------------------------------
   { key: "BLOG_MODEL_PROVIDER", label: "AI provider", group: "AI", secret: false, blocksLaunch: false, managedBy: "env-runtime", purpose: "Which model provider the live features call." },
   { key: "BLOG_MODEL_API_KEY", label: "AI API key", group: "AI", secret: true, blocksLaunch: false, managedBy: "env-runtime", purpose: "Without it, the AI features fall back to deterministic output." },
+  { key: "AGENTS_PAUSED", label: "Agent kill switch", group: "AI", secret: false, blocksLaunch: false, managedBy: "env-runtime", purpose: "Emergency pause for the model-backed agents. \"all\", or a comma-separated list of kinds; empty means running." },
 
   // --- Email & outreach ---------------------------------------------------
   { key: "SMTP_HOST", label: "SMTP host", group: "Email & outreach", secret: false, blocksLaunch: false, managedBy: "env-runtime", purpose: "Your mail server. Set the SMTP_* group to send through normal email rather than an HTTP provider." },

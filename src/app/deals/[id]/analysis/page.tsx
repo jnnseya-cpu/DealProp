@@ -12,6 +12,8 @@ import { runDealDirector } from "@shared/domain/director";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
 import { operationPrice } from "@shared/domain/pricing";
 import { beginRun, closeFailed, closeFromAnalysis } from "@shared/domain/agentRun";
+import { agentPaused } from "@shared/domain/agentControls";
+import { agentPause } from "@backend/agentControls";
 import { gbp, gbpSigned, percent } from "@shared/format";
 import { runAgent, type AgentOutcome } from "@backend/agent/runtime";
 import { dealAgentTools } from "@backend/agent/dataTools";
@@ -82,6 +84,11 @@ export default async function AnalysisPage({
   let failure: string | undefined;
 
   if (run) {
+    // The kill switch (§20.8): a paused runtime does not charge and does not
+    // call the model. The engine's figures above still stand on their own.
+    if (agentPaused(agentPause(), "live-analysis")) {
+      return <AgentsPaused dealId={record.id} />;
+    }
     const charge = await meter(viewerAccount(viewer), "ai-deal-analysis", record.id);
     if (!charge.allowed) {
       await audit("access-denied", {
@@ -310,6 +317,35 @@ export default async function AnalysisPage({
 function humanise(key: string): string {
   const spaced = key.replace(/[-_]/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2");
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+function AgentsPaused({ dealId }: { dealId: string }) {
+  return (
+    <main className="min-h-screen pb-24">
+      <SiteHeader
+        trailing={
+          <Link href={`/deals/${dealId}`} className="text-sm text-ink-400 transition hover:text-ink-100">
+            Deal Room
+          </Link>
+        }
+      />
+      <div className="mx-auto max-w-2xl px-6 py-16">
+        <span className="eyebrow">AI analysis</span>
+        <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100">Live analysis is paused</h1>
+        <p className="mt-4 text-sm leading-relaxed text-ink-300">
+          An operator has paused the live AI agents. Nothing was charged. The engine&rsquo;s figures on
+          the Deal Room stand on their own and are unaffected — only the live, model-written narrative
+          is paused.
+        </p>
+        <Link
+          href={`/deals/${dealId}`}
+          className="mt-6 inline-flex h-10 items-center rounded-md border hairline bg-surface-2 px-4 text-sm text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
+        >
+          Back to the Deal Room
+        </Link>
+      </div>
+    </main>
+  );
 }
 
 function OutOfAllowance({ reason, dealId }: { reason: string; dealId: string }) {

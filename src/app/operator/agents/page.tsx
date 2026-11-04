@@ -2,6 +2,8 @@ import { OperatorNav } from "@/app/operator/OperatorNav";
 import { SiteHeader, Badge } from "@/app/components/chrome";
 import { requirePermission } from "@/app/operator/guard";
 import { listAgentRuns } from "@backend/store/repository";
+import { agentPause } from "@backend/agentControls";
+import { anyAgentPaused, describePause } from "@shared/domain/agentControls";
 import type { AgentRunKind, AgentRunRecord, AgentRunState } from "@shared/domain/agentRun";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +48,7 @@ function duration(run: AgentRunRecord): string {
 export default async function AgentRunsPage() {
   await requirePermission("view-audit-log", "/operator/agents");
   const runs = (await listAgentRuns()).slice(0, 100);
+  const pause = agentPause();
 
   const waiting = runs.filter((r) => r.state === "awaiting-human" || r.state === "awaiting-data").length;
 
@@ -68,6 +71,13 @@ export default async function AgentRunsPage() {
             </>
           )}
         </p>
+
+        {anyAgentPaused(pause) && (
+          <p className="mt-6 border-l-2 border-amber-400/70 py-1 pl-4 text-[13px] leading-[1.6] text-amber-200/90">
+            {describePause(pause)} Model-backed runs will not execute until the <code className="text-ink-300">AGENTS_PAUSED</code> environment
+            value is cleared and the app is recreated. Deterministic figures are unaffected.
+          </p>
+        )}
 
         {runs.length === 0 ? (
           <p className="mt-10 rounded-2xl border hairline bg-surface-1 px-5 py-6 text-sm text-ink-400">

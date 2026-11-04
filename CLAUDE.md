@@ -152,6 +152,14 @@ reply is re-run over the current state — a stale result never overwrites newer
 state and no turn is lost. The run is left open through `advance` and closed by
 the caller (to its outcome, or superseded), because a run is not "succeeded"
 until its result was actually applied.
+Kill switch (§20.8): `agentControls.ts` + the `AGENTS_PAUSED` env (read by
+`backend/agentControls.ts`) pause the model-backed agents — "all" or a list of
+kinds. A paused kind does not call the model: the live analysis runtime refuses
+without charging, intake holds the seller for a person, and the would-be run is
+recorded `cancelled` with reason `agents-paused`, so the pause is visible in the
+ledger and shown on `/operator/agents` rather than silent. Env-driven and
+surfaced read-only, the same posture as every other runtime toggle (there is no
+writable settings store); deterministic observers are never pauseable.
 No token/cost usage yet (the runtime returns none), no work queue, no tenant
 dimension (single-tenant) — only what a real producer can fill, never empty
 forward-compatibility.

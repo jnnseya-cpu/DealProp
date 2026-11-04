@@ -135,6 +135,31 @@ describe("starting a conversation", () => {
     expect(runs.some((r) => r.state === "superseded")).toBe(true);
     expect(runs.some((r) => r.state === "succeeded")).toBe(true);
   });
+
+  it("holds the seller for a person and does not call the model when paused (§20.8)", async () => {
+    process.env.AGENTS_PAUSED = "intake-qualification";
+    try {
+      let called = false;
+      const trackingComplete = (async () => {
+        called = true;
+        return safeComplete();
+      }) as unknown as typeof import("@backend/llm").complete;
+
+      const c = await startIntakeConversation("A flat to sell, please reply.", { complete: trackingComplete });
+      // The model was never called, and no auto-reply went out despite a safe stub.
+      expect(called).toBe(false);
+      expect(c.status).toBe("needs-review");
+      expect(c.messages).toHaveLength(1);
+
+      // The ledger records a cancelled run with the pause reason.
+      const runs = await listAgentRuns(c.id);
+      expect(runs).toHaveLength(1);
+      expect(runs[0]?.state).toBe("cancelled");
+      expect(runs[0]?.reasonCodes).toContain("agents-paused");
+    } finally {
+      delete process.env.AGENTS_PAUSED;
+    }
+  });
 });
 
 describe("continuing and resolving a conversation", () => {
