@@ -84,6 +84,10 @@ jobs:
           OPERATOR_SECRET: ci-only-not-a-real-secret-value-32ch
           CRON_SECRET: ci-only-not-a-real-cron-secret-32ch
           DATABASE_URL: postgres://lode:lode@127.0.0.1:5432/lode_test
+          # Special-category data at rest needs a key, and preflight blocks
+          # without one. A ci-only value — a config blocker true of every CI run,
+          # satisfied here (like the secrets above) so only code blockers remain.
+          DATA_ENCRYPTION_KEY: Y2ktb25seS1ub3QtYS1yZWFsLWVuYy1rZXktMzJieXQ=
           COMPANY_LEGAL_NAME: CI Example Ltd
           COMPANY_NUMBER: "00000000"
           COMPANY_PLACE_OF_REGISTRATION: England and Wales
