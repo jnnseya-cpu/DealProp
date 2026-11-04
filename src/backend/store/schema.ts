@@ -34,6 +34,7 @@ import type { ResaleArrangement, ResaleConsent } from "@shared/domain/reseller";
 import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { HoldingFacts } from "@shared/domain/portfolio";
 import type { RefundTrigger } from "@shared/domain/reveal";
+import type { RevealerKind } from "@shared/domain/reservation";
 import type { OpportunityClass } from "@shared/domain/pricing";
 import type { CreditLot, LedgerEntry } from "@shared/domain/ledger";
 import type { Subscription } from "@shared/domain/entitlements";
@@ -700,6 +701,14 @@ export interface RevealRecord {
    * a read-then-write in application code.
    */
   readonly idempotencyKey: string;
+  /**
+   * How the buyer was acting when they took it: a flipper (on a refurbishment
+   * mandate) or an ordinary investor/buyer. Decides who the two-week hold and
+   * the flipper lock count against (§ reservation). Optional so reveals written
+   * before the reservation rule stay valid; a reveal with no kind is not counted
+   * as a flipper hold.
+   */
+  readonly revealerKind?: RevealerKind;
   readonly refundedAt?: string;
   readonly refundTrigger?: RefundTrigger;
   readonly refundReason?: string;

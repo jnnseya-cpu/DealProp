@@ -13,10 +13,17 @@ import {
 import { permissionsHeld } from "@backend/permissions";
 import {
   getDeal,
+  listBuyBoxes,
   listRevealsForAccount,
+  listRevealsForDeal,
   recordReveal,
   refundReveal,
 } from "@backend/store/repository";
+import {
+  reservationDecision,
+  type RevealerKind,
+  type ReservationDecision,
+} from "@shared/domain/reservation";
 import { audit } from "@backend/audit";
 import { isFeeExempt, type Account } from "@shared/domain/accounts";
 import { ZERO } from "@shared/money";
@@ -70,6 +77,43 @@ export interface RevealOffer {
   readonly material: MaterialReport;
   /** What has been checked about the seller, under the Regulations. */
   readonly sellerChecks: DueDiligenceReport;
+  /**
+   * The flipper reservation decision for this buyer, on the single-opportunity
+   * path where the holds and stage are known. Absent on the browse list.
+   */
+  readonly reservation?: ReservationDecision;
+  /** How this buyer is acting (flipper or investor), where it was computed. */
+  readonly revealerKind?: RevealerKind;
+}
+
+/**
+ * How a buyer is acting on an opportunity, for the reservation rules.
+ *
+ * A flipper is a buyer with an active refurbishment mandate; an ordinary
+ * hold/rental buyer is an investor and is never locked out of a property. Read
+ * from the account's own Buy Boxes, per the decision that the kind is the
+ * buyer's mandate, not a separate role.
+ */
+export async function revealerKindFor(account: Account): Promise<RevealerKind> {
+  const boxes = await listBuyBoxes();
+  const flips = boxes.some(
+    (b) => b.ownerAccountId === account.id && b.active && b.acceptsRefurbishment,
+  );
+  return flips ? "flipper" : "investor";
+}
+
+/** The reservation inputs a deal and its reveals carry, independent of buyer. */
+function reservationSignals(record: DealRecord, dealReveals: readonly RevealRecord[]) {
+  return {
+    // A flipper has an accepted offer once the deal is funded or completed
+    // (workflow's "offer-accepted" evidence). The buying stage is reached once a
+    // conveyancer is instructed (workflow's "professionals-appointed").
+    offerAccepted: record.status === "funded" || record.status === "completed",
+    buyingStageReached: record.evidence?.solicitorInstructed === true,
+    holds: dealReveals
+      .filter((r) => r.revealerKind === "flipper" && r.refundedAt === undefined)
+      .map((r) => ({ at: r.paidAt })),
+  };
 }
 
 export async function quoteRevealForDeal(
@@ -80,7 +124,18 @@ export async function quoteRevealForDeal(
   const record = await getDeal(dealId);
   if (record === undefined) return undefined;
   const opened = account === undefined ? [] : await listRevealsForAccount(account.id);
-  return offerFor(record, opened, account, now);
+  // On the single-opportunity path the reservation is enforced: the deal's own
+  // flipper holds and this buyer's kind are known. (The browse list skips it to
+  // avoid a per-deal reveal lookup for forty cards; the charge happens here.)
+  let reservationCtx: { dealReveals: readonly RevealRecord[]; kind: RevealerKind } | undefined;
+  if (account !== undefined) {
+    const [dealReveals, kind] = await Promise.all([
+      listRevealsForDeal(dealId),
+      revealerKindFor(account),
+    ]);
+    reservationCtx = { dealReveals, kind };
+  }
+  return offerFor(record, opened, account, now, reservationCtx);
 }
 
 /**
@@ -123,6 +178,7 @@ function offerFor(
   opened: readonly RevealRecord[],
   account: Account | undefined,
   now: Date,
+  reservationCtx?: { readonly dealReveals: readonly RevealRecord[]; readonly kind: RevealerKind },
 ): RevealOffer {
   const item = inventoryOf(record);
   const working = toWorkingDeal(record.inputs);
@@ -142,6 +198,15 @@ function offerFor(
   const material = materialInformation(property, record.material ?? {});
   const sellerChecks = sellerDueDiligence(record.sellerChecks, now);
 
+  const reservation =
+    reservationCtx === undefined
+      ? undefined
+      : reservationDecision({
+          kind: reservationCtx.kind,
+          ...reservationSignals(record, reservationCtx.dealReveals),
+          now: now.toISOString(),
+        });
+
   const quote = quoteReveal({
     opportunity: classifyOpportunity(property, item),
     item,
@@ -158,11 +223,14 @@ function offerFor(
     material,
     sellerChecks,
     alreadyOpened: mine !== undefined,
+    ...(reservation !== undefined ? { reservation } : {}),
   });
 
   return {
     record,
     quote,
+    ...(reservation !== undefined ? { reservation } : {}),
+    ...(reservationCtx !== undefined ? { revealerKind: reservationCtx.kind } : {}),
     card: opportunityCard({
       reference: record.reference,
       property,
@@ -243,6 +311,10 @@ export async function openOpportunity(
     paidAt: new Date().toISOString(),
     categoryAtPurchase: inventoryOf(offer.record).category,
     disclosureShown: offer.quote.disclosure,
+    // Recorded so this reveal counts (or not) as a flipper hold on the property
+    // for the two-week reservation and the lock. Frozen at the moment of sale,
+    // like everything else on the record.
+    ...(offer.revealerKind !== undefined ? { revealerKind: offer.revealerKind } : {}),
     idempotencyKey: `reveal:${account.id}:${dealId}:${reference}`,
   };
 

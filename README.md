@@ -68,7 +68,7 @@ listed honestly in [Not built yet](#not-built-yet).
 | Agents | `/deals/[id]/agents` | The nine agents, what each proposes, and who has to decide |
 | Fees | `/deals/[id]/fees` | What may be invoiced, what is blocking the rest, and raising it |
 | Opportunities | `/opportunities` | The marketplace, ranked by what can be established rather than by discount |
-| Opportunity | `/opportunities/[id]` | Category, score, evidence used and missing, the reveal, the refund claim |
+| Opportunity | `/opportunities/[id]` | Category, score, evidence used and missing, the reveal, the refund claim, the flipper reservation (slots taken / locked / closed) |
 | Passport | `/account/passport` | Identity, funds and conveyancer — the gate on reaching a seller |
 | Material information | `/deals/[id]/material` | Parts A, B and C; Part A unanswered stops the property being marketed |
 | Seller checks | `/deals/[id]/seller-checks` | Identity, screening, authority to sell, beneficial owners, risk assessment |

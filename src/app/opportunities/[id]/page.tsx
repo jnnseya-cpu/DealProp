@@ -7,6 +7,7 @@ import { quoteRevealForDeal } from "@backend/billing/reveal";
 import { listDealImages } from "@backend/store/repository";
 import { gbp, titleCase } from "@shared/format";
 import { REVEAL_GUARANTEE, SELLER_RESPONSE_DAYS } from "@shared/domain/reveal";
+import { FLIPPER_SLOTS, type ReservationDecision } from "@shared/domain/reservation";
 import { mayResell } from "@shared/domain/reseller";
 import { toMajor } from "@shared/money";
 import { OpenForm, RefundForm } from "./Forms";
@@ -15,6 +16,20 @@ import { ResellerPanel } from "./ResellerPanel";
 export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Opportunity — Lode" };
+
+/** A one-line description of the property's flipper-reservation state. */
+function reservationLine(r: ReservationDecision): string {
+  switch (r.state) {
+    case "locked-to-flippers":
+      return "A flipper has secured this with an accepted offer — it is locked to other flippers until it completes or falls through. Still open to investors and buyers until a conveyancer is instructed.";
+    case "closed-buying-stage":
+      return "This property has entered the buying stage and is closed to new buyers.";
+    case "flippers-full":
+      return `All ${FLIPPER_SLOTS} flipper slots are taken; it is held to them for two weeks. Still open to investors and buyers.`;
+    default:
+      return `${r.activeHolds} of ${FLIPPER_SLOTS} flipper slots taken.`;
+  }
+}
 
 /**
  * One opportunity, before and after it is opened.
@@ -135,6 +150,12 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
               what we know about how the transaction would actually work. If the seller does not
               answer within {SELLER_RESPONSE_DAYS} days, you get the fee back.
             </p>
+
+            {offer.reservation !== undefined && (
+              <p className="mt-3 border-l-2 border-ink-700 pl-3 text-[12px] leading-[1.6] text-ink-400">
+                {reservationLine(offer.reservation)}
+              </p>
+            )}
 
             {quote.chargeable ? (
               <OpenForm dealId={id} price={gbp(quote.price)} />

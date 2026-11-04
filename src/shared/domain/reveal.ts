@@ -12,6 +12,7 @@ import {
   type InventoryCategory,
   type InventoryItem,
 } from "@shared/domain/inventory";
+import type { ReservationDecision } from "@shared/domain/reservation";
 
 /**
  * Charging a buyer to open an opportunity.
@@ -128,6 +129,16 @@ export interface RevealContext {
    * changed hands is checking it too late for both sides.
    */
   readonly passport?: Passport;
+  /**
+   * The flipper reservation decision for the buyer taking it, where it applies.
+   *
+   * Computed for the single-opportunity path (where the deal's holds and stage
+   * are known); absent on the browse list and for a logged-out visitor, who are
+   * never charged. When present and not allowed, it is a refusal like any other
+   * — the property is held to five flippers, locked to a flipper who secured an
+   * offer, or closed in the buying stage.
+   */
+  readonly reservation?: ReservationDecision;
 }
 
 export function quoteReveal(context: RevealContext): RevealQuote {
@@ -216,6 +227,16 @@ export function quoteReveal(context: RevealContext): RevealQuote {
     blockers.push({
       reason: "This buyer has already opened this opportunity.",
       remedy: "Nothing. A reveal is charged once; a second one is a second charge for access they already have.",
+    });
+  }
+
+  // The flipper reservation, where it applies. A property held to five flippers,
+  // locked to a flipper who secured an offer, or closed in the buying stage is a
+  // refusal to charge like any other — the money is not taken.
+  if (context.reservation !== undefined && !context.reservation.allowed) {
+    blockers.push({
+      reason: context.reservation.reason,
+      remedy: context.reservation.remedy,
     });
   }
 

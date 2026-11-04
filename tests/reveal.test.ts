@@ -21,6 +21,7 @@ import {
   type RefundTrigger,
   type RevealContext,
 } from "@shared/domain/reveal";
+import { reservationDecision, FLIPPER_SLOTS } from "@shared/domain/reservation";
 import { authorisePurchase } from "@shared/domain/charging";
 import { buyerPassport } from "@shared/domain/passport";
 import { materialInformation, type MaterialRecord } from "@shared/domain/materialInformation";
@@ -240,6 +241,26 @@ describe("whether the reveal may be charged", () => {
     expect(quote.price).toBe(revealPrice("owner-verified").standard);
     expect(quote.guarantee).toEqual(REVEAL_GUARANTEE);
     expect(quote.guarantee.join(" ")).toContain("nobody has to be persuaded");
+  });
+
+  it("refuses to charge when the flipper reservation blocks it", () => {
+    const now = "2026-06-15T12:00:00.000Z";
+    const held = Array.from({ length: FLIPPER_SLOTS }, () => ({ at: now }));
+    // A sixth flipper, with the five slots full.
+    const full = reservationDecision({ kind: "flipper", holds: held, offerAccepted: false, buyingStageReached: false, now });
+    const quote = quoteReveal(context({ reservation: full }));
+    expect(quote.chargeable).toBe(false);
+    expect(quote.blockers.some((b) => /flippers are already working/i.test(b.reason))).toBe(true);
+
+    // And still charges an investor on the same five-flipper property.
+    const investor = reservationDecision({ kind: "investor", holds: held, offerAccepted: false, buyingStageReached: false, now });
+    expect(quoteReveal(context({ reservation: investor })).chargeable).toBe(true);
+  });
+
+  it("closes to a buyer once the property is in the buying stage", () => {
+    const now = "2026-06-15T12:00:00.000Z";
+    const closed = reservationDecision({ kind: "investor", holds: [], offerAccepted: true, buyingStageReached: true, now });
+    expect(quoteReveal(context({ reservation: closed })).chargeable).toBe(false);
   });
 });
 

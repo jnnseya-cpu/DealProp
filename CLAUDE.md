@@ -47,7 +47,7 @@ seller-facing options cannot disagree.
 `supply`, `permissions`, `fees`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`, `inventory`, `reveal`,
 `passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`, `workflow`, `payouts`, `portfolio`, `screening`,
-`qualification`, `intakeConversation`.
+`qualification`, `intakeConversation`, `reservation`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -134,6 +134,20 @@ the seller. Public surface `/sell/chat`, review queue `/operator/intake`
 A06 lives here too: an enquiry has no established buyer, so `sell`/`sourcing`
 set `DealInputs.buyerProfileUnknown` and the appraisal is `taxPending` with
 worst-case transfer tax (never understated).
+
+Flipper reservation: a property is "taken" by paying to reveal it.
+`reservation.ts` is the pure lock — up to `FLIPPER_SLOTS` (5) flippers hold it,
+each hold lasting `FLIPPER_HOLD_DAYS` (14); a holder's accepted offer
+(deal funded/completed) locks every other flipper out; investors/buyers are a
+separate channel, never blocked by holds and open until the buying stage
+(a conveyancer instructed, `evidence.solicitorInstructed`). A flipper is a buyer
+on a refurbishment mandate (`revealerKindFor` reads their active Buy Boxes);
+`RevealRecord.revealerKind` records which a reveal was, so it counts (or not) as
+a hold. Enforced as a reveal blocker in `billing/reveal.ts` on the
+single-opportunity path (`quoteRevealForDeal` → `openOpportunity`); the browse
+list skips it for cost, since the charge is single-deal. A reveal that the lock
+refuses is not charged (decision #62). Not count-atomic — the soft five-slot cap
+can briefly over-allocate under a race; the hard, stage-driven lock cannot.
 
 Acquisition: `negotiation.ts` computes the price band — opening, target,
 walk-away, floor — and `respondTo()` never counters past the ceiling. Seller
