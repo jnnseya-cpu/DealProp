@@ -90,12 +90,19 @@ export function SignInForm({
       </form>
 
       {!operator && (
-        <p className="mt-6 text-center text-xs text-ink-400">
-          New to Lode?{" "}
-          <Link href="/join" className="text-lode-300 underline-offset-2 hover:underline">
-            Create an account
-          </Link>
-        </p>
+        <div className="mt-6 space-y-2 text-center text-xs text-ink-400">
+          <p>
+            <Link href="/forgot" className="text-lode-300 underline-offset-2 hover:underline">
+              Forgot your password?
+            </Link>
+          </p>
+          <p>
+            New to Lode?{" "}
+            <Link href="/join" className="text-lode-300 underline-offset-2 hover:underline">
+              Create an account
+            </Link>
+          </p>
+        </div>
       )}
 
       <div className="mt-4 border-t hairline pt-4 text-center">

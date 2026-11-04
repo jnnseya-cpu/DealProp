@@ -67,6 +67,17 @@ export const LIMITS = {
    */
   "resend-code": { requests: 3, windowMs: 600_000 },
   /**
+   * A "forgot my password" request. Sends an email, so bounded like the resend:
+   * small over a long window, keyed by caller and address, to stop it being
+   * used to flood somebody's inbox with reset links.
+   */
+  "password-reset-request": { requests: 3, windowMs: 600_000 },
+  /**
+   * Submitting a new password with a reset token. Like sign-in: it runs scrypt,
+   * so an open endpoint is a CPU flood, and it also guards a token guess.
+   */
+  "password-reset": { requests: 5, windowMs: 60_000 },
+  /**
    * The payment webhook. High, because a provider legitimately redelivers in
    * bursts and refusing one is money we then have to reconcile by hand. It is
    * a bound against a flood, not a shaping policy.

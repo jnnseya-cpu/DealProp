@@ -33,6 +33,8 @@ const PUBLIC_BY_DESIGN: Readonly<Record<string, string>> = {
   "operator/actions.ts": "Sign-in and sign-out themselves, which cannot require being signed in.",
   "join/actions.ts":
     "Self-service sign-up. Nobody is signed in yet by definition. Rate limited, the role is restricted to the self-service set on the server, and it mints only a least-privilege account.",
+  "reset/actions.ts":
+    "Password reset. Whoever has forgotten their password is not signed in by definition, so the authorisation is the emailed single-use token itself (checked against the account's stored hash), not a session. Rate limited, enumeration-safe, and the request half only ever emails a link.",
   "invest/preview.ts":
     "Public mandate preview. Writes nothing and returns only a match COUNT — no address, no seller, no per-deal figure. Rate limited. Saving a Buy Box is the account-gated action in actions.ts.",
   "capital/preview.ts":

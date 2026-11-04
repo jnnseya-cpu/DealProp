@@ -147,6 +147,21 @@ export interface PendingEmailCode {
   readonly attempts: number;
 }
 
+/**
+ * A live password-reset request, as stored on the account.
+ *
+ * Only the HMAC of the token under the server secret is stored, so a leaked
+ * store yields nothing usable. The token itself is high-entropy (not a short
+ * code), single-use, and short-lived — the three things a reset needs, since
+ * it hands whoever holds it control of the account.
+ */
+export interface PendingPasswordReset {
+  /** HMAC of the reset token under OPERATOR_SECRET. Never the token itself. */
+  readonly tokenHash: string;
+  /** ISO-8601 instant the token stops being accepted. */
+  readonly expiresAt: string;
+}
+
 export interface InvestorCertification {
   readonly category: InvestorCategory;
   /** Keys of the criteria the investor said were true of them. Never empty. */
@@ -217,6 +232,15 @@ export interface Account {
    * proves the address is real, it is not a second factor on every login.
    */
   readonly pendingEmailCode?: PendingEmailCode;
+  /**
+   * A live password-reset request: a high-entropy token held hashed, with an
+   * expiry. Present only between "I forgot my password" and setting a new one,
+   * and cleared the instant a new password is set or the token is spent. Unlike
+   * the sign-up code this is a long random token delivered as a link, because a
+   * reset grants full control of the account and a six-digit code would be too
+   * weak for that even rate-limited.
+   */
+  readonly pendingPasswordReset?: PendingPasswordReset;
   /**
    * When this account last started a free trial.
    *
