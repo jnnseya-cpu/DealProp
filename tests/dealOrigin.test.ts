@@ -13,7 +13,10 @@ describe("dealOriginLabel", () => {
   it("derives a seller submission from an enq- id when origin is absent", () => {
     const label = dealOriginLabel({ id: "enq-abc123" });
     expect(label).toMatch(/public sell form/);
-    expect(label).toMatch(/Derived/);
+    // The reader sees the same clean line whether the origin was recorded or
+    // inferred from the id — the internal "(Derived from the record.)" caveat
+    // was noise to anyone but a developer and has been removed.
+    expect(label).not.toMatch(/Derived/);
   });
 
   it("derives a sourced lead from a deal- id and its narrative", () => {
@@ -22,7 +25,7 @@ describe("dealOriginLabel", () => {
       narrative: "Started from a Gazette probate notice. Estate of A. Property: 1 High St.",
     });
     expect(label).toMatch(/Started from a Gazette probate notice\./);
-    expect(label).toMatch(/Derived/);
+    expect(label).not.toMatch(/Derived/);
   });
 
   it("says plainly when it cannot tell", () => {

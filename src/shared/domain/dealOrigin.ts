@@ -48,13 +48,13 @@ export function dealOriginLabel(input: {
   // Legacy: recorded before origin was tracked. Derive from what is reliable.
   const id = input.id ?? "";
   if (id.startsWith("enq-")) {
-    return "Submitted by the owner through the public sell form — no account needed. (Derived from the record.)";
+    return "Submitted by the owner through the public sell form — no account needed.";
   }
   if (id.startsWith("deal-")) {
     const marker = /started from[^.]*\./i.exec(input.narrative ?? "")?.[0];
     return marker !== undefined
-      ? `${marker} (Derived from the record.)`
-      : "Started by an operator from a sourced register lead. (Derived from the record.)";
+      ? marker
+      : "Started by an operator from a sourced register lead.";
   }
   return "Origin not separately recorded for this deal.";
 }
