@@ -683,11 +683,35 @@ export function executorFromHtml(html: string): string | undefined {
 
   // Accept only a real recipient: a name and a genuine UK postcode. Anything
   // short of that is treated as "not found" so the operator pastes it instead.
-  if (name === undefined || name.length < 2) return undefined;
-  if (postcode === undefined || UK_POSTCODE.exec(postcode) === null) return undefined;
+  if (name !== undefined && name.length >= 2 && postcode !== undefined && UK_POSTCODE.exec(postcode) !== null) {
+    const contact = `${name} — ${address}`;
+    return isPublisherContact(contact) ? undefined : contact;
+  }
 
-  const contact = `${name} — ${address}`;
-  return isPublisherContact(contact) ? undefined : contact;
+  // Free-text layout. Many notices (solicitor-filed estates especially) do not
+  // use the per-field labels above; they print the recipient as a single line
+  // after the heading — "Executor/Administrator: Foot Anstey LLP, 4th Floor
+  // Centre, Broadwalk House, Southernhay West, Exeter, EX1 1UA". The structured
+  // read finds no fields and returns nothing, which is why these notices came
+  // back unresolved and had to be pasted by hand. Read that line instead,
+  // bounded by the first UK postcode so nothing after the address is captured,
+  // under the same guards: a genuine postcode, a name/firm before it, and never
+  // the publisher. Still extraction, not inference — the slice is the executor
+  // section only, so the deceased's own line (which appears before it) cannot
+  // be mistaken for the recipient.
+  const freeText = section
+    .replace(/^[\s:]*Executor\s*\/\s*Administrator(?:'s)?(?:\s+details)?\s*:?\s*/i, "")
+    .trim();
+  const pc = UK_POSTCODE.exec(freeText);
+  if (pc !== null) {
+    const line = freeText.slice(0, pc.index + pc[0].length).replace(/\s+/g, " ").trim();
+    // Something real before the postcode (a firm/name and a street), not a bare
+    // code, and bounded so a runaway match cannot swallow the rest of the page.
+    if (line.length >= pc[0].length + 5 && line.length <= 300 && /[a-z]/i.test(line)) {
+      return isPublisherContact(line) ? undefined : line;
+    }
+  }
+  return undefined;
 }
 
 /** Fetch the notice's human page and read the executor block from it. */

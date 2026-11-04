@@ -512,4 +512,35 @@ describe("the executor is read from the notice page when the graph does not expo
     const noPostcode = page(`<dt>Executor/Administrator Company Name:</dt><dd>Some Firm</dd>`);
     expect(executorFromHtml(noPostcode)).toBeUndefined();
   });
+
+  it("reads a free-text executor line that has no per-field labels", () => {
+    // The layout solicitor-filed estates use: one line after the heading, no
+    // Address 1 / Town / Postcode fields. These came back unresolved and had to
+    // be pasted by hand (e.g. Gazette notice 5240646, Foot Anstey LLP).
+    const html = page(
+      `Executor/Administrator: Foot Anstey LLP, 4th Floor Centre, Broadwalk House, Southernhay West, Exeter, EX1 1UA`,
+    );
+    const contact = executorFromHtml(html);
+    expect(contact).toContain("Foot Anstey LLP");
+    expect(contact).toContain("Exeter");
+    expect(contact).toContain("EX1 1UA");
+    // Never the deceased's own address, and never trailing page furniture.
+    expect(contact).not.toContain("Treherne");
+    expect(contact).not.toContain("CV6 3EB");
+    expect(contact).not.toContain("Legal information");
+  });
+
+  it("reads a free-text line even with no 'Executor/Administrator:' sub-label", () => {
+    const html = page(`Wards Solicitors, Prudential Buildings, 11-19 Wine Street, Bristol, BS1 2PH`);
+    const contact = executorFromHtml(html);
+    expect(contact).toContain("Wards Solicitors");
+    expect(contact).toContain("BS1 2PH");
+  });
+
+  it("still refuses a free-text line that is the publisher, or has no postcode", () => {
+    expect(
+      executorFromHtml(page(`Executor/Administrator: The Gazette, PO Box 3584, Norwich, NR7 7WD`)),
+    ).toBeUndefined();
+    expect(executorFromHtml(page(`Executor/Administrator: Some Firm with no postcode at all`))).toBeUndefined();
+  });
 });
