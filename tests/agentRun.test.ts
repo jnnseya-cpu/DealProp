@@ -103,19 +103,41 @@ describe("superseding", () => {
 });
 
 describe("mapping the live analysis outcome", () => {
-  it("a completed loop succeeds, summarised from the first line of the prose", () => {
-    const run = closeFromAnalysis(beginRun(SEED), { complete: true, text: "The deal clears.\nMore detail.", toolCalls: 4 }, LATER);
+  it("a completed loop succeeds, summarised from the first line, with usage recorded", () => {
+    const run = closeFromAnalysis(
+      beginRun(SEED),
+      { complete: true, stop: "completed", text: "The deal clears.\nMore detail.", toolCalls: 4, modelCalls: 5, inputTokens: 1200, outputTokens: 300 },
+      LATER,
+    );
     expect(run.state).toBe("succeeded");
     expect(run.summary).toBe("The deal clears.");
     expect(run.toolCalls).toBe(4);
+    expect(run.modelCalls).toBe(5);
+    expect(run.inputTokens).toBe(1200);
+    expect(run.outputTokens).toBe(300);
   });
 
   it("a loop that ran out of steps is a bounded stop for a person, not a success (AG09)", () => {
-    const run = closeFromAnalysis(beginRun(SEED), { complete: false, text: "", toolCalls: 8 }, LATER);
+    const run = closeFromAnalysis(
+      beginRun(SEED),
+      { complete: false, stop: "step-limit", text: "", toolCalls: 8, modelCalls: 8, inputTokens: 5000, outputTokens: 1000 },
+      LATER,
+    );
     expect(run.state).toBe("awaiting-human");
     expect(run.humanReviewRequired).toBe(true);
     expect(run.reasonCodes).toContain("step-budget-exhausted");
     expect(run.stepsUsed).toBe(SEED.maxSteps);
+  });
+
+  it("a token-budget stop is awaiting-human with the token reason (AG09 / §20.11)", () => {
+    const run = closeFromAnalysis(
+      beginRun(SEED),
+      { complete: false, stop: "token-limit", text: "", toolCalls: 2, modelCalls: 3, inputTokens: 30000, outputTokens: 2000 },
+      LATER,
+    );
+    expect(run.state).toBe("awaiting-human");
+    expect(run.reasonCodes).toContain("token-budget-exhausted");
+    expect(run.inputTokens).toBe(30000);
   });
 });
 

@@ -136,7 +136,15 @@ export default async function AnalysisPage({
       });
       runRecord = closeFromAnalysis(
         runRecord,
-        { complete: outcome.complete, text: outcome.text, toolCalls: outcome.steps.length },
+        {
+          complete: outcome.complete,
+          stop: outcome.stop,
+          text: outcome.text,
+          toolCalls: outcome.steps.length,
+          modelCalls: outcome.modelCalls,
+          inputTokens: outcome.inputTokens,
+          outputTokens: outcome.outputTokens,
+        },
         new Date().toISOString(),
       );
     } catch (error) {

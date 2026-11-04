@@ -133,6 +133,8 @@ export default async function AgentRunsPage() {
                           <span className="mt-1 block text-[11px] text-ink-600">
                             {r.provider}/{r.model}
                             {r.toolCalls > 0 && ` · ${r.toolCalls} tool ${r.toolCalls === 1 ? "call" : "calls"}`}
+                            {(r.inputTokens ?? 0) + (r.outputTokens ?? 0) > 0 &&
+                              ` · ${(r.inputTokens ?? 0) + (r.outputTokens ?? 0)} tokens`}
                           </span>
                         )}
                       </td>

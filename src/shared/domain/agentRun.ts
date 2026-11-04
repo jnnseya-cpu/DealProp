@@ -106,6 +106,11 @@ export interface AgentRunRecord {
   readonly toolCalls: number;
   readonly stepsUsed: number;
   readonly maxSteps: number;
+  /** Model turns taken, where a model-backed run reports them. */
+  readonly modelCalls?: number;
+  /** Provider-reported token usage, where the provider reports it (§20.11). */
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
   readonly repairAttempted: boolean;
   readonly humanReviewRequired: boolean;
   /** Review or error reason codes, for the operator queue. */
@@ -182,6 +187,9 @@ export interface RunClose {
   readonly summary?: string;
   readonly toolCalls?: number;
   readonly stepsUsed?: number;
+  readonly modelCalls?: number;
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
   readonly repairAttempted?: boolean;
   readonly humanReviewRequired?: boolean;
   readonly reasonCodes?: readonly string[];
@@ -203,6 +211,9 @@ export function closeRun(run: AgentRunRecord, close: RunClose): AgentRunRecord {
     ...(close.summary !== undefined ? { summary: close.summary } : {}),
     ...(close.toolCalls !== undefined ? { toolCalls: close.toolCalls } : {}),
     ...(close.stepsUsed !== undefined ? { stepsUsed: close.stepsUsed } : {}),
+    ...(close.modelCalls !== undefined ? { modelCalls: close.modelCalls } : {}),
+    ...(close.inputTokens !== undefined ? { inputTokens: close.inputTokens } : {}),
+    ...(close.outputTokens !== undefined ? { outputTokens: close.outputTokens } : {}),
     ...(close.repairAttempted !== undefined ? { repairAttempted: close.repairAttempted } : {}),
     ...(close.humanReviewRequired !== undefined ? { humanReviewRequired: close.humanReviewRequired } : {}),
     ...(close.reasonCodes !== undefined ? { reasonCodes: close.reasonCodes } : {}),
@@ -220,37 +231,48 @@ export function supersede(run: AgentRunRecord, at: string): AgentRunRecord {
   return closeRun(run, { state: "superseded", finishedAt: at, summary: "Superseded by a newer run for this subject." });
 }
 
+/** Why a bounded stop happened, mirroring the runtime's own stop reason. */
+export type AnalysisStop = "completed" | "step-limit" | "token-limit";
+
 /** How the live analysis runtime ended, in the fields this module needs. */
 export interface AnalysisOutcomeView {
   readonly complete: boolean;
+  readonly stop: AnalysisStop;
   readonly text: string;
   readonly toolCalls: number;
+  readonly modelCalls: number;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
 }
 
 /**
- * Close a run from the live analysis runtime's outcome. A loop that ran out of
- * steps (`complete: false`) is a bounded stop for a person, not a success
- * (spec AG09): it closes `awaiting-human` with a budget-exhausted reason rather
- * than presenting an unfinished answer as done.
+ * Close a run from the live analysis runtime's outcome. A loop that hit a bound
+ * (`complete: false`) is a bounded stop for a person, not a success (spec AG09):
+ * it closes `awaiting-human` with the exact bound as the reason rather than
+ * presenting an unfinished answer as done. Token usage is recorded either way.
  */
 export function closeFromAnalysis(run: AgentRunRecord, outcome: AnalysisOutcomeView, at: string): AgentRunRecord {
+  const usage = {
+    toolCalls: outcome.toolCalls,
+    modelCalls: outcome.modelCalls,
+    inputTokens: outcome.inputTokens,
+    outputTokens: outcome.outputTokens,
+  };
   if (!outcome.complete) {
     return closeRun(run, {
+      ...usage,
       state: "awaiting-human",
       finishedAt: at,
-      toolCalls: outcome.toolCalls,
       stepsUsed: run.maxSteps,
       humanReviewRequired: true,
-      reasonCodes: ["step-budget-exhausted"],
-      summary: "Stopped at the step limit before finishing.",
+      reasonCodes: [outcome.stop === "token-limit" ? "token-budget-exhausted" : "step-budget-exhausted"],
+      summary:
+        outcome.stop === "token-limit"
+          ? "Stopped at the token budget before finishing."
+          : "Stopped at the step limit before finishing.",
     });
   }
-  return closeRun(run, {
-    state: "succeeded",
-    finishedAt: at,
-    toolCalls: outcome.toolCalls,
-    summary: firstLine(outcome.text),
-  });
+  return closeRun(run, { ...usage, state: "succeeded", finishedAt: at, summary: firstLine(outcome.text) });
 }
 
 /** How a model-backed run failed, mapped to a terminal state and a safe code. */

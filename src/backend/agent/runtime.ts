@@ -43,15 +43,33 @@ export interface AgentStep {
   readonly summary: string;
 }
 
+/** Why the loop ended: a clean finish, or a bound it hit first (AG09). */
+export type AgentStop = "completed" | "step-limit" | "token-limit";
+
 export interface AgentOutcome {
   /** The model's final prose. Narrative only — figures live in `data`. */
   readonly text: string;
   readonly steps: readonly AgentStep[];
   /** Every provenance-stamped figure the tools returned, merged by key. */
   readonly data: Readonly<Record<string, Sourced<string | number>>>;
-  /** False when the loop hit its step limit without the model finishing. */
+  /** False when the loop hit a bound (steps or tokens) without the model finishing. */
   readonly complete: boolean;
+  /** Which bound ended the loop, or a clean finish. */
+  readonly stop: AgentStop;
+  /** Model turns taken. */
+  readonly modelCalls: number;
+  /** Provider-reported token usage, summed across turns (0 if the provider gives none). */
+  readonly inputTokens: number;
+  readonly outputTokens: number;
 }
+
+/**
+ * Per-run token budget (spec §20.11). The loop stops before the next provider
+ * call once either is exceeded — a real spend cap now that usage is captured,
+ * rather than only a turn count. Defaults match the pack's guardrails.
+ */
+export const RUNTIME_MAX_INPUT_TOKENS = 24_000;
+export const RUNTIME_MAX_OUTPUT_TOKENS = 6_000;
 
 interface ToolUseBlock {
   readonly type: "tool_use";
@@ -67,6 +85,7 @@ type ContentBlock = ToolUseBlock | TextBlock | { readonly type: string };
 interface AssistantTurn {
   readonly stop_reason?: string | null;
   readonly content?: readonly ContentBlock[];
+  readonly usage?: { readonly input_tokens?: number; readonly output_tokens?: number };
 }
 interface Message {
   readonly role: "user" | "assistant";
@@ -87,6 +106,8 @@ export interface RunAgentOptions {
   /** Extra guidance appended to the standard guardrail system prompt. */
   readonly system?: string;
   readonly maxSteps?: number;
+  readonly maxInputTokens?: number;
+  readonly maxOutputTokens?: number;
   readonly fetchImpl?: typeof fetch;
   readonly signal?: AbortSignal;
 }
@@ -104,20 +125,34 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentOutcome> {
   const system = opts.system === undefined ? GUARDRAIL : `${GUARDRAIL}\n\n${opts.system}`;
   const byName = new Map(opts.tools.map((t) => [t.name, t]));
   const maxSteps = opts.maxSteps ?? 6;
+  const maxInputTokens = opts.maxInputTokens ?? RUNTIME_MAX_INPUT_TOKENS;
+  const maxOutputTokens = opts.maxOutputTokens ?? RUNTIME_MAX_OUTPUT_TOKENS;
 
   const messages: Message[] = [{ role: "user", content: opts.task }];
   const steps: AgentStep[] = [];
   const data: Record<string, Sourced<string | number>> = {};
+  let modelCalls = 0;
+  let inputTokens = 0;
+  let outputTokens = 0;
 
   for (let step = 0; step < maxSteps; step += 1) {
+    // Stop before another provider call once the token budget is spent: a
+    // bounded stop for a person, not an extra charge (AG09 / §20.11).
+    if (inputTokens > maxInputTokens || outputTokens > maxOutputTokens) {
+      return { text: "", steps, data, complete: false, stop: "token-limit", modelCalls, inputTokens, outputTokens };
+    }
+
     const turn = await requestTurn(fetchImpl, url, key, model, system, opts.tools, messages, opts.signal);
+    modelCalls += 1;
+    inputTokens += turn.usage?.input_tokens ?? 0;
+    outputTokens += turn.usage?.output_tokens ?? 0;
     const blocks = turn.content ?? [];
     messages.push({ role: "assistant", content: blocks });
 
     const toolUses = blocks.filter(isToolUse);
     if (turn.stop_reason !== "tool_use" || toolUses.length === 0) {
       const text = blocks.filter(isText).map((b) => b.text).join("\n\n").trim();
-      return { text, steps, data, complete: true };
+      return { text, steps, data, complete: true, stop: "completed", modelCalls, inputTokens, outputTokens };
     }
 
     const results: unknown[] = [];
@@ -148,7 +183,7 @@ export async function runAgent(opts: RunAgentOptions): Promise<AgentOutcome> {
   }
 
   // Ran out of steps. Return honestly rather than inventing a conclusion.
-  return { text: "", steps, data, complete: false };
+  return { text: "", steps, data, complete: false, stop: "step-limit", modelCalls, inputTokens, outputTokens };
 }
 
 async function requestTurn(

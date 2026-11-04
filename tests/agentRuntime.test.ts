@@ -73,6 +73,46 @@ describe("runAgent", () => {
     await expect(runAgent({ task: "x", tools: [mockTool] })).rejects.toThrow(/Anthropic/);
   });
 
+  it("records provider token usage and model-call count", async () => {
+    process.env.BLOG_MODEL_API_KEY = "sk-test";
+    process.env.BLOG_MODEL_PROVIDER = "anthropic";
+    const fetchMock = vi.fn(async () =>
+      turn({ stop_reason: "end_turn", content: [{ type: "text", text: "Done." }], usage: { input_tokens: 800, output_tokens: 120 } }),
+    );
+    const outcome = await runAgent({ task: "x", tools: [mockTool], fetchImpl: fetchMock as unknown as typeof fetch });
+    expect(outcome.complete).toBe(true);
+    expect(outcome.stop).toBe("completed");
+    expect(outcome.modelCalls).toBe(1);
+    expect(outcome.inputTokens).toBe(800);
+    expect(outcome.outputTokens).toBe(120);
+  });
+
+  it("stops before the next call once the token budget is spent (AG09)", async () => {
+    process.env.BLOG_MODEL_API_KEY = "sk-test";
+    process.env.BLOG_MODEL_PROVIDER = "anthropic";
+    // Each turn asks for another tool and reports heavy input-token usage, so
+    // the budget is exceeded after the first turn and the loop stops before a
+    // second provider call.
+    const fetchMock = vi.fn(async () =>
+      turn({
+        stop_reason: "tool_use",
+        content: [{ type: "tool_use", id: "t", name: "mock_calc", input: {} }],
+        usage: { input_tokens: 50_000, output_tokens: 10 },
+      }),
+    );
+    const outcome = await runAgent({
+      task: "spend",
+      tools: [mockTool],
+      maxSteps: 8,
+      maxInputTokens: 24_000,
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    expect(outcome.complete).toBe(false);
+    expect(outcome.stop).toBe("token-limit");
+    expect(fetchMock).toHaveBeenCalledTimes(1); // bounded before a second call
+    expect(outcome.inputTokens).toBe(50_000);
+  });
+
   it("stops honestly at the step limit rather than inventing a conclusion", async () => {
     process.env.BLOG_MODEL_API_KEY = "sk-test";
     process.env.BLOG_MODEL_PROVIDER = "anthropic";

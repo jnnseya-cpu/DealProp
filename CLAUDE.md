@@ -160,9 +160,13 @@ recorded `cancelled` with reason `agents-paused`, so the pause is visible in the
 ledger and shown on `/operator/agents` rather than silent. Env-driven and
 surfaced read-only, the same posture as every other runtime toggle (there is no
 writable settings store); deterministic observers are never pauseable.
-No token/cost usage yet (the runtime returns none), no work queue, no tenant
-dimension (single-tenant) — only what a real producer can fill, never empty
-forward-compatibility.
+AG09/§20.11: the live runtime captures the provider's token usage per turn and
+enforces a per-run token budget (`RUNTIME_MAX_INPUT_TOKENS`/`_OUTPUT_TOKENS`),
+stopping before the next provider call once spent — a bounded stop recorded
+`awaiting-human` with `token-budget-exhausted`, distinct from the step-limit
+stop. The run records `modelCalls`/`inputTokens`/`outputTokens`, shown on the
+Control Room. No work queue, no tenant dimension (single-tenant) — only what a
+real producer can fill, never empty forward-compatibility.
 
 Flipper/sourcer reservation: a property is "taken" by paying to reveal it.
 `reservation.ts` is the pure lock — up to `FLIPPER_SLOTS` (5) holders share one
