@@ -368,6 +368,10 @@ export async function submitEnquiry(formData: FormData): Promise<void> {
       property: intake.property,
       seller,
       purchasePrice: intake.property.openMarketValue,
+      // No buyer is established on an enquiry, so the tax profile is unknown:
+      // the engine takes transfer tax at the worst case and marks the
+      // appraisal taxPending, so the figure can only be revised down (A06).
+      buyerProfileUnknown: true,
       buyerOwnsOtherProperty: true,
       buyerIsCompany: true,
       buyerIsNonResident: false,

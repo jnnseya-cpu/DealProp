@@ -562,6 +562,10 @@ export async function startDealFromLead(
       property: intake.property,
       seller: intake.seller,
       purchasePrice: intake.property.openMarketValue,
+      // No buyer is established on a sourced lead, so the tax profile is
+      // unknown: the engine takes transfer tax at the worst case and marks the
+      // appraisal taxPending, so the figure can only be revised down (A06).
+      buyerProfileUnknown: true,
       buyerOwnsOtherProperty: true,
       buyerIsCompany: true,
       buyerIsNonResident: false,

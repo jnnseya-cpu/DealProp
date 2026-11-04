@@ -90,6 +90,15 @@ export function runDealDirector(
     );
   }
 
+  // A deal priced on an unknown buyer profile carries worst-case transfer tax,
+  // so the return is provisional. Establish the profile before the figure is
+  // relied on, and certainly before it reaches capital (A06).
+  if (scored.appraisal.taxPending) {
+    gating.push(
+      "The buyer's tax profile is not established, so transfer tax is taken at the worst case and the return is provisional. Confirm the buyer's additional-property status, residency and company position to finalise the figure.",
+    );
+  }
+
   // Everything below the appraisal is an estimate that a professional must
   // confirm. Saying so once, prominently, is more honest than a footnote.
   gating.push(

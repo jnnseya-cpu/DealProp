@@ -66,11 +66,18 @@ export function buildCostStack(inputs: DealInputs): CostStack {
   const pack = getJurisdiction(property.jurisdiction);
   const d = pack.defaults;
 
+  // The SDLT surcharges turn on the buyer's additional-property status,
+  // residency and whether they buy through a company. Where that profile is
+  // not yet established, the tax is computed at the worst case — every
+  // surcharge on — so the figure can only ever be revised down, never up. A
+  // screening appraisal that understated the tax would be worse than useless
+  // (spec §7 / A06).
+  const taxUnknown = inputs.buyerProfileUnknown === true;
   const transferTax = pack.transferTax({
     price: purchasePrice,
-    buyerOwnsOtherProperty: inputs.buyerOwnsOtherProperty,
-    buyerIsCompany: inputs.buyerIsCompany,
-    buyerIsNonResident: inputs.buyerIsNonResident,
+    buyerOwnsOtherProperty: taxUnknown ? true : inputs.buyerOwnsOtherProperty,
+    buyerIsCompany: taxUnknown ? true : inputs.buyerIsCompany,
+    buyerIsNonResident: taxUnknown ? true : inputs.buyerIsNonResident,
     isResidential: isResidential(property),
   });
 
@@ -263,6 +270,17 @@ export function appraise(inputs: DealInputs): DealAppraisal {
 
   const profit = sub(profitBeforeTax, taxAssessment.amount);
 
+  // When the buyer's tax profile is unknown the transfer tax above was taken at
+  // the worst case, so the whole return is provisional. The caveat says so in
+  // the memorandum and the flag drives the Director's gating action (A06).
+  const taxPending = inputs.buyerProfileUnknown === true;
+  const profitTaxCaveats = taxPending
+    ? [
+        "The buyer's tax profile is not established, so transfer tax is computed at the worst case (additional property, company, non-resident). This return is provisional — no final figure until the buyer's additional-property status, residency and company position are confirmed.",
+        ...taxAssessment.caveats,
+      ]
+    : taxAssessment.caveats;
+
   // Return is measured against equity at risk, not against total cost. Debt is
   // repaid from proceeds; the investor's return is on the cash they actually
   // had to find. This is the number a JV partner cares about.
@@ -287,7 +305,8 @@ export function appraise(inputs: DealInputs): DealAppraisal {
     profitBeforeTax,
     profitTax: taxAssessment.amount,
     profitTaxLabel: taxAssessment.label,
-    profitTaxCaveats: taxAssessment.caveats,
+    profitTaxCaveats,
+    taxPending,
     profit,
     roiOnCashBps,
     annualisedRoiBps,

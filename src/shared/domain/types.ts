@@ -170,6 +170,16 @@ export interface DealInputs {
   readonly buyerOwnsOtherProperty: boolean;
   readonly buyerIsCompany: boolean;
   readonly buyerIsNonResident: boolean;
+  /**
+   * True where the buyer's tax profile — additional-property status, residency,
+   * and whether they buy through a company — is not yet established. The SDLT
+   * surcharges turn on exactly these, so with them unknown the transfer tax is
+   * computed at the worst case and the appraisal is marked `taxPending`: a
+   * conservative figure for screening, never a final return (spec §7 / A06).
+   * Absent and false both mean "profile known", so existing deals are
+   * unchanged.
+   */
+  readonly buyerProfileUnknown?: boolean;
   /** Whole months from exchange to exit (sale or refinance). */
   readonly holdMonths: number;
   readonly structure: StructureKind;
@@ -224,6 +234,12 @@ export interface DealAppraisal {
   readonly profitTax: Money;
   readonly profitTaxLabel: string;
   readonly profitTaxCaveats: readonly string[];
+  /**
+   * True where the buyer's tax profile was not established, so the transfer tax
+   * was computed at the worst case and every figure derived from it is a
+   * conservative screening estimate, never a final return (spec §7 / A06).
+   */
+  readonly taxPending: boolean;
   /**
    * Profit after estimated profit tax. Every score and verdict is computed
    * from this, never from the pre-tax figure.

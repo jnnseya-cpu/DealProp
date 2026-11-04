@@ -160,6 +160,40 @@ describe("the figures it produces", () => {
   });
 });
 
+describe("an unknown buyer profile is taxed at the worst case (A06)", () => {
+  const parsed = parseAppraisal({
+    purchasePrice: "172,000",
+    marketValue: "212,000",
+    refurbishment: "34,000",
+    postWorksValue: "285,000",
+  });
+  if (!parsed.ok) throw new Error("fixture must parse");
+  // A plain owner-occupier individual buyer: the lowest transfer tax there is.
+  const known = {
+    ...parsed.inputs,
+    buyerOwnsOtherProperty: false,
+    buyerIsCompany: false,
+    buyerIsNonResident: false,
+    buyerProfileUnknown: false,
+  };
+
+  it("flags the appraisal as pending and never otherwise", () => {
+    expect(appraise({ ...known, buyerProfileUnknown: true }).taxPending).toBe(true);
+    expect(appraise(known).taxPending).toBe(false);
+  });
+
+  it("never understates the transfer tax while the profile is unknown", () => {
+    const pending = appraise({ ...known, buyerProfileUnknown: true });
+    expect(pending.costs.transferTax).toBeGreaterThanOrEqual(appraise(known).costs.transferTax);
+  });
+
+  it("publishes the provisional-return caveat first", () => {
+    const pending = appraise({ ...known, buyerProfileUnknown: true });
+    expect(pending.profitTaxCaveats[0]).toMatch(/not established/i);
+    expect(pending.profitTaxCaveats[0]).toMatch(/provisional/i);
+  });
+});
+
 describe("the visitor's deal never reaches an ad network", () => {
   it("is never a trackable route, because the deal is in the URL", () => {
     // Both vendors read location.href themselves. Allowlisting this route
