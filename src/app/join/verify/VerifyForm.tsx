@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { verifyEmailCode } from "../actions";
+import { resendVerificationCode, verifyEmailCode } from "../actions";
 import type { BoxFormResult } from "@shared/formFields";
 
 /**
@@ -17,8 +17,13 @@ export function VerifyForm({ email }: { email: string }) {
     verifyEmailCode,
     undefined,
   );
+  const [resend, resendSubmit, resendPending] = useActionState<BoxFormResult | undefined, FormData>(
+    resendVerificationCode,
+    undefined,
+  );
 
   return (
+    <>
     <form action={submit} className="space-y-5">
       <input type="hidden" name="email" value={email} />
 
@@ -58,5 +63,25 @@ export function VerifyForm({ email }: { email: string }) {
         {pending ? "Verifying…" : "Verify and continue"}
       </button>
     </form>
+
+    <form action={resendSubmit} className="mt-4 text-center">
+      <input type="hidden" name="email" value={email} />
+      <button
+        type="submit"
+        disabled={resendPending}
+        className="text-xs text-lode-300 underline-offset-2 transition-colors hover:underline disabled:opacity-60"
+      >
+        {resendPending ? "Sending a new code…" : "Resend code"}
+      </button>
+      {resend !== undefined && (
+        <p
+          role="status"
+          className={`mt-2 text-xs leading-snug ${resend.ok ? "text-ink-400" : "text-red-300"}`}
+        >
+          {resend.message}
+        </p>
+      )}
+    </form>
+    </>
   );
 }

@@ -61,6 +61,12 @@ export const LIMITS = {
    */
   "verify-email": { requests: 8, windowMs: 60_000 },
   /**
+   * Resend of a verification code. Tight, because each one sends an email and
+   * an open resend endpoint is a way to flood somebody else's inbox. Bucketed
+   * by caller and address, and small over a long window.
+   */
+  "resend-code": { requests: 3, windowMs: 600_000 },
+  /**
    * The payment webhook. High, because a provider legitimately redelivers in
    * bursts and refusing one is money we then have to reconcile by hand. It is
    * a bound against a flood, not a shaping policy.

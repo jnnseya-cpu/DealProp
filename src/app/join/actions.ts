@@ -209,3 +209,61 @@ export async function verifyEmailCode(
   // redirect() throws, so it is outside any try and after the cookie is set.
   redirect("/account");
 }
+
+/**
+ * Re-send the verification code, for a code lost to a typo or a spam folder.
+ *
+ * Deliberately user-initiated and rate-limited, not automatic: it re-issues a
+ * single fresh code (resetting the expiry and the attempt budget) and emails
+ * it, so there is still only ever one live code at the sign-up stage. The
+ * outcome message is the same whatever we find, so this cannot be used to
+ * discover which addresses have an account; a code is only actually issued for
+ * an account still awaiting verification.
+ */
+export async function resendVerificationCode(
+  _previous: BoxFormResult | undefined,
+  formData: FormData,
+): Promise<BoxFormResult> {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const gate = consume("resend-code", `${callerFrom(await nextHeaders())}|${email}`);
+  if (!gate.allowed) {
+    return { ok: false, message: `Too many requests. Try again in ${gate.retryAfterSeconds} seconds.` };
+  }
+
+  const secret = process.env.OPERATOR_SECRET;
+  if (secret === undefined || secret === "") {
+    return { ok: false, message: "Verification is not available right now. Please try again shortly." };
+  }
+  if (email === "" || !email.includes("@")) {
+    return { ok: false, message: "Enter the email address you signed up with." };
+  }
+
+  const neutral: BoxFormResult = {
+    ok: true,
+    message:
+      "If that address has an account still awaiting verification, a new code is on its way. Check your inbox and your spam folder.",
+  };
+
+  const account = await findAccountByEmail(email);
+  if (account === undefined) return neutral;
+  // Already verified (or legacy, with nothing pending): nothing to resend.
+  if (account.emailVerifiedAt !== undefined || account.pendingEmailCode === undefined) {
+    return neutral;
+  }
+
+  const code = generateVerificationCode();
+  const sent = await sendVerificationEmail(email, account.name, code);
+  if (!sent.ok) {
+    // The person typed this address, so acknowledging a send failure reveals
+    // nothing new about whether it exists.
+    return { ok: false, message: "We couldn't send the code just now. Please try again in a moment." };
+  }
+
+  await saveAccount({ ...account, pendingEmailCode: buildPendingCode(code, secret) });
+  await audit("verification-resent", {
+    account,
+    subject: `account:${account.id}`,
+    detail: "Verification code re-sent at the account holder's request.",
+  });
+  return neutral;
+}

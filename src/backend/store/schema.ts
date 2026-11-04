@@ -871,6 +871,7 @@ export type AuditAction =
   | "sign-out"
   | "account-created"
   | "email-verified"
+  | "verification-resent"
   | "account-disabled"
   | "account-enabled"
   | "certification-given"
