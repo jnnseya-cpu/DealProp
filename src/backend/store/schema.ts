@@ -28,6 +28,7 @@ import type { InventoryCategory, InventoryItem, ConfirmedBy } from "@shared/doma
 import type { MaterialRecord } from "@shared/domain/materialInformation";
 import type { SellerDueDiligence } from "@shared/domain/sellerDueDiligence";
 import type { DealOrigin } from "@shared/domain/dealOrigin";
+import type { PackApproval } from "@shared/domain/packApproval";
 import type { ResaleArrangement, ResaleConsent } from "@shared/domain/reseller";
 import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { HoldingFacts } from "@shared/domain/portfolio";
@@ -186,6 +187,13 @@ export interface DealRecord {
    * without it — a person's circumstances are not stored with no record of why.
    */
   readonly enquiryConsent?: SellerEnquiryConsent;
+  /**
+   * A named person's approval of the pack for release, bound to a hash of the
+   * pack's content. Absent until approved; voided automatically the moment the
+   * price, costs or material facts change, because the approval was of a
+   * particular pack and that pack no longer exists (see `packApproval.ts`).
+   */
+  readonly packApproval?: PackApproval;
   readonly borrowerCompletedDeals: number;
   readonly status: DealStatus;
 }
@@ -890,6 +898,7 @@ export type AuditAction =
   | "fee-disclosure-recorded"
   | "seller-agreement-recorded"
   | "seller-instruction-recorded"
+  | "pack-approved"
   | "opportunity-opened"
   | "opportunity-refunded"
   | "passport-evidence-recorded"

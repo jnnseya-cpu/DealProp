@@ -16,6 +16,9 @@ import { gbp, gbpSigned, months, percent } from "@shared/format";
 import { VERDICT_TONE, Mark } from "@/app/components/chrome";
 import { OPERATOR_SIGNATURE } from "@/app/components/signature";
 import { companyIdentity } from "@shared/domain/identity";
+import { can } from "@shared/domain/accounts";
+import { recordApprovalStatus } from "@backend/packApproval";
+import { approvePack } from "./actions";
 import "./memorandum.css";
 
 export const dynamic = "force-dynamic";
@@ -79,6 +82,13 @@ export default async function MemorandumPage({
     detail: `${record.reference} (${charge.outcome})`,
   });
 
+  // Release approval, bound to the pack's content hash. A certified external
+  // investor may read this page, but only a named operator may approve, so the
+  // approve control is shown only to one who holds `manage-mandates`.
+  const approval = recordApprovalStatus(record);
+  const approver = viewerAccount(viewer);
+  const canApprove = approver !== undefined && can(approver, "manage-mandates").allowed;
+
   const working = toWorkingDeal(record.inputs);
   const briefing = runDealDirector(working.inputs, undefined, { priceAgreed: !working.modelled });
   const close = record.milestones !== undefined ? buildCloseReport(record.milestones) : undefined;
@@ -121,6 +131,25 @@ export default async function MemorandumPage({
       <nav className="memo-actions" aria-label="Document actions">
         <Link href={`/deals/${record.id}`}>&larr; Back to the Deal Room</Link>
         <span>Use your browser&rsquo;s print dialogue to save this as a PDF.</span>
+        <span
+          className={
+            approval.state === "valid"
+              ? "memo-approval memo-approval-valid"
+              : "memo-approval memo-approval-open"
+          }
+        >
+          {approval.state === "valid" ? "Approved for release" : approval.state === "stale" ? "Approval void — pack changed" : "Not approved for release"}
+          {" · "}
+          {approval.reason}
+        </span>
+        {approval.state !== "valid" && canApprove && (
+          <form action={approvePack}>
+            <input type="hidden" name="dealId" value={record.id} />
+            <button type="submit">
+              {approval.state === "stale" ? "Re-approve this pack for release" : "Approve this pack for release"}
+            </button>
+          </form>
+        )}
       </nav>
 
       <article>
