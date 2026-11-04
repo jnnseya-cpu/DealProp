@@ -19,9 +19,18 @@ import type { IntakeMessage } from "@shared/domain/intakeConversation";
  * JSON all take the same path: the gate is handed an invalid shape and returns a
  * safe, human-review result. The caller acts only on what comes back.
  *
- * A run's metadata — prompt version, provider, model, the gate's outcome — is
- * returned for the caller to record, so there is an auditable trail of what the
- * assistant was asked and what was done with its answer.
+ * Output that comes back but does not parse to a usable object gets exactly one
+ * schema-repair attempt — a second call that restates "return only JSON" — and
+ * then human review. One, never a loop: a model that cannot produce valid JSON
+ * twice is a review, not an open-ended retry burning calls and tokens (spec
+ * §20.6 "at most one schema-repair attempt; then human review"). A thrown model
+ * error is a failure, not a malformed answer, so it fails closed in one call
+ * rather than triggering a repair.
+ *
+ * A run's metadata — prompt version, provider, model, whether a repair was
+ * attempted, the gate's outcome — is returned for the caller to record, so there
+ * is an auditable trail of what the assistant was asked and what was done with
+ * its answer.
  */
 
 export const INTAKE_PROMPT_VERSION = "intake-1";
@@ -44,6 +53,8 @@ export interface IntakeRun {
   readonly factsKept: number;
   readonly factsDropped: number;
   readonly safeToAutoReply: boolean;
+  /** Whether a single schema-repair call was made after an unparseable first answer. */
+  readonly repairAttempted: boolean;
   readonly at: string;
 }
 
@@ -89,6 +100,20 @@ function userPrompt(messages: readonly SellerMessage[]): string {
   ].join("\n");
 }
 
+/**
+ * The second, repair-only prompt. Used once when a first answer came back but
+ * did not parse to a usable JSON object — restating the one requirement the
+ * model missed and nothing more.
+ */
+function repairPrompt(messages: readonly SellerMessage[]): string {
+  return [
+    "Your previous reply could not be parsed as JSON.",
+    "Return ONLY the single JSON object described above — no prose, no explanation, no code fence around it.",
+    "",
+    userPrompt(messages),
+  ].join("\n");
+}
+
 /** Pull a JSON object out of the model's text, tolerating code fences. */
 function extractJson(text: string): unknown {
   const tryParse = (s: string): unknown => {
@@ -120,6 +145,29 @@ export interface QualifyDeps {
   readonly complete?: typeof complete;
 }
 
+/** True of a value the gate can treat as a candidate object (not undefined/scalar/array-only decides later). */
+function usableObject(v: unknown): boolean {
+  return typeof v === "object" && v !== null;
+}
+
+/**
+ * One model call, parsed. Distinguishes a thrown error (a failure — fail closed,
+ * no repair) from output that came back but did not parse (`threw: false`, which
+ * may earn the single repair attempt).
+ */
+async function attempt(
+  call: typeof complete,
+  system: string,
+  prompt: string,
+): Promise<{ readonly threw: boolean; readonly value: unknown }> {
+  try {
+    const text = await call({ system, prompt, maxTokens: 1024 });
+    return { threw: false, value: extractJson(text) };
+  } catch {
+    return { threw: true, value: undefined };
+  }
+}
+
 /**
  * Qualify a seller conversation: call the model, gate the output, return a
  * safe result and the run's metadata.
@@ -136,15 +184,21 @@ export async function qualifyIntake(
   const call = deps.complete ?? (llmConfigured() ? complete : undefined);
 
   let raw: unknown;
+  let repairAttempted = false;
   if (call === undefined) {
     // No model configured: fail to human review, never to a confident answer.
     raw = undefined;
   } else {
-    try {
-      const text = await call({ system: systemPrompt(ctx.allowedFields), prompt: userPrompt(messages), maxTokens: 1024 });
-      raw = extractJson(text);
-    } catch {
-      raw = undefined; // a model error is a review, not a crash
+    const system = systemPrompt(ctx.allowedFields);
+    const first = await attempt(call, system, userPrompt(messages));
+    raw = first.value;
+    // A first answer that came back but did not parse to a usable object earns
+    // exactly one repair call. A thrown error is not a malformed answer — it
+    // fails closed here, in one call, with no retry.
+    if (!first.threw && !usableObject(raw)) {
+      repairAttempted = true;
+      const repaired = await attempt(call, system, repairPrompt(messages));
+      raw = repaired.value;
     }
   }
 
@@ -160,6 +214,7 @@ export async function qualifyIntake(
     factsKept: result.facts.length,
     factsDropped: result.droppedFacts.length,
     safeToAutoReply: result.safeToAutoReply,
+    repairAttempted,
     at,
   };
   return { result, run };

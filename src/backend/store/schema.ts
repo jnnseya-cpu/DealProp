@@ -909,6 +909,7 @@ export type AuditAction =
   | "agents-run"
   | "agent-proposal-accepted"
   | "agent-proposal-dismissed"
+  | "agent-decision-refused"
   | "fee-raised"
   | "fee-voided"
   | "fee-disclosure-recorded"

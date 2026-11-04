@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { fromMajor, toMajor, ZERO } from "@shared/money";
+import { bps, fromMajor, pct, ratioBps, sub, toMajor, ZERO } from "@shared/money";
 import { appraise } from "@shared/domain/economics";
+import type { DealInputs } from "@shared/domain/types";
 import { isTrackableRoute } from "@shared/domain/analytics";
 import {
   APPRAISAL_JURISDICTIONS,
@@ -205,5 +206,70 @@ describe("the visitor's deal never reaches an ad network", () => {
 
   it("still tracks the page the click came from", () => {
     expect(isTrackableRoute("/")).toBe(true);
+  });
+});
+
+describe("the section-7 worked illustration (spec A07)", () => {
+  // The spec's canonical example. Its acquisition-tax figure (£8,000) is "a
+  // supplied illustrative input, not a live tax calculation" — Lode derives tax
+  // from the jurisdiction rules — so the cost/profit side is pinned as the
+  // engine's own arithmetic definitions on the illustration's component costs,
+  // while the gross discount (which depends only on open-market value and
+  // price, both pure inputs) is pinned end-to-end through appraise().
+  it("computes £216,000 cost, £34,000 profit and 15.74% profit on cost by definition", () => {
+    const exitProceeds = fromMajor(250_000);
+    // purchase 150,000 + tax 8,000 + legal/survey 3,000 + sourcing 5,000
+    // + works 30,000 + contingency 3,000 + finance/holding 12,000 + exit 5,000
+    const totalProjectCost = fromMajor(
+      150_000 + 8_000 + 3_000 + 5_000 + 30_000 + 3_000 + 12_000 + 5_000,
+    );
+    expect(toMajor(totalProjectCost)).toBe(216_000);
+
+    const profit = sub(exitProceeds, totalProjectCost);
+    expect(toMajor(profit)).toBe(34_000);
+
+    // profit on cost = profit / total project cost, exactly as economics.ts does.
+    expect(ratioBps(profit, totalProjectCost)).toBe(bps(1_574)); // 15.74%
+  });
+
+  it("computes 21.05% gross discount through the engine from a £190,000 as-is value", () => {
+    const inputs: DealInputs = {
+      property: {
+        id: "s7",
+        jurisdiction: "GB-ENG",
+        postcodeArea: "B1",
+        locality: "Birmingham",
+        propertyType: "house",
+        tenure: "freehold",
+        bedrooms: 3,
+        occupancy: "vacant",
+        openMarketValue: fromMajor(190_000),
+        valuationConfidence: bps(8_500),
+        refurbishmentEstimate: fromMajor(30_000),
+        postWorksValue: fromMajor(250_000),
+        monthlyRent: fromMajor(1_200),
+        knownIssues: [],
+      },
+      seller: { situation: "relocation", priorities: ["price"], targetDays: 90, screening: {} },
+      purchasePrice: fromMajor(150_000),
+      buyerOwnsOtherProperty: false,
+      buyerIsCompany: false,
+      buyerIsNonResident: false,
+      holdMonths: 6,
+      structure: "bridging-refurb-refinance",
+      finance: {
+        ltvBps: pct(70),
+        refurbAdvanceBps: pct(100),
+        annualRateBps: pct(12),
+        arrangementFeeBps: pct(2),
+        exitFeeBps: pct(1),
+        interestRolledUp: true,
+        lenderCosts: fromMajor(1_500),
+      },
+      exit: "sell",
+    };
+
+    // (190,000 − 150,000) / 190,000 = 21.05%, independent of any derived cost.
+    expect(appraise(inputs).discountToOmvBps).toBe(bps(2_105));
   });
 });

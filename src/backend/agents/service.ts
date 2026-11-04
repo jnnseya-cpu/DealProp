@@ -132,7 +132,20 @@ export interface DecisionOutcome {
 
 export async function decideProposal(request: DecisionRequest): Promise<DecisionOutcome> {
   const authorisation = authoriseDecision(request.actor, request.note);
-  if (!authorisation.ok) return { ok: false, message: authorisation.reason };
+  if (!authorisation.ok) {
+    // A refused attempt to decide a proposal is itself auditable — somebody
+    // tried to accept or dismiss with the shared operator password or without a
+    // reason. The forbidden attempt is logged (it never reaches an effect), so
+    // "forbidden" is not also silent (spec A10).
+    await audit("agent-decision-refused", {
+      ...(request.actor.kind === "account"
+        ? { account: { id: request.actor.id, email: request.actor.email } }
+        : {}),
+      subject: request.dealId,
+      detail: `Refused ${request.decision} of ${request.proposalKey}: ${authorisation.reason}`,
+    });
+    return { ok: false, message: authorisation.reason };
+  }
   // Narrowed by `authoriseDecision`, which refuses anything but a named
   // account. Repeated here so the narrowing is visible rather than implied.
   if (request.actor.kind !== "account") return { ok: false, message: authorisation.reason };

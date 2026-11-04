@@ -61,6 +61,65 @@ describe("qualifyIntake", () => {
     expect(result.recommendedAction).toBe("escalate_to_human");
   });
 
+  it("repairs a single unparseable answer, then uses the repaired reply", async () => {
+    const valid = JSON.stringify({
+      facts: [{ field: "tenure", value: "leasehold", source_message_id: "m1" }],
+      recommended_action: "ask_missing_information",
+      draft_reply: "Thanks — roughly how many weeks were you hoping to complete in?",
+    });
+    let calls = 0;
+    const stub = (async () => {
+      calls += 1;
+      return calls === 1 ? "sorry, here is my answer: not json at all" : valid;
+    }) as unknown as typeof import("@backend/llm").complete;
+
+    const { result, run } = await qualifyIntake(CTX, MESSAGES, { complete: stub });
+    expect(calls).toBe(2);
+    expect(run.repairAttempted).toBe(true);
+    expect(result.facts).toHaveLength(1);
+    expect(result.safeToAutoReply).toBe(true);
+  });
+
+  it("attempts repair at most once, then routes to human review", async () => {
+    let calls = 0;
+    const stub = (async () => {
+      calls += 1;
+      return "still not json";
+    }) as unknown as typeof import("@backend/llm").complete;
+
+    const { result, run } = await qualifyIntake(CTX, MESSAGES, { complete: stub });
+    expect(calls).toBe(2); // first + one repair, never a third
+    expect(run.repairAttempted).toBe(true);
+    expect(result.humanReviewRequired).toBe(true);
+    expect(result.recommendedAction).toBe("escalate_to_human");
+    expect(result.reviewReasonCodes).toContain("schema_invalid");
+  });
+
+  it("does not repair a clean first answer", async () => {
+    let calls = 0;
+    const stub = (async () => {
+      calls += 1;
+      return JSON.stringify({ facts: [], recommended_action: "no_action", draft_reply: "" });
+    }) as unknown as typeof import("@backend/llm").complete;
+
+    const { run } = await qualifyIntake(CTX, MESSAGES, { complete: stub });
+    expect(calls).toBe(1);
+    expect(run.repairAttempted).toBe(false);
+  });
+
+  it("does not repair after a thrown model error — fails closed in one call", async () => {
+    let calls = 0;
+    const stub = (async () => {
+      calls += 1;
+      throw new Error("model 500");
+    }) as unknown as typeof import("@backend/llm").complete;
+
+    const { result, run } = await qualifyIntake(CTX, MESSAGES, { complete: stub });
+    expect(calls).toBe(1);
+    expect(run.repairAttempted).toBe(false);
+    expect(result.humanReviewRequired).toBe(true);
+  });
+
   it("still blanks a prohibited draft the model returns", async () => {
     const { result } = await qualifyIntake(CTX, MESSAGES, {
       complete: reply(

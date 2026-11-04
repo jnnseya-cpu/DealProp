@@ -21,7 +21,7 @@ delete process.env.DATABASE_URL;
 
 const { decideProposal, runAgentsForDeal } = await import("@backend/agents/service");
 const { fileStore } = await import("@backend/store/fileStore");
-const { getDeal, listAgentDecisions, saveDeal } = await import("@backend/store/repository");
+const { getDeal, listAgentDecisions, listAudit, saveDeal } = await import("@backend/store/repository");
 
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
 
@@ -163,6 +163,9 @@ describe("deciding a proposal", () => {
     expect(result.ok).toBe(false);
     expect(result.message).toMatch(/named person/);
     expect(await listAgentDecisions("deal-1")).toHaveLength(0);
+    // Forbidden, but not silent: the refused attempt is on the audit trail.
+    const audit = await listAudit({ subject: "deal-1" });
+    expect(audit.some((e) => e.action === "agent-decision-refused")).toBe(true);
   });
 
   it("refuses a decision with no reason", async () => {
