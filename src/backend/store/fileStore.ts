@@ -4,12 +4,14 @@ import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { AgentDecision } from "@shared/domain/agents";
-import type { DealFee, PayoutRecord, RevealRecord } from "@backend/store/schema";
+import type { DealFee, PayoutRecord, RevealRecord, StoredComparableBundle } from "@backend/store/schema";
 import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { IntakeConversation } from "@shared/domain/intakeConversation";
 import type { AgentRunRecord } from "@shared/domain/agentRun";
 import type { OperatorTask } from "@shared/domain/operatorTask";
+import type { DealHuntQuery, DealHuntRun, DealHuntResult } from "@shared/domain/dealHuntRun";
+import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   dueForExpiry,
@@ -107,6 +109,11 @@ function emptyDatabase(): Database {
     intakeConversations: [],
     agentRuns: [],
     operatorTasks: [],
+    dealHuntQueries: [],
+    dealHuntRuns: [],
+    dealHuntResults: [],
+    comparableBundles: [],
+    evidenceClaims: [],
     suppressions: [],
     dataRoomGrants: [],
     agentDecisions: [],
@@ -154,6 +161,12 @@ async function readDatabase(): Promise<Database> {
       agentRuns: parsed.agentRuns ?? [],
       // Absent in any store written before the operator worklist existed.
       operatorTasks: parsed.operatorTasks ?? [],
+      // Absent in any store written before Deal Hunt existed.
+      dealHuntQueries: parsed.dealHuntQueries ?? [],
+      dealHuntRuns: parsed.dealHuntRuns ?? [],
+      dealHuntResults: parsed.dealHuntResults ?? [],
+      comparableBundles: parsed.comparableBundles ?? [],
+      evidenceClaims: parsed.evidenceClaims ?? [],
       suppressions: parsed.suppressions ?? [],
       dataRoomGrants: parsed.dataRoomGrants ?? [],
       agentDecisions: parsed.agentDecisions ?? [],
@@ -885,6 +898,97 @@ async function saveOperatorTask(task: OperatorTask): Promise<OperatorTask> {
   });
 }
 
+async function saveDealHuntQuery(query: DealHuntQuery): Promise<DealHuntQuery> {
+  return mutate((db) => {
+    const list = db.dealHuntQueries ?? (db.dealHuntQueries = []);
+    const index = list.findIndex((q) => q.id === query.id);
+    if (index < 0) list.push(query);
+    else list[index] = query;
+    return query;
+  });
+}
+
+async function getDealHuntQuery(id: string): Promise<DealHuntQuery | undefined> {
+  const db = await readDatabase();
+  return (db.dealHuntQueries ?? []).find((q) => q.id === id);
+}
+
+async function saveDealHuntRun(run: DealHuntRun): Promise<DealHuntRun> {
+  return mutate((db) => {
+    const list = db.dealHuntRuns ?? (db.dealHuntRuns = []);
+    const index = list.findIndex((r) => r.id === run.id);
+    if (index < 0) list.push(run);
+    else list[index] = run;
+    return run;
+  });
+}
+
+async function getDealHuntRun(id: string): Promise<DealHuntRun | undefined> {
+  const db = await readDatabase();
+  return (db.dealHuntRuns ?? []).find((r) => r.id === id);
+}
+
+async function listDealHuntRuns(investorId: string): Promise<readonly DealHuntRun[]> {
+  const db = await readDatabase();
+  return [...(db.dealHuntRuns ?? [])]
+    .filter((r) => r.investorId === investorId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+async function saveDealHuntResult(result: DealHuntResult): Promise<DealHuntResult> {
+  return mutate((db) => {
+    const list = db.dealHuntResults ?? (db.dealHuntResults = []);
+    const index = list.findIndex((r) => r.id === result.id);
+    if (index < 0) list.push(result);
+    else list[index] = result;
+    return result;
+  });
+}
+
+async function listDealHuntResults(runId: string): Promise<readonly DealHuntResult[]> {
+  const db = await readDatabase();
+  return [...(db.dealHuntResults ?? [])]
+    .filter((r) => r.runId === runId)
+    .sort((a, b) => a.rank - b.rank);
+}
+
+async function getDealHuntResult(id: string): Promise<DealHuntResult | undefined> {
+  const db = await readDatabase();
+  return (db.dealHuntResults ?? []).find((r) => r.id === id);
+}
+
+async function saveComparableBundle(bundle: StoredComparableBundle): Promise<StoredComparableBundle> {
+  return mutate((db) => {
+    const list = db.comparableBundles ?? (db.comparableBundles = []);
+    const index = list.findIndex((b) => b.id === bundle.id);
+    if (index < 0) list.push(bundle);
+    else list[index] = bundle;
+    return bundle;
+  });
+}
+
+async function getComparableBundle(id: string): Promise<StoredComparableBundle | undefined> {
+  const db = await readDatabase();
+  return (db.comparableBundles ?? []).find((b) => b.id === id);
+}
+
+async function saveEvidenceClaim(claim: EvidenceClaim): Promise<EvidenceClaim> {
+  return mutate((db) => {
+    const list = db.evidenceClaims ?? (db.evidenceClaims = []);
+    const index = list.findIndex((c) => c.id === claim.id);
+    if (index < 0) list.push(claim);
+    else list[index] = claim;
+    return claim;
+  });
+}
+
+async function listEvidenceClaims(propertyId: string): Promise<readonly EvidenceClaim[]> {
+  const db = await readDatabase();
+  return [...(db.evidenceClaims ?? [])]
+    .filter((c) => c.propertyId === propertyId)
+    .sort((a, b) => a.observedAt.localeCompare(b.observedAt));
+}
+
 async function listContactedLeads(): Promise<readonly ContactedLead[]> {
   const db = await readDatabase();
   return [...(db.contactedLeads ?? [])].sort((a, b) => b.contactedAt.localeCompare(a.contactedAt));
@@ -1329,6 +1433,18 @@ export const fileStore: Store = {
   listOperatorTasks,
   getOperatorTask,
   saveOperatorTask,
+  saveDealHuntQuery,
+  getDealHuntQuery,
+  saveDealHuntRun,
+  getDealHuntRun,
+  listDealHuntRuns,
+  saveDealHuntResult,
+  listDealHuntResults,
+  getDealHuntResult,
+  saveComparableBundle,
+  getComparableBundle,
+  saveEvidenceClaim,
+  listEvidenceClaims,
   listContactedLeads,
   markContactedLead,
   clearContactedLead,

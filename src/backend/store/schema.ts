@@ -31,6 +31,9 @@ import type { DealOrigin } from "@shared/domain/dealOrigin";
 import type { IntakeConversation } from "@shared/domain/intakeConversation";
 import type { AgentRunRecord } from "@shared/domain/agentRun";
 import type { OperatorTask } from "@shared/domain/operatorTask";
+import type { DealHuntQuery, DealHuntRun, DealHuntResult } from "@shared/domain/dealHuntRun";
+import type { ComparableBundle } from "@shared/domain/comparableBundle";
+import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
 import type { PackApproval } from "@shared/domain/packApproval";
 import type { ResaleArrangement, ResaleConsent } from "@shared/domain/reseller";
 import type { PayoutRecipient } from "@shared/domain/payouts";
@@ -394,6 +397,22 @@ export interface StoredNotification {
   readonly readAt?: string;
 }
 
+/**
+ * A persisted comparable bundle (Deal Hunt spec §6): the computed evidence plus
+ * the keys it is filed under — property, use type, policy version — so it can be
+ * referenced by a result and reused across runs.
+ */
+export interface StoredComparableBundle {
+  readonly id: string;
+  readonly tenantId: string;
+  readonly propertyId: string;
+  /** "sold" / "rent" coverage is inside the bundle; this names the subject use. */
+  readonly useType: string;
+  readonly policyVersion: string;
+  readonly bundle: ComparableBundle;
+  readonly createdAt: string;
+}
+
 export interface Database {
   deals: DealRecord[];
   buyBoxes: BuyBox[];
@@ -450,6 +469,18 @@ export interface Database {
    * and fixture stays valid; readers default to empty.
    */
   operatorTasks?: OperatorTask[];
+  /**
+   * Deal Hunt (Ask LODE for Deals): the confirmed query revisions, the runs that
+   * executed them, and the evidenced results. All optional so existing database
+   * literals and fixtures stay valid; readers default to empty.
+   */
+  dealHuntQueries?: DealHuntQuery[];
+  dealHuntRuns?: DealHuntRun[];
+  dealHuntResults?: DealHuntResult[];
+  /** Comparable evidence bundles (spec §4), referenced by result. */
+  comparableBundles?: StoredComparableBundle[];
+  /** EvidenceClaims (Independent Engine §5) — the sourced-assertion spine. */
+  evidenceClaims?: EvidenceClaim[];
   dataRoomGrants: DataRoomGrant[];
   pendingCharges: PendingCharge[];
   /**
@@ -1147,6 +1178,27 @@ export interface Store {
   getOperatorTask(id: string): Promise<OperatorTask | undefined>;
   /** Upsert by id: a task is re-saved when opened or resolved. */
   saveOperatorTask(task: OperatorTask): Promise<OperatorTask>;
+
+  /* --- Deal Hunt (Ask LODE for Deals) ------------------------------------- */
+  /** A confirmed query revision; editing filters writes a new one. */
+  saveDealHuntQuery(query: DealHuntQuery): Promise<DealHuntQuery>;
+  getDealHuntQuery(id: string): Promise<DealHuntQuery | undefined>;
+  /** Upsert by id: a run is re-saved as it moves through its lifecycle. */
+  saveDealHuntRun(run: DealHuntRun): Promise<DealHuntRun>;
+  getDealHuntRun(id: string): Promise<DealHuntRun | undefined>;
+  /** This investor's hunts, most recent first. */
+  listDealHuntRuns(investorId: string): Promise<readonly DealHuntRun[]>;
+  /** Upsert one result by id (the snapshot is immutable; stale is a flag flip). */
+  saveDealHuntResult(result: DealHuntResult): Promise<DealHuntResult>;
+  /** The results of one run, ranked. */
+  listDealHuntResults(runId: string): Promise<readonly DealHuntResult[]>;
+  getDealHuntResult(id: string): Promise<DealHuntResult | undefined>;
+  /** Comparable evidence bundles (spec §4). */
+  saveComparableBundle(bundle: StoredComparableBundle): Promise<StoredComparableBundle>;
+  getComparableBundle(id: string): Promise<StoredComparableBundle | undefined>;
+  /** EvidenceClaims (Independent Engine §5): append a revision, read by property. */
+  saveEvidenceClaim(claim: EvidenceClaim): Promise<EvidenceClaim>;
+  listEvidenceClaims(propertyId: string): Promise<readonly EvidenceClaim[]>;
 
   /** Fees raised against a deal, most recent first. */
   listDealFees(dealId: string): Promise<readonly DealFee[]>;

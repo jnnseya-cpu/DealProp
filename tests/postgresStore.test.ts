@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { fromMajor, pct } from "@shared/money";
+import { bps, fromMajor, pct } from "@shared/money";
 import { availableBalance, standing } from "@shared/domain/ledger";
 import type { BuyBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
@@ -1096,6 +1096,136 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         const got = await store.getOperatorTask("wl-up");
         expect(got?.status).toBe("resolved");
         expect((await store.listOperatorTasks()).filter((t) => t.id === "wl-up")).toHaveLength(1);
+      });
+    });
+
+    describe("Deal Hunt (queries, runs, results, bundles, claims)", () => {
+      const query = (id: string, investor = "inv-1") => ({
+        id,
+        tenantId: "lode",
+        investorId: investor,
+        revision: 1,
+        criteria: {
+          schemaVersion: "1.0",
+          geographyId: "pilot-birmingham",
+          propertyTypes: ["house"],
+          askingPriceLimitPence: fromMajor(225_000),
+          priceOperator: "lt" as const,
+          returnedWithinDays: 30,
+          eventRequirement: "returned_to_market" as const,
+          priceBaseline: "before_under_offer" as const,
+          minimumDropBps: 500,
+          evidenceSections: ["sold", "rent"] as const,
+          resultLimit: 20,
+        },
+        policyVersion: "deal-hunt-1",
+        confirmedAt: "2026-06-15T09:00:00.000Z",
+      });
+
+      const run = (id: string, investor = "inv-1", createdAt = "2026-06-15T09:00:00.000Z") => ({
+        id,
+        queryId: `q-${id}`,
+        investorId: investor,
+        state: "queued" as const,
+        sourceWatermark: "2026-06-15T00:00:00.000Z",
+        runAt: "2026-06-15T12:00:00.000Z",
+        attempts: 0,
+        coverage: "Queued.",
+        correlationId: `corr-${id}`,
+        createdAt,
+        updatedAt: createdAt,
+      });
+
+      const result = (id: string, runId: string, rank: number) => ({
+        id,
+        runId,
+        propertyId: `p-${id}`,
+        listingId: `l-${id}`,
+        episodeKey: `ep-${id}`,
+        baselineObservationId: "o1",
+        currentObservationId: "o3",
+        returnEventObservationId: "o3",
+        reason: "returned_to_market_reason_unverified" as const,
+        baselinePence: fromMajor(214_950),
+        currentPence: fromMajor(199_950),
+        dropPence: fromMajor(15_000),
+        dropBps: bps(698),
+        rank,
+        resultWatermark: "2026-06-07T00:00:00.000Z",
+        matchReasons: ["Returned to market (reason unverified)."],
+        provenance: ["fixture"],
+        stale: false,
+        enrichment: { sold: "pending" as const, rent: "pending" as const },
+      });
+
+      it("round-trips a query, a run and its results", async () => {
+        await store.saveDealHuntQuery(query("q-dh"));
+        expect(await store.getDealHuntQuery("q-dh")).toEqual(query("q-dh"));
+        await store.saveDealHuntRun(run("dh"));
+        expect(await store.getDealHuntRun("dh")).toEqual(run("dh"));
+        await store.saveDealHuntResult(result("r2", "dh", 2));
+        await store.saveDealHuntResult(result("r1", "dh", 1));
+        const results = await store.listDealHuntResults("dh");
+        expect(results.map((r) => r.id)).toEqual(["r1", "r2"]); // ordered by rank
+      });
+
+      it("lists a specific investor's runs, newest first", async () => {
+        await store.saveDealHuntRun(run("older", "inv-list", "2026-06-01T09:00:00.000Z"));
+        await store.saveDealHuntRun(run("newer", "inv-list", "2026-06-03T09:00:00.000Z"));
+        await store.saveDealHuntRun(run("other", "inv-elsewhere"));
+        const runs = await store.listDealHuntRuns("inv-list");
+        expect(runs.map((r) => r.id)).toEqual(["newer", "older"]);
+      });
+
+      it("upserts a run as it advances, and a result when marked stale", async () => {
+        await store.saveDealHuntRun(run("up"));
+        await store.saveDealHuntRun({ ...run("up"), state: "completed", updatedAt: "2026-06-15T09:05:00.000Z" });
+        expect((await store.getDealHuntRun("up"))?.state).toBe("completed");
+        await store.saveDealHuntResult(result("rs", "up", 1));
+        await store.saveDealHuntResult({ ...result("rs", "up", 1), stale: true });
+        expect((await store.getDealHuntResult("rs"))?.stale).toBe(true);
+        expect((await store.listDealHuntResults("up")).filter((r) => r.id === "rs")).toHaveLength(1);
+      });
+
+      it("stores a comparable bundle and reads it by id", async () => {
+        const bundle = {
+          id: "cb-1",
+          tenantId: "lode",
+          propertyId: "p-r1",
+          useType: "house",
+          policyVersion: "comparable-policy-1",
+          bundle: {
+            policyVersion: "comparable-policy-1",
+            asOf: "2026-06-15",
+            sold: { used: [], rejected: [], widened: false, confidence: "low" as const, requiresReview: true, reason: "none", asOf: "2026-06-15" },
+            rental: { unavailable: true, asOf: "2026-06-15" },
+            coverage: { soldCount: 0, soldThin: true, advertisedRentCount: 0, agreedRentCount: 0, rentUnavailable: true },
+          },
+          createdAt: "2026-06-15T09:00:00.000Z",
+        };
+        await store.saveComparableBundle(bundle);
+        expect(await store.getComparableBundle("cb-1")).toEqual(bundle);
+      });
+
+      it("appends evidence claims and reads them by property, oldest first", async () => {
+        const claim = (id: string, observedAt: string) => ({
+          id,
+          tenantId: "lode",
+          propertyId: "p-claims",
+          field: "asking_price",
+          value: "19995000",
+          sourceType: "fixture",
+          sourceLocator: "obs:o3",
+          effectiveAt: observedAt,
+          observedAt,
+          confidence: "confirmed" as const,
+          entitlement: "pilot",
+          revision: 1,
+        });
+        await store.saveEvidenceClaim(claim("c2", "2026-06-07T00:00:00.000Z"));
+        await store.saveEvidenceClaim(claim("c1", "2026-06-01T00:00:00.000Z"));
+        const claims = await store.listEvidenceClaims("p-claims");
+        expect(claims.map((c) => c.id)).toEqual(["c1", "c2"]);
       });
     });
 

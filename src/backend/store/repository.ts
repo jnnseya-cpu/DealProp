@@ -2,6 +2,9 @@ import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { IntakeConversation } from "@shared/domain/intakeConversation";
 import type { AgentRunRecord } from "@shared/domain/agentRun";
 import type { OperatorTask } from "@shared/domain/operatorTask";
+import type { DealHuntQuery, DealHuntRun, DealHuntResult } from "@shared/domain/dealHuntRun";
+import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
+import type { StoredComparableBundle } from "@backend/store/schema";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { Subscriber } from "@shared/domain/newsletter";
@@ -398,6 +401,54 @@ export async function getOperatorTask(id: string) {
 
 export async function saveOperatorTask(task: OperatorTask) {
   return (await store()).saveOperatorTask(task);
+}
+
+export async function saveDealHuntQuery(query: DealHuntQuery) {
+  return (await store()).saveDealHuntQuery(query);
+}
+
+export async function getDealHuntQuery(id: string) {
+  return (await store()).getDealHuntQuery(id);
+}
+
+export async function saveDealHuntRun(run: DealHuntRun) {
+  return (await store()).saveDealHuntRun(run);
+}
+
+export async function getDealHuntRun(id: string) {
+  return (await store()).getDealHuntRun(id);
+}
+
+export async function listDealHuntRuns(investorId: string) {
+  return (await store()).listDealHuntRuns(investorId);
+}
+
+export async function saveDealHuntResult(result: DealHuntResult) {
+  return (await store()).saveDealHuntResult(result);
+}
+
+export async function listDealHuntResults(runId: string) {
+  return (await store()).listDealHuntResults(runId);
+}
+
+export async function getDealHuntResult(id: string) {
+  return (await store()).getDealHuntResult(id);
+}
+
+export async function saveComparableBundle(bundle: StoredComparableBundle) {
+  return (await store()).saveComparableBundle(bundle);
+}
+
+export async function getComparableBundle(id: string) {
+  return (await store()).getComparableBundle(id);
+}
+
+export async function saveEvidenceClaim(claim: EvidenceClaim) {
+  return (await store()).saveEvidenceClaim(claim);
+}
+
+export async function listEvidenceClaims(propertyId: string) {
+  return (await store()).listEvidenceClaims(propertyId);
 }
 
 export async function listContactedLeads() {

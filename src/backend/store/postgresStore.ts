@@ -5,12 +5,14 @@ import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { AgentDecision } from "@shared/domain/agents";
-import type { DealFee, PayoutRecord, RevealRecord } from "@backend/store/schema";
+import type { DealFee, PayoutRecord, RevealRecord, StoredComparableBundle } from "@backend/store/schema";
 import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { IntakeConversation } from "@shared/domain/intakeConversation";
 import type { AgentRunRecord } from "@shared/domain/agentRun";
 import type { OperatorTask } from "@shared/domain/operatorTask";
+import type { DealHuntQuery, DealHuntRun, DealHuntResult } from "@shared/domain/dealHuntRun";
+import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   availableBalance,
@@ -240,6 +242,46 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS operator_tasks_status
     ON operator_tasks (status, created_at DESC);
+  -- Deal Hunt (Ask LODE for Deals): confirmed query revisions, the runs that
+  -- executed them, the evidenced results, and the comparable bundles + evidence
+  -- claims they reference. Each keeps its row shape minimal (id + jsonb + the
+  -- columns a query filters on) in line with every other entity here.
+  CREATE TABLE IF NOT EXISTS deal_hunt_queries (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    investor_id text NOT NULL,
+    confirmed_at timestamptz NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS deal_hunt_runs (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    investor_id text NOT NULL,
+    created_at timestamptz NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS deal_hunt_runs_investor
+    ON deal_hunt_runs (investor_id, created_at DESC);
+  CREATE TABLE IF NOT EXISTS deal_hunt_results (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    run_id text NOT NULL,
+    rank integer NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS deal_hunt_results_run
+    ON deal_hunt_results (run_id, rank);
+  CREATE TABLE IF NOT EXISTS comparable_bundles (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    property_id text NOT NULL,
+    created_at timestamptz NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS evidence_claims (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    property_id text NOT NULL,
+    observed_at timestamptz NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS evidence_claims_property
+    ON evidence_claims (property_id, observed_at);
   -- Keyed by address, because one mailbox can appear against several
   -- organisations and somebody who asked to be left alone asked once.
   CREATE TABLE IF NOT EXISTS suppressions (
@@ -1364,6 +1406,129 @@ export const postgresStore: Store = {
       [task.id, JSON.stringify(task), task.status, task.createdAt],
     );
     return task;
+  },
+
+  async saveDealHuntQuery(query: DealHuntQuery): Promise<DealHuntQuery> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO deal_hunt_queries (id, data, investor_id, confirmed_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE
+         SET data = EXCLUDED.data, investor_id = EXCLUDED.investor_id, confirmed_at = EXCLUDED.confirmed_at`,
+      [query.id, JSON.stringify(query), query.investorId, query.confirmedAt],
+    );
+    return query;
+  },
+
+  async getDealHuntQuery(id: string): Promise<DealHuntQuery | undefined> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: DealHuntQuery }>(
+      "SELECT data FROM deal_hunt_queries WHERE id = $1",
+      [id],
+    );
+    return rows[0]?.data;
+  },
+
+  async saveDealHuntRun(run: DealHuntRun): Promise<DealHuntRun> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO deal_hunt_runs (id, data, investor_id, created_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE
+         SET data = EXCLUDED.data, investor_id = EXCLUDED.investor_id, created_at = EXCLUDED.created_at`,
+      [run.id, JSON.stringify(run), run.investorId, run.createdAt],
+    );
+    return run;
+  },
+
+  async getDealHuntRun(id: string): Promise<DealHuntRun | undefined> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: DealHuntRun }>(
+      "SELECT data FROM deal_hunt_runs WHERE id = $1",
+      [id],
+    );
+    return rows[0]?.data;
+  },
+
+  async listDealHuntRuns(investorId: string): Promise<readonly DealHuntRun[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: DealHuntRun }>(
+      "SELECT data FROM deal_hunt_runs WHERE investor_id = $1 ORDER BY created_at DESC",
+      [investorId],
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async saveDealHuntResult(result: DealHuntResult): Promise<DealHuntResult> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO deal_hunt_results (id, data, run_id, rank)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE
+         SET data = EXCLUDED.data, run_id = EXCLUDED.run_id, rank = EXCLUDED.rank`,
+      [result.id, JSON.stringify(result), result.runId, result.rank],
+    );
+    return result;
+  },
+
+  async listDealHuntResults(runId: string): Promise<readonly DealHuntResult[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: DealHuntResult }>(
+      "SELECT data FROM deal_hunt_results WHERE run_id = $1 ORDER BY rank",
+      [runId],
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async getDealHuntResult(id: string): Promise<DealHuntResult | undefined> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: DealHuntResult }>(
+      "SELECT data FROM deal_hunt_results WHERE id = $1",
+      [id],
+    );
+    return rows[0]?.data;
+  },
+
+  async saveComparableBundle(bundle: StoredComparableBundle): Promise<StoredComparableBundle> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO comparable_bundles (id, data, property_id, created_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE
+         SET data = EXCLUDED.data, property_id = EXCLUDED.property_id, created_at = EXCLUDED.created_at`,
+      [bundle.id, JSON.stringify(bundle), bundle.propertyId, bundle.createdAt],
+    );
+    return bundle;
+  },
+
+  async getComparableBundle(id: string): Promise<StoredComparableBundle | undefined> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: StoredComparableBundle }>(
+      "SELECT data FROM comparable_bundles WHERE id = $1",
+      [id],
+    );
+    return rows[0]?.data;
+  },
+
+  async saveEvidenceClaim(claim: EvidenceClaim): Promise<EvidenceClaim> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO evidence_claims (id, data, property_id, observed_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE
+         SET data = EXCLUDED.data, property_id = EXCLUDED.property_id, observed_at = EXCLUDED.observed_at`,
+      [claim.id, JSON.stringify(claim), claim.propertyId, claim.observedAt],
+    );
+    return claim;
+  },
+
+  async listEvidenceClaims(propertyId: string): Promise<readonly EvidenceClaim[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: EvidenceClaim }>(
+      "SELECT data FROM evidence_claims WHERE property_id = $1 ORDER BY observed_at",
+      [propertyId],
+    );
+    return rows.map((r) => r.data);
   },
 
   async listContactedLeads(): Promise<readonly ContactedLead[]> {
