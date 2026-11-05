@@ -5,17 +5,34 @@ import { revalidatePath } from "next/cache";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { createAndRunHunt } from "@backend/dealHunt/service";
 import { openAppraisalFromResult } from "@backend/dealHunt/handoff";
+import { runDealHuntJob } from "@backend/dealHunt/worker";
+import { dealHuntSource } from "@backend/dealHunt/fixtureSource";
+import { randomUUID } from "node:crypto";
 import {
   getDealHuntRun,
   getDealHuntResult,
   getComparableBundle,
   listEvidenceClaims,
   saveDecisionSnapshot,
+  saveComparisonRun,
+  saveWatchCursor,
+  getWatchCursor,
+  getDealHuntQuery,
+  recordNotification,
 } from "@backend/store/repository";
 import { decisionFromResult } from "@shared/domain/dealHuntDecision";
 import { createDecisionSnapshot } from "@shared/domain/decisionSnapshot";
+import { buildComparisonRun, type ComparisonEntry, type SharedAssumptions } from "@shared/domain/comparison";
+import { createWatch, issueWatchEvents, type WatchCandidate } from "@shared/domain/watchCursor";
 import { fromMajor } from "@shared/money";
 import type { CriteriaDraft } from "@shared/domain/dealHunt";
+
+const DH_SHARED_ASSUMPTIONS: SharedAssumptions = {
+  version: "dh-decision-1",
+  strategy: "returned-and-reduced",
+  financeRateBps: 0,
+  downsideDefinition: "conservative as-is low valuation vs current ask",
+};
 
 /**
  * Run a confirmed Deal Hunt. Its own POST endpoint, checking its own permission
@@ -124,4 +141,112 @@ export async function saveSnapshotAction(formData: FormData): Promise<void> {
   });
   if (created.ok) await saveDecisionSnapshot(created.snapshot);
   revalidatePath(`/operator/hunts/${runId}`);
+}
+
+/**
+ * Compare up to four selected results under one shared assumption set (IND08),
+ * persist the ComparisonRun, and open it. Its own POST endpoint (#29).
+ */
+export async function compareAction(formData: FormData): Promise<void> {
+  const viewer = await requirePermission("view-audit-log", "/operator/hunts");
+  const account = viewerAccount(viewer);
+  const runId = String(formData.get("runId") ?? "");
+  const ids = formData.getAll("ids").map((v) => String(v)).filter((v) => v !== "");
+  const backTo = `/operator/hunts/${runId}`;
+  if (account === undefined) redirect(`${backTo}?error=named-account-required`);
+  if (ids.length < 2) redirect(`${backTo}?error=${encodeURIComponent("Select at least two results to compare.")}`);
+
+  const entries: ComparisonEntry[] = [];
+  for (const id of ids.slice(0, 4)) {
+    const result = await getDealHuntResult(id);
+    if (result === undefined) continue;
+    const bundle = result.evidenceBundleId !== undefined ? await getComparableBundle(result.evidenceBundleId) : undefined;
+    const claims = await listEvidenceClaims(result.propertyId);
+    entries.push({
+      propertyId: result.propertyId,
+      label: result.propertyId,
+      decision: decisionFromResult(result, bundle?.bundle, claims),
+    });
+  }
+
+  const built = buildComparisonRun({
+    id: randomUUID(),
+    tenantId: "lode",
+    investorId: account.id,
+    sharedAssumptions: DH_SHARED_ASSUMPTIONS,
+    entries,
+    createdAt: new Date().toISOString(),
+  });
+  if (!built.ok) redirect(`${backTo}?error=${encodeURIComponent(built.reason)}`);
+  await saveComparisonRun(built.run);
+  redirect(`/operator/hunts/compare/${built.run.id}`);
+}
+
+/**
+ * Save this hunt as a watch ("Watch this search"), so new qualifying episodes
+ * alert the owner. Its own POST endpoint (#29).
+ */
+export async function watchHuntAction(formData: FormData): Promise<void> {
+  const viewer = await requirePermission("view-audit-log", "/operator/hunts");
+  const account = viewerAccount(viewer);
+  const runId = String(formData.get("runId") ?? "");
+  if (account === undefined || runId === "") return;
+  const run = await getDealHuntRun(runId);
+  if (run === undefined) return;
+  const query = await getDealHuntQuery(run.queryId);
+  if (query === undefined) return;
+
+  const now = new Date().toISOString();
+  const watch = createWatch({
+    id: `watch-${query.id}`,
+    tenantId: "lode",
+    ownerId: account.id,
+    queryId: query.id,
+    queryRevision: query.revision,
+    scope: "search",
+    now,
+  });
+  await saveWatchCursor(watch);
+  revalidatePath(`/operator/hunts/${runId}`);
+}
+
+/**
+ * Re-run a saved watch now: execute its query, emit one alert per genuinely new
+ * qualifying episode (deduplicated by watch/property/episode, IND13), advance the
+ * cursor and record the alerts in-app. Its own POST endpoint (#29).
+ */
+export async function runWatchAction(formData: FormData): Promise<void> {
+  const viewer = await requirePermission("view-audit-log", "/operator/hunts");
+  const account = viewerAccount(viewer);
+  const watchId = String(formData.get("watchId") ?? "");
+  if (account === undefined || watchId === "") return;
+  const watch = await getWatchCursor(watchId);
+  if (watch === undefined) return;
+  const query = await getDealHuntQuery(watch.queryId);
+  if (query === undefined) return;
+
+  const outcome = await runDealHuntJob(query, dealHuntSource());
+  const candidates: WatchCandidate[] = outcome.results.map((r) => ({
+    propertyId: r.propertyId,
+    episodeKey: r.episodeKey,
+    at: r.resultWatermark,
+  }));
+  const now = new Date().toISOString();
+  const { events, watch: advanced } = issueWatchEvents(watch, candidates, now);
+  await saveWatchCursor(advanced);
+
+  for (const e of events) {
+    await recordNotification({
+      id: randomUUID(),
+      eventKey: `watch-${watch.id}-${e.propertyId}-${e.episodeKey}`,
+      recipientAccountId: watch.ownerId,
+      channel: "inapp",
+      lawfulBasis: "service",
+      severity: "info",
+      status: "logged",
+      subject: `Deal Hunt watch: ${e.kind === "materially-changed" ? "a match changed" : "a new match"} (${e.propertyId})`,
+      createdAt: now,
+    });
+  }
+  revalidatePath("/operator/hunts");
 }

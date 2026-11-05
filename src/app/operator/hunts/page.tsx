@@ -1,11 +1,11 @@
 import { OperatorNav } from "@/app/operator/OperatorNav";
 import { SiteHeader, Panel, Badge, Button } from "@/app/components/chrome";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
-import { listDealHuntRuns } from "@backend/store/repository";
+import { listDealHuntRuns, listWatchCursors } from "@backend/store/repository";
 import { interpret } from "@backend/dealHunt/service";
 import { fixturesEnabled } from "@backend/dealHunt/fixtureSource";
 import type { DealHuntRunState } from "@shared/domain/dealHuntRun";
-import { runHuntAction } from "@/app/operator/hunts/actions";
+import { runHuntAction, runWatchAction } from "@/app/operator/hunts/actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Deal Hunts — Lode" };
@@ -42,6 +42,7 @@ export default async function HuntsPage({
   const brief = typeof sp.brief === "string" ? sp.brief : "";
   const interpreted = brief.trim() !== "" ? interpret(brief) : undefined;
   const runs = account !== undefined ? await listDealHuntRuns(account.id) : [];
+  const watches = account !== undefined ? await listWatchCursors(account.id) : [];
 
   const d = interpreted?.draft;
 
@@ -162,6 +163,34 @@ export default async function HuntsPage({
               </li>
             ))}
           </ul>
+        )}
+
+        {watches.length > 0 && (
+          <>
+            <h2 className="eyebrow mt-12">My watches</h2>
+            <ul className="mt-3 divide-y divide-ink-800/60 overflow-hidden rounded-2xl border hairline bg-surface-1">
+              {watches.map((w) => (
+                <li key={w.id} className="flex items-center justify-between gap-4 px-5 py-3.5">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Badge tone={w.enabled ? "good" : "neutral"}>{w.enabled ? "active" : "paused"}</Badge>
+                      <span className="text-sm text-ink-200">{w.dedupeKeys.length} episode{w.dedupeKeys.length === 1 ? "" : "s"} alerted</span>
+                    </div>
+                    <p className="mt-1 font-mono text-[11px] text-ink-600">query {w.queryId.slice(0, 8)} · since {w.watermark.slice(0, 10)}</p>
+                  </div>
+                  <form action={runWatchAction}>
+                    <input type="hidden" name="watchId" value={w.id} />
+                    <button
+                      type="submit"
+                      className="h-7 shrink-0 rounded-md border hairline bg-surface-2 px-2.5 text-xs text-ink-200 transition-colors hover:border-ink-600 hover:bg-surface-3"
+                    >
+                      Run now
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </div>
     </main>

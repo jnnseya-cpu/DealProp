@@ -8,6 +8,7 @@ import {
   listDealHuntResults,
   listEvidenceClaims,
   listDecisionSnapshots,
+  getWatchCursor,
 } from "@backend/store/repository";
 import { gbp, percent } from "@shared/format";
 import { sourcePermits } from "@shared/domain/sources";
@@ -16,7 +17,7 @@ import { decisionFromResult } from "@shared/domain/dealHuntDecision";
 import type { DecisionOutput, DecisionVerdict } from "@shared/domain/decisionOutput";
 import type { DealHuntResult, DealHuntRunState } from "@shared/domain/dealHuntRun";
 import type { StoredComparableBundle } from "@backend/store/schema";
-import { openAppraisalAction, saveSnapshotAction } from "@/app/operator/hunts/actions";
+import { openAppraisalAction, saveSnapshotAction, compareAction, watchHuntAction } from "@/app/operator/hunts/actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Deal Hunt — Lode" };
@@ -196,6 +197,7 @@ export default async function HuntDetailPage({ params }: { params: Promise<{ id:
     // A decision snapshot is filed under the result id as its subject.
     if ((await listDecisionSnapshots(r.id)).length > 0) snapshotByResult.add(r.id);
   }
+  const watched = (await getWatchCursor(`watch-${run.queryId}`)) !== undefined;
 
   return (
     <main data-accent="violet" className="min-h-screen pb-24">
@@ -210,6 +212,23 @@ export default async function HuntDetailPage({ params }: { params: Promise<{ id:
           </h1>
         </div>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-300">{run.coverage}</p>
+
+        <div className="mt-4">
+          {watched ? (
+            <span className="text-[12px] text-emerald-300/80">✓ Watching this search — new qualifying matches alert you</span>
+          ) : (
+            <form action={watchHuntAction}>
+              <input type="hidden" name="runId" value={run.id} />
+              <button
+                type="submit"
+                className="h-7 rounded-md border hairline bg-surface-2 px-2.5 text-xs text-ink-200 transition-colors hover:border-ink-600 hover:bg-surface-3"
+              >
+                Watch this search
+              </button>
+            </form>
+          )}
+        </div>
+
         {run.counts !== undefined && (
           <div className="mt-5 grid grid-cols-3 gap-4">
             <Stat label="Eligible" value={String(run.counts.eligible)} size="sm" />
@@ -238,6 +257,32 @@ export default async function HuntDetailPage({ params }: { params: Promise<{ id:
               ))}
             </div>
           </Panel>
+        )}
+
+        {results.length >= 2 && (
+          <form action={compareAction} className="mt-6 rounded-2xl border hairline bg-surface-1 px-5 py-4">
+            <input type="hidden" name="runId" value={run.id} />
+            <p className="eyebrow">Compare and decide</p>
+            <p className="mt-2 text-[13px] text-ink-400">Select two to four to compare under one shared assumption set.</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {results.map((r) => (
+                <label key={r.id} className="flex items-center gap-2 text-[13px] text-ink-200">
+                  <input type="checkbox" name="ids" value={r.id} />
+                  <span className="font-mono text-[11px] text-ink-500">#{r.rank}</span>
+                  {r.propertyId}
+                  <Badge tone={VERDICT_TONE[decisions.get(r.id)!.verdict]}>{decisions.get(r.id)!.verdict.replace("-", " ")}</Badge>
+                </label>
+              ))}
+            </div>
+            <div className="mt-3">
+              <button
+                type="submit"
+                className="h-8 rounded-md border hairline bg-surface-2 px-3 text-[13px] text-ink-100 transition-colors hover:border-ink-600 hover:bg-surface-3"
+              >
+                Compare selected
+              </button>
+            </div>
+          </form>
         )}
       </div>
     </main>
