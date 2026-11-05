@@ -29,6 +29,7 @@ const DESTINATIONS: readonly NavItem[] = [
   { href: "/operator/payouts", label: "Payouts" },
   { href: "/operator/discovery", label: "Discovery" },
   { href: "/operator/sourcing", label: "Sourcing" },
+  { href: "/operator/hunts", label: "Hunts" },
   { href: "/operator/intake", label: "Intake" },
   { href: "/operator/tasks", label: "Worklist" },
   { href: "/operator/agents", label: "Agents" },
