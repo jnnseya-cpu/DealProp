@@ -15,6 +15,7 @@ import type { DealHuntQuery, DealHuntRun, DealHuntResult } from "@shared/domain/
 import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
 import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
 import type { ComparisonRun } from "@shared/domain/comparison";
+import type { WatchCursor } from "@shared/domain/watchCursor";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   availableBalance,
@@ -300,6 +301,14 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS comparison_runs_investor
     ON comparison_runs (investor_id, created_at DESC);
+  CREATE TABLE IF NOT EXISTS watch_cursors (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    owner_id text NOT NULL,
+    created_at timestamptz NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS watch_cursors_owner
+    ON watch_cursors (owner_id, created_at DESC);
   -- Keyed by address, because one mailbox can appear against several
   -- organisations and somebody who asked to be left alone asked once.
   CREATE TABLE IF NOT EXISTS suppressions (
@@ -1605,6 +1614,36 @@ export const postgresStore: Store = {
     const { rows } = await getPool().query<{ data: ComparisonRun }>(
       "SELECT data FROM comparison_runs WHERE investor_id = $1 ORDER BY created_at DESC",
       [investorId],
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async saveWatchCursor(watch: WatchCursor): Promise<WatchCursor> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO watch_cursors (id, data, owner_id, created_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE
+         SET data = EXCLUDED.data, owner_id = EXCLUDED.owner_id, created_at = EXCLUDED.created_at`,
+      [watch.id, JSON.stringify(watch), watch.ownerId, watch.createdAt],
+    );
+    return watch;
+  },
+
+  async getWatchCursor(id: string): Promise<WatchCursor | undefined> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: WatchCursor }>(
+      "SELECT data FROM watch_cursors WHERE id = $1",
+      [id],
+    );
+    return rows[0]?.data;
+  },
+
+  async listWatchCursors(ownerId: string): Promise<readonly WatchCursor[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: WatchCursor }>(
+      "SELECT data FROM watch_cursors WHERE owner_id = $1 ORDER BY created_at DESC",
+      [ownerId],
     );
     return rows.map((r) => r.data);
   },

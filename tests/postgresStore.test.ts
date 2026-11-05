@@ -1273,6 +1273,28 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         expect(await store.getComparisonRun("cmp-rt")).toEqual(cmp);
         expect((await store.listComparisonRuns("inv-cmp")).map((c) => c.id)).toContain("cmp-rt");
       });
+
+      it("round-trips a watch cursor and upserts as it advances", async () => {
+        const w = {
+          id: "w-rt",
+          tenantId: "lode",
+          ownerId: "inv-w",
+          queryId: "q-w",
+          queryRevision: 1,
+          scope: "search" as const,
+          watermark: "2026-06-01T00:00:00.000Z",
+          delivery: { inApp: true, email: false },
+          dedupeKeys: [],
+          enabled: true,
+          createdAt: "2026-06-01T00:00:00.000Z",
+          updatedAt: "2026-06-01T00:00:00.000Z",
+        };
+        await store.saveWatchCursor(w);
+        expect(await store.getWatchCursor("w-rt")).toEqual(w);
+        await store.saveWatchCursor({ ...w, enabled: false, dedupeKeys: ["w-rt|p1|e1|-"] });
+        expect((await store.getWatchCursor("w-rt"))?.enabled).toBe(false);
+        expect((await store.listWatchCursors("inv-w")).filter((x) => x.id === "w-rt")).toHaveLength(1);
+      });
     });
 
     describe("contacted leads (suppressed from future runs)", () => {

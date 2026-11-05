@@ -14,6 +14,7 @@ import type { DealHuntQuery, DealHuntRun, DealHuntResult } from "@shared/domain/
 import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
 import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
 import type { ComparisonRun } from "@shared/domain/comparison";
+import type { WatchCursor } from "@shared/domain/watchCursor";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   dueForExpiry,
@@ -118,6 +119,7 @@ function emptyDatabase(): Database {
     evidenceClaims: [],
     decisionSnapshots: [],
     comparisonRuns: [],
+    watchCursors: [],
     suppressions: [],
     dataRoomGrants: [],
     agentDecisions: [],
@@ -173,6 +175,7 @@ async function readDatabase(): Promise<Database> {
       evidenceClaims: parsed.evidenceClaims ?? [],
       decisionSnapshots: parsed.decisionSnapshots ?? [],
       comparisonRuns: parsed.comparisonRuns ?? [],
+      watchCursors: parsed.watchCursors ?? [],
       suppressions: parsed.suppressions ?? [],
       dataRoomGrants: parsed.dataRoomGrants ?? [],
       agentDecisions: parsed.agentDecisions ?? [],
@@ -1039,6 +1042,28 @@ async function listComparisonRuns(investorId: string): Promise<readonly Comparis
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+async function saveWatchCursor(watch: WatchCursor): Promise<WatchCursor> {
+  return mutate((db) => {
+    const list = db.watchCursors ?? (db.watchCursors = []);
+    const index = list.findIndex((w) => w.id === watch.id);
+    if (index < 0) list.push(watch);
+    else list[index] = watch;
+    return watch;
+  });
+}
+
+async function getWatchCursor(id: string): Promise<WatchCursor | undefined> {
+  const db = await readDatabase();
+  return (db.watchCursors ?? []).find((w) => w.id === id);
+}
+
+async function listWatchCursors(ownerId: string): Promise<readonly WatchCursor[]> {
+  const db = await readDatabase();
+  return [...(db.watchCursors ?? [])]
+    .filter((w) => w.ownerId === ownerId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 async function listContactedLeads(): Promise<readonly ContactedLead[]> {
   const db = await readDatabase();
   return [...(db.contactedLeads ?? [])].sort((a, b) => b.contactedAt.localeCompare(a.contactedAt));
@@ -1501,6 +1526,9 @@ export const fileStore: Store = {
   saveComparisonRun,
   getComparisonRun,
   listComparisonRuns,
+  saveWatchCursor,
+  getWatchCursor,
+  listWatchCursors,
   listContactedLeads,
   markContactedLead,
   clearContactedLead,

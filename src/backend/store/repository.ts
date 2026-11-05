@@ -6,6 +6,7 @@ import type { DealHuntQuery, DealHuntRun, DealHuntResult } from "@shared/domain/
 import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
 import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
 import type { ComparisonRun } from "@shared/domain/comparison";
+import type { WatchCursor } from "@shared/domain/watchCursor";
 import type { StoredComparableBundle } from "@backend/store/schema";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { PayoutRecipient } from "@shared/domain/payouts";
@@ -475,6 +476,18 @@ export async function getComparisonRun(id: string) {
 
 export async function listComparisonRuns(investorId: string) {
   return (await store()).listComparisonRuns(investorId);
+}
+
+export async function saveWatchCursor(watch: WatchCursor) {
+  return (await store()).saveWatchCursor(watch);
+}
+
+export async function getWatchCursor(id: string) {
+  return (await store()).getWatchCursor(id);
+}
+
+export async function listWatchCursors(ownerId: string) {
+  return (await store()).listWatchCursors(ownerId);
 }
 
 export async function listContactedLeads() {

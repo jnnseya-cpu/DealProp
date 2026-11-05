@@ -36,6 +36,7 @@ import type { ComparableBundle } from "@shared/domain/comparableBundle";
 import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
 import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
 import type { ComparisonRun } from "@shared/domain/comparison";
+import type { WatchCursor } from "@shared/domain/watchCursor";
 import type { PackApproval } from "@shared/domain/packApproval";
 import type { ResaleArrangement, ResaleConsent } from "@shared/domain/reseller";
 import type { PayoutRecipient } from "@shared/domain/payouts";
@@ -487,6 +488,8 @@ export interface Database {
   decisionSnapshots?: DecisionSnapshot[];
   /** ComparisonRuns (Independent Engine §5) — Compare and Decide, up to four. */
   comparisonRuns?: ComparisonRun[];
+  /** Saved watches (Deal Hunt §7 / WatchCursor §5). */
+  watchCursors?: WatchCursor[];
   dataRoomGrants: DataRoomGrant[];
   pendingCharges: PendingCharge[];
   /**
@@ -1213,6 +1216,10 @@ export interface Store {
   saveComparisonRun(run: ComparisonRun): Promise<ComparisonRun>;
   getComparisonRun(id: string): Promise<ComparisonRun | undefined>;
   listComparisonRuns(investorId: string): Promise<readonly ComparisonRun[]>;
+  /** Saved watches. Upsert by id (the cursor advances and pauses/resumes). */
+  saveWatchCursor(watch: WatchCursor): Promise<WatchCursor>;
+  getWatchCursor(id: string): Promise<WatchCursor | undefined>;
+  listWatchCursors(ownerId: string): Promise<readonly WatchCursor[]>;
 
   /** Fees raised against a deal, most recent first. */
   listDealFees(dealId: string): Promise<readonly DealFee[]>;
