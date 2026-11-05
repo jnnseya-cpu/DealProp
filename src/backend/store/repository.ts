@@ -5,6 +5,7 @@ import type { OperatorTask } from "@shared/domain/operatorTask";
 import type { DealHuntQuery, DealHuntRun, DealHuntResult } from "@shared/domain/dealHuntRun";
 import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
 import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
+import type { ComparisonRun } from "@shared/domain/comparison";
 import type { StoredComparableBundle } from "@backend/store/schema";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { PayoutRecipient } from "@shared/domain/payouts";
@@ -462,6 +463,18 @@ export async function getDecisionSnapshot(id: string) {
 
 export async function listDecisionSnapshots(subjectId: string) {
   return (await store()).listDecisionSnapshots(subjectId);
+}
+
+export async function saveComparisonRun(run: ComparisonRun) {
+  return (await store()).saveComparisonRun(run);
+}
+
+export async function getComparisonRun(id: string) {
+  return (await store()).getComparisonRun(id);
+}
+
+export async function listComparisonRuns(investorId: string) {
+  return (await store()).listComparisonRuns(investorId);
 }
 
 export async function listContactedLeads() {

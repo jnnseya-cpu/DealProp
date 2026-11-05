@@ -13,6 +13,7 @@ import type { OperatorTask } from "@shared/domain/operatorTask";
 import type { DealHuntQuery, DealHuntRun, DealHuntResult } from "@shared/domain/dealHuntRun";
 import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
 import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
+import type { ComparisonRun } from "@shared/domain/comparison";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   dueForExpiry,
@@ -116,6 +117,7 @@ function emptyDatabase(): Database {
     comparableBundles: [],
     evidenceClaims: [],
     decisionSnapshots: [],
+    comparisonRuns: [],
     suppressions: [],
     dataRoomGrants: [],
     agentDecisions: [],
@@ -170,6 +172,7 @@ async function readDatabase(): Promise<Database> {
       comparableBundles: parsed.comparableBundles ?? [],
       evidenceClaims: parsed.evidenceClaims ?? [],
       decisionSnapshots: parsed.decisionSnapshots ?? [],
+      comparisonRuns: parsed.comparisonRuns ?? [],
       suppressions: parsed.suppressions ?? [],
       dataRoomGrants: parsed.dataRoomGrants ?? [],
       agentDecisions: parsed.agentDecisions ?? [],
@@ -1014,6 +1017,28 @@ async function listDecisionSnapshots(subjectId: string): Promise<readonly Decisi
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+async function saveComparisonRun(run: ComparisonRun): Promise<ComparisonRun> {
+  return mutate((db) => {
+    const list = db.comparisonRuns ?? (db.comparisonRuns = []);
+    const index = list.findIndex((r) => r.id === run.id);
+    if (index < 0) list.push(run);
+    else list[index] = run;
+    return run;
+  });
+}
+
+async function getComparisonRun(id: string): Promise<ComparisonRun | undefined> {
+  const db = await readDatabase();
+  return (db.comparisonRuns ?? []).find((r) => r.id === id);
+}
+
+async function listComparisonRuns(investorId: string): Promise<readonly ComparisonRun[]> {
+  const db = await readDatabase();
+  return [...(db.comparisonRuns ?? [])]
+    .filter((r) => r.investorId === investorId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 async function listContactedLeads(): Promise<readonly ContactedLead[]> {
   const db = await readDatabase();
   return [...(db.contactedLeads ?? [])].sort((a, b) => b.contactedAt.localeCompare(a.contactedAt));
@@ -1473,6 +1498,9 @@ export const fileStore: Store = {
   saveDecisionSnapshot,
   getDecisionSnapshot,
   listDecisionSnapshots,
+  saveComparisonRun,
+  getComparisonRun,
+  listComparisonRuns,
   listContactedLeads,
   markContactedLead,
   clearContactedLead,

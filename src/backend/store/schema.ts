@@ -35,6 +35,7 @@ import type { DealHuntQuery, DealHuntRun, DealHuntResult } from "@shared/domain/
 import type { ComparableBundle } from "@shared/domain/comparableBundle";
 import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
 import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
+import type { ComparisonRun } from "@shared/domain/comparison";
 import type { PackApproval } from "@shared/domain/packApproval";
 import type { ResaleArrangement, ResaleConsent } from "@shared/domain/reseller";
 import type { PayoutRecipient } from "@shared/domain/payouts";
@@ -484,6 +485,8 @@ export interface Database {
   evidenceClaims?: EvidenceClaim[];
   /** DecisionSnapshots (Independent Engine §5) — versioned, permitted decisions. */
   decisionSnapshots?: DecisionSnapshot[];
+  /** ComparisonRuns (Independent Engine §5) — Compare and Decide, up to four. */
+  comparisonRuns?: ComparisonRun[];
   dataRoomGrants: DataRoomGrant[];
   pendingCharges: PendingCharge[];
   /**
@@ -1206,6 +1209,10 @@ export interface Store {
   saveDecisionSnapshot(snapshot: DecisionSnapshot): Promise<DecisionSnapshot>;
   getDecisionSnapshot(id: string): Promise<DecisionSnapshot | undefined>;
   listDecisionSnapshots(subjectId: string): Promise<readonly DecisionSnapshot[]>;
+  /** ComparisonRuns (Independent Engine §5), most recent first per investor. */
+  saveComparisonRun(run: ComparisonRun): Promise<ComparisonRun>;
+  getComparisonRun(id: string): Promise<ComparisonRun | undefined>;
+  listComparisonRuns(investorId: string): Promise<readonly ComparisonRun[]>;
 
   /** Fees raised against a deal, most recent first. */
   listDealFees(dealId: string): Promise<readonly DealFee[]>;

@@ -1258,6 +1258,21 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         expect((await store.getDecisionSnapshot("snap-rt"))?.revoked).toBe(true);
         expect((await store.listDecisionSnapshots("deal-snap")).filter((s) => s.id === "snap-rt")).toHaveLength(1);
       });
+
+      it("round-trips a comparison run and lists it by investor (IND08)", async () => {
+        const cmp = {
+          id: "cmp-rt",
+          tenantId: "lode",
+          investorId: "inv-cmp",
+          sharedAssumptions: { version: "v1", strategy: "flip", financeRateBps: 900, downsideDefinition: "stress" },
+          entries: [],
+          resultWatermark: "2026-06-15T09:00:00.000Z",
+          createdAt: "2026-06-15T09:00:00.000Z",
+        };
+        await store.saveComparisonRun(cmp);
+        expect(await store.getComparisonRun("cmp-rt")).toEqual(cmp);
+        expect((await store.listComparisonRuns("inv-cmp")).map((c) => c.id)).toContain("cmp-rt");
+      });
     });
 
     describe("contacted leads (suppressed from future runs)", () => {

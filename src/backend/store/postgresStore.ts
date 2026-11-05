@@ -14,6 +14,7 @@ import type { OperatorTask } from "@shared/domain/operatorTask";
 import type { DealHuntQuery, DealHuntRun, DealHuntResult } from "@shared/domain/dealHuntRun";
 import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
 import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
+import type { ComparisonRun } from "@shared/domain/comparison";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   availableBalance,
@@ -291,6 +292,14 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS decision_snapshots_subject
     ON decision_snapshots (subject_id, created_at DESC);
+  CREATE TABLE IF NOT EXISTS comparison_runs (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    investor_id text NOT NULL,
+    created_at timestamptz NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS comparison_runs_investor
+    ON comparison_runs (investor_id, created_at DESC);
   -- Keyed by address, because one mailbox can appear against several
   -- organisations and somebody who asked to be left alone asked once.
   CREATE TABLE IF NOT EXISTS suppressions (
@@ -1566,6 +1575,36 @@ export const postgresStore: Store = {
     const { rows } = await getPool().query<{ data: DecisionSnapshot }>(
       "SELECT data FROM decision_snapshots WHERE subject_id = $1 ORDER BY created_at DESC",
       [subjectId],
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async saveComparisonRun(run: ComparisonRun): Promise<ComparisonRun> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO comparison_runs (id, data, investor_id, created_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE
+         SET data = EXCLUDED.data, investor_id = EXCLUDED.investor_id, created_at = EXCLUDED.created_at`,
+      [run.id, JSON.stringify(run), run.investorId, run.createdAt],
+    );
+    return run;
+  },
+
+  async getComparisonRun(id: string): Promise<ComparisonRun | undefined> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: ComparisonRun }>(
+      "SELECT data FROM comparison_runs WHERE id = $1",
+      [id],
+    );
+    return rows[0]?.data;
+  },
+
+  async listComparisonRuns(investorId: string): Promise<readonly ComparisonRun[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: ComparisonRun }>(
+      "SELECT data FROM comparison_runs WHERE investor_id = $1 ORDER BY created_at DESC",
+      [investorId],
     );
     return rows.map((r) => r.data);
   },
