@@ -47,7 +47,7 @@ seller-facing options cannot disagree.
 `supply`, `permissions`, `fees`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`, `inventory`, `reveal`,
 `passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`, `workflow`, `payouts`, `portfolio`, `screening`,
-`qualification`, `intakeConversation`, `reservation`, `agentRun`, `dealTransition`, `operatorTask`.
+`qualification`, `intakeConversation`, `reservation`, `agentRun`, `dealTransition`, `operatorTask`, `marketWatch`, `dealHunt`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -173,6 +173,22 @@ reason, shared password refused, audited `agent-run-acknowledged`), and the
 Control Room's "waiting" count is `needsAttention` (waiting and not yet
 acknowledged). No work queue, no tenant dimension (single-tenant) — only what a
 real producer can fill, never empty forward-compatibility.
+
+Market Watch + Deal Hunt foundation: `marketWatch.ts` is the pure listing
+price/status *history* model (distinct from `listingData.ts`, which is a signal
+*snapshot*) — `ListingObservationRecord`s, `deriveEvents()` (price moves and
+status transitions, deterministic), and `matchReturnedAndReduced()`, the §3
+matcher both features sit on: did a property return to market from under-offer/
+sold-STC within the window and is it still below the last *ordinary asking*
+price before it went under offer (POA/guide are not a baseline; a cut before
+under-offer or a later rise does not count; confirmed fall-through needs source
+evidence, else reason-unverified and a strict query excludes it). `dealHunt.ts`
+is the §2 criteria contract + `validateCriteria()` (geography and price ceiling
+required, defaults applied visibly, contradictions blocked) + `withinPriceCeiling`.
+Pure and provider-independent — the matcher and fixtures first, per the Deal Hunt
+build order. Store entities (DealHuntQuery/Run/Result), the worker, the filter
+parser, sold/rental evidence, the results UI and the appraisal handoff are the
+next increments; licensed ingestion is provider-gated (fixture adapter for dev).
 
 Operator worklist (§9/A03): `operatorTask.ts` is the pure record — a follow-up
 a named person owns (`openTask`/`resolveTask`, first resolution stands, dedupe
