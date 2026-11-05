@@ -47,7 +47,9 @@ seller-facing options cannot disagree.
 `supply`, `permissions`, `fees`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`, `inventory`, `reveal`,
 `passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`, `workflow`, `payouts`, `portfolio`, `screening`,
-`qualification`, `intakeConversation`, `reservation`, `agentRun`, `dealTransition`, `operatorTask`, `marketWatch`, `dealHunt`.
+`qualification`, `intakeConversation`, `reservation`, `agentRun`, `dealTransition`, `operatorTask`, `marketWatch`, `dealHunt`,
+`comparableBundle`, `dealHuntRun`, `dealHuntBrief`, `dealHuntHandoff`, `evidenceClaim`,
+`decisionOutput`, `decisionSnapshot`, `comparison`, `watchCursor`, `floorplan`, `auction`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -186,9 +188,40 @@ evidence, else reason-unverified and a strict query excludes it). `dealHunt.ts`
 is the §2 criteria contract + `validateCriteria()` (geography and price ceiling
 required, defaults applied visibly, contradictions blocked) + `withinPriceCeiling`.
 Pure and provider-independent — the matcher and fixtures first, per the Deal Hunt
-build order. Store entities (DealHuntQuery/Run/Result), the worker, the filter
-parser, sold/rental evidence, the results UI and the appraisal handoff are the
-next increments; licensed ingestion is provider-gated (fixture adapter for dev).
+build order. Licensed ingestion is provider-gated (fixture adapter for dev).
+
+Deal Hunt + Independent Engine (now built end to end, provider-gated): on the §3
+matcher sit the persistence and workflow. `comparableBundle.ts` assembles sold
+(via `comparables.ts`) and rental evidence — advertised vs agreed kept entirely
+separate, normalised to £/month, widen-once, thin flags, dedup; no feed →
+rent_unavailable. `dealHuntRun.ts` holds DealHuntQuery (immutable revisions),
+DealHuntRun (lifecycle; terminal is terminal) and DealHuntResult (the §3
+eligibility proof + provenance + stale), with `rankResults` (§3.6). The
+deterministic worker `backend/dealHunt/worker.ts` (`evaluateHunt` + `runDealHuntJob`)
+runs the matcher, filters by ceiling/type/beds, merges one property on two feeds
+(DH09), excludes ambiguous identity (DH05), ranks, caps, enriches and persists —
+`EMPTY_SOURCES` by default so a clean core returns an explicit zero-match
+boundary (IND01/IND02), `DEAL_HUNT_FIXTURES=1` enables a staff-pilot set. A
+listing-feed outage is a retryable failure; a comparable outage is partial (DH11).
+`dealHuntBrief.ts` deterministically interprets a brief into editable filters
+(DH01/DH02/DH14 — injected instructions change nothing). `backend/dealHunt/service.ts`
++ `/operator/hunts` (staff pilot console) + `/operator/hunts/[id]` run and show
+hunts; `dealHuntHandoff.ts` carries a result into an appraisal draft — idempotent
+(DH15), entitlement re-checked at transfer (DH13), stale/unavailable flagged
+(DH07). `evidenceClaim.ts` is the sourced-assertion spine (four confidence
+classes; a missing fact is recorded as missing). `decisionOutput.ts` is the §3
+four-field output + headroom (IND09); `decisionSnapshot.ts` the versioned,
+permission- and gate-rechecked, expiring, revocable (IND14) snapshot;
+`comparison.ts` Compare-and-Decide across ≤4 under one shared assumption set with
+overrides visible (IND08); `watchCursor.ts` saved watches that alert once per
+watch/property/episode (IND13). `floorplan.ts` keeps an unscaled plan a
+hypothesis with no fabricated dimensions (IND10); `auction.ts` keeps a lot's
+availability unverified until confirmed and counts only confirmed charges (IND11).
+Store entities: DealHuntQuery/Run/Result, ComparableBundle, EvidenceClaim,
+DecisionSnapshot, ComparisonRun, WatchCursor — both engines, contract-tested.
+Remaining thin layers: investor-facing (vs staff-pilot) display gated on a
+licensed feed's terms, and persisted producers/surfaces for the specialist
+floorplan/auction assessors.
 
 Operator worklist (§9/A03): `operatorTask.ts` is the pure record — a follow-up
 a named person owns (`openTask`/`resolveTask`, first resolution stands, dedupe
@@ -247,7 +280,7 @@ decides whether; `src/shared/eventQueue.ts` holds events until the vendor script
 exist. Blog opens are counted independently at `POST /api/blog/view` and shown
 with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
-772 tests in `tests/` (810 with Postgres). All pass. Build succeeds. All routes return 200.
+1730 tests in `tests/`. All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -690,7 +723,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # 772 tests
+npx vitest run       # ~1730 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.
