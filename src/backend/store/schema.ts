@@ -918,6 +918,7 @@ export type AuditAction =
   | "agent-proposal-accepted"
   | "agent-proposal-dismissed"
   | "agent-decision-refused"
+  | "agent-run-acknowledged"
   | "fee-raised"
   | "fee-voided"
   | "fee-disclosure-recorded"

@@ -19,13 +19,16 @@ import {
   type AgentProposal,
   type AgentRun,
 } from "@shared/domain/agents";
+import { acknowledgeRun, isWaiting } from "@shared/domain/agentRun";
 import { operatorPermissions } from "@backend/permissions";
 import { audit } from "@backend/audit";
 import {
+  getAgentRun,
   getDeal,
   listAgentDecisions,
   listFundingBoxes,
   saveAgentDecision,
+  saveAgentRun,
   saveDeal,
 } from "@backend/store/repository";
 import type { DealRecord } from "@backend/store/schema";
@@ -195,6 +198,48 @@ export async function decideProposal(request: DecisionRequest): Promise<Decision
         ? `Recorded against ${request.actor.name}.`
         : `Dismissed, with your reason, against ${request.actor.name}.`,
   };
+}
+
+export interface AcknowledgeRequest {
+  readonly runId: string;
+  readonly note: string;
+  readonly actor: Actor;
+}
+
+/**
+ * A named operator triages a run that is waiting for a person (§20.12).
+ *
+ * The same authorisation as a proposal decision: a named account and a reason,
+ * never the shared operator password — acknowledging is a person saying "I have
+ * this", and a shared credential has nobody behind it (§51/§32). Only a waiting
+ * run can be acknowledged, and only once; the pure `acknowledgeRun` keeps the
+ * first acknowledgement rather than letting a second overwrite who handled it.
+ */
+export async function acknowledgeAgentRun(request: AcknowledgeRequest): Promise<DecisionOutcome> {
+  const authorisation = authoriseDecision(request.actor, request.note);
+  if (!authorisation.ok) return { ok: false, message: authorisation.reason };
+  if (request.actor.kind !== "account") return { ok: false, message: authorisation.reason };
+
+  const run = await getAgentRun(request.runId);
+  if (run === undefined) return { ok: false, message: "No such run." };
+  if (!isWaiting(run)) return { ok: false, message: "That run is not waiting for a person." };
+  if (run.acknowledgedAt !== undefined) {
+    return { ok: false, message: `Already acknowledged by ${run.acknowledgedByName ?? "someone"}.` };
+  }
+
+  const acknowledged = acknowledgeRun(run, {
+    by: request.actor.id,
+    byName: request.actor.name,
+    note: request.note.trim(),
+    at: new Date().toISOString(),
+  });
+  await saveAgentRun(acknowledged);
+  await audit("agent-run-acknowledged", {
+    account: { id: request.actor.id, email: request.actor.email },
+    subject: run.subjectId,
+    detail: `${request.actor.name} acknowledged run ${run.id.slice(0, 8)} (${run.agentId}) — ${acknowledged.acknowledgementNote}`,
+  });
+  return { ok: true, message: `Acknowledged against ${request.actor.name}.` };
 }
 
 /**

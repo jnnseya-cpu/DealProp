@@ -120,6 +120,16 @@ export interface AgentRunRecord {
   readonly startedAt: string;
   /** Set once the run reaches a terminal state. */
   readonly finishedAt?: string;
+  /**
+   * Who triaged a run that was waiting for a person, and when (§20.12). A run
+   * that ended `awaiting-human`/`awaiting-data` sits on the operator queue until
+   * a named person acknowledges it; this records that they did, so the queue
+   * can be worked down and "still waiting" means what it says.
+   */
+  readonly acknowledgedBy?: string;
+  readonly acknowledgedByName?: string;
+  readonly acknowledgedAt?: string;
+  readonly acknowledgementNote?: string;
 }
 
 /** The fields a caller supplies to open a run; the rest are defaulted. */
@@ -308,6 +318,40 @@ export function closeFromIntake(run: AgentRunRecord, outcome: IntakeOutcomeView,
       ? `Held for a person: ${outcome.reasonCodes.join(", ") || "no safe automatic reply"}.`
       : "Qualified and answered automatically.",
   });
+}
+
+/** True of a run that ended waiting for a person, triaged or not. */
+export function isWaiting(run: AgentRunRecord): boolean {
+  return run.state === "awaiting-human" || run.state === "awaiting-data";
+}
+
+/** True of a waiting run that still needs a person — the live operator queue. */
+export function needsAttention(run: AgentRunRecord): boolean {
+  return isWaiting(run) && run.acknowledgedAt === undefined;
+}
+
+export interface RunAcknowledgement {
+  /** The named account that triaged it. */
+  readonly by: string;
+  readonly byName: string;
+  readonly note: string;
+  readonly at: string;
+}
+
+/**
+ * Record that a named person has triaged a waiting run. Only a waiting run can
+ * be acknowledged, and only once — a second acknowledgement would overwrite who
+ * actually handled it, so the first stands.
+ */
+export function acknowledgeRun(run: AgentRunRecord, ack: RunAcknowledgement): AgentRunRecord {
+  if (!isWaiting(run) || run.acknowledgedAt !== undefined) return run;
+  return {
+    ...run,
+    acknowledgedBy: ack.by,
+    acknowledgedByName: ack.byName,
+    acknowledgedAt: ack.at,
+    acknowledgementNote: ack.note,
+  };
 }
 
 function firstLine(text: string): string {

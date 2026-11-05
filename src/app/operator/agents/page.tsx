@@ -4,7 +4,9 @@ import { requirePermission } from "@/app/operator/guard";
 import { listAgentRuns } from "@backend/store/repository";
 import { agentPause } from "@backend/agentControls";
 import { anyAgentPaused, describePause } from "@shared/domain/agentControls";
+import { needsAttention } from "@shared/domain/agentRun";
 import type { AgentRunKind, AgentRunRecord, AgentRunState } from "@shared/domain/agentRun";
+import { acknowledgeRunAction } from "@/app/operator/agents/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +52,7 @@ export default async function AgentRunsPage() {
   const runs = (await listAgentRuns()).slice(0, 100);
   const pause = agentPause();
 
-  const waiting = runs.filter((r) => r.state === "awaiting-human" || r.state === "awaiting-data").length;
+  const waiting = runs.filter(needsAttention).length;
 
   return (
     <main className="min-h-screen pb-24">
@@ -136,6 +138,30 @@ export default async function AgentRunsPage() {
                             {(r.inputTokens ?? 0) + (r.outputTokens ?? 0) > 0 &&
                               ` · ${(r.inputTokens ?? 0) + (r.outputTokens ?? 0)} tokens`}
                           </span>
+                        )}
+                        {r.acknowledgedAt !== undefined && (
+                          <span className="mt-1 block text-[11px] text-emerald-300/80">
+                            ✓ Acknowledged by {r.acknowledgedByName ?? "a person"}
+                          </span>
+                        )}
+                        {needsAttention(r) && (
+                          <form action={acknowledgeRunAction} className="mt-2 flex items-center gap-2">
+                            <input type="hidden" name="runId" value={r.id} />
+                            <input
+                              type="text"
+                              name="note"
+                              required
+                              maxLength={2000}
+                              placeholder="Who's handling it, and how"
+                              className="h-7 min-w-0 flex-1 rounded-md border hairline bg-surface-2 px-2 text-xs text-ink-100 placeholder:text-ink-600"
+                            />
+                            <button
+                              type="submit"
+                              className="h-7 shrink-0 rounded-md border hairline bg-surface-2 px-2.5 text-xs text-ink-200 transition-colors hover:border-ink-600 hover:bg-surface-3"
+                            >
+                              Acknowledge
+                            </button>
+                          </form>
                         )}
                       </td>
                     </tr>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  acknowledgeRun,
   beginRun,
   canTransition,
   closeFailed,
@@ -7,6 +8,8 @@ import {
   closeFromIntake,
   closeRun,
   isTerminalRunState,
+  isWaiting,
+  needsAttention,
   supersede,
   type AgentRunRecord,
   type AgentRunSeed,
@@ -138,6 +141,36 @@ describe("mapping the live analysis outcome", () => {
     expect(run.state).toBe("awaiting-human");
     expect(run.reasonCodes).toContain("token-budget-exhausted");
     expect(run.inputTokens).toBe(30000);
+  });
+});
+
+describe("acknowledging a waiting run (§20.12)", () => {
+  const ack = { by: "acc-1", byName: "Jo Operator", note: "I'll ring the seller.", at: LATER };
+  const waiting = (): AgentRunRecord =>
+    closeRun(beginRun(SEED), { state: "awaiting-human", finishedAt: "2026-06-15T12:00:10.000Z", humanReviewRequired: true });
+
+  it("a waiting run needs attention until a named person acknowledges it", () => {
+    const run = waiting();
+    expect(isWaiting(run)).toBe(true);
+    expect(needsAttention(run)).toBe(true);
+
+    const done = acknowledgeRun(run, ack);
+    expect(done.acknowledgedByName).toBe("Jo Operator");
+    expect(done.acknowledgementNote).toBe("I'll ring the seller.");
+    expect(isWaiting(done)).toBe(true); // still a waiting outcome…
+    expect(needsAttention(done)).toBe(false); // …but off the live queue
+  });
+
+  it("a run that is not waiting cannot be acknowledged", () => {
+    const succeeded = closeRun(beginRun(SEED), { state: "succeeded", finishedAt: LATER });
+    expect(acknowledgeRun(succeeded, ack)).toBe(succeeded);
+  });
+
+  it("keeps the first acknowledgement rather than letting a second overwrite it", () => {
+    const first = acknowledgeRun(waiting(), ack);
+    const second = acknowledgeRun(first, { by: "acc-2", byName: "Sam", note: "mine", at: "2026-06-15T13:00:00.000Z" });
+    expect(second).toBe(first);
+    expect(second.acknowledgedByName).toBe("Jo Operator");
   });
 });
 

@@ -19,9 +19,10 @@ const SCRATCH = mkdtempSync(path.join(tmpdir(), "lode-agent-service-"));
 process.env.LODE_DATA_FILE = path.join(SCRATCH, "lode.json");
 delete process.env.DATABASE_URL;
 
-const { decideProposal, runAgentsForDeal } = await import("@backend/agents/service");
+const { decideProposal, runAgentsForDeal, acknowledgeAgentRun } = await import("@backend/agents/service");
 const { fileStore } = await import("@backend/store/fileStore");
-const { getDeal, listAgentDecisions, listAudit, saveDeal } = await import("@backend/store/repository");
+const { getDeal, listAgentDecisions, listAudit, saveDeal, saveAgentRun, getAgentRun } = await import("@backend/store/repository");
+const { beginRun, closeRun } = await import("@shared/domain/agentRun");
 
 afterAll(() => rmSync(SCRATCH, { recursive: true, force: true }));
 
@@ -212,6 +213,69 @@ describe("deciding a proposal", () => {
     expect(recorded?.effect).toBe("record-selection");
     expect(recorded?.agentId).toBe("terms");
     expect(recorded?.proposalHeadline).toContain("Example Bridging");
+  });
+});
+
+describe("acknowledging a waiting run", () => {
+  async function waitingRun(id: string): Promise<void> {
+    const run = closeRun(
+      beginRun({
+        id,
+        kind: "intake-qualification",
+        subjectType: "intake-conversation",
+        subjectId: `subj-${id}`,
+        agentId: "seller_qualification",
+        agentVersion: "intake-1",
+        autonomy: "routine",
+        provider: "none",
+        model: "none",
+        startedAt: NOW.toISOString(),
+      }),
+      { state: "awaiting-human", finishedAt: NOW.toISOString(), humanReviewRequired: true },
+    );
+    await saveAgentRun(run);
+  }
+
+  it("refuses the shared operator password", async () => {
+    await waitingRun("ack-shared");
+    const result = await acknowledgeAgentRun({ runId: "ack-shared", note: "mine", actor: { kind: "shared-operator" } });
+    expect(result.ok).toBe(false);
+    expect((await getAgentRun("ack-shared"))?.acknowledgedAt).toBeUndefined();
+  });
+
+  it("records a named acknowledgement and audits it", async () => {
+    await waitingRun("ack-ok");
+    const result = await acknowledgeAgentRun({ runId: "ack-ok", note: "Calling the seller now.", actor: jo });
+    expect(result.ok).toBe(true);
+    const run = await getAgentRun("ack-ok");
+    expect(run?.acknowledgedByName).toBe("Jo Bloggs");
+    expect(run?.acknowledgementNote).toBe("Calling the seller now.");
+    const audit = await listAudit({ subject: "subj-ack-ok" });
+    expect(audit.some((e) => e.action === "agent-run-acknowledged")).toBe(true);
+  });
+
+  it("refuses a run that is not waiting, and a second acknowledgement", async () => {
+    const succeeded = closeRun(
+      beginRun({
+        id: "ack-done",
+        kind: "live-analysis",
+        subjectType: "deal",
+        subjectId: "deal-1",
+        agentId: "live-analysis",
+        agentVersion: "analysis-1",
+        autonomy: "shadow",
+        provider: "none",
+        model: "none",
+        startedAt: NOW.toISOString(),
+      }),
+      { state: "succeeded", finishedAt: NOW.toISOString() },
+    );
+    await saveAgentRun(succeeded);
+    expect((await acknowledgeAgentRun({ runId: "ack-done", note: "x", actor: jo })).ok).toBe(false);
+
+    await waitingRun("ack-twice");
+    expect((await acknowledgeAgentRun({ runId: "ack-twice", note: "first", actor: jo })).ok).toBe(true);
+    expect((await acknowledgeAgentRun({ runId: "ack-twice", note: "second", actor: jo })).ok).toBe(false);
   });
 });
 

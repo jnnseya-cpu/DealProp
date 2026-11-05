@@ -165,7 +165,13 @@ enforces a per-run token budget (`RUNTIME_MAX_INPUT_TOKENS`/`_OUTPUT_TOKENS`),
 stopping before the next provider call once spent — a bounded stop recorded
 `awaiting-human` with `token-budget-exhausted`, distinct from the step-limit
 stop. The run records `modelCalls`/`inputTokens`/`outputTokens`, shown on the
-Control Room. No work queue, no tenant dimension (single-tenant) — only what a
+Control Room. §20.12: a run that ends `awaiting-human`/`awaiting-data` sits on
+the operator queue until a named person acknowledges it — `acknowledgeRun()`
+records who/when/note (first acknowledgement stands; only a waiting run can be
+acknowledged), `acknowledgeAgentRun()` is the backend decision (named account +
+reason, shared password refused, audited `agent-run-acknowledged`), and the
+Control Room's "waiting" count is `needsAttention` (waiting and not yet
+acknowledged). No work queue, no tenant dimension (single-tenant) — only what a
 real producer can fill, never empty forward-compatibility.
 
 Flipper/sourcer reservation: a property is "taken" by paying to reveal it.
