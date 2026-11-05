@@ -9,6 +9,7 @@ import {
   type MessageType,
 } from "@shared/domain/outreach";
 import { postalKey, resolveLetterTransport } from "@backend/outreach/letter";
+import { raiseTask } from "@backend/tasks";
 import { redactEmail, resolveTransport } from "@backend/email";
 import {
   addSuppression,
@@ -303,6 +304,7 @@ export async function handleReply(
     }
   }
 
+  let repliedMessageId: string | undefined;
   for (const message of await listOutreachMessages()) {
     if (message.to.trim().toLowerCase() !== address || message.replyReceivedAt !== undefined) continue;
     await saveOutreachMessage({
@@ -310,6 +312,22 @@ export async function handleReply(
       replyReceivedAt: now.toISOString(),
       replyClassification: assessment.classification,
     });
+    repliedMessageId ??= message.id;
+  }
+
+  // A genuine reply — not an opt-out or complaint, which suppression handles —
+  // stops the automated sends and needs a person to follow up (§9 / A03). One
+  // open task per replied message; a second reply does not pile up a second.
+  if (!assessment.suppress && repliedMessageId !== undefined) {
+    await raiseTask(
+      {
+        type: "outreach-reply",
+        subjectType: "outreach-message",
+        subjectId: repliedMessageId,
+        reason: "A recipient replied to outreach. Automated sends have stopped — review and follow up.",
+      },
+      now,
+    );
   }
 
   return { classification: assessment.classification, suppressed: assessment.suppress };

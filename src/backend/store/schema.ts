@@ -30,6 +30,7 @@ import type { SellerDueDiligence } from "@shared/domain/sellerDueDiligence";
 import type { DealOrigin } from "@shared/domain/dealOrigin";
 import type { IntakeConversation } from "@shared/domain/intakeConversation";
 import type { AgentRunRecord } from "@shared/domain/agentRun";
+import type { OperatorTask } from "@shared/domain/operatorTask";
 import type { PackApproval } from "@shared/domain/packApproval";
 import type { ResaleArrangement, ResaleConsent } from "@shared/domain/reseller";
 import type { PayoutRecipient } from "@shared/domain/payouts";
@@ -444,6 +445,11 @@ export interface Database {
    * reseed.
    */
   agentRuns?: AgentRunRecord[];
+  /**
+   * The operator worklist (§9/A03). Optional so every existing database literal
+   * and fixture stays valid; readers default to empty.
+   */
+  operatorTasks?: OperatorTask[];
   dataRoomGrants: DataRoomGrant[];
   pendingCharges: PendingCharge[];
   /**
@@ -927,6 +933,7 @@ export type AuditAction =
   | "agent-decision-refused"
   | "agent-run-acknowledged"
   | "deal-transitioned"
+  | "operator-task-resolved"
   | "fee-raised"
   | "fee-voided"
   | "fee-disclosure-recorded"
@@ -1134,6 +1141,12 @@ export interface Store {
   getAgentRun(id: string): Promise<AgentRunRecord | undefined>;
   /** Upsert by id: a run is re-saved as it moves through its lifecycle. */
   saveAgentRun(run: AgentRunRecord): Promise<AgentRunRecord>;
+
+  /** The operator worklist (§9/A03), most recent first. */
+  listOperatorTasks(): Promise<readonly OperatorTask[]>;
+  getOperatorTask(id: string): Promise<OperatorTask | undefined>;
+  /** Upsert by id: a task is re-saved when opened or resolved. */
+  saveOperatorTask(task: OperatorTask): Promise<OperatorTask>;
 
   /** Fees raised against a deal, most recent first. */
   listDealFees(dealId: string): Promise<readonly DealFee[]>;

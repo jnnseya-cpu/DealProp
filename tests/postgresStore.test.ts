@@ -10,6 +10,7 @@ import type { DealRecord, Store } from "@backend/store/schema";
 import type { SourcedLead } from "@shared/domain/sourcedLead";
 import type { IntakeConversation } from "@shared/domain/intakeConversation";
 import { beginRun, closeRun, type AgentRunSeed } from "@shared/domain/agentRun";
+import { openTask, resolveTask } from "@shared/domain/operatorTask";
 import { fileStore } from "@backend/store/fileStore";
 
 /**
@@ -1075,6 +1076,26 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         await store.saveAgentRun(seed("newer", "subj-list", "2026-06-03T09:00:00.000Z"));
         await store.saveAgentRun(seed("other", "subj-elsewhere"));
         expect((await store.listAgentRuns("subj-list")).map((r) => r.id)).toEqual(["newer", "older"]);
+      });
+    });
+
+    describe("the operator worklist (§9/A03)", () => {
+      const task = (id: string) =>
+        openTask({ id, type: "outreach-reply", subjectType: "outreach-message", subjectId: `subj-${id}`, reason: "A reply.", createdAt: "2026-06-01T09:00:00.000Z" });
+
+      it("round-trips a task and fetches it by id", async () => {
+        await store.saveOperatorTask(task("wl-rt"));
+        expect(await store.getOperatorTask("wl-rt")).toEqual(task("wl-rt"));
+      });
+
+      it("upserts by id as the task is resolved", async () => {
+        await store.saveOperatorTask(task("wl-up"));
+        await store.saveOperatorTask(
+          resolveTask(task("wl-up"), { by: "acc-1", byName: "Jo", note: "done", at: "2026-06-01T10:00:00.000Z" }),
+        );
+        const got = await store.getOperatorTask("wl-up");
+        expect(got?.status).toBe("resolved");
+        expect((await store.listOperatorTasks()).filter((t) => t.id === "wl-up")).toHaveLength(1);
       });
     });
 

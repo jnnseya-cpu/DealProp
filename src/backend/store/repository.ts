@@ -1,6 +1,7 @@
 import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { IntakeConversation } from "@shared/domain/intakeConversation";
 import type { AgentRunRecord } from "@shared/domain/agentRun";
+import type { OperatorTask } from "@shared/domain/operatorTask";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { Subscriber } from "@shared/domain/newsletter";
@@ -385,6 +386,18 @@ export async function getAgentRun(id: string) {
 
 export async function saveAgentRun(run: AgentRunRecord) {
   return (await store()).saveAgentRun(run);
+}
+
+export async function listOperatorTasks() {
+  return (await store()).listOperatorTasks();
+}
+
+export async function getOperatorTask(id: string) {
+  return (await store()).getOperatorTask(id);
+}
+
+export async function saveOperatorTask(task: OperatorTask) {
+  return (await store()).saveOperatorTask(task);
 }
 
 export async function listContactedLeads() {

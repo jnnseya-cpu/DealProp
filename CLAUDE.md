@@ -47,7 +47,7 @@ seller-facing options cannot disagree.
 `supply`, `permissions`, `fees`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`, `inventory`, `reveal`,
 `passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`, `workflow`, `payouts`, `portfolio`, `screening`,
-`qualification`, `intakeConversation`, `reservation`, `agentRun`, `dealTransition`.
+`qualification`, `intakeConversation`, `reservation`, `agentRun`, `dealTransition`, `operatorTask`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -173,6 +173,18 @@ reason, shared password refused, audited `agent-run-acknowledged`), and the
 Control Room's "waiting" count is `needsAttention` (waiting and not yet
 acknowledged). No work queue, no tenant dimension (single-tenant) — only what a
 real producer can fill, never empty forward-compatibility.
+
+Operator worklist (§9/A03): `operatorTask.ts` is the pure record — a follow-up
+a named person owns (`openTask`/`resolveTask`, first resolution stands, dedupe
+key is subject+type). `backend/tasks.ts` `raiseTask()` is idempotent on that key
+(a recipient replying twice opens one task, not a pile) and `resolveOperatorTask()`
+is a named person taking it off the queue, audited `operator-task-resolved`.
+Persisted both engines (`operator_tasks`). The producer today is an inbound
+outreach reply (`handleReply` raises one when a genuine reply — not an opt-out —
+stops the automated sends), read and resolved at `/operator/tasks`. NOT an
+automated marketing nurture sequence: decision #10 and §9 forbid auto-enrolling
+sellers, so this is the operator follow-up half of §9, not a scheduler that
+writes to people.
 
 Deal lifecycle (§10): `dealTransition.ts` is the pure guard on recording a
 `DealStatus` change — status is a fact the workflow derives from (decision #68),

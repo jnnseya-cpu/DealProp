@@ -9,6 +9,7 @@ import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { IntakeConversation } from "@shared/domain/intakeConversation";
 import type { AgentRunRecord } from "@shared/domain/agentRun";
+import type { OperatorTask } from "@shared/domain/operatorTask";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   dueForExpiry,
@@ -105,6 +106,7 @@ function emptyDatabase(): Database {
     outreachMessages: [],
     intakeConversations: [],
     agentRuns: [],
+    operatorTasks: [],
     suppressions: [],
     dataRoomGrants: [],
     agentDecisions: [],
@@ -150,6 +152,8 @@ async function readDatabase(): Promise<Database> {
       intakeConversations: parsed.intakeConversations ?? [],
       // Absent in any store written before the agent-run ledger existed.
       agentRuns: parsed.agentRuns ?? [],
+      // Absent in any store written before the operator worklist existed.
+      operatorTasks: parsed.operatorTasks ?? [],
       suppressions: parsed.suppressions ?? [],
       dataRoomGrants: parsed.dataRoomGrants ?? [],
       agentDecisions: parsed.agentDecisions ?? [],
@@ -861,6 +865,26 @@ async function saveAgentRun(run: AgentRunRecord): Promise<AgentRunRecord> {
   });
 }
 
+async function listOperatorTasks(): Promise<readonly OperatorTask[]> {
+  const db = await readDatabase();
+  return [...(db.operatorTasks ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+async function getOperatorTask(id: string): Promise<OperatorTask | undefined> {
+  const db = await readDatabase();
+  return (db.operatorTasks ?? []).find((t) => t.id === id);
+}
+
+async function saveOperatorTask(task: OperatorTask): Promise<OperatorTask> {
+  return mutate((db) => {
+    const list = db.operatorTasks ?? (db.operatorTasks = []);
+    const index = list.findIndex((t) => t.id === task.id);
+    if (index < 0) list.push(task);
+    else list[index] = task;
+    return task;
+  });
+}
+
 async function listContactedLeads(): Promise<readonly ContactedLead[]> {
   const db = await readDatabase();
   return [...(db.contactedLeads ?? [])].sort((a, b) => b.contactedAt.localeCompare(a.contactedAt));
@@ -1302,6 +1326,9 @@ export const fileStore: Store = {
   listAgentRuns,
   getAgentRun,
   saveAgentRun,
+  listOperatorTasks,
+  getOperatorTask,
+  saveOperatorTask,
   listContactedLeads,
   markContactedLead,
   clearContactedLead,

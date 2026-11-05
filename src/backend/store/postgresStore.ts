@@ -10,6 +10,7 @@ import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { IntakeConversation } from "@shared/domain/intakeConversation";
 import type { AgentRunRecord } from "@shared/domain/agentRun";
+import type { OperatorTask } from "@shared/domain/operatorTask";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   availableBalance,
@@ -229,6 +230,16 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS agent_runs_subject
     ON agent_runs (subject_id, started_at DESC);
+  -- The operator worklist (§9/A03): one row per task, status lifted out so the
+  -- open queue can be read without scanning every row.
+  CREATE TABLE IF NOT EXISTS operator_tasks (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    status text NOT NULL,
+    created_at timestamptz NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS operator_tasks_status
+    ON operator_tasks (status, created_at DESC);
   -- Keyed by address, because one mailbox can appear against several
   -- organisations and somebody who asked to be left alone asked once.
   CREATE TABLE IF NOT EXISTS suppressions (
@@ -1324,6 +1335,35 @@ export const postgresStore: Store = {
       [run.id, JSON.stringify(run), run.subjectId, run.startedAt],
     );
     return run;
+  },
+
+  async listOperatorTasks(): Promise<readonly OperatorTask[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: OperatorTask }>(
+      "SELECT data FROM operator_tasks ORDER BY created_at DESC",
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async getOperatorTask(id: string): Promise<OperatorTask | undefined> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: OperatorTask }>(
+      "SELECT data FROM operator_tasks WHERE id = $1",
+      [id],
+    );
+    return rows[0]?.data;
+  },
+
+  async saveOperatorTask(task: OperatorTask): Promise<OperatorTask> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO operator_tasks (id, data, status, created_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE
+         SET data = EXCLUDED.data, status = EXCLUDED.status, created_at = EXCLUDED.created_at`,
+      [task.id, JSON.stringify(task), task.status, task.createdAt],
+    );
+    return task;
   },
 
   async listContactedLeads(): Promise<readonly ContactedLead[]> {
