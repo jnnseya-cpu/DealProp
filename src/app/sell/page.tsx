@@ -25,7 +25,7 @@ export const metadata = {
 
 export default function SellPage() {
   return (
-    <main className="min-h-screen">
+    <main data-accent="fuchsia" className="min-h-screen">
       <SiteHeader
         width="max-w-3xl"
         trailing={<span className="text-xs text-ink-500">Free to see. No obligation.</span>}

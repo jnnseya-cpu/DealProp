@@ -659,10 +659,28 @@ Tokens live in `src/app/globals.css`; typefaces are self-hosted by
   32px. Headlines earn their size by being rare.
 - **Figures are sans with `tnum`**, never the display serif. A serif numeral is
   beautiful in prose and wrong in a column of money.
-- **One eyebrow style, `.eyebrow`, and it is grey.** A gold uppercase label on
-  every panel is not emphasis, it is a background colour that spells words.
+- **The product is vibrant, and the vibrancy is one system.** Colour is applied
+  deliberately, everywhere, through two shared mechanisms and never hand-rolled
+  per page: (1) `globals.css` defines a seven-hue decorative palette —
+  `gold, sky, cyan, teal, indigo, violet, fuchsia` — behind a `data-accent`
+  attribute that sets `--accent`, `--accent-2` and `--accent-text` for an
+  element and everything inside it; (2) `chrome.tsx` `Panel` puts a two-tone
+  `.accent-strip` across its top, tints its header with `--accent-soft`, and
+  takes an `accent` prop — omitted, it derives a stable hue from the title via
+  `hueFor()`, so a page of panels is a mix of colours automatically. `SiteHeader`
+  carries a full-palette `.spectrum-rule`, `.eyebrow` and `Stat` labels are
+  `--accent-text`, and the body has low-alpha colour blooms over the ink ground.
+  Top-level pages section-code their `<main>` with `data-accent` / `SECTION_ACCENT`.
+  **The decorative palette is deliberately free of red, orange, amber and
+  emerald**, because those are reserved: a Deal Score, a verdict
+  (`VERDICT_TONE`), a `scoreTone`/`scoreBg` and a good/warn/bad `Badge` are the
+  only things allowed red-amber-green, so a warning can never read as decoration
+  and a decorated panel can never read as a warning. Accent is never load-bearing
+  — identity never rests on hue alone.
 - **A notice is a 2px left rule, not a tinted box.** A filled coloured rectangle
-  says the same thing at fifty times the area and buries the sentence.
+  says the same thing at fifty times the area and buries the sentence. (The
+  panel header's `--accent-soft` wash is the one sanctioned tint, and it is a
+  wash, not a box.)
 
 ### Handle all UI states
 Loading, success, empty, error, disabled, permission-denied. Responsive at

@@ -71,7 +71,7 @@ export default async function OpportunitiesPage() {
   const unconfirmed = offers.filter((o) => !o.quote.chargeable && o.opened === undefined);
 
   return (
-    <main className="min-h-screen pb-24">
+    <main data-accent="violet" className="min-h-screen pb-24">
       <SiteHeader
         trailing={
           <nav className="flex items-center gap-6 text-sm text-ink-400">

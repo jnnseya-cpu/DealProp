@@ -47,7 +47,7 @@ export default async function DealsPage() {
     .sort((a, b) => b.scored.breakdown.composite - a.scored.breakdown.composite);
 
   return (
-    <main className="min-h-screen">
+    <main data-accent="sky" className="min-h-screen">
       <SiteHeader
         trailing={
           <nav className="flex items-center gap-5 text-[13px] text-ink-400">

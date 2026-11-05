@@ -56,7 +56,7 @@ export default async function PartnersPage() {
   const outstanding = identityGaps(identity);
 
   return (
-    <main className="min-h-screen">
+    <main data-accent="teal" className="min-h-screen">
       <SiteHeader
         width="max-w-5xl"
         trailing={

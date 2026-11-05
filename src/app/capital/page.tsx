@@ -44,7 +44,7 @@ export default async function CapitalPage() {
   // and lender verification. Signed-in behaviour is unchanged below.
   if ((await currentViewer()) === undefined) {
     return (
-      <main className="min-h-screen pb-24">
+      <main data-accent="teal" className="min-h-screen pb-24">
         <SiteHeader
           trailing={
             <nav className="flex items-center gap-6 text-sm text-ink-400">

@@ -3,10 +3,19 @@
 /*
  * Lode design tokens.
  *
- * A lode is a vein of ore, and the product should read as assay and
- * underwriting rather than as an estate agent's brochure — so the ground is a
- * cool near-black, the accent is a metallic gold used only where something is
- * true (a score, a verdict, a figure), and nothing is decorated.
+ * A lode is a vein of ore, and the product reads as assay and underwriting
+ * rather than as an estate agent's brochure — so the ground is a cool near-black
+ * and the geometry is close to square.
+ *
+ * NOTE (vibrant direction): the product is now deliberately colourful. On top of
+ * the austere base below sits the accent system further down this file — a
+ * seven-hue decorative palette behind `data-accent`, panel accent strips, a
+ * full-spectrum header rule, coloured eyebrows and figure labels, and ambient
+ * blooms on the body. The decorative hues are chosen to AVOID red/orange/amber/
+ * emerald, which stay reserved for meaning (a score, a verdict, good/warn/bad).
+ * So "the accent is a metallic gold used only where something is true" is no
+ * longer the whole story: gold is one of seven decorative hues, and the
+ * red-amber-green of a *finding* is what is now held back, not colour itself.
  *
  * Three deliberate choices, each of which was previously the opposite:
  *
@@ -74,6 +83,46 @@
   --radius-3xl: 14px;
 }
 
+/*
+ * Accent system — the vibrant layer.
+ *
+ * The product is deliberately colourful now: every panel, header and figure
+ * carries a hue, so a page reads as a mix of coloured parts rather than a field
+ * of grey. The hue is DECORATIVE and section-coded — it never carries meaning.
+ *
+ * Meaning stays reserved for the red-amber-green of a Deal Score, a verdict and
+ * a good/warn/bad badge, whose tones live in `chrome.tsx` and are never drawn
+ * from this palette. The decorative hues below are therefore chosen to avoid
+ * red, orange, amber and emerald entirely, so a warning can never be mistaken
+ * for decoration and a decorated panel can never be mistaken for a warning.
+ *
+ * `data-accent` on any element sets the hue for it and everything inside it. The
+ * shared Panel sets one per panel — section-coded where a page asks, otherwise
+ * derived deterministically from the panel title — so nested eyebrows, accent
+ * strips and figure labels pick it up with no per-page work.
+ */
+:root {
+  --accent: #d4af37;
+  --accent-2: #e3c76e;
+  --accent-text: #e3c76e;
+  --accent-soft: color-mix(in oklab, #d4af37 10%, transparent);
+  --accent-edge: color-mix(in oklab, #d4af37 42%, transparent);
+}
+
+[data-accent="gold"]    { --accent: #d4af37; --accent-2: #e3c76e; --accent-text: #e3c76e; }
+[data-accent="sky"]     { --accent: #38bdf8; --accent-2: #22d3ee; --accent-text: #7dd3fc; }
+[data-accent="cyan"]    { --accent: #22d3ee; --accent-2: #2dd4bf; --accent-text: #67e8f9; }
+[data-accent="teal"]    { --accent: #2dd4bf; --accent-2: #38bdf8; --accent-text: #5eead4; }
+[data-accent="indigo"]  { --accent: #818cf8; --accent-2: #a78bfa; --accent-text: #a5b4fc; }
+[data-accent="violet"]  { --accent: #a78bfa; --accent-2: #e879f9; --accent-text: #c4b5fd; }
+[data-accent="fuchsia"] { --accent: #e879f9; --accent-2: #f472b6; --accent-text: #f0abfc; }
+
+/* Soft fill and edge follow whichever accent is in force, for any value. */
+[data-accent] {
+  --accent-soft: color-mix(in oklab, var(--accent) 10%, transparent);
+  --accent-edge: color-mix(in oklab, var(--accent) 42%, transparent);
+}
+
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -134,7 +183,18 @@ main {
 }
 
 body {
-  background: var(--color-ink-950);
+  /* The ground stays the near-black ink the PWA splash is pinned to, but it is
+     no longer flat: low-alpha colour blooms sit in the corners so every page
+     carries ambient colour while the reading column down the centre stays dark
+     enough for text. `fixed` keeps the blooms still as the page scrolls. */
+  background-color: var(--color-ink-950);
+  background-image:
+    radial-gradient(1100px circle at 8% -8%, color-mix(in oklab, #d4af37 11%, transparent), transparent 58%),
+    radial-gradient(900px circle at 98% 4%, color-mix(in oklab, #38bdf8 10%, transparent), transparent 52%),
+    radial-gradient(1000px circle at 100% 100%, color-mix(in oklab, #a78bfa 10%, transparent), transparent 55%),
+    radial-gradient(900px circle at 0% 102%, color-mix(in oklab, #2dd4bf 9%, transparent), transparent 55%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
   color: var(--color-ink-100);
   font-family: var(--font-sans);
   /* 15px, not 16px. The interface is dense and 16px forces every panel wider
@@ -197,7 +257,9 @@ h1, h2, h3 {
   line-height: 1;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--color-ink-400);
+  /* Coloured by the accent in force (section-coded), not grey. This is the
+     single change that tints every panel label across the whole app. */
+  color: var(--accent-text);
 }
 
 /*
@@ -339,10 +401,42 @@ button:disabled, input:disabled, select:disabled, textarea:disabled {
   background: linear-gradient(
     90deg,
     transparent,
-    color-mix(in oklab, var(--color-lode-400) 40%, transparent),
+    var(--accent-edge),
     transparent
   );
 }
+
+/*
+ * The vibrant primitives, used by the shared chrome.
+ *
+ *  - `.accent-strip`  a 3px two-tone bar across the top of every panel.
+ *  - `.spectrum-rule` the full-palette hairline under the site header, the one
+ *                     place every hue appears together.
+ *  - `.accent-text` / `.accent-dot` / `.accent-soft-bg` / `.accent-border`
+ *                     pick up whichever `data-accent` is in force.
+ */
+.accent-strip {
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+
+.spectrum-rule {
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    #d4af37 0%,
+    #38bdf8 25%,
+    #818cf8 45%,
+    #e879f9 65%,
+    #2dd4bf 85%,
+    #d4af37 100%
+  );
+}
+
+.accent-text { color: var(--accent-text); }
+.accent-dot { background: var(--accent); }
+.accent-soft-bg { background: var(--accent-soft); }
+.accent-border { border-color: var(--accent-edge); }
 
 /*
  * A row that responds to the pointer.

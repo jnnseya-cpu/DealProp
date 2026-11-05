@@ -105,7 +105,7 @@ export default async function OperatorDashboard() {
     .map(([role, count]) => ({ label: role.charAt(0).toUpperCase() + role.slice(1), value: count }));
 
   return (
-    <main className="min-h-screen pb-24">
+    <main data-accent="indigo" className="min-h-screen pb-24">
       <SiteHeader trailing={<OperatorNav current="/operator/dashboard" />} />
 
       <div className="mx-auto max-w-5xl px-6 py-10">

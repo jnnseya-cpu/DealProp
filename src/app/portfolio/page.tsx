@@ -52,7 +52,7 @@ export default async function PortfolioPage() {
   const { position, unrecorded, sold } = await portfolio(now);
 
   return (
-    <main className="min-h-screen pb-24">
+    <main data-accent="cyan" className="min-h-screen pb-24">
       <SiteHeader
         trailing={
           <nav className="flex items-center gap-5 text-[13px] text-ink-400">

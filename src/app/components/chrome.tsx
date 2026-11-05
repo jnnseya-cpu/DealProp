@@ -32,6 +32,50 @@ export function scoreBg(value: number): string {
 }
 
 /**
+ * The decorative accent palette.
+ *
+ * Seven non-semantic hues. They are set on an element with `data-accent="…"`
+ * (the CSS in `globals.css` turns the name into `--accent`, `--accent-2` and
+ * `--accent-text`), and everything inside — eyebrows, accent strips, figure
+ * labels — follows. Deliberately NONE of red/orange/amber/emerald: those stay
+ * reserved for the Deal Score, the verdict and good/warn/bad, so a decorated
+ * panel can never read as a warning and a warning can never read as decoration.
+ */
+export const ACCENTS = ["gold", "sky", "cyan", "teal", "indigo", "violet", "fuchsia"] as const;
+export type Accent = (typeof ACCENTS)[number];
+
+/**
+ * A stable hue for a string. A panel with no section accent still gets a fixed
+ * colour from its title, so a page shows a mix of coloured parts rather than one
+ * flat hue — and the same panel is the same colour on every render.
+ */
+export function hueFor(seed: string): Accent {
+  let h = 0;
+  for (let i = 0; i < seed.length; i += 1) h = (Math.imul(h, 31) + seed.charCodeAt(i)) >>> 0;
+  return ACCENTS[h % ACCENTS.length] as Accent;
+}
+
+/**
+ * Section accents.
+ *
+ * Each top-level area of the product owns a hue, so a page's loose chrome (a
+ * stray eyebrow, a rule-glow) reads as belonging to its section. A page sets it
+ * on its outermost wrapper: `<main data-accent={SECTION_ACCENT.deals}>`.
+ */
+export const SECTION_ACCENT = {
+  home: "gold",
+  deals: "sky",
+  invest: "violet",
+  capital: "teal",
+  sell: "fuchsia",
+  account: "cyan",
+  operator: "indigo",
+  partners: "teal",
+  opportunities: "violet",
+  content: "sky",
+} as const satisfies Record<string, Accent>;
+
+/**
  * The Lode mark.
  *
  * The artwork is the ore nugget with its gold vein, defined once in
@@ -130,6 +174,9 @@ export function SiteHeader({
         </div>
         {trailing !== undefined && <div className="flex items-center gap-2.5">{trailing}</div>}
       </div>
+      {/* The one place the whole palette appears together: a full-spectrum
+          hairline under the header, on every page. */}
+      <div aria-hidden className="spectrum-rule" />
     </header>
   );
 }
@@ -145,6 +192,7 @@ export function Panel({
   title,
   eyebrow,
   action,
+  accent,
   children,
   className = "",
   flush = false,
@@ -153,15 +201,27 @@ export function Panel({
   eyebrow?: string;
   /** Rendered at the right of the header: a link, a count, a control. */
   action?: React.ReactNode;
+  /**
+   * The decorative hue. Omit it and the panel takes a stable colour derived
+   * from its title, so a page of panels shows a mix of colours automatically;
+   * pass one to section-code a panel to its area.
+   */
+  accent?: Accent;
   children: React.ReactNode;
   className?: string;
   /** Drop the body padding, for a panel whose child is a table. */
   flush?: boolean;
 }) {
+  const hue = accent ?? hueFor(title ?? eyebrow ?? className ?? "lode");
   return (
-    <section className={`overflow-hidden rounded-xl border hairline bg-surface-1 ${className}`}>
+    <section
+      data-accent={hue}
+      className={`overflow-hidden rounded-xl border hairline bg-surface-1 ${className}`}
+    >
+      {/* A two-tone bar in the panel's hue across its top edge. */}
+      <div aria-hidden className="accent-strip" />
       {(title !== undefined || eyebrow !== undefined) && (
-        <div className="flex items-baseline justify-between gap-4 border-b hairline px-5 py-3.5">
+        <div className="accent-soft-bg flex items-baseline justify-between gap-4 border-b hairline px-5 py-3.5">
           <div>
             {eyebrow !== undefined && <span className="eyebrow">{eyebrow}</span>}
             {title !== undefined && (
@@ -280,7 +340,7 @@ export function Stat({
   const colour = warn === true ? "text-red-300" : (tone ?? "text-ink-100");
   return (
     <div>
-      <p className="text-[11px] font-medium uppercase tracking-[0.09em] text-ink-400">{label}</p>
+      <p className="accent-text text-[11px] font-medium uppercase tracking-[0.09em]">{label}</p>
       <p className={`tnum mt-1 ${scale} leading-none ${colour}`}>{value}</p>
       {note !== undefined && <p className="mt-1.5 text-[11px] leading-snug text-ink-500">{note}</p>}
     </div>
