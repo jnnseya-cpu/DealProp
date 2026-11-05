@@ -199,6 +199,13 @@ export interface DealRecord {
   readonly packApproval?: PackApproval;
   readonly borrowerCompletedDeals: number;
   readonly status: DealStatus;
+  /**
+   * The completion date, recorded only through a guarded transition to
+   * `completed` (spec §10 / `dealTransition.ts`). It cannot be set without a
+   * conveyancer instructed and a date, which is what stops "mark it done"
+   * triggering the completion fee on a deal that has not completed (A16).
+   */
+  readonly completedAt?: string;
 }
 
 /**
@@ -919,6 +926,7 @@ export type AuditAction =
   | "agent-proposal-dismissed"
   | "agent-decision-refused"
   | "agent-run-acknowledged"
+  | "deal-transitioned"
   | "fee-raised"
   | "fee-voided"
   | "fee-disclosure-recorded"

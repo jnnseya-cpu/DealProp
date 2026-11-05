@@ -47,7 +47,7 @@ seller-facing options cannot disagree.
 `supply`, `permissions`, `fees`,
 `fundingReadiness`, `regulatoryRoute`, `outreach`, `inventory`, `reveal`,
 `passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`, `workflow`, `payouts`, `portfolio`, `screening`,
-`qualification`, `intakeConversation`, `reservation`, `agentRun`.
+`qualification`, `intakeConversation`, `reservation`, `agentRun`, `dealTransition`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -173,6 +173,19 @@ reason, shared password refused, audited `agent-run-acknowledged`), and the
 Control Room's "waiting" count is `needsAttention` (waiting and not yet
 acknowledged). No work queue, no tenant dimension (single-tenant) — only what a
 real producer can fill, never empty forward-compatibility.
+
+Deal lifecycle (§10): `dealTransition.ts` is the pure guard on recording a
+`DealStatus` change — status is a fact the workflow derives from (decision #68),
+and this refuses to record one the evidence does not support. Ordering
+(new → qualified → in-market → funded → completed; withdraw from any live
+status; completed/withdrawn terminal) plus per-step evidence gates derived from
+the same `WorkflowFacts` (`dealWorkflowFacts` in `backend/workflow.ts`, shared
+with `positionOf`). `transitionDeal()` is the one guarded path status changes
+after creation: it writes `status` (and `completedAt`, atomically, on
+completion) and audits `deal-transitioned`. A16: completion needs a conveyancer
+instructed and a date, so "mark it done" cannot record `completed` — and the
+completion fee (`fees.ts` dueAt) stays unraisable — on a deal that has not
+completed. Surfaced on the Deal Room (`AdvanceDeal`, a named operator, #29).
 
 Flipper/sourcer reservation: a property is "taken" by paying to reveal it.
 `reservation.ts` is the pure lock — up to `FLIPPER_SLOTS` (5) holders share one

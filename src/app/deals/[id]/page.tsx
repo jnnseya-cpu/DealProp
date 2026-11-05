@@ -6,6 +6,8 @@ import { getDeal, listDealImages, listFundingBoxes, listBuyBoxes } from "@backen
 import { PropertyPhotos } from "./PropertyPhotos";
 import { DeleteDealButton } from "./DeleteDealButton";
 import { positionOf } from "@backend/workflow";
+import { offeredTransitions } from "@shared/domain/dealTransition";
+import { AdvanceDeal } from "./AdvanceDeal";
 import { registryFor } from "@backend/registry";
 import { runDealDirector } from "@shared/domain/director";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
@@ -290,6 +292,14 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
             Each step is proved from what is recorded, not set by hand — the deal sits at the first
             thing still missing.
           </p>
+          <div className="mt-4 border-t hairline pt-4">
+            <p className="mb-2.5 text-xs text-ink-500">
+              Record a transition. The status is a recorded fact, not a stage you set: a move is
+              refused unless the evidence behind it exists, and completion needs a conveyancer and a
+              date.
+            </p>
+            <AdvanceDeal id={record.id} current={record.status} offered={offeredTransitions(record.status)} />
+          </div>
           <details className="mt-4 border-t hairline pt-4">
             <summary className="cursor-pointer text-xs text-ink-400 transition hover:text-ink-200">
               All twelve steps
