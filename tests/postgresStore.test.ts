@@ -1227,6 +1227,37 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         const claims = await store.listEvidenceClaims("p-claims");
         expect(claims.map((c) => c.id)).toEqual(["c1", "c2"]);
       });
+
+      it("round-trips a decision snapshot and upserts on revoke (IND14)", async () => {
+        const snap = {
+          id: "snap-rt",
+          tenantId: "lode",
+          subjectId: "deal-snap",
+          subjectType: "deal",
+          actorId: "op-1",
+          evidenceSetVersion: "ev-1",
+          calculationIds: ["calc-1"],
+          decision: {
+            investigationPriority: ["Returned and reduced."],
+            economics: { basePence: fromMajor(30_000), downsidePence: fromMajor(5_000), maxSupportedPricePence: fromMajor(200_000), currentAskPence: fromMajor(190_000), headroomPence: fromMajor(10_000) },
+            executionBlockers: [],
+            evidenceCoverage: { confirmed: 3, userReported: 0, inferred: 0, missing: [] },
+            verdict: "within-target" as const,
+            statement: "Within target.",
+          },
+          blockers: [],
+          reasonCodes: [],
+          visibility: "reviewer" as const,
+          createdAt: "2026-06-15T09:00:00.000Z",
+          expiresAt: "2026-07-15T09:00:00.000Z",
+          revoked: false,
+        };
+        await store.saveDecisionSnapshot(snap);
+        expect(await store.getDecisionSnapshot("snap-rt")).toEqual(snap);
+        await store.saveDecisionSnapshot({ ...snap, revoked: true });
+        expect((await store.getDecisionSnapshot("snap-rt"))?.revoked).toBe(true);
+        expect((await store.listDecisionSnapshots("deal-snap")).filter((s) => s.id === "snap-rt")).toHaveLength(1);
+      });
     });
 
     describe("contacted leads (suppressed from future runs)", () => {

@@ -13,6 +13,7 @@ import type { AgentRunRecord } from "@shared/domain/agentRun";
 import type { OperatorTask } from "@shared/domain/operatorTask";
 import type { DealHuntQuery, DealHuntRun, DealHuntResult } from "@shared/domain/dealHuntRun";
 import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
+import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   availableBalance,
@@ -282,6 +283,14 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS evidence_claims_property
     ON evidence_claims (property_id, observed_at);
+  CREATE TABLE IF NOT EXISTS decision_snapshots (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    subject_id text NOT NULL,
+    created_at timestamptz NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS decision_snapshots_subject
+    ON decision_snapshots (subject_id, created_at DESC);
   -- Keyed by address, because one mailbox can appear against several
   -- organisations and somebody who asked to be left alone asked once.
   CREATE TABLE IF NOT EXISTS suppressions (
@@ -1527,6 +1536,36 @@ export const postgresStore: Store = {
     const { rows } = await getPool().query<{ data: EvidenceClaim }>(
       "SELECT data FROM evidence_claims WHERE property_id = $1 ORDER BY observed_at",
       [propertyId],
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async saveDecisionSnapshot(snapshot: DecisionSnapshot): Promise<DecisionSnapshot> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO decision_snapshots (id, data, subject_id, created_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE
+         SET data = EXCLUDED.data, subject_id = EXCLUDED.subject_id, created_at = EXCLUDED.created_at`,
+      [snapshot.id, JSON.stringify(snapshot), snapshot.subjectId, snapshot.createdAt],
+    );
+    return snapshot;
+  },
+
+  async getDecisionSnapshot(id: string): Promise<DecisionSnapshot | undefined> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: DecisionSnapshot }>(
+      "SELECT data FROM decision_snapshots WHERE id = $1",
+      [id],
+    );
+    return rows[0]?.data;
+  },
+
+  async listDecisionSnapshots(subjectId: string): Promise<readonly DecisionSnapshot[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: DecisionSnapshot }>(
+      "SELECT data FROM decision_snapshots WHERE subject_id = $1 ORDER BY created_at DESC",
+      [subjectId],
     );
     return rows.map((r) => r.data);
   },

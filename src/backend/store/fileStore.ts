@@ -12,6 +12,7 @@ import type { AgentRunRecord } from "@shared/domain/agentRun";
 import type { OperatorTask } from "@shared/domain/operatorTask";
 import type { DealHuntQuery, DealHuntRun, DealHuntResult } from "@shared/domain/dealHuntRun";
 import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
+import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   dueForExpiry,
@@ -114,6 +115,7 @@ function emptyDatabase(): Database {
     dealHuntResults: [],
     comparableBundles: [],
     evidenceClaims: [],
+    decisionSnapshots: [],
     suppressions: [],
     dataRoomGrants: [],
     agentDecisions: [],
@@ -167,6 +169,7 @@ async function readDatabase(): Promise<Database> {
       dealHuntResults: parsed.dealHuntResults ?? [],
       comparableBundles: parsed.comparableBundles ?? [],
       evidenceClaims: parsed.evidenceClaims ?? [],
+      decisionSnapshots: parsed.decisionSnapshots ?? [],
       suppressions: parsed.suppressions ?? [],
       dataRoomGrants: parsed.dataRoomGrants ?? [],
       agentDecisions: parsed.agentDecisions ?? [],
@@ -989,6 +992,28 @@ async function listEvidenceClaims(propertyId: string): Promise<readonly Evidence
     .sort((a, b) => a.observedAt.localeCompare(b.observedAt));
 }
 
+async function saveDecisionSnapshot(snapshot: DecisionSnapshot): Promise<DecisionSnapshot> {
+  return mutate((db) => {
+    const list = db.decisionSnapshots ?? (db.decisionSnapshots = []);
+    const index = list.findIndex((s) => s.id === snapshot.id);
+    if (index < 0) list.push(snapshot);
+    else list[index] = snapshot;
+    return snapshot;
+  });
+}
+
+async function getDecisionSnapshot(id: string): Promise<DecisionSnapshot | undefined> {
+  const db = await readDatabase();
+  return (db.decisionSnapshots ?? []).find((s) => s.id === id);
+}
+
+async function listDecisionSnapshots(subjectId: string): Promise<readonly DecisionSnapshot[]> {
+  const db = await readDatabase();
+  return [...(db.decisionSnapshots ?? [])]
+    .filter((s) => s.subjectId === subjectId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 async function listContactedLeads(): Promise<readonly ContactedLead[]> {
   const db = await readDatabase();
   return [...(db.contactedLeads ?? [])].sort((a, b) => b.contactedAt.localeCompare(a.contactedAt));
@@ -1445,6 +1470,9 @@ export const fileStore: Store = {
   getComparableBundle,
   saveEvidenceClaim,
   listEvidenceClaims,
+  saveDecisionSnapshot,
+  getDecisionSnapshot,
+  listDecisionSnapshots,
   listContactedLeads,
   markContactedLead,
   clearContactedLead,

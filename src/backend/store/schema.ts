@@ -34,6 +34,7 @@ import type { OperatorTask } from "@shared/domain/operatorTask";
 import type { DealHuntQuery, DealHuntRun, DealHuntResult } from "@shared/domain/dealHuntRun";
 import type { ComparableBundle } from "@shared/domain/comparableBundle";
 import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
+import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
 import type { PackApproval } from "@shared/domain/packApproval";
 import type { ResaleArrangement, ResaleConsent } from "@shared/domain/reseller";
 import type { PayoutRecipient } from "@shared/domain/payouts";
@@ -481,6 +482,8 @@ export interface Database {
   comparableBundles?: StoredComparableBundle[];
   /** EvidenceClaims (Independent Engine §5) — the sourced-assertion spine. */
   evidenceClaims?: EvidenceClaim[];
+  /** DecisionSnapshots (Independent Engine §5) — versioned, permitted decisions. */
+  decisionSnapshots?: DecisionSnapshot[];
   dataRoomGrants: DataRoomGrant[];
   pendingCharges: PendingCharge[];
   /**
@@ -1199,6 +1202,10 @@ export interface Store {
   /** EvidenceClaims (Independent Engine §5): append a revision, read by property. */
   saveEvidenceClaim(claim: EvidenceClaim): Promise<EvidenceClaim>;
   listEvidenceClaims(propertyId: string): Promise<readonly EvidenceClaim[]>;
+  /** DecisionSnapshots (Independent Engine §5). Upsert by id (revoke flips a flag). */
+  saveDecisionSnapshot(snapshot: DecisionSnapshot): Promise<DecisionSnapshot>;
+  getDecisionSnapshot(id: string): Promise<DecisionSnapshot | undefined>;
+  listDecisionSnapshots(subjectId: string): Promise<readonly DecisionSnapshot[]>;
 
   /** Fees raised against a deal, most recent first. */
   listDealFees(dealId: string): Promise<readonly DealFee[]>;
