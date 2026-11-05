@@ -1,8 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { createAndRunHunt } from "@backend/dealHunt/service";
+import { openAppraisalFromResult } from "@backend/dealHunt/handoff";
+import { getDealHuntRun } from "@backend/store/repository";
 import { fromMajor } from "@shared/money";
 import type { CriteriaDraft } from "@shared/domain/dealHunt";
 
@@ -56,4 +59,20 @@ export async function runHuntAction(formData: FormData): Promise<void> {
     redirect(`${backTo}&error=${encodeURIComponent(msg)}`);
   }
   redirect(`/operator/hunts/${result.outcome.run.id}`);
+}
+
+/**
+ * Open an appraisal draft from a Deal Hunt result (spec §6). Idempotent per
+ * investor + result (DH15); entitlement is re-checked at handoff (DH13). Its own
+ * POST endpoint checking its own permission (#29).
+ */
+export async function openAppraisalAction(formData: FormData): Promise<void> {
+  const viewer = await requirePermission("view-audit-log", "/operator/hunts");
+  const resultId = String(formData.get("resultId") ?? "");
+  const runId = String(formData.get("runId") ?? "");
+  if (resultId === "" || runId === "") return;
+  const run = await getDealHuntRun(runId);
+  const investorId = run?.investorId ?? viewerAccount(viewer)?.id ?? "unknown";
+  await openAppraisalFromResult(resultId, investorId);
+  revalidatePath(`/operator/hunts/${runId}`);
 }

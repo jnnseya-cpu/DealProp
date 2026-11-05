@@ -111,6 +111,8 @@ export interface DealHuntResult {
   // --- enrichment (spec §4) ---
   readonly evidenceBundleId?: string;
   readonly enrichment: { readonly sold: EnrichmentStatus; readonly rent: EnrichmentStatus };
+  /** The appraisal draft opened from this result, set once (idempotent, DH15). */
+  readonly appraisalDraftId?: string;
 }
 
 /* -------------------------------------------------------------------------- */

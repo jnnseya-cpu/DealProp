@@ -8,8 +8,11 @@ import {
   listDealHuntResults,
 } from "@backend/store/repository";
 import { gbp, percent } from "@shared/format";
+import { sourcePermits } from "@shared/domain/sources";
+import { buildAppraisalSeed } from "@shared/domain/dealHuntHandoff";
 import type { DealHuntResult, DealHuntRunState } from "@shared/domain/dealHuntRun";
 import type { StoredComparableBundle } from "@backend/store/schema";
+import { openAppraisalAction } from "@/app/operator/hunts/actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Deal Hunt — Lode" };
@@ -38,7 +41,51 @@ function EvidenceLine({ bundle }: { bundle: StoredComparableBundle | undefined }
   return <p className="text-[12px] text-ink-500">{parts.join(" · ")}</p>;
 }
 
-function ResultRow({ result, bundle }: { result: DealHuntResult; bundle: StoredComparableBundle | undefined }) {
+function Handoff({ result, runId, investorId }: { result: DealHuntResult; runId: string; investorId: string }) {
+  if (result.appraisalDraftId === undefined) {
+    return (
+      <form action={openAppraisalAction} className="mt-3">
+        <input type="hidden" name="resultId" value={result.id} />
+        <input type="hidden" name="runId" value={runId} />
+        <button
+          type="submit"
+          className="h-7 rounded-md border hairline bg-surface-2 px-2.5 text-xs text-ink-200 transition-colors hover:border-ink-600 hover:bg-surface-3"
+        >
+          Open appraisal
+        </button>
+      </form>
+    );
+  }
+  // Linked: recompute the seed to surface withheld/stale at the moment of view.
+  const seed = buildAppraisalSeed({ investorId, result, entitled: (k) => sourcePermits(k, "display") });
+  return (
+    <div className="mt-3 border-l-2 border-[color:var(--accent)] py-1 pl-3">
+      <p className="text-[12px] text-ink-300">
+        Appraisal draft linked: <span className="font-mono text-ink-200">{result.appraisalDraftId}</span>
+      </p>
+      {seed.withheldSources.length > 0 && (
+        <p className="mt-1 text-[12px] text-amber-200/90">
+          Evidence withheld (licence not permitting display): {seed.withheldSources.join(", ")}.
+        </p>
+      )}
+      {seed.staleInputs.map((s) => (
+        <p key={s} className="mt-1 text-[12px] text-amber-200/90">{s}</p>
+      ))}
+    </div>
+  );
+}
+
+function ResultRow({
+  result,
+  bundle,
+  runId,
+  investorId,
+}: {
+  result: DealHuntResult;
+  bundle: StoredComparableBundle | undefined;
+  runId: string;
+  investorId: string;
+}) {
   return (
     <div className="px-5 py-4">
       <div className="flex items-center justify-between gap-4">
@@ -67,6 +114,7 @@ function ResultRow({ result, bundle }: { result: DealHuntResult; bundle: StoredC
       <div className="mt-2">
         <EvidenceLine bundle={bundle} />
       </div>
+      <Handoff result={result} runId={runId} investorId={investorId} />
     </div>
   );
 }
@@ -115,7 +163,7 @@ export default async function HuntDetailPage({ params }: { params: Promise<{ id:
           <Panel className="mt-8" flush eyebrow="Shortlist" title={`${results.length} evidenced match${results.length === 1 ? "" : "es"}`}>
             <div className="divide-y divide-ink-800/60">
               {results.map((r) => (
-                <ResultRow key={r.id} result={r} bundle={bundles.get(r.id)} />
+                <ResultRow key={r.id} result={r} bundle={bundles.get(r.id)} runId={run.id} investorId={run.investorId} />
               ))}
             </div>
           </Panel>
