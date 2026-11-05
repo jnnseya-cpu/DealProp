@@ -225,11 +225,18 @@ rendered per result; "Save decision snapshot", "Compare selected" (→ Compariso
 alerts) are all live controls; `/operator/specialist` records and assesses
 floorplan hypotheses and auction lots. Store entities (both engines, contract-
 tested): DealHuntQuery/Run/Result, ComparableBundle, EvidenceClaim,
-DecisionSnapshot, ComparisonRun, WatchCursor, LayoutHypothesis, AuctionLot. The
-one deliberate gate (not a half-build) is investor-facing display: it depends on
-a licensed feed's display terms, so until one is approved the surface is the
-staff-pilot operator console and an unlicensed deployment returns an honest
-zero-match (`DEAL_HUNT_FIXTURES=1` drives a synthetic pilot set).
+DecisionSnapshot, ComparisonRun, WatchCursor, LayoutHypothesis, AuctionLot.
+Both surfaces are built from one set of shared views (`components/hunt/`) and one
+read path (`backend/dealHunt/read.ts loadHuntDetail`) so they cannot drift: the
+operator console (`/operator/hunts`) and the investor surface (`/invest/hunts`
++ `/[id]` + `/compare/[id]`), the latter page-guarded by
+`requireMandateManagement` and scoped to the investor's own account (a hunt it
+does not own is notFound unless it manages all mandates). The shared actions
+admit operator or investor, attribute to the named account, and validate their
+redirect `base` to an allowlist. Data is gated at the SOURCE, never the UI: with
+no licensed feed the matcher returns a zero-match with its coverage boundary, and
+`DEAL_HUNT_FIXTURES=1` drives a synthetic pilot set — a deployment decision, not a
+half-built screen.
 
 Operator worklist (§9/A03): `operatorTask.ts` is the pure record — a follow-up
 a named person owns (`openTask`/`resolveTask`, first resolution stands, dedupe
