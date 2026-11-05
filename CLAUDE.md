@@ -217,11 +217,19 @@ overrides visible (IND08); `watchCursor.ts` saved watches that alert once per
 watch/property/episode (IND13). `floorplan.ts` keeps an unscaled plan a
 hypothesis with no fabricated dimensions (IND10); `auction.ts` keeps a lot's
 availability unverified until confirmed and counts only confirmed charges (IND11).
-Store entities: DealHuntQuery/Run/Result, ComparableBundle, EvidenceClaim,
-DecisionSnapshot, ComparisonRun, WatchCursor — both engines, contract-tested.
-Remaining thin layers: investor-facing (vs staff-pilot) display gated on a
-licensed feed's terms, and persisted producers/surfaces for the specialist
-floorplan/auction assessors.
+Every one of these is reachable from the running app with a live producer (no
+inert engines): the worker produces EvidenceClaims (missing facts recorded as
+missing; a changed value supersedes via a new revision) and the §3 decision is
+rendered per result; "Save decision snapshot", "Compare selected" (→ ComparisonRun
++ `/operator/hunts/compare/[id]`), "Watch this search" and "Run now" (→ watch
+alerts) are all live controls; `/operator/specialist` records and assesses
+floorplan hypotheses and auction lots. Store entities (both engines, contract-
+tested): DealHuntQuery/Run/Result, ComparableBundle, EvidenceClaim,
+DecisionSnapshot, ComparisonRun, WatchCursor, LayoutHypothesis, AuctionLot. The
+one deliberate gate (not a half-build) is investor-facing display: it depends on
+a licensed feed's display terms, so until one is approved the surface is the
+staff-pilot operator console and an unlicensed deployment returns an honest
+zero-match (`DEAL_HUNT_FIXTURES=1` drives a synthetic pilot set).
 
 Operator worklist (§9/A03): `operatorTask.ts` is the pure record — a follow-up
 a named person owns (`openTask`/`resolveTask`, first resolution stands, dedupe
