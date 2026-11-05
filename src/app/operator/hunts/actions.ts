@@ -1,13 +1,13 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requirePermission, viewerAccount } from "@/app/operator/guard";
+import { requireMandateManagement, viewerAccount } from "@/app/operator/guard";
 import { createAndRunHunt } from "@backend/dealHunt/service";
 import { openAppraisalFromResult } from "@backend/dealHunt/handoff";
 import { runDealHuntJob } from "@backend/dealHunt/worker";
 import { dealHuntSource } from "@backend/dealHunt/fixtureSource";
-import { randomUUID } from "node:crypto";
 import {
   getDealHuntRun,
   getDealHuntResult,
@@ -27,6 +27,19 @@ import { createWatch, issueWatchEvents, type WatchCandidate } from "@shared/doma
 import { fromMajor } from "@shared/money";
 import type { CriteriaDraft } from "@shared/domain/dealHunt";
 
+/**
+ * Deal Hunt server actions, shared by the operator console (/operator/hunts) and
+ * the investor surface (/invest/hunts). Each is its own POST endpoint checking
+ * its own permission (#29) via `requireMandateManagement` — which admits the
+ * shared operator, a staff account and a self-service investor — and a hunt,
+ * snapshot, comparison or watch is attributed to the named account, never the
+ * shared password (#32/#51).
+ *
+ * The surface a form came from is carried in a hidden `base` field, validated to
+ * an allowlist so it can only ever be one of the two real surfaces (never an
+ * open redirect).
+ */
+
 const DH_SHARED_ASSUMPTIONS: SharedAssumptions = {
   version: "dh-decision-1",
   strategy: "returned-and-reduced",
@@ -34,19 +47,22 @@ const DH_SHARED_ASSUMPTIONS: SharedAssumptions = {
   downsideDefinition: "conservative as-is low valuation vs current ask",
 };
 
-/**
- * Run a confirmed Deal Hunt. Its own POST endpoint, checking its own permission
- * (#29); a hunt is attributed to the named operator's account, never the shared
- * password. The draft is re-validated server-side — the browser's values are an
- * input, not a decision (DH02).
- */
+const ALLOWED_BASES = ["/operator/hunts", "/invest/hunts"] as const;
+type HuntBase = (typeof ALLOWED_BASES)[number];
+
+function baseFrom(formData: FormData): HuntBase {
+  const b = String(formData.get("base") ?? "");
+  return (ALLOWED_BASES as readonly string[]).includes(b) ? (b as HuntBase) : "/operator/hunts";
+}
+
 export async function runHuntAction(formData: FormData): Promise<void> {
-  const viewer = await requirePermission("view-audit-log", "/operator/hunts");
+  const base = baseFrom(formData);
+  const viewer = await requireMandateManagement(base);
   const account = viewerAccount(viewer);
   const brief = String(formData.get("brief") ?? "");
-  const backTo = `/operator/hunts?brief=${encodeURIComponent(brief)}`;
+  const backTo = `${base}?brief=${encodeURIComponent(brief)}`;
   if (account === undefined) {
-    redirect(`${backTo}&error=${encodeURIComponent("A hunt needs a named operator account, not the shared password.")}`);
+    redirect(`${backTo}&error=${encodeURIComponent("A hunt needs a named account, not the shared password.")}`);
   }
 
   const str = (k: string): string => String(formData.get(k) ?? "").trim();
@@ -83,32 +99,24 @@ export async function runHuntAction(formData: FormData): Promise<void> {
     const msg = (result.errors ?? ["The hunt could not be run."]).join(" ");
     redirect(`${backTo}&error=${encodeURIComponent(msg)}`);
   }
-  redirect(`/operator/hunts/${result.outcome.run.id}`);
+  redirect(`${base}/${result.outcome.run.id}`);
 }
 
-/**
- * Open an appraisal draft from a Deal Hunt result (spec §6). Idempotent per
- * investor + result (DH15); entitlement is re-checked at handoff (DH13). Its own
- * POST endpoint checking its own permission (#29).
- */
 export async function openAppraisalAction(formData: FormData): Promise<void> {
-  const viewer = await requirePermission("view-audit-log", "/operator/hunts");
+  const base = baseFrom(formData);
+  const viewer = await requireMandateManagement(base);
   const resultId = String(formData.get("resultId") ?? "");
   const runId = String(formData.get("runId") ?? "");
   if (resultId === "" || runId === "") return;
   const run = await getDealHuntRun(runId);
   const investorId = run?.investorId ?? viewerAccount(viewer)?.id ?? "unknown";
   await openAppraisalFromResult(resultId, investorId);
-  revalidatePath(`/operator/hunts/${runId}`);
+  revalidatePath(`${base}/${runId}`);
 }
 
-/**
- * Save a decision snapshot for a Deal Hunt result (§5). Composes the §3 decision
- * from the stored evidence and freezes it, attributed to the named operator.
- * Its own POST endpoint checking its own permission (#29/#32).
- */
 export async function saveSnapshotAction(formData: FormData): Promise<void> {
-  const viewer = await requirePermission("view-audit-log", "/operator/hunts");
+  const base = baseFrom(formData);
+  const viewer = await requireMandateManagement(base);
   const account = viewerAccount(viewer);
   const resultId = String(formData.get("resultId") ?? "");
   const runId = String(formData.get("runId") ?? "");
@@ -134,25 +142,19 @@ export async function saveSnapshotAction(formData: FormData): Promise<void> {
     visibility: "reviewer",
     createdAt: now,
     permitted: true,
-    // A reviewer (internal) snapshot has no external publication gate at the
-    // research stage; sharing to an investor would recheck material-information
-    // and identity/funding gates before publishing.
     publicationGatesClear: true,
   });
   if (created.ok) await saveDecisionSnapshot(created.snapshot);
-  revalidatePath(`/operator/hunts/${runId}`);
+  revalidatePath(`${base}/${runId}`);
 }
 
-/**
- * Compare up to four selected results under one shared assumption set (IND08),
- * persist the ComparisonRun, and open it. Its own POST endpoint (#29).
- */
 export async function compareAction(formData: FormData): Promise<void> {
-  const viewer = await requirePermission("view-audit-log", "/operator/hunts");
+  const base = baseFrom(formData);
+  const viewer = await requireMandateManagement(base);
   const account = viewerAccount(viewer);
   const runId = String(formData.get("runId") ?? "");
   const ids = formData.getAll("ids").map((v) => String(v)).filter((v) => v !== "");
-  const backTo = `/operator/hunts/${runId}`;
+  const backTo = `${base}/${runId}`;
   if (account === undefined) redirect(`${backTo}?error=named-account-required`);
   if (ids.length < 2) redirect(`${backTo}?error=${encodeURIComponent("Select at least two results to compare.")}`);
 
@@ -179,15 +181,12 @@ export async function compareAction(formData: FormData): Promise<void> {
   });
   if (!built.ok) redirect(`${backTo}?error=${encodeURIComponent(built.reason)}`);
   await saveComparisonRun(built.run);
-  redirect(`/operator/hunts/compare/${built.run.id}`);
+  redirect(`${base}/compare/${built.run.id}`);
 }
 
-/**
- * Save this hunt as a watch ("Watch this search"), so new qualifying episodes
- * alert the owner. Its own POST endpoint (#29).
- */
 export async function watchHuntAction(formData: FormData): Promise<void> {
-  const viewer = await requirePermission("view-audit-log", "/operator/hunts");
+  const base = baseFrom(formData);
+  const viewer = await requireMandateManagement(base);
   const account = viewerAccount(viewer);
   const runId = String(formData.get("runId") ?? "");
   if (account === undefined || runId === "") return;
@@ -207,16 +206,12 @@ export async function watchHuntAction(formData: FormData): Promise<void> {
     now,
   });
   await saveWatchCursor(watch);
-  revalidatePath(`/operator/hunts/${runId}`);
+  revalidatePath(`${base}/${runId}`);
 }
 
-/**
- * Re-run a saved watch now: execute its query, emit one alert per genuinely new
- * qualifying episode (deduplicated by watch/property/episode, IND13), advance the
- * cursor and record the alerts in-app. Its own POST endpoint (#29).
- */
 export async function runWatchAction(formData: FormData): Promise<void> {
-  const viewer = await requirePermission("view-audit-log", "/operator/hunts");
+  const base = baseFrom(formData);
+  const viewer = await requireMandateManagement(base);
   const account = viewerAccount(viewer);
   const watchId = String(formData.get("watchId") ?? "");
   if (account === undefined || watchId === "") return;
@@ -248,5 +243,5 @@ export async function runWatchAction(formData: FormData): Promise<void> {
       createdAt: now,
     });
   }
-  revalidatePath("/operator/hunts");
+  revalidatePath(base);
 }

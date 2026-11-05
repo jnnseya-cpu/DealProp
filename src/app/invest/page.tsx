@@ -107,6 +107,7 @@ export default async function InvestPage() {
           <nav className="flex items-center gap-6 text-sm text-ink-400">
             <Link href="/deals" className="transition hover:text-ink-100">Deals</Link>
             <Link href="/invest" className="text-ink-100">Buy</Link>
+            <Link href="/invest/hunts" className="transition hover:text-ink-100">Deal Hunts</Link>
             <Link href="/capital" className="transition hover:text-ink-100">Capital</Link>
             <SignOutButton />
           </nav>

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAndRunHunt, interpret } from "@backend/dealHunt/service";
 import { listDealHuntResults, listEvidenceClaims } from "@backend/store/repository";
+import { loadHuntDetail } from "@backend/dealHunt/read";
 
 /**
  * The service wired to the fixture feed, exercising interpret → validate →
@@ -39,6 +40,17 @@ describe("createAndRunHunt over the pilot fixtures", () => {
     expect(claims.map((c) => c.field)).toEqual(
       expect.arrayContaining(["asking_price", "previous_baseline", "sold_comparables", "rental_evidence"]),
     );
+
+    // The shared read path (operator console + investor surface) composes the
+    // run, its results and the §3 decision per result.
+    const detail = await loadHuntDetail(run.id);
+    expect(detail).toBeDefined();
+    expect(detail!.results).toHaveLength(1);
+    const decision = detail!.decisions.get(detail!.results[0]!.id);
+    expect(decision).toBeDefined();
+    // No comparable feed in the fixtures → an honest "needs evidence", never a
+    // fabricated supported price.
+    expect(decision!.verdict).toBe("needs-evidence");
   });
 
   it("refuses to run an invalid draft (DH02)", async () => {
