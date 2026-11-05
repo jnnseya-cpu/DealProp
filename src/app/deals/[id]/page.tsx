@@ -13,7 +13,8 @@ import { runDealDirector } from "@shared/domain/director";
 import { toWorkingDeal } from "@shared/domain/workingDeal";
 import { buildCloseReport } from "@shared/domain/completion";
 import { matchBuyBox, matchFundingBox, rankMatches, type MatchResult } from "@shared/domain/matching";
-import { dealRevenue } from "@shared/domain/revenue";
+import { dealRevenue, DEFAULT_ASSUMPTIONS } from "@shared/domain/revenue";
+import { permissionsHeld } from "@backend/permissions";
 import { referTradePartners } from "@shared/domain/partners";
 import { dealOriginLabel } from "@shared/domain/dealOrigin";
 import { SignOutButton } from "@/app/operator/SignOutButton";
@@ -77,7 +78,7 @@ export default async function DealRoom({ params }: { params: Promise<{ id: strin
     .filter((m) => !m.eligible);
 
   const close = record.milestones !== undefined ? buildCloseReport(record.milestones) : undefined;
-  const revenue = dealRevenue(a);
+  const revenue = dealRevenue(a, { ...DEFAULT_ASSUMPTIONS, permissionsHeld: permissionsHeld() });
   const verdict = VERDICT_TONE[briefing.verdict];
 
   return (

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { runDealDirector } from "@shared/domain/director";
-import { dealRevenue } from "@shared/domain/revenue";
+import { dealRevenue, DEFAULT_ASSUMPTIONS } from "@shared/domain/revenue";
 import { HEAT_LABELS, scoreGoldMine } from "@shared/domain/goldmine";
 import { buildCloseReport } from "@shared/domain/completion";
 import { countInterestedBuyers, matchFundingBox, rankMatches } from "@shared/domain/matching";
@@ -119,7 +119,10 @@ export default async function Home() {
     SEED_FUNDING_BOXES.map((b) => matchFundingBox(b, scored, record.borrowerCompletedDeals)),
   );
   const close = buildCloseReport(record.milestones ?? []);
-  const revenue = dealRevenue(scored.appraisal);
+  // The revenue model reflects the permissions actually recorded (decision #9):
+  // a stream whose permission is not held is shown at zero with the reason, so
+  // the "permissions as recorded" total is true rather than a fixed default.
+  const revenue = dealRevenue(scored.appraisal, { ...DEFAULT_ASSUMPTIONS, permissionsHeld: permissionsHeld() });
   const goldmine = record.listing !== undefined ? scoreGoldMine(record.listing, record.property) : undefined;
   // The seller's own view of the same deal, so the hero can show what a seller
   // receives rather than what a buyer makes.
