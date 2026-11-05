@@ -1295,6 +1295,43 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         expect((await store.getWatchCursor("w-rt"))?.enabled).toBe(false);
         expect((await store.listWatchCursors("inv-w")).filter((x) => x.id === "w-rt")).toHaveLength(1);
       });
+
+      it("round-trips a layout hypothesis and an auction lot by property (IND10/IND11)", async () => {
+        const h = {
+          id: "lh-rt",
+          tenantId: "lode",
+          propertyId: "p-spec",
+          planVersion: "plan-1",
+          page: 1,
+          coordinateUnits: "unknown" as const,
+          scaleConfirmed: false,
+          proposedChange: "knock through",
+          regions: [],
+          confidence: "low" as const,
+          unresolvedChecks: ["scale", "circulation", "access", "planning permission"],
+          dimensionsPermitted: false,
+          createdAt: "2026-06-15T09:00:00.000Z",
+        };
+        await store.saveLayoutHypothesis(h);
+        expect((await store.listLayoutHypotheses("p-spec")).map((x) => x.id)).toContain("lh-rt");
+
+        const lot = {
+          id: "al-rt",
+          tenantId: "lode",
+          propertyId: "p-spec",
+          lot: {
+            id: "al-rt",
+            propertyId: "p-spec",
+            charges: [],
+            auctionDate: "2026-05-15T00:00:00.000Z",
+            conditions: [],
+            outcome: "unsold-confirmed" as const,
+          },
+          createdAt: "2026-06-15T09:00:00.000Z",
+        };
+        await store.saveAuctionLot(lot);
+        expect(await (async () => (await store.listAuctionLots("p-spec")).find((x) => x.id === "al-rt"))()).toEqual(lot);
+      });
     });
 
     describe("contacted leads (suppressed from future runs)", () => {

@@ -37,6 +37,8 @@ import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
 import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
 import type { ComparisonRun } from "@shared/domain/comparison";
 import type { WatchCursor } from "@shared/domain/watchCursor";
+import type { LayoutHypothesis } from "@shared/domain/floorplan";
+import type { AuctionLot } from "@shared/domain/auction";
 import type { PackApproval } from "@shared/domain/packApproval";
 import type { ResaleArrangement, ResaleConsent } from "@shared/domain/reseller";
 import type { PayoutRecipient } from "@shared/domain/payouts";
@@ -416,6 +418,15 @@ export interface StoredComparableBundle {
   readonly createdAt: string;
 }
 
+/** A persisted auction lot (IND11): the lot's recorded facts plus filing keys. */
+export interface StoredAuctionLot {
+  readonly id: string;
+  readonly tenantId: string;
+  readonly propertyId: string;
+  readonly lot: AuctionLot;
+  readonly createdAt: string;
+}
+
 export interface Database {
   deals: DealRecord[];
   buyBoxes: BuyBox[];
@@ -490,6 +501,10 @@ export interface Database {
   comparisonRuns?: ComparisonRun[];
   /** Saved watches (Deal Hunt §7 / WatchCursor §5). */
   watchCursors?: WatchCursor[];
+  /** Floorplan layout hypotheses (Independent Engine §5 / IND10). */
+  layoutHypotheses?: LayoutHypothesis[];
+  /** Auction lots under follow-up (IND11). */
+  auctionLots?: StoredAuctionLot[];
   dataRoomGrants: DataRoomGrant[];
   pendingCharges: PendingCharge[];
   /**
@@ -1220,6 +1235,12 @@ export interface Store {
   saveWatchCursor(watch: WatchCursor): Promise<WatchCursor>;
   getWatchCursor(id: string): Promise<WatchCursor | undefined>;
   listWatchCursors(ownerId: string): Promise<readonly WatchCursor[]>;
+  /** Floorplan layout hypotheses (IND10), most recent first per property. */
+  saveLayoutHypothesis(hypothesis: LayoutHypothesis): Promise<LayoutHypothesis>;
+  listLayoutHypotheses(propertyId: string): Promise<readonly LayoutHypothesis[]>;
+  /** Auction lots under follow-up (IND11), most recent first per property. */
+  saveAuctionLot(lot: StoredAuctionLot): Promise<StoredAuctionLot>;
+  listAuctionLots(propertyId: string): Promise<readonly StoredAuctionLot[]>;
 
   /** Fees raised against a deal, most recent first. */
   listDealFees(dealId: string): Promise<readonly DealFee[]>;

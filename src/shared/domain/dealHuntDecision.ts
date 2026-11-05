@@ -1,7 +1,7 @@
 import { sub, money, type Money } from "@shared/money";
 import type { DealHuntResult } from "@shared/domain/dealHuntRun";
 import type { ComparableBundle } from "@shared/domain/comparableBundle";
-import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
+import { missingClaim, type EvidenceClaim } from "@shared/domain/evidenceClaim";
 import {
   buildDecisionOutput,
   summariseCoverage,
@@ -70,39 +70,50 @@ export function buildResultClaims(
     },
   ];
 
+  const policyLocator = bundle !== undefined ? `policy:${bundle.policyVersion}` : "none";
+
   const soldDefensible = bundle !== undefined && !bundle.coverage.soldThin && bundle.coverage.soldCount > 0;
-  claims.push({
-    id: id("sold_comparables"),
-    tenantId,
-    propertyId: result.propertyId,
-    field: "sold_comparables",
-    value: String(bundle?.coverage.soldCount ?? 0),
-    sourceType: "comparables",
-    sourceLocator: bundle !== undefined ? `policy:${bundle.policyVersion}` : "none",
-    effectiveAt: now,
-    observedAt: now,
-    confidence: soldDefensible ? "confirmed" : "missing",
-    entitlement: "pilot",
-    revision: 1,
-  });
+  claims.push(
+    soldDefensible
+      ? {
+          id: id("sold_comparables"),
+          tenantId,
+          propertyId: result.propertyId,
+          field: "sold_comparables",
+          value: String(bundle!.coverage.soldCount),
+          sourceType: "comparables",
+          sourceLocator: policyLocator,
+          effectiveAt: now,
+          observedAt: now,
+          confidence: "confirmed",
+          entitlement: "pilot",
+          revision: 1,
+        }
+      : // No defensible sold comparables — recorded as a missing fact, with where
+        // it would come from, never silently absent.
+        missingClaim({ id: id("sold_comparables"), tenantId, propertyId: result.propertyId, field: "sold_comparables", sourceType: "comparables", sourceLocator: policyLocator, observedAt: now, entitlement: "pilot" }),
+  );
 
   const rentCount = (bundle?.coverage.advertisedRentCount ?? 0) + (bundle?.coverage.agreedRentCount ?? 0);
-  const rentConfidence: EvidenceClaim["confidence"] =
-    bundle === undefined || bundle.coverage.rentUnavailable || rentCount === 0 ? "missing" : "user_reported";
-  claims.push({
-    id: id("rental_evidence"),
-    tenantId,
-    propertyId: result.propertyId,
-    field: "rental_evidence",
-    value: String(rentCount),
-    sourceType: "comparables",
-    sourceLocator: bundle !== undefined ? `policy:${bundle.policyVersion}` : "none",
-    effectiveAt: now,
-    observedAt: now,
-    confidence: rentConfidence,
-    entitlement: "pilot",
-    revision: 1,
-  });
+  const rentPresent = bundle !== undefined && !bundle.coverage.rentUnavailable && rentCount > 0;
+  claims.push(
+    rentPresent
+      ? {
+          id: id("rental_evidence"),
+          tenantId,
+          propertyId: result.propertyId,
+          field: "rental_evidence",
+          value: String(rentCount),
+          sourceType: "comparables",
+          sourceLocator: policyLocator,
+          effectiveAt: now,
+          observedAt: now,
+          confidence: "user_reported",
+          entitlement: "pilot",
+          revision: 1,
+        }
+      : missingClaim({ id: id("rental_evidence"), tenantId, propertyId: result.propertyId, field: "rental_evidence", sourceType: "comparables", sourceLocator: policyLocator, observedAt: now, entitlement: "pilot" }),
+  );
 
   return claims;
 }

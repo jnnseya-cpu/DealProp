@@ -7,6 +7,8 @@ import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
 import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
 import type { ComparisonRun } from "@shared/domain/comparison";
 import type { WatchCursor } from "@shared/domain/watchCursor";
+import type { LayoutHypothesis } from "@shared/domain/floorplan";
+import type { StoredAuctionLot } from "@backend/store/schema";
 import type { StoredComparableBundle } from "@backend/store/schema";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { PayoutRecipient } from "@shared/domain/payouts";
@@ -488,6 +490,22 @@ export async function getWatchCursor(id: string) {
 
 export async function listWatchCursors(ownerId: string) {
   return (await store()).listWatchCursors(ownerId);
+}
+
+export async function saveLayoutHypothesis(hypothesis: LayoutHypothesis) {
+  return (await store()).saveLayoutHypothesis(hypothesis);
+}
+
+export async function listLayoutHypotheses(propertyId: string) {
+  return (await store()).listLayoutHypotheses(propertyId);
+}
+
+export async function saveAuctionLot(lot: StoredAuctionLot) {
+  return (await store()).saveAuctionLot(lot);
+}
+
+export async function listAuctionLots(propertyId: string) {
+  return (await store()).listAuctionLots(propertyId);
 }
 
 export async function listContactedLeads() {

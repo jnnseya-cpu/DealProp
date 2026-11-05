@@ -4,7 +4,7 @@ import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { AgentDecision } from "@shared/domain/agents";
-import type { DealFee, PayoutRecord, RevealRecord, StoredComparableBundle } from "@backend/store/schema";
+import type { DealFee, PayoutRecord, RevealRecord, StoredComparableBundle, StoredAuctionLot } from "@backend/store/schema";
 import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { IntakeConversation } from "@shared/domain/intakeConversation";
@@ -15,6 +15,7 @@ import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
 import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
 import type { ComparisonRun } from "@shared/domain/comparison";
 import type { WatchCursor } from "@shared/domain/watchCursor";
+import type { LayoutHypothesis } from "@shared/domain/floorplan";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   dueForExpiry,
@@ -120,6 +121,8 @@ function emptyDatabase(): Database {
     decisionSnapshots: [],
     comparisonRuns: [],
     watchCursors: [],
+    layoutHypotheses: [],
+    auctionLots: [],
     suppressions: [],
     dataRoomGrants: [],
     agentDecisions: [],
@@ -176,6 +179,8 @@ async function readDatabase(): Promise<Database> {
       decisionSnapshots: parsed.decisionSnapshots ?? [],
       comparisonRuns: parsed.comparisonRuns ?? [],
       watchCursors: parsed.watchCursors ?? [],
+      layoutHypotheses: parsed.layoutHypotheses ?? [],
+      auctionLots: parsed.auctionLots ?? [],
       suppressions: parsed.suppressions ?? [],
       dataRoomGrants: parsed.dataRoomGrants ?? [],
       agentDecisions: parsed.agentDecisions ?? [],
@@ -1064,6 +1069,40 @@ async function listWatchCursors(ownerId: string): Promise<readonly WatchCursor[]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+async function saveLayoutHypothesis(hypothesis: LayoutHypothesis): Promise<LayoutHypothesis> {
+  return mutate((db) => {
+    const list = db.layoutHypotheses ?? (db.layoutHypotheses = []);
+    const index = list.findIndex((h) => h.id === hypothesis.id);
+    if (index < 0) list.push(hypothesis);
+    else list[index] = hypothesis;
+    return hypothesis;
+  });
+}
+
+async function listLayoutHypotheses(propertyId: string): Promise<readonly LayoutHypothesis[]> {
+  const db = await readDatabase();
+  return [...(db.layoutHypotheses ?? [])]
+    .filter((h) => h.propertyId === propertyId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+async function saveAuctionLot(lot: StoredAuctionLot): Promise<StoredAuctionLot> {
+  return mutate((db) => {
+    const list = db.auctionLots ?? (db.auctionLots = []);
+    const index = list.findIndex((l) => l.id === lot.id);
+    if (index < 0) list.push(lot);
+    else list[index] = lot;
+    return lot;
+  });
+}
+
+async function listAuctionLots(propertyId: string): Promise<readonly StoredAuctionLot[]> {
+  const db = await readDatabase();
+  return [...(db.auctionLots ?? [])]
+    .filter((l) => l.propertyId === propertyId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 async function listContactedLeads(): Promise<readonly ContactedLead[]> {
   const db = await readDatabase();
   return [...(db.contactedLeads ?? [])].sort((a, b) => b.contactedAt.localeCompare(a.contactedAt));
@@ -1529,6 +1568,10 @@ export const fileStore: Store = {
   saveWatchCursor,
   getWatchCursor,
   listWatchCursors,
+  saveLayoutHypothesis,
+  listLayoutHypotheses,
+  saveAuctionLot,
+  listAuctionLots,
   listContactedLeads,
   markContactedLead,
   clearContactedLead,

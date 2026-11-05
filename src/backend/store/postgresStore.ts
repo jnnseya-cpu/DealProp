@@ -5,7 +5,7 @@ import type { BuyBox, FundingBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { Account } from "@shared/domain/accounts";
 import type { AgentDecision } from "@shared/domain/agents";
-import type { DealFee, PayoutRecord, RevealRecord, StoredComparableBundle } from "@backend/store/schema";
+import type { DealFee, PayoutRecord, RevealRecord, StoredComparableBundle, StoredAuctionLot } from "@backend/store/schema";
 import type { PayoutRecipient } from "@shared/domain/payouts";
 import type { RefundTrigger } from "@shared/domain/reveal";
 import type { IntakeConversation } from "@shared/domain/intakeConversation";
@@ -16,6 +16,7 @@ import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
 import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
 import type { ComparisonRun } from "@shared/domain/comparison";
 import type { WatchCursor } from "@shared/domain/watchCursor";
+import type { LayoutHypothesis } from "@shared/domain/floorplan";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   availableBalance,
@@ -309,6 +310,22 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS watch_cursors_owner
     ON watch_cursors (owner_id, created_at DESC);
+  CREATE TABLE IF NOT EXISTS layout_hypotheses (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    property_id text NOT NULL,
+    created_at timestamptz NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS layout_hypotheses_property
+    ON layout_hypotheses (property_id, created_at DESC);
+  CREATE TABLE IF NOT EXISTS auction_lots (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    property_id text NOT NULL,
+    created_at timestamptz NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS auction_lots_property
+    ON auction_lots (property_id, created_at DESC);
   -- Keyed by address, because one mailbox can appear against several
   -- organisations and somebody who asked to be left alone asked once.
   CREATE TABLE IF NOT EXISTS suppressions (
@@ -1644,6 +1661,48 @@ export const postgresStore: Store = {
     const { rows } = await getPool().query<{ data: WatchCursor }>(
       "SELECT data FROM watch_cursors WHERE owner_id = $1 ORDER BY created_at DESC",
       [ownerId],
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async saveLayoutHypothesis(hypothesis: LayoutHypothesis): Promise<LayoutHypothesis> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO layout_hypotheses (id, data, property_id, created_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE
+         SET data = EXCLUDED.data, property_id = EXCLUDED.property_id, created_at = EXCLUDED.created_at`,
+      [hypothesis.id, JSON.stringify(hypothesis), hypothesis.propertyId, hypothesis.createdAt],
+    );
+    return hypothesis;
+  },
+
+  async listLayoutHypotheses(propertyId: string): Promise<readonly LayoutHypothesis[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: LayoutHypothesis }>(
+      "SELECT data FROM layout_hypotheses WHERE property_id = $1 ORDER BY created_at DESC",
+      [propertyId],
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async saveAuctionLot(lot: StoredAuctionLot): Promise<StoredAuctionLot> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO auction_lots (id, data, property_id, created_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE
+         SET data = EXCLUDED.data, property_id = EXCLUDED.property_id, created_at = EXCLUDED.created_at`,
+      [lot.id, JSON.stringify(lot), lot.propertyId, lot.createdAt],
+    );
+    return lot;
+  },
+
+  async listAuctionLots(propertyId: string): Promise<readonly StoredAuctionLot[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: StoredAuctionLot }>(
+      "SELECT data FROM auction_lots WHERE property_id = $1 ORDER BY created_at DESC",
+      [propertyId],
     );
     return rows.map((r) => r.data);
   },

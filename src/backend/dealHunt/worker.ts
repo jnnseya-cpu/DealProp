@@ -26,11 +26,13 @@ import type { Comparable, ComparableSubject } from "@shared/domain/comparables";
 import type { RentalComparable, RentalSubject } from "@shared/domain/comparableBundle";
 import type { StoredComparableBundle } from "@backend/store/schema";
 import { buildResultClaims } from "@shared/domain/dealHuntDecision";
+import { reviseClaim } from "@shared/domain/evidenceClaim";
 import {
   saveComparableBundle,
   saveDealHuntResult,
   saveDealHuntRun,
   saveEvidenceClaim,
+  listEvidenceClaims,
 } from "@backend/store/repository";
 
 /**
@@ -377,10 +379,26 @@ export async function runDealHuntJob(
     results.push(result);
 
     // Produce the evidence claims this result rests on, so the §3 decision and
-    // coverage are computed from stored evidence (deterministic ids: a re-run
-    // upserts rather than piling up).
-    for (const claim of buildResultClaims(result, bundleForClaims, query.tenantId, nowIso)) {
-      await saveEvidenceClaim(claim);
+    // coverage are computed from stored evidence. A changed value supersedes the
+    // prior claim (a new revision, history preserved); an identical value is a
+    // no-op; a first sighting is written as-is.
+    const existing = await listEvidenceClaims(d.propertyId);
+    for (const nc of buildResultClaims(result, bundleForClaims, query.tenantId, nowIso)) {
+      const prior = existing
+        .filter((c) => c.field === nc.field)
+        .sort((a, b) => b.revision - a.revision)[0];
+      if (prior === undefined) {
+        await saveEvidenceClaim(nc);
+      } else if (prior.value !== nc.value || prior.confidence !== nc.confidence) {
+        await saveEvidenceClaim(
+          reviseClaim(
+            prior,
+            { value: nc.value, sourceType: nc.sourceType, sourceLocator: nc.sourceLocator, effectiveAt: nc.effectiveAt, confidence: nc.confidence },
+            { id: newId(), observedAt: nowIso },
+          ),
+        );
+      }
+      // identical → nothing to record
     }
   }
 
