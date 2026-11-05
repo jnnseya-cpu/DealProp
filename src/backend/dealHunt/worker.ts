@@ -25,10 +25,12 @@ import {
 import type { Comparable, ComparableSubject } from "@shared/domain/comparables";
 import type { RentalComparable, RentalSubject } from "@shared/domain/comparableBundle";
 import type { StoredComparableBundle } from "@backend/store/schema";
+import { buildResultClaims } from "@shared/domain/dealHuntDecision";
 import {
   saveComparableBundle,
   saveDealHuntResult,
   saveDealHuntRun,
+  saveEvidenceClaim,
 } from "@backend/store/repository";
 
 /**
@@ -318,6 +320,7 @@ export async function runDealHuntJob(
     let evidenceBundleId: string | undefined;
     let soldStatus: EnrichmentStatus = "pending";
     let rentStatus: EnrichmentStatus = "pending";
+    let bundleForClaims: ComparableBundle | undefined;
 
     try {
       const subject = sources.subjectFor(d.propertyId);
@@ -328,6 +331,7 @@ export async function runDealHuntJob(
         { subject: subject.rent, candidates: rent },
         { now },
       );
+      bundleForClaims = bundle;
       const stored: StoredComparableBundle = {
         id: newId(),
         tenantId: query.tenantId,
@@ -371,6 +375,13 @@ export async function runDealHuntJob(
     };
     await saveDealHuntResult(result);
     results.push(result);
+
+    // Produce the evidence claims this result rests on, so the §3 decision and
+    // coverage are computed from stored evidence (deterministic ids: a re-run
+    // upserts rather than piling up).
+    for (const claim of buildResultClaims(result, bundleForClaims, query.tenantId, nowIso)) {
+      await saveEvidenceClaim(claim);
+    }
   }
 
   const finalState = anyEnrichmentFailed ? "partial" : "completed";

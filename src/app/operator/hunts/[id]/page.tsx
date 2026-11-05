@@ -6,13 +6,17 @@ import {
   getComparableBundle,
   getDealHuntRun,
   listDealHuntResults,
+  listEvidenceClaims,
+  listDecisionSnapshots,
 } from "@backend/store/repository";
 import { gbp, percent } from "@shared/format";
 import { sourcePermits } from "@shared/domain/sources";
 import { buildAppraisalSeed } from "@shared/domain/dealHuntHandoff";
+import { decisionFromResult } from "@shared/domain/dealHuntDecision";
+import type { DecisionOutput, DecisionVerdict } from "@shared/domain/decisionOutput";
 import type { DealHuntResult, DealHuntRunState } from "@shared/domain/dealHuntRun";
 import type { StoredComparableBundle } from "@backend/store/schema";
-import { openAppraisalAction } from "@/app/operator/hunts/actions";
+import { openAppraisalAction, saveSnapshotAction } from "@/app/operator/hunts/actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Deal Hunt — Lode" };
@@ -26,6 +30,38 @@ const STATE_TONE: Record<DealHuntRunState, "neutral" | "accent" | "good" | "warn
   failed: "bad",
   cancelled: "neutral",
 };
+
+const VERDICT_TONE: Record<DecisionVerdict, "neutral" | "accent" | "good" | "warn" | "bad"> = {
+  "within-target": "good",
+  "below-target": "warn",
+  "needs-evidence": "neutral",
+  blocked: "bad",
+};
+
+function DecisionBlock({ decision }: { decision: DecisionOutput }) {
+  const e = decision.economics;
+  return (
+    <div className="mt-3 rounded-lg border hairline bg-surface-2 px-4 py-3">
+      <div className="flex items-center gap-2">
+        <Badge tone={VERDICT_TONE[decision.verdict]}>{decision.verdict.replace("-", " ")}</Badge>
+        <span className="text-[13px] text-ink-200">{decision.statement}</span>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label="Max supported" value={gbp(e.maxSupportedPricePence)} size="sm" />
+        <Stat label="Current ask" value={gbp(e.currentAskPence)} size="sm" />
+        <Stat label="Headroom" value={gbp(e.headroomPence)} size="sm" warn={Number(e.headroomPence) < 0} />
+        <Stat label="Downside" value={gbp(e.downsidePence)} size="sm" />
+      </div>
+      <p className="mt-3 text-[12px] text-ink-500">
+        Coverage: {decision.evidenceCoverage.confirmed} confirmed, {decision.evidenceCoverage.userReported} reported
+        {decision.evidenceCoverage.missing.length > 0 && ` · missing: ${decision.evidenceCoverage.missing.join(", ")}`}
+      </p>
+      {decision.nextCheck !== undefined && (
+        <p className="mt-1 text-[12px] text-ink-400">Next check: {decision.nextCheck}</p>
+      )}
+    </div>
+  );
+}
 
 function EvidenceLine({ bundle }: { bundle: StoredComparableBundle | undefined }) {
   if (bundle === undefined) {
@@ -78,11 +114,15 @@ function Handoff({ result, runId, investorId }: { result: DealHuntResult; runId:
 function ResultRow({
   result,
   bundle,
+  decision,
+  snapshotSaved,
   runId,
   investorId,
 }: {
   result: DealHuntResult;
   bundle: StoredComparableBundle | undefined;
+  decision: DecisionOutput;
+  snapshotSaved: boolean;
   runId: string;
   investorId: string;
 }) {
@@ -111,10 +151,29 @@ function ResultRow({
           <li key={r} className="text-[12px] leading-relaxed text-ink-400">{r}</li>
         ))}
       </ul>
+      <DecisionBlock decision={decision} />
+
       <div className="mt-2">
         <EvidenceLine bundle={bundle} />
       </div>
-      <Handoff result={result} runId={runId} investorId={investorId} />
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Handoff result={result} runId={runId} investorId={investorId} />
+        {snapshotSaved ? (
+          <span className="text-[12px] text-emerald-300/80">✓ Decision snapshot saved</span>
+        ) : (
+          <form action={saveSnapshotAction}>
+            <input type="hidden" name="resultId" value={result.id} />
+            <input type="hidden" name="runId" value={runId} />
+            <button
+              type="submit"
+              className="h-7 rounded-md border hairline bg-surface-2 px-2.5 text-xs text-ink-200 transition-colors hover:border-ink-600 hover:bg-surface-3"
+            >
+              Save decision snapshot
+            </button>
+          </form>
+        )}
+      </div>
     </div>
   );
 }
@@ -127,11 +186,15 @@ export default async function HuntDetailPage({ params }: { params: Promise<{ id:
 
   const results = await listDealHuntResults(id);
   const bundles = new Map<string, StoredComparableBundle>();
+  const decisions = new Map<string, DecisionOutput>();
+  const snapshotByResult = new Set<string>();
   for (const r of results) {
-    if (r.evidenceBundleId !== undefined) {
-      const b = await getComparableBundle(r.evidenceBundleId);
-      if (b !== undefined) bundles.set(r.id, b);
-    }
+    const stored = r.evidenceBundleId !== undefined ? await getComparableBundle(r.evidenceBundleId) : undefined;
+    if (stored !== undefined) bundles.set(r.id, stored);
+    const claims = await listEvidenceClaims(r.propertyId);
+    decisions.set(r.id, decisionFromResult(r, stored?.bundle, claims));
+    // A decision snapshot is filed under the result id as its subject.
+    if ((await listDecisionSnapshots(r.id)).length > 0) snapshotByResult.add(r.id);
   }
 
   return (
@@ -163,7 +226,15 @@ export default async function HuntDetailPage({ params }: { params: Promise<{ id:
           <Panel className="mt-8" flush eyebrow="Shortlist" title={`${results.length} evidenced match${results.length === 1 ? "" : "es"}`}>
             <div className="divide-y divide-ink-800/60">
               {results.map((r) => (
-                <ResultRow key={r.id} result={r} bundle={bundles.get(r.id)} runId={run.id} investorId={run.investorId} />
+                <ResultRow
+                  key={r.id}
+                  result={r}
+                  bundle={bundles.get(r.id)}
+                  decision={decisions.get(r.id)!}
+                  snapshotSaved={snapshotByResult.has(r.id)}
+                  runId={run.id}
+                  investorId={run.investorId}
+                />
               ))}
             </div>
           </Panel>

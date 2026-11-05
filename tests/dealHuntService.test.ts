@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAndRunHunt, interpret } from "@backend/dealHunt/service";
-import { listDealHuntResults } from "@backend/store/repository";
+import { listDealHuntResults, listEvidenceClaims } from "@backend/store/repository";
 
 /**
  * The service wired to the fixture feed, exercising interpret → validate →
@@ -33,6 +33,12 @@ describe("createAndRunHunt over the pilot fixtures", () => {
     expect(persisted).toHaveLength(1);
     expect(persisted[0]!.propertyId).toBe("fx-erdington-1");
     expect(persisted[0]!.enrichment.rent).toBe("missing"); // no fixture rental feed
+
+    // The run produced evidence claims for the matched property (live producer).
+    const claims = await listEvidenceClaims("fx-erdington-1");
+    expect(claims.map((c) => c.field)).toEqual(
+      expect.arrayContaining(["asking_price", "previous_baseline", "sold_comparables", "rental_evidence"]),
+    );
   });
 
   it("refuses to run an invalid draft (DH02)", async () => {

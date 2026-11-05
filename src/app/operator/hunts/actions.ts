@@ -5,7 +5,15 @@ import { revalidatePath } from "next/cache";
 import { requirePermission, viewerAccount } from "@/app/operator/guard";
 import { createAndRunHunt } from "@backend/dealHunt/service";
 import { openAppraisalFromResult } from "@backend/dealHunt/handoff";
-import { getDealHuntRun } from "@backend/store/repository";
+import {
+  getDealHuntRun,
+  getDealHuntResult,
+  getComparableBundle,
+  listEvidenceClaims,
+  saveDecisionSnapshot,
+} from "@backend/store/repository";
+import { decisionFromResult } from "@shared/domain/dealHuntDecision";
+import { createDecisionSnapshot } from "@shared/domain/decisionSnapshot";
 import { fromMajor } from "@shared/money";
 import type { CriteriaDraft } from "@shared/domain/dealHunt";
 
@@ -74,5 +82,46 @@ export async function openAppraisalAction(formData: FormData): Promise<void> {
   const run = await getDealHuntRun(runId);
   const investorId = run?.investorId ?? viewerAccount(viewer)?.id ?? "unknown";
   await openAppraisalFromResult(resultId, investorId);
+  revalidatePath(`/operator/hunts/${runId}`);
+}
+
+/**
+ * Save a decision snapshot for a Deal Hunt result (§5). Composes the §3 decision
+ * from the stored evidence and freezes it, attributed to the named operator.
+ * Its own POST endpoint checking its own permission (#29/#32).
+ */
+export async function saveSnapshotAction(formData: FormData): Promise<void> {
+  const viewer = await requirePermission("view-audit-log", "/operator/hunts");
+  const account = viewerAccount(viewer);
+  const resultId = String(formData.get("resultId") ?? "");
+  const runId = String(formData.get("runId") ?? "");
+  if (account === undefined || resultId === "" || runId === "") return;
+
+  const result = await getDealHuntResult(resultId);
+  if (result === undefined) return;
+  const bundle = result.evidenceBundleId !== undefined ? await getComparableBundle(result.evidenceBundleId) : undefined;
+  const claims = await listEvidenceClaims(result.propertyId);
+  const decision = decisionFromResult(result, bundle?.bundle, claims);
+
+  const now = new Date().toISOString();
+  const created = createDecisionSnapshot({
+    id: `snap-${runId}-${resultId}`,
+    tenantId: "lode",
+    subjectId: resultId,
+    subjectType: "deal-hunt-result",
+    actorId: account.id,
+    evidenceSetVersion: `ev-${resultId}-${claims.length}`,
+    calculationIds: bundle !== undefined ? [bundle.id] : [],
+    decision,
+    reasonCodes: [decision.verdict],
+    visibility: "reviewer",
+    createdAt: now,
+    permitted: true,
+    // A reviewer (internal) snapshot has no external publication gate at the
+    // research stage; sharing to an investor would recheck material-information
+    // and identity/funding gates before publishing.
+    publicationGatesClear: true,
+  });
+  if (created.ok) await saveDecisionSnapshot(created.snapshot);
   revalidatePath(`/operator/hunts/${runId}`);
 }
