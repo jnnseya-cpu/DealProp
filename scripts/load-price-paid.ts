@@ -30,6 +30,13 @@ import { closePostgres } from "@backend/store/postgresStore";
  *
  * Usage:
  *   tsx scripts/load-price-paid.ts <path-to.csv|.csv.gz> [--areas=B,CV,DY,WS,WV] [--batch=5000]
+ *   curl -Ls <url> | tsx scripts/load-price-paid.ts - [--areas=...] [--gz]
+ *
+ * Pass "-" as the path to read the CSV from stdin. That streams the file
+ * straight through the parser into the store without ever writing it to disk —
+ * which is how to load on a host too small to hold the 5GB complete file, and
+ * how to load the complete file at all without a 5GB scratch write. Add --gz
+ * when the piped stream is gzip-compressed.
  *
  * The store is chosen by DATABASE_URL exactly like the running app: set means
  * Postgres (the production target for a file this size), unset means the JSON
@@ -42,12 +49,14 @@ interface Args {
   readonly file: string;
   readonly areas: readonly string[];
   readonly batchSize: number;
+  readonly gz: boolean;
 }
 
 function parseArgs(argv: readonly string[]): Args | undefined {
   let file: string | undefined;
   let areas: readonly string[] = DEFAULT_LOAD_AREAS;
   let batchSize = 5000;
+  let gz = false;
 
   for (const arg of argv) {
     if (arg.startsWith("--areas=")) {
@@ -57,13 +66,15 @@ function parseArgs(argv: readonly string[]): Args | undefined {
     } else if (arg.startsWith("--batch=")) {
       const n = Number(arg.slice("--batch=".length));
       if (Number.isFinite(n) && n > 0) batchSize = Math.floor(n);
+    } else if (arg === "--gz") {
+      gz = true;
     } else if (!arg.startsWith("--") && file === undefined) {
       file = arg;
     }
   }
 
   if (file === undefined) return undefined;
-  return { file, areas, batchSize };
+  return { file, areas, batchSize, gz };
 }
 
 async function load(args: Args): Promise<void> {
@@ -71,9 +82,10 @@ async function load(args: Args): Promise<void> {
   // Price Paid read. The per-row parser stays pure.
   assertSourceUsable("land-registry-ppd", "internal-analysis");
 
-  const input = args.file.endsWith(".gz")
-    ? createReadStream(args.file).pipe(createGunzip())
-    : createReadStream(args.file);
+  // "-" reads from stdin so a piped download never touches disk. Gzip is
+  // applied when the name ends .gz or --gz is passed (a pipe has no name).
+  const raw = args.file === "-" ? process.stdin : createReadStream(args.file);
+  const input = args.gz || args.file.endsWith(".gz") ? raw.pipe(createGunzip()) : raw;
   const rl = createInterface({ input, crlfDelay: Infinity });
 
   let read = 0;
@@ -112,9 +124,11 @@ const args = parseArgs(process.argv.slice(2));
 if (args === undefined) {
   // eslint-disable-next-line no-console
   console.error(
-    "Usage: tsx scripts/load-price-paid.ts <path-to.csv|.csv.gz> [--areas=B,CV,DY,WS,WV] [--batch=5000]\n" +
+    "Usage: tsx scripts/load-price-paid.ts <path-to.csv|.csv.gz|-> [--areas=B,CV,DY,WS,WV] [--batch=5000] [--gz]\n" +
+      "  -        read the CSV from stdin (pipe a download so it never lands on disk).\n" +
       "  --areas  comma-separated postcode areas to keep; --areas= (empty) loads everything.\n" +
-      `           Default: ${DEFAULT_LOAD_AREAS.join(",")}.`,
+      `           Default: ${DEFAULT_LOAD_AREAS.join(",")}.\n` +
+      "  --gz     the input is gzip-compressed (inferred from a .gz name otherwise).",
   );
   process.exit(1);
 } else {
