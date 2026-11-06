@@ -242,7 +242,7 @@ export function sourcingReadiness(
       name: named(PPD_SOURCE),
       state: "ready",
       detail:
-        "Open Government Licence, free, no key. Queried per postcode over the Land Registry linked-data endpoint (fetchSales) and joined to the EPC register by findCandidates — no bulk file to download.",
+        "Open Government Licence, free, no key. fetchSales reads the bulk store first where an area has been loaded (npm run load:price-paid) — the dense published file — and falls back to the sparser Land Registry linked-data endpoint per postcode otherwise. Joined to the EPC register by findCandidates.",
     },
     {
       sourceKey: EPC_SOURCE,

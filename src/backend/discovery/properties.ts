@@ -64,8 +64,13 @@ export interface PricePaidRecord {
   readonly category: "A" | "B";
 }
 
-/** A quoted CSV row split correctly, which a naive comma split does not do. */
-function splitRow(line: string): string[] {
+/**
+ * A quoted CSV row split correctly, which a naive comma split does not do.
+ *
+ * Exported so the streaming bulk loader (`sources/pricePaidBulk.ts`) parses a
+ * row exactly the way `parsePricePaid` does — one splitter, not two that drift.
+ */
+export function splitRow(line: string): string[] {
   const fields: string[] = [];
   let field = "";
   let quoted = false;

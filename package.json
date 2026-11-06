@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "seed": "tsx src/backend/store/seed.ts",
+    "load:price-paid": "tsx scripts/load-price-paid.ts",
     "pwa:assets": "tsx scripts/generate-pwa-assets.ts",
     "docs:pdf": "tsx scripts/generate-gtm-pdf.ts",
     "test:pg": "TEST_DATABASE_URL=${TEST_DATABASE_URL:-postgres://lode:lode@127.0.0.1:5432/lode_test} vitest run",

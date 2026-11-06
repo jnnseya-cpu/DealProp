@@ -16,6 +16,7 @@ import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
 import type { ComparisonRun } from "@shared/domain/comparison";
 import type { WatchCursor } from "@shared/domain/watchCursor";
 import type { LayoutHypothesis } from "@shared/domain/floorplan";
+import type { PricePaidSale } from "@backend/sources/pricePaidBulk";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   dueForExpiry,
@@ -117,6 +118,7 @@ function emptyDatabase(): Database {
     dealHuntRuns: [],
     dealHuntResults: [],
     comparableBundles: [],
+    pricePaidSales: [],
     evidenceClaims: [],
     decisionSnapshots: [],
     comparisonRuns: [],
@@ -175,6 +177,7 @@ async function readDatabase(): Promise<Database> {
       dealHuntRuns: parsed.dealHuntRuns ?? [],
       dealHuntResults: parsed.dealHuntResults ?? [],
       comparableBundles: parsed.comparableBundles ?? [],
+      pricePaidSales: parsed.pricePaidSales ?? [],
       evidenceClaims: parsed.evidenceClaims ?? [],
       decisionSnapshots: parsed.decisionSnapshots ?? [],
       comparisonRuns: parsed.comparisonRuns ?? [],
@@ -986,6 +989,41 @@ async function getComparableBundle(id: string): Promise<StoredComparableBundle |
   return (db.comparableBundles ?? []).find((b) => b.id === id);
 }
 
+async function savePricePaidSales(sales: readonly PricePaidSale[]): Promise<number> {
+  if (sales.length === 0) return 0;
+  return mutate((db) => {
+    const list = db.pricePaidSales ?? (db.pricePaidSales = []);
+    // Index by transaction id so a re-load upserts rather than duplicates.
+    const index = new Map(list.map((s, i) => [s.transactionId, i]));
+    for (const sale of sales) {
+      const at = index.get(sale.transactionId);
+      if (at === undefined) {
+        index.set(sale.transactionId, list.length);
+        list.push(sale);
+      } else {
+        list[at] = sale;
+      }
+    }
+    return sales.length;
+  });
+}
+
+async function listPricePaidSales(postcode: string): Promise<readonly PricePaidSale[]> {
+  const db = await readDatabase();
+  // Normalise both sides so stored spacing never decides a match — the Postgres
+  // engine normalises its indexed postcode column for the same reason.
+  const norm = (value: string): string => value.toUpperCase().replace(/\s+/g, " ").trim();
+  const pc = norm(postcode);
+  return (db.pricePaidSales ?? [])
+    .filter((s) => norm(s.postcode) === pc)
+    .sort((a, b) => b.soldAt.localeCompare(a.soldAt));
+}
+
+async function countPricePaidSales(): Promise<number> {
+  const db = await readDatabase();
+  return (db.pricePaidSales ?? []).length;
+}
+
 async function saveEvidenceClaim(claim: EvidenceClaim): Promise<EvidenceClaim> {
   return mutate((db) => {
     const list = db.evidenceClaims ?? (db.evidenceClaims = []);
@@ -1557,6 +1595,9 @@ export const fileStore: Store = {
   getDealHuntResult,
   saveComparableBundle,
   getComparableBundle,
+  savePricePaidSales,
+  listPricePaidSales,
+  countPricePaidSales,
   saveEvidenceClaim,
   listEvidenceClaims,
   saveDecisionSnapshot,

@@ -1,6 +1,8 @@
 import { assertSourceUsable } from "@shared/domain/sources";
 import { fromMajor } from "@shared/money";
 import type { PricePaidRecord } from "@backend/discovery/properties";
+import type { PricePaidSale } from "@backend/sources/pricePaidBulk";
+import { listPricePaidSales } from "@backend/store/repository";
 
 /**
  * HM Land Registry Price Paid Data, by postcode, from the open linked-data API.
@@ -116,12 +118,28 @@ export function parsePricePaidSparql(json: unknown): readonly PricePaidRecord[] 
  */
 export async function fetchSales(
   postcode: string,
-  { fetchImpl = fetch }: { fetchImpl?: typeof fetch } = {},
+  {
+    fetchImpl = fetch,
+    fromStore = listPricePaidSales,
+  }: {
+    fetchImpl?: typeof fetch;
+    fromStore?: (postcode: string) => Promise<readonly PricePaidSale[]>;
+  } = {},
 ): Promise<readonly PricePaidRecord[]> {
   assertSourceUsable(SOURCE, "internal-analysis");
 
   const pc = postcode.toUpperCase().trim();
   if (!UK_POSTCODE.test(pc)) return [];
+
+  // Prefer the bulk store. The linked-data endpoint below is far sparser than
+  // the published bulk file, so where this area has been loaded (see
+  // `scripts/load-price-paid.ts`) we read that dense set and never touch the
+  // network. A postcode with nothing loaded falls through to the live API, so
+  // an unloaded deployment behaves exactly as before. A `PricePaidSale` is a
+  // superset of `PricePaidRecord`; the extra transaction id is simply ignored
+  // by the callers.
+  const stored = await fromStore(pc);
+  if (stored.length > 0) return stored;
 
   const url = new URL(ENDPOINT);
   url.searchParams.set("query", query(pc));

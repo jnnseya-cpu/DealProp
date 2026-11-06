@@ -17,6 +17,7 @@ import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
 import type { ComparisonRun } from "@shared/domain/comparison";
 import type { WatchCursor } from "@shared/domain/watchCursor";
 import type { LayoutHypothesis } from "@shared/domain/floorplan";
+import type { PricePaidSale } from "@backend/sources/pricePaidBulk";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   availableBalance,
@@ -428,6 +429,18 @@ const SCHEMA = `
     data jsonb NOT NULL,
     contacted_at timestamptz NOT NULL
   );
+  -- Bulk HM Land Registry Price Paid sales. Keyed by the transaction unique
+  -- identifier so a monthly refresh upserts; indexed by postcode because that
+  -- is the only way it is read. Potentially millions of rows, so these are
+  -- their own columns rather than a jsonb scan.
+  CREATE TABLE IF NOT EXISTS price_paid_sales (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    postcode text NOT NULL,
+    sold_at date NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS price_paid_sales_postcode
+    ON price_paid_sales (postcode, sold_at DESC);
   -- Append-only enforced by the database, not by convention.
   --
   -- Every statement in this codebase against these tables is an INSERT, but
@@ -1552,6 +1565,64 @@ export const postgresStore: Store = {
       [id],
     );
     return rows[0]?.data;
+  },
+
+  async savePricePaidSales(sales: readonly PricePaidSale[]): Promise<number> {
+    if (sales.length === 0) return 0;
+    await ensureSchema();
+    // Dedup within the call, last-wins: a single multi-row INSERT ... ON
+    // CONFLICT cannot touch the same id twice (Postgres rejects it), and a
+    // monthly file can legitimately carry an add then a change for one sale.
+    const latest = new Map<string, PricePaidSale>();
+    for (const s of sales) latest.set(s.transactionId, s);
+    const deduped = [...latest.values()];
+
+    // Chunk so the bound-parameter count stays well under Postgres' 65535 cap
+    // (4 params per row → 2000 per chunk).
+    const CHUNK = 500;
+    let written = 0;
+    for (let i = 0; i < deduped.length; i += CHUNK) {
+      const chunk = deduped.slice(i, i + CHUNK);
+      const values: string[] = [];
+      const params: unknown[] = [];
+      chunk.forEach((s, j) => {
+        const b = j * 4;
+        values.push(`($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4})`);
+        params.push(
+          s.transactionId,
+          JSON.stringify(s),
+          s.postcode.toUpperCase().replace(/\s+/g, " ").trim(),
+          s.soldAt,
+        );
+      });
+      await getPool().query(
+        `INSERT INTO price_paid_sales (id, data, postcode, sold_at)
+         VALUES ${values.join(", ")}
+         ON CONFLICT (id) DO UPDATE
+           SET data = EXCLUDED.data, postcode = EXCLUDED.postcode, sold_at = EXCLUDED.sold_at`,
+        params,
+      );
+      written += chunk.length;
+    }
+    return written;
+  },
+
+  async listPricePaidSales(postcode: string): Promise<readonly PricePaidSale[]> {
+    await ensureSchema();
+    const pc = postcode.toUpperCase().replace(/\s+/g, " ").trim();
+    const { rows } = await getPool().query<{ data: PricePaidSale }>(
+      "SELECT data FROM price_paid_sales WHERE postcode = $1 ORDER BY sold_at DESC",
+      [pc],
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async countPricePaidSales(): Promise<number> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ count: string }>(
+      "SELECT COUNT(*)::text AS count FROM price_paid_sales",
+    );
+    return Number(rows[0]?.count ?? 0);
   },
 
   async saveEvidenceClaim(claim: EvidenceClaim): Promise<EvidenceClaim> {

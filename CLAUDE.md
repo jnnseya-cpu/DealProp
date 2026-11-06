@@ -104,7 +104,15 @@ the 0-100 pack score; `regulatoryRoute.ts` whether an introduction may be made;
 `/deals/[id]/funding`. Discovery lives in `src/backend/discovery/`: `robots.ts`
 parses and obeys robots.txt, `fetcher.ts` is the ONLY outbound path and gates
 every request, `extract.ts` has no inference path, `connectors.ts` reads the
-three licensed sources. Candidates are quarantined at `/operator/discovery`; outreach is drafted,
+three licensed sources. Price Paid is read two ways: `sources/pricePaid.ts`
+`fetchSales()` prefers the bulk store and falls back to the Land Registry
+linked-data endpoint per postcode (that endpoint is far sparser than the
+published file, so an unloaded area returns almost nothing); the dense set is
+loaded by `scripts/load-price-paid.ts` (`npm run load:price-paid <file>`), which
+streams the Open Government Licence bulk CSV, keeps the launch region
+(`sources/pricePaidBulk.ts` `DEFAULT_LOAD_AREAS` = B/CV/DY/WS/WV), and upserts
+into the store by transaction id (`savePricePaidSales`/`listPricePaidSales`,
+both engines). Candidates are quarantined at `/operator/discovery`; outreach is drafted,
 approved and sent at `/operator/outreach` through the newsletter's transport,
 re-checked against the suppression list at the moment of sending. Replies arrive
 at `POST /api/outreach/reply`, delivery events at `POST /api/outreach/events`;
@@ -295,7 +303,7 @@ decides whether; `src/shared/eventQueue.ts` holds events until the vendor script
 exist. Blog opens are counted independently at `POST /api/blog/view` and shown
 with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
-1730 tests in `tests/`. All pass. Build succeeds. All routes return 200.
+1850 tests in `tests/`. All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -738,7 +746,7 @@ focus states, contrast.
 ### Test what you change
 ```bash
 npx tsc --noEmit     # types
-npx vitest run       # ~1730 tests
+npx vitest run       # ~1850 tests
 npx next build       # build
 ```
 Then verify the affected routes actually render.

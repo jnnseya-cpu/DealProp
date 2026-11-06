@@ -4,6 +4,7 @@ import type { AgentRunRecord } from "@shared/domain/agentRun";
 import type { OperatorTask } from "@shared/domain/operatorTask";
 import type { DealHuntQuery, DealHuntRun, DealHuntResult } from "@shared/domain/dealHuntRun";
 import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
+import type { PricePaidSale } from "@backend/sources/pricePaidBulk";
 import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
 import type { ComparisonRun } from "@shared/domain/comparison";
 import type { WatchCursor } from "@shared/domain/watchCursor";
@@ -446,6 +447,18 @@ export async function saveComparableBundle(bundle: StoredComparableBundle) {
 
 export async function getComparableBundle(id: string) {
   return (await store()).getComparableBundle(id);
+}
+
+export async function savePricePaidSales(sales: readonly PricePaidSale[]) {
+  return (await store()).savePricePaidSales(sales);
+}
+
+export async function listPricePaidSales(postcode: string) {
+  return (await store()).listPricePaidSales(postcode);
+}
+
+export async function countPricePaidSales() {
+  return (await store()).countPricePaidSales();
 }
 
 export async function saveEvidenceClaim(claim: EvidenceClaim) {

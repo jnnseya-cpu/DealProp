@@ -39,6 +39,7 @@ import type { ComparisonRun } from "@shared/domain/comparison";
 import type { WatchCursor } from "@shared/domain/watchCursor";
 import type { LayoutHypothesis } from "@shared/domain/floorplan";
 import type { AuctionLot } from "@shared/domain/auction";
+import type { PricePaidSale } from "@backend/sources/pricePaidBulk";
 import type { PackApproval } from "@shared/domain/packApproval";
 import type { ResaleArrangement, ResaleConsent } from "@shared/domain/reseller";
 import type { PayoutRecipient } from "@shared/domain/payouts";
@@ -493,6 +494,11 @@ export interface Database {
   dealHuntResults?: DealHuntResult[];
   /** Comparable evidence bundles (spec §4), referenced by result. */
   comparableBundles?: StoredComparableBundle[];
+  /**
+   * Bulk HM Land Registry Price Paid sales, loaded from the published file and
+   * read per postcode. Dense where the linked-data endpoint is sparse.
+   */
+  pricePaidSales?: PricePaidSale[];
   /** EvidenceClaims (Independent Engine §5) — the sourced-assertion spine. */
   evidenceClaims?: EvidenceClaim[];
   /** DecisionSnapshots (Independent Engine §5) — versioned, permitted decisions. */
@@ -1220,6 +1226,13 @@ export interface Store {
   /** Comparable evidence bundles (spec §4). */
   saveComparableBundle(bundle: StoredComparableBundle): Promise<StoredComparableBundle>;
   getComparableBundle(id: string): Promise<StoredComparableBundle | undefined>;
+  /**
+   * Bulk HM Land Registry Price Paid sales. Batch upsert by transaction id
+   * (returns how many were written), read by postcode, counted for readiness.
+   */
+  savePricePaidSales(sales: readonly PricePaidSale[]): Promise<number>;
+  listPricePaidSales(postcode: string): Promise<readonly PricePaidSale[]>;
+  countPricePaidSales(): Promise<number>;
   /** EvidenceClaims (Independent Engine §5): append a revision, read by property. */
   saveEvidenceClaim(claim: EvidenceClaim): Promise<EvidenceClaim>;
   listEvidenceClaims(propertyId: string): Promise<readonly EvidenceClaim[]>;

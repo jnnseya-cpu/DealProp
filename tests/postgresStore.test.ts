@@ -7,6 +7,7 @@ import { availableBalance, standing } from "@shared/domain/ledger";
 import type { BuyBox } from "@shared/domain/matching";
 import type { Subscriber } from "@shared/domain/newsletter";
 import type { DealRecord, Store } from "@backend/store/schema";
+import type { PricePaidSale } from "@backend/sources/pricePaidBulk";
 import type { SourcedLead } from "@shared/domain/sourcedLead";
 import type { IntakeConversation } from "@shared/domain/intakeConversation";
 import { beginRun, closeRun, type AgentRunSeed } from "@shared/domain/agentRun";
@@ -155,6 +156,64 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       const all = await store.listDeals();
       expect(all).toHaveLength(1);
       expect(all[0]?.status).toBe("qualified");
+    });
+
+    describe("bulk Price Paid sales", () => {
+      const ppd = (over: Partial<PricePaidSale> = {}): PricePaidSale => ({
+        transactionId: "{TX-A}",
+        price: fromMajor(240_000),
+        soldAt: "2024-05-01",
+        postcode: "B23 5AB",
+        propertyType: "T",
+        newBuild: false,
+        tenure: "F",
+        paon: "14",
+        saon: "",
+        street: "ACACIA ROAD",
+        category: "A",
+        ...over,
+      });
+
+      it("reads sales back by postcode, newest first, preserving pence", async () => {
+        const written = await store.savePricePaidSales([
+          ppd({ transactionId: "{TX-A}", soldAt: "2022-01-01" }),
+          ppd({ transactionId: "{TX-B}", soldAt: "2024-06-01", price: fromMajor(265_000) }),
+        ]);
+        expect(written).toBe(2);
+        const sales = await store.listPricePaidSales("B23 5AB");
+        expect(sales.map((s) => s.transactionId)).toEqual(["{TX-B}", "{TX-A}"]);
+        expect(sales[0]!.price).toBe(fromMajor(265_000));
+      });
+
+      it("upserts by transaction id — a re-load updates rather than duplicates", async () => {
+        await store.savePricePaidSales([ppd({ transactionId: "{TX-A}", price: fromMajor(240_000) })]);
+        await store.savePricePaidSales([ppd({ transactionId: "{TX-A}", price: fromMajor(255_000) })]);
+        const sales = await store.listPricePaidSales("B23 5AB");
+        expect(sales).toHaveLength(1);
+        expect(sales[0]!.price).toBe(fromMajor(255_000));
+        expect(await store.countPricePaidSales()).toBe(1);
+      });
+
+      it("scopes a read to its postcode and counts across all of them", async () => {
+        await store.savePricePaidSales([
+          ppd({ transactionId: "{TX-A}", postcode: "B23 5AB" }),
+          ppd({ transactionId: "{TX-C}", postcode: "CV1 2AB" }),
+        ]);
+        expect(await store.listPricePaidSales("CV1 2AB")).toHaveLength(1);
+        expect(await store.listPricePaidSales("B23 5AB")).toHaveLength(1);
+        expect(await store.countPricePaidSales()).toBe(2);
+      });
+
+      it("normalises postcode spacing on both write and read", async () => {
+        await store.savePricePaidSales([ppd({ postcode: "B23  5AB" })]);
+        expect(await store.listPricePaidSales("b23 5ab")).toHaveLength(1);
+      });
+
+      it("returns nothing, and zero, when nothing is loaded", async () => {
+        expect(await store.listPricePaidSales("B23 5AB")).toEqual([]);
+        expect(await store.countPricePaidSales()).toBe(0);
+        expect(await store.savePricePaidSales([])).toBe(0);
+      });
     });
 
     it("deletes a deal, and reports whether anything was removed", async () => {
