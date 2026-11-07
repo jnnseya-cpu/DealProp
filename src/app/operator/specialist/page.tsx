@@ -1,11 +1,16 @@
 import { OperatorNav } from "@/app/operator/OperatorNav";
 import { SiteHeader, Panel, Badge, Stat } from "@/app/components/chrome";
 import { requirePermission } from "@/app/operator/guard";
-import { listLayoutHypotheses, listAuctionLots } from "@backend/store/repository";
+import { listLayoutHypotheses, listAuctionLots, listPropertyMerges } from "@backend/store/repository";
 import { canCreateScenario } from "@shared/domain/floorplan";
 import { assessAuctionLot } from "@shared/domain/auction";
 import { gbp } from "@shared/format";
-import { recordFloorplanAction, recordAuctionAction } from "@/app/operator/specialist/actions";
+import {
+  recordFloorplanAction,
+  recordAuctionAction,
+  recordMergeAction,
+  reverseMergeAction,
+} from "@/app/operator/specialist/actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Specialist analysis — Lode" };
@@ -30,6 +35,7 @@ export default async function SpecialistPage({
   const property = typeof sp.property === "string" ? sp.property : "";
   const hypotheses = property !== "" ? await listLayoutHypotheses(property) : [];
   const lots = property !== "" ? await listAuctionLots(property) : [];
+  const merges = await listPropertyMerges();
   const now = new Date();
 
   return (
@@ -155,6 +161,60 @@ export default async function SpecialistPage({
             </Panel>
           </>
         )}
+
+        {/* Property identity — merge/split, independent of a single property */}
+        <Panel className="mt-8" eyebrow="Property identity (MW14)" title="Merge &amp; split">
+          <p className="text-sm leading-relaxed text-ink-400">
+            Confirm two records are one home, or reverse it. A merge is a named reviewer&rsquo;s
+            judgement; it is reversible and its audit is kept, so a split rebuilds each history.
+            Resolution on a UPRN, exact address, episode links and the signals a merge re-evaluates
+            run on the licensed feed; this is the human review half.
+          </p>
+          <form action={recordMergeAction} className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Input label="Surviving property id" name="survivingPropertyId" />
+            <Input label="Merged property id" name="mergedPropertyId" />
+            <Input label="Reviewer (your name)" name="reviewer" />
+            <Input label="Reason" name="reason" placeholder="Same home, two listings" />
+            <div className="sm:col-span-2">
+              <button type="submit" className="h-8 rounded-md border hairline bg-surface-2 px-3 text-[13px] text-ink-100 hover:border-ink-600 hover:bg-surface-3">Record merge</button>
+            </div>
+          </form>
+
+          <div className="mt-5 space-y-3">
+            {merges.length === 0 && <p className="text-sm text-ink-500">No merges recorded.</p>}
+            {merges.map((m) => (
+              <div key={m.id} className="rounded-lg border hairline bg-surface-2 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={m.reversed === undefined ? "good" : "neutral"}>
+                    {m.reversed === undefined ? "active merge" : "reversed (split)"}
+                  </Badge>
+                  <span className="font-mono text-[12px] text-ink-300 tabular-nums">
+                    {m.mergedPropertyId} → {m.survivingPropertyId}
+                  </span>
+                </div>
+                <p className="mt-2 text-[13px] text-ink-300">{m.reason}</p>
+                <p className="mt-1 text-[12px] text-ink-500">
+                  By {m.by} on {m.at.slice(0, 10)}
+                  {m.reversed !== undefined ? ` · reversed by ${m.reversed.by} on ${m.reversed.at.slice(0, 10)}` : ""}
+                </p>
+                {m.reversed === undefined && (
+                  <form action={reverseMergeAction} className="mt-3 flex flex-wrap items-end gap-2">
+                    <input type="hidden" name="id" value={m.id} />
+                    <div>
+                      <label className="text-[11px] font-medium uppercase tracking-[0.09em] text-ink-400">Reviewer</label>
+                      <input name="reviewer" className="mt-1 w-40 rounded-md border hairline bg-surface-2 px-2 py-1 text-[13px] text-ink-100" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-[11px] font-medium uppercase tracking-[0.09em] text-ink-400">Reason</label>
+                      <input name="reason" placeholder="Two different homes" className="mt-1 w-full rounded-md border hairline bg-surface-2 px-2 py-1 text-[13px] text-ink-100 placeholder:text-ink-600" />
+                    </div>
+                    <button type="submit" className="h-8 rounded-md border hairline bg-surface-2 px-3 text-[13px] text-ink-100 hover:border-ink-600 hover:bg-surface-3">Reverse</button>
+                  </form>
+                )}
+              </div>
+            ))}
+          </div>
+        </Panel>
       </div>
     </main>
   );

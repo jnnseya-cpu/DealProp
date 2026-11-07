@@ -5,6 +5,7 @@ import type { OperatorTask } from "@shared/domain/operatorTask";
 import type { DealHuntQuery, DealHuntRun, DealHuntResult } from "@shared/domain/dealHuntRun";
 import type { EvidenceClaim } from "@shared/domain/evidenceClaim";
 import type { PricePaidSale } from "@backend/sources/pricePaidBulk";
+import type { MergeRecord } from "@shared/domain/propertyResolution";
 import type { DecisionSnapshot } from "@shared/domain/decisionSnapshot";
 import type { ComparisonRun } from "@shared/domain/comparison";
 import type { WatchCursor } from "@shared/domain/watchCursor";
@@ -459,6 +460,18 @@ export async function listPricePaidSales(postcode: string) {
 
 export async function countPricePaidSales() {
   return (await store()).countPricePaidSales();
+}
+
+export async function savePropertyMerge(record: MergeRecord) {
+  return (await store()).savePropertyMerge(record);
+}
+
+export async function listPropertyMerges() {
+  return (await store()).listPropertyMerges();
+}
+
+export async function getPropertyMerge(id: string) {
+  return (await store()).getPropertyMerge(id);
 }
 
 export async function saveEvidenceClaim(claim: EvidenceClaim) {

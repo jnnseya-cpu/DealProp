@@ -216,6 +216,36 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       });
     });
 
+    describe("property-identity merges (MW14)", () => {
+      const merge = (over: Record<string, unknown> = {}) => ({
+        id: "mg-1",
+        survivingPropertyId: "p1",
+        mergedPropertyId: "p2",
+        at: "2026-01-01T00:00:00.000Z",
+        by: "alice",
+        reason: "same home",
+        ...over,
+      });
+
+      it("round-trips a merge, newest first, and reverses it in place", async () => {
+        expect(await store.savePropertyMerge(merge())).toBeDefined();
+        await store.savePropertyMerge(merge({ id: "mg-2", at: "2026-03-01T00:00:00.000Z" }));
+        const list = await store.listPropertyMerges();
+        expect(list.map((m) => m.id)).toEqual(["mg-2", "mg-1"]);
+
+        const reversed = { ...merge(), reversed: { at: "2026-04-01T00:00:00.000Z", by: "bob", reason: "two homes" } };
+        await store.savePropertyMerge(reversed);
+        const one = await store.getPropertyMerge("mg-1");
+        expect(one?.reversed?.by).toBe("bob");
+        expect(await store.listPropertyMerges()).toHaveLength(2);
+      });
+
+      it("returns undefined for an unknown merge, and nothing from an empty table", async () => {
+        expect(await store.getPropertyMerge("nope")).toBeUndefined();
+        expect(await store.listPropertyMerges()).toEqual([]);
+      });
+    });
+
     it("deletes a deal, and reports whether anything was removed", async () => {
       const deal = dealRecord();
       await store.saveDeal(deal);

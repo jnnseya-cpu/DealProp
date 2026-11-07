@@ -40,6 +40,7 @@ import type { WatchCursor } from "@shared/domain/watchCursor";
 import type { LayoutHypothesis } from "@shared/domain/floorplan";
 import type { AuctionLot } from "@shared/domain/auction";
 import type { PricePaidSale } from "@backend/sources/pricePaidBulk";
+import type { MergeRecord } from "@shared/domain/propertyResolution";
 import type { PackApproval } from "@shared/domain/packApproval";
 import type { ResaleArrangement, ResaleConsent } from "@shared/domain/reseller";
 import type { PayoutRecipient } from "@shared/domain/payouts";
@@ -499,6 +500,8 @@ export interface Database {
    * read per postcode. Dense where the linked-data endpoint is sparse.
    */
   pricePaidSales?: PricePaidSale[];
+  /** Market Watch property-identity merges (§19.4), reversible with audit. */
+  propertyMerges?: MergeRecord[];
   /** EvidenceClaims (Independent Engine §5) — the sourced-assertion spine. */
   evidenceClaims?: EvidenceClaim[];
   /** DecisionSnapshots (Independent Engine §5) — versioned, permitted decisions. */
@@ -1233,6 +1236,10 @@ export interface Store {
   savePricePaidSales(sales: readonly PricePaidSale[]): Promise<number>;
   listPricePaidSales(postcode: string): Promise<readonly PricePaidSale[]>;
   countPricePaidSales(): Promise<number>;
+  /** Property-identity merges (§19.4). Upsert by id (a reversal flips a flag), newest first. */
+  savePropertyMerge(record: MergeRecord): Promise<MergeRecord>;
+  listPropertyMerges(): Promise<readonly MergeRecord[]>;
+  getPropertyMerge(id: string): Promise<MergeRecord | undefined>;
   /** EvidenceClaims (Independent Engine §5): append a revision, read by property. */
   saveEvidenceClaim(claim: EvidenceClaim): Promise<EvidenceClaim>;
   listEvidenceClaims(propertyId: string): Promise<readonly EvidenceClaim[]>;

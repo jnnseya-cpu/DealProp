@@ -50,7 +50,7 @@ seller-facing options cannot disagree.
 `qualification`, `intakeConversation`, `reservation`, `agentRun`, `dealTransition`, `operatorTask`, `marketWatch`, `dealHunt`,
 `comparableBundle`, `dealHuntRun`, `dealHuntBrief`, `dealHuntHandoff`, `evidenceClaim`,
 `decisionOutput`, `decisionSnapshot`, `comparison`, `watchCursor`, `floorplan`, `auction`,
-`sourcerWalkthrough`.
+`sourcerWalkthrough`, `propertyResolution`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -315,7 +315,7 @@ decides whether; `src/shared/eventQueue.ts` holds events until the vendor script
 exist. Blog opens are counted independently at `POST /api/blog/view` and shown
 with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
-1770 tests in `tests/` (≈1860 with a live Postgres running both store engines). All pass. Build succeeds. All routes return 200.
+1790 tests in `tests/` (≈1880 with a live Postgres running both store engines). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 

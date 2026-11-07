@@ -18,6 +18,7 @@ import type { ComparisonRun } from "@shared/domain/comparison";
 import type { WatchCursor } from "@shared/domain/watchCursor";
 import type { LayoutHypothesis } from "@shared/domain/floorplan";
 import type { PricePaidSale } from "@backend/sources/pricePaidBulk";
+import type { MergeRecord } from "@shared/domain/propertyResolution";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   availableBalance,
@@ -441,6 +442,12 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS price_paid_sales_postcode
     ON price_paid_sales (postcode, sold_at DESC);
+  CREATE TABLE IF NOT EXISTS property_merges (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    surviving_property_id text NOT NULL,
+    merged_at timestamptz NOT NULL
+  );
   -- Append-only enforced by the database, not by convention.
   --
   -- Every statement in this codebase against these tables is an INSERT, but
@@ -1623,6 +1630,35 @@ export const postgresStore: Store = {
       "SELECT COUNT(*)::text AS count FROM price_paid_sales",
     );
     return Number(rows[0]?.count ?? 0);
+  },
+
+  async savePropertyMerge(record: MergeRecord): Promise<MergeRecord> {
+    await ensureSchema();
+    await getPool().query(
+      `INSERT INTO property_merges (id, data, surviving_property_id, merged_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE
+         SET data = EXCLUDED.data, surviving_property_id = EXCLUDED.surviving_property_id, merged_at = EXCLUDED.merged_at`,
+      [record.id, JSON.stringify(record), record.survivingPropertyId, record.at],
+    );
+    return record;
+  },
+
+  async listPropertyMerges(): Promise<readonly MergeRecord[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: MergeRecord }>(
+      "SELECT data FROM property_merges ORDER BY merged_at DESC",
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async getPropertyMerge(id: string): Promise<MergeRecord | undefined> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: MergeRecord }>(
+      "SELECT data FROM property_merges WHERE id = $1",
+      [id],
+    );
+    return rows[0]?.data;
   },
 
   async saveEvidenceClaim(claim: EvidenceClaim): Promise<EvidenceClaim> {

@@ -5,7 +5,13 @@ import { redirect } from "next/navigation";
 import { requirePermission } from "@/app/operator/guard";
 import { buildLayoutHypothesis } from "@shared/domain/floorplan";
 import type { AuctionLot, AuctionOutcome } from "@shared/domain/auction";
-import { saveLayoutHypothesis, saveAuctionLot } from "@backend/store/repository";
+import { mergeProperties, reverseMerge } from "@shared/domain/propertyResolution";
+import {
+  saveLayoutHypothesis,
+  saveAuctionLot,
+  savePropertyMerge,
+  getPropertyMerge,
+} from "@backend/store/repository";
 import { fromMajor } from "@shared/money";
 
 /**
@@ -75,4 +81,49 @@ export async function recordAuctionAction(formData: FormData): Promise<void> {
     createdAt: new Date().toISOString(),
   });
   redirect(`/operator/specialist?property=${encodeURIComponent(propertyId)}`);
+}
+
+/**
+ * Record a property-identity merge (§19.4/MW14): a named reviewer confirming two
+ * records are one home. Reversible — the record is marked, never deleted — so a
+ * split rebuilds each history. Its own POST endpoint checking its own
+ * permission (#29). A named reviewer is required: this is a judgement, not an
+ * automatic action.
+ */
+export async function recordMergeAction(formData: FormData): Promise<void> {
+  await requirePermission("view-audit-log", "/operator/specialist");
+  const survivingPropertyId = String(formData.get("survivingPropertyId") ?? "").trim();
+  const mergedPropertyId = String(formData.get("mergedPropertyId") ?? "").trim();
+  const reviewer = String(formData.get("reviewer") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (survivingPropertyId === "" || mergedPropertyId === "" || reviewer === "" || survivingPropertyId === mergedPropertyId) {
+    redirect("/operator/specialist?error=merge-invalid");
+  }
+  const record = mergeProperties({
+    id: randomUUID(),
+    survivingPropertyId,
+    mergedPropertyId,
+    by: reviewer,
+    reason: reason === "" ? "Confirmed the same property." : reason,
+    at: new Date().toISOString(),
+  });
+  await savePropertyMerge(record);
+  redirect("/operator/specialist?merged=1");
+}
+
+/** Reverse a merge (a split, MW14). Named reviewer; the audit is preserved. */
+export async function reverseMergeAction(formData: FormData): Promise<void> {
+  await requirePermission("view-audit-log", "/operator/specialist");
+  const id = String(formData.get("id") ?? "").trim();
+  const reviewer = String(formData.get("reviewer") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (id === "" || reviewer === "") redirect("/operator/specialist?error=merge-invalid");
+  const existing = await getPropertyMerge(id);
+  if (existing === undefined || existing.reversed !== undefined) {
+    redirect("/operator/specialist?error=cannot-reverse");
+  }
+  await savePropertyMerge(
+    reverseMerge(existing, reviewer, reason === "" ? "Not the same property after all." : reason, new Date().toISOString()),
+  );
+  redirect("/operator/specialist?split=1");
 }

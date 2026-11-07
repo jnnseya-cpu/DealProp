@@ -17,6 +17,7 @@ import type { ComparisonRun } from "@shared/domain/comparison";
 import type { WatchCursor } from "@shared/domain/watchCursor";
 import type { LayoutHypothesis } from "@shared/domain/floorplan";
 import type { PricePaidSale } from "@backend/sources/pricePaidBulk";
+import type { MergeRecord } from "@shared/domain/propertyResolution";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
   dueForExpiry,
@@ -119,6 +120,7 @@ function emptyDatabase(): Database {
     dealHuntResults: [],
     comparableBundles: [],
     pricePaidSales: [],
+    propertyMerges: [],
     evidenceClaims: [],
     decisionSnapshots: [],
     comparisonRuns: [],
@@ -178,6 +180,7 @@ async function readDatabase(): Promise<Database> {
       dealHuntResults: parsed.dealHuntResults ?? [],
       comparableBundles: parsed.comparableBundles ?? [],
       pricePaidSales: parsed.pricePaidSales ?? [],
+      propertyMerges: parsed.propertyMerges ?? [],
       evidenceClaims: parsed.evidenceClaims ?? [],
       decisionSnapshots: parsed.decisionSnapshots ?? [],
       comparisonRuns: parsed.comparisonRuns ?? [],
@@ -1024,6 +1027,26 @@ async function countPricePaidSales(): Promise<number> {
   return (db.pricePaidSales ?? []).length;
 }
 
+async function savePropertyMerge(record: MergeRecord): Promise<MergeRecord> {
+  return mutate((db) => {
+    const list = db.propertyMerges ?? (db.propertyMerges = []);
+    const index = list.findIndex((m) => m.id === record.id);
+    if (index < 0) list.push(record);
+    else list[index] = record;
+    return record;
+  });
+}
+
+async function listPropertyMerges(): Promise<readonly MergeRecord[]> {
+  const db = await readDatabase();
+  return [...(db.propertyMerges ?? [])].sort((a, b) => b.at.localeCompare(a.at));
+}
+
+async function getPropertyMerge(id: string): Promise<MergeRecord | undefined> {
+  const db = await readDatabase();
+  return (db.propertyMerges ?? []).find((m) => m.id === id);
+}
+
 async function saveEvidenceClaim(claim: EvidenceClaim): Promise<EvidenceClaim> {
   return mutate((db) => {
     const list = db.evidenceClaims ?? (db.evidenceClaims = []);
@@ -1598,6 +1621,9 @@ export const fileStore: Store = {
   savePricePaidSales,
   listPricePaidSales,
   countPricePaidSales,
+  savePropertyMerge,
+  listPropertyMerges,
+  getPropertyMerge,
   saveEvidenceClaim,
   listEvidenceClaims,
   saveDecisionSnapshot,
