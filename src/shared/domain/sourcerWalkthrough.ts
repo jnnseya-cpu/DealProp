@@ -164,10 +164,12 @@ export const SOURCER_WALKTHROUGH: readonly WalkStep[] = [
     title: "Offer inside your authority, never above the walk-away",
     actions: [
       "Lead with price, buyer and ability to perform, subject to contract, survey and title. Give the main facts that explain the offer and let the seller weigh speed and certainty.",
+      "When the investor names a number, establish what it means: a budget that includes your fee, or a property offer. Propose the split explicitly — the price to the seller, your fee payable separately by the investor — and get written agreement to it before you submit. “The price is £[price]; my fee is £[fee] total, payable by you on legal completion; your combined cost is £[price+fee] before tax and costs — please confirm the split and authorise the offer.”",
       "Get written approval from the investor before changing price or taking on an obligation. Reopen price only when new evidence genuinely changes the deal, not to recover a known cost at the last minute.",
     ],
     obligations: [
       "The walk-away price is computed, not chosen — never counter above it. Consumer protection rules bar misleading statements, omissions and pressure selling.",
+      "You cannot take the difference between a stated budget and a lower price as your fee without the investor's written agreement, and their ability to spend more does not raise a fee already agreed. If instead you act for the seller, a genuine higher offer is passed on at its real amount.",
     ],
     script:
       "My client, [legal buyer], can offer £[amount], subject to contract, satisfactory survey and title checks, and the stated funding position. The offer assumes vacant possession and the listed fixtures. We can provide funding evidence and instruct a conveyancer promptly. The principal costs affecting the price are [the works]. Our target completion date is [date], subject to the legal and funding checks.",
@@ -192,6 +194,7 @@ export const SOURCER_WALKTHROUGH: readonly WalkStep[] = [
     ],
     obligations: [
       "The memorandum records the commercial position; the conveyancers handle the binding contract. An invoice to a solicitor creates no payment authority on its own.",
+      "A fee payable only if the purchase completes can count toward the buyer's transfer tax — a separate invoice does not settle the question. Have the buyer's conveyancer confirm whether SDLT/LTT is on the price or the price plus your fee before the investor commits.",
     ],
     feeNote: "This is where the payment file is built — before completion, not after.",
   },
