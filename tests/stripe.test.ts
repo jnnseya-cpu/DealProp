@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isStripeEndpoint,
+  isStripeEvent,
   looksLikeStripe,
   normaliseStripeEvent,
   signatureHeaderFrom,
@@ -38,6 +39,19 @@ describe("which events are mapped", () => {
   it("treats an unmapped Stripe type as not ours to read", () => {
     expect(looksLikeStripe({ type: "customer.created" })).toBe(false);
     expect(normaliseStripeEvent({ id: "evt_1", type: "customer.created" })).toBeUndefined();
+  });
+
+  it("still recognises an unmapped type as a Stripe envelope, so the route can 200-ack it", () => {
+    // capability.updated and the other account-level events: a real Stripe
+    // envelope we do not map. The route must see it is Stripe's and acknowledge
+    // it, not fall through to the native reader and 400.
+    expect(isStripeEvent({ object: "event", type: "capability.updated" })).toBe(true);
+    expect(isStripeEvent({ object: "event", type: "checkout.session.completed" })).toBe(true);
+    // Not a Stripe envelope: this platform's own event shape (note the evt_ id,
+    // which Stripe and native share — so the marker is `object: "event"`, never
+    // the id prefix, or a native payment would be misread as unhandled).
+    expect(isStripeEvent({ id: "evt_native_1", type: "payment.succeeded", accountId: "acc-1" })).toBe(false);
+    expect(isStripeEvent({ object: "event" })).toBe(false); // no type
   });
 });
 

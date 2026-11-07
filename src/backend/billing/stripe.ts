@@ -100,6 +100,27 @@ export function looksLikeStripe(parsed: Unknown): boolean {
 }
 
 /**
+ * True where this is a Stripe event envelope, whatever its type.
+ *
+ * Distinct from {@link looksLikeStripe}, which is true only for the handful of
+ * types we map. Stripe sends account-level events we never subscribed to and
+ * cannot act on — `capability.updated`, `*.updated`, and the rest — and every
+ * one of those is a Stripe envelope (`"object": "event"`) carrying no account
+ * of ours. Without this they fall through to the native reader, which needs a
+ * top-level `accountId` a Stripe event never has, and a 400 comes back —
+ * which Stripe treats as a failure and retries for days before disabling the
+ * endpoint. Recognising the envelope lets the route acknowledge an unmapped
+ * Stripe event with a 200 instead: read, understood, nothing to do.
+ *
+ * Keyed on Stripe's own `object: "event"` marker, not on the id prefix: this
+ * platform's native events also use `evt_` ids, so an id check would
+ * misclassify a native payment and drop it.
+ */
+export function isStripeEvent(parsed: Unknown): boolean {
+  return parsed.object === "event" && text(parsed.type) !== undefined;
+}
+
+/**
  * Map a Stripe event into the shape the route handles.
  *
  * Returns undefined where the event is one we do not act on, or where the

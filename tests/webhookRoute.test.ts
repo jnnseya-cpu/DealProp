@@ -137,17 +137,21 @@ describe("a signed Stripe delivery moves the balance", () => {
     expect(await balance()).toBe(0);
   });
 
-  it("ignores a Stripe event type we do not act on", async () => {
+  it("acknowledges a Stripe event type we do not act on, rather than failing it", async () => {
+    // A real unmapped Stripe event, envelope and all — this is the exact shape
+    // of the account-level events (capability.updated and the rest) Stripe
+    // sends and cannot be unsubscribed. A 400 here is retried for days and gets
+    // the endpoint disabled, taking real payment confirmations down with it, so
+    // it must be a 200: understood, nothing to do.
     const body = JSON.stringify({
       id: "evt_2",
-      type: "customer.created",
-      data: { object: { id: "cus_1" } },
+      object: "event",
+      type: "capability.updated",
+      data: { object: { id: "wechat_pay_payments", object: "capability" } },
     });
     const response = await deliver(body);
-    // 400 rather than 200: an unmapped type is not our shape either, so it
-    // reads as unreadable. Either answer stops the provider retrying usefully;
-    // what matters is that nothing was credited.
-    expect([200, 400]).toContain(response.status);
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as { reason: string }).reason).toContain("not handled");
     expect(await balance()).toBe(0);
   });
 

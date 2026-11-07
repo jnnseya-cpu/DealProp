@@ -17,6 +17,7 @@ import { entitlementsFor, periodAllowance } from "@shared/domain/entitlements";
 import type { Subscription, SubscriptionStatus } from "@shared/domain/entitlements";
 import { isHandledEvent, verifyWebhook, type BillingEvent } from "@backend/billing/webhook";
 import {
+  isStripeEvent,
   looksLikeStripe,
   normaliseStripeEvent,
   signatureHeaderFrom,
@@ -208,7 +209,13 @@ export async function POST(request: Request): Promise<NextResponse> {
         const mapped = normaliseStripeEvent(parsed);
         return mapped === undefined ? { kind: "unreadable" } : { kind: "event", event: mapped };
       })()
-    : nativeEvent(parsed);
+    : isStripeEvent(parsed)
+      ? // A verified Stripe event of a type we do not map (account-level events
+        // like capability.updated that cannot be unsubscribed). It is understood
+        // and carries nothing to act on, so it is acknowledged (200), never a
+        // 400 the provider would retry for days and then disable the endpoint over.
+        { kind: "unhandled", type: text(parsed.type) ?? "unknown" }
+      : nativeEvent(parsed);
 
   if (reading.kind === "unreadable") {
     return NextResponse.json({ status: "unreadable" }, { status: 400, headers: NO_STORE });
