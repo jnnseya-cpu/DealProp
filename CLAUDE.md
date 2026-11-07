@@ -49,7 +49,8 @@ seller-facing options cannot disagree.
 `passport`, `opportunityScore`, `prohibitions`, `materialInformation`, `sellerDueDiligence`, `workflow`, `payouts`, `portfolio`, `screening`,
 `qualification`, `intakeConversation`, `reservation`, `agentRun`, `dealTransition`, `operatorTask`, `marketWatch`, `dealHunt`,
 `comparableBundle`, `dealHuntRun`, `dealHuntBrief`, `dealHuntHandoff`, `evidenceClaim`,
-`decisionOutput`, `decisionSnapshot`, `comparison`, `watchCursor`, `floorplan`, `auction`.
+`decisionOutput`, `decisionSnapshot`, `comparison`, `watchCursor`, `floorplan`, `auction`,
+`sourcerWalkthrough`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -286,6 +287,17 @@ single-opportunity path (`quoteRevealForDeal` → `openOpportunity`); the browse
 list skips it for cost, since the charge is single-deal. A reveal that the lock
 refuses is not charged (decision #62). Not count-atomic — the soft five-slot cap
 can briefly over-allocate under a race; the hard, stage-driven lock cannot.
+Sourcer/flipper walkthrough: `sourcerWalkthrough.ts` hangs the operational and
+compliance half of a deal on the same twelve `workflow.ts` stages — the actions,
+scripts and obligations (AML/redress, EAA s.18, PECR, CDD timing, SDLT) a sourcer
+follows from first sighting to getting paid, plus the one-time prerequisites and
+the off-path exceptions. Pure and figure-free: it states method and obligation,
+every number stays the engine's (`jurisdictions`, `negotiation`, `director`,
+`fees`). `sourcerWalkthrough(position)` projects a deal's live `workflowPosition`
+into done/current/upcoming — reached because the evidence exists, never ticked.
+Surfaced account-facing at `/account/playbook` (AccountNav "Playbook"), live for
+every deal the account holds as a sourcer or flipper (its holder reveals), with
+the one-time readiness and the full stage reference shown regardless.
 
 Acquisition: `negotiation.ts` computes the price band — opening, target,
 walk-away, floor — and `respondTo()` never counters past the ceiling. Seller
@@ -303,7 +315,7 @@ decides whether; `src/shared/eventQueue.ts` holds events until the vendor script
 exist. Blog opens are counted independently at `POST /api/blog/view` and shown
 with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
-1850 tests in `tests/`. All pass. Build succeeds. All routes return 200.
+1770 tests in `tests/` (≈1860 with a live Postgres running both store engines). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
