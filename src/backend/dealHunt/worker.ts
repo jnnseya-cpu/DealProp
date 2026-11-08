@@ -3,6 +3,8 @@ import type { Bps, Money } from "@shared/money";
 import { gbp } from "@shared/format";
 import {
   matchReturnedAndReduced,
+  deriveListingSignals,
+  type ListingSignal,
   type ListingObservationRecord,
   type ReturnedAndReducedCriteria,
 } from "@shared/domain/marketWatch";
@@ -101,6 +103,7 @@ export interface MatchDraft {
   readonly dropBps: Bps;
   readonly resultWatermark: string;
   readonly matchReasons: readonly string[];
+  readonly signals: readonly ListingSignal[];
   readonly provenance: readonly string[];
 }
 
@@ -207,6 +210,7 @@ export function evaluateHunt(
       dropBps: m.dropBps,
       resultWatermark: m.returnedAt,
       matchReasons: m.matchReasons,
+      signals: deriveListingSignals(h.observations, { now: runAt }),
       provenance: h.sources,
     });
   }
@@ -228,6 +232,7 @@ export function evaluateHunt(
     dropBps: r.dropBps,
     resultWatermark: r.resultWatermark,
     matchReasons: r.matchReasons,
+    signals: r.signals ?? [],
     provenance: r.provenance,
   }));
 
@@ -370,6 +375,7 @@ export async function runDealHuntJob(
       rank: i + 1,
       resultWatermark: d.resultWatermark,
       matchReasons: d.matchReasons,
+      signals: d.signals,
       provenance: d.provenance,
       stale: false,
       ...(evidenceBundleId !== undefined ? { evidenceBundleId } : {}),

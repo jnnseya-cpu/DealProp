@@ -231,3 +231,167 @@ export function matchReturnedAndReduced(
     ],
   };
 }
+
+/* ------------------------------------------------------- §19.5 signals */
+
+/**
+ * Listing-history signals derivable from observations alone. Each is a
+ * deterministic count, date or delta — never an inference about a person. The
+ * `needs-portal-feed` signals in `sourcingSignals.ts` are *these*: the data is
+ * gated at the source (a licensed feed, or the Deal Hunt fixtures in dev), the
+ * arithmetic is here. Text interpretation (cash-only, short lease) is NOT here;
+ * that is a separate hypothesis step.
+ */
+export type ListingSignalCode =
+  | "repeated-reductions"
+  | "long-marketing"
+  | "prolonged-stc"
+  | "returned-to-market"
+  | "withdrawn-recently"
+  | "below-previous-sale";
+
+export interface ListingSignal {
+  readonly code: ListingSignalCode;
+  /** When the signal became true — the latest supporting observation. */
+  readonly at: string;
+  readonly detail: string;
+  readonly supportingObservationIds: readonly string[];
+  /** A count or delta where the signal has one (reductions; days; pence). */
+  readonly magnitude?: number;
+  /**
+   * False until a source or reviewer confirms a cause (a fall-through reason).
+   * A transition alone is observed, never a confirmed reason (§19.5).
+   */
+  readonly verified: boolean;
+}
+
+export interface ListingSignalContext {
+  readonly now: Date;
+  /** Over this many days from the earliest observation is "long on the market". */
+  readonly longMarketingDays?: number;
+  /** Under offer / sold STC for this long is "prolonged". */
+  readonly prolongedStcDays?: number;
+  /** A linked registered sale price, where known, for below-previous-sale. */
+  readonly previousSalePricePence?: Money;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Derive the listing-history signals. Deterministic and additive: each rule
+ * that fires adds one signal with its supporting observation IDs. Nothing here
+ * scores a person or infers hardship; a signal is a fact about a listing's
+ * recorded history, for a reviewer to act on under the usual safeguards.
+ */
+export function deriveListingSignals(
+  observations: readonly ListingObservationRecord[],
+  ctx: ListingSignalContext,
+): readonly ListingSignal[] {
+  const seq = ordered(observations);
+  if (seq.length === 0) return [];
+  const now = ctx.now.getTime();
+  const longDays = ctx.longMarketingDays ?? 90;
+  const stcDays = ctx.prolongedStcDays ?? 90;
+  const out: ListingSignal[] = [];
+  const current = seq[seq.length - 1]!;
+
+  // Repeated reductions: two or more distinct asking-price decreases.
+  const reductions = deriveEvents(seq).filter((e) => e.type === "price-reduced");
+  if (reductions.length >= 2) {
+    out.push({
+      code: "repeated-reductions",
+      at: reductions[reductions.length - 1]!.at,
+      detail: `${reductions.length} asking-price reductions recorded.`,
+      supportingObservationIds: reductions.map((r) => r.afterObservationId),
+      magnitude: reductions.length,
+      verified: true,
+    });
+  }
+
+  // Long on the market: available now, and first observed over the threshold ago.
+  if (current.status === "available") {
+    const firstAt = Date.parse(seq[0]!.observedAt);
+    if (!Number.isNaN(firstAt)) {
+      const days = Math.floor((now - firstAt) / DAY_MS);
+      if (days > longDays) {
+        out.push({
+          code: "long-marketing",
+          at: current.observedAt,
+          detail: `On the market for about ${days} days since first observed (earlier history may be unknown).`,
+          supportingObservationIds: [seq[0]!.id, current.id],
+          magnitude: days,
+          verified: true,
+        });
+      }
+    }
+  }
+
+  // Prolonged under offer / sold STC: currently off-market, in that state past
+  // the threshold since it entered it.
+  if (OFF_MARKET.includes(current.status)) {
+    let sinceIdx = seq.length - 1;
+    while (sinceIdx > 0 && OFF_MARKET.includes(seq[sinceIdx - 1]!.status)) sinceIdx -= 1;
+    const sinceAt = Date.parse(seq[sinceIdx]!.observedAt);
+    if (!Number.isNaN(sinceAt)) {
+      const days = Math.floor((now - sinceAt) / DAY_MS);
+      if (days > stcDays) {
+        out.push({
+          code: "prolonged-stc",
+          at: current.observedAt,
+          detail: `Under offer or sold STC for about ${days} days — ask about progress; a feed with no exchange date does not mean none exists.`,
+          supportingObservationIds: [seq[sinceIdx]!.id, current.id],
+          magnitude: days,
+          verified: true,
+        });
+      }
+    }
+  }
+
+  // Returned to market: the most recent off-market → available transition.
+  for (let i = seq.length - 1; i >= 1; i -= 1) {
+    if (seq[i]!.status === "available" && OFF_MARKET.includes(seq[i - 1]!.status)) {
+      out.push({
+        code: "returned-to-market",
+        at: seq[i]!.observedAt,
+        detail:
+          seq[i]!.confirmedFallThrough === true
+            ? "Returned to market after a confirmed fall-through."
+            : "Returned to market (reason unverified).",
+        supportingObservationIds: [seq[i - 1]!.id, seq[i]!.id],
+        verified: seq[i]!.confirmedFallThrough === true,
+      });
+      break;
+    }
+  }
+
+  // Withdrawn recently: current status is withdrawn.
+  if (current.status === "withdrawn") {
+    out.push({
+      code: "withdrawn-recently",
+      at: current.observedAt,
+      detail: "The listing was withdrawn — availability unverified, not a sale.",
+      supportingObservationIds: [current.id],
+      verified: true,
+    });
+  }
+
+  // Below a linked previous sale: current ordinary asking price under it.
+  if (
+    ctx.previousSalePricePence !== undefined &&
+    current.priceQualifier === "asking" &&
+    current.pricePence !== undefined &&
+    current.pricePence < ctx.previousSalePricePence
+  ) {
+    const gap = sub(ctx.previousSalePricePence, current.pricePence);
+    out.push({
+      code: "below-previous-sale",
+      at: current.observedAt,
+      detail: "Current asking price is below a linked registered sale — verify the property and ownership context; never imply the owner's loss.",
+      supportingObservationIds: [current.id],
+      magnitude: gap,
+      verified: true,
+    });
+  }
+
+  return out;
+}

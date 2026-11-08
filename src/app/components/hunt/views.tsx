@@ -208,6 +208,21 @@ function ResultRow({
         ))}
       </ul>
 
+      {result.signals !== undefined && result.signals.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {result.signals.map((s, i) => (
+            <span
+              key={`${s.code}-${i}`}
+              title={s.detail}
+              className="rounded border border-[var(--accent)]/40 bg-[var(--accent)]/5 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-[var(--accent-text)]"
+            >
+              {s.code.replace(/-/g, " ")}
+              {s.verified ? "" : " ?"}
+            </span>
+          ))}
+        </div>
+      )}
+
       <DecisionBlock decision={decision} />
 
       <div className="mt-2">

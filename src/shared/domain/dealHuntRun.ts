@@ -1,5 +1,6 @@
 import type { Bps, Money } from "@shared/money";
 import type { DealHuntCriteria } from "@shared/domain/dealHunt";
+import type { ListingSignal } from "@shared/domain/marketWatch";
 
 /**
  * Deal Hunt persistence records and the run lifecycle (Deal Hunt spec §5/§6).
@@ -104,6 +105,8 @@ export interface DealHuntResult {
   readonly rank: number;
   readonly resultWatermark: string;
   readonly matchReasons: readonly string[];
+  /** §19.5 listing-history signals derived from the observations; optional for back-compat. */
+  readonly signals?: readonly ListingSignal[];
   /** Source keys the property surfaced on — one card, provenance kept (DH09). */
   readonly provenance: readonly string[];
   /** A newer observation invalidated the snapshot; recheck on handoff (DH07). */
