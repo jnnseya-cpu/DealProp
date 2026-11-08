@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { reconcileSend } from "@shared/domain/sendReconciliation";
 import type { DealAppraisal } from "@shared/domain/types";
 import {
   checkNeutralEnquiry,
@@ -252,13 +253,24 @@ export async function sendApproved(
   }
 
   const transport = resolveTransport();
-  const outcome = await transport.send({
-    to: message.to,
-    subject: message.subject,
-    text: message.body,
-    html: `<pre style="font:14px/1.5 system-ui;white-space:pre-wrap">${escapeHtml(message.body)}</pre>`,
-    unsubscribeUrl: optOutLink(message.to),
-  });
+  let outcome: Awaited<ReturnType<typeof transport.send>>;
+  try {
+    outcome = await transport.send({
+      to: message.to,
+      subject: message.subject,
+      text: message.body,
+      html: `<pre style="font:14px/1.5 system-ui;white-space:pre-wrap">${escapeHtml(message.body)}</pre>`,
+      unsubscribeUrl: optOutLink(message.to),
+    });
+  } catch {
+    // The send threw — a timeout or dropped connection after the provider may
+    // already have accepted it (A13). The one thing that must not happen is a
+    // blind resend. With no lookup-capable provider, reconcileSend escalates:
+    // record it as needing manual reconciliation, never auto-resend (§13).
+    const { reason } = reconcileSend(undefined);
+    await saveOutreachMessage({ ...message, status: "failed", failureReason: `Ambiguous send — ${reason}` });
+    return { ok: false, reason: `Ambiguous send — ${reason}` };
+  }
 
   if (!outcome.ok) {
     await saveOutreachMessage({ ...message, status: "failed", failureReason: outcome.error });
