@@ -50,7 +50,7 @@ seller-facing options cannot disagree.
 `qualification`, `intakeConversation`, `reservation`, `agentRun`, `dealTransition`, `operatorTask`, `marketWatch`, `dealHunt`,
 `comparableBundle`, `dealHuntRun`, `dealHuntBrief`, `dealHuntHandoff`, `evidenceClaim`,
 `decisionOutput`, `decisionSnapshot`, `comparison`, `watchCursor`, `floorplan`, `auction`,
-`sourcerWalkthrough`, `propertyResolution`.
+`sourcerWalkthrough`, `propertyResolution`, `sendReconciliation`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -315,7 +315,7 @@ decides whether; `src/shared/eventQueue.ts` holds events until the vendor script
 exist. Blog opens are counted independently at `POST /api/blog/view` and shown
 with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
-1790 tests in `tests/` (≈1880 with a live Postgres running both store engines). All pass. Build succeeds. All routes return 200.
+1810 tests in `tests/` (≈1900 with a live Postgres running both store engines). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
@@ -653,6 +653,17 @@ with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
   and is fully tested against a fixture; nothing in the app passes a real one,
   because there is no licensed API endpoint configured. It is the owner
   outreach spine and it waits on a credential, not on code.
+- A timeout-capable messaging provider. `sendReconciliation.ts` is the A13
+  decision (a post-timeout provider lookup → already-sent / safe-to-retry /
+  escalate) and the outreach send guards a thrown timeout through it, failing
+  closed to escalation. A transport that can report an accepted-then-timeout and
+  answer a lookup is an SMS/WhatsApp integration, the same class as the payment
+  and screening adapters.
+- A licensed listing/comparable feed. The whole Deal Hunt + Market Watch engine
+  (matcher, `deriveListingSignals` §19.5 detectors, comparables, identity
+  resolution) is built and fixture-tested; `EMPTY_SOURCES` is the default and
+  `DEAL_HUNT_FIXTURES=1` the staff-pilot set. Live investor display and the
+  dense signals wait on a signed feed, not on code.
 
 ---
 

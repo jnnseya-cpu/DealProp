@@ -23,7 +23,7 @@ request to rebuild working code.
 - **A07** — PARTIAL → **PASS.** The §7 illustration is pinned (`tests/a07Calculation.test.ts`): profit-on-cost 15.74% and gross-discount 21.05% through the engine's own `ratioBps`.
 - **MW02/MW03/MW13/MW14** — the identity engine is built: `propertyResolution.ts` (resolution order, reversible merge/split + reconciliation, episode grouping, case linking), 11 tests. The **merge/split review half is live** at `/operator/specialist` (persisted both engines, contract-tested, MW14). The ingestion half (resolve/episodes) activates with the licensed feed, like the rest of Market Watch.
 
-Remaining: the licensed feed (procurement), the `needs-portal-feed` signal producers (sequence with the feed), the multi-tenancy decision, and messaging reconciliation (needs a provider).
+Remaining (not code): the licensed listing feed (procurement, unlocks live Deal Hunt + dense signals), a timeout-capable messaging provider (A13 logic is built), and the multi-tenancy decision (contradicts the explicit single-tenant design).
 
 ## Headline
 
