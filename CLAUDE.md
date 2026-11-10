@@ -53,7 +53,7 @@ seller-facing options cannot disagree.
 `sourcerWalkthrough`, `propertyResolution`, `sendReconciliation`.
 
 `src/shared/domain/trend/` (Trend Intelligence, spec-adapted into this stack):
-`scoring`, `brief`, `sources`, `action`.
+`scoring`, `brief`, `sources`, `action`, `experiment`, `commercial`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -343,12 +343,22 @@ deterministically at `/operator/trends` (view-audit-log): the producer in
 `backend/trend/service.ts` runs the engine over an installation's observations
 and yields scored opportunities and validated Growth Brief drafts — EMPTY by
 default (honest coverage boundary), `TREND_FIXTURES=1` for a clearly-synthetic
-staff pilot, the same posture as Deal Hunt. No model is called. Still to build:
-the /v1 API surface + persistence (RLS/multi-tenant is a decision, not yet taken),
-the native owned-surface renderer + measurement, experiments and the commercial
-control plane.
+staff pilot, the same posture as Deal Hunt. No model is called. `trend/experiment.ts` is the
+§10/§18 measurement: `freezeExperiment` fixes the plan at approval and
+`evaluateExperiment` reads first-party native outcomes against it with a fixed
+precedence (incident/stock-out → rollback; guardrail breach → rollback; confound
+→ inconclusive; below the observation target → keep gathering; mature → the
+credible-positive test, scale only when relative lift ≥ the pre-registered MDE),
+marking a result observational when there is no randomised/holdout control.
+`trend/commercial.ts` is §19: draft metering (reserve/settle/release, one per
+logical work id, hard cap, next-month reset, TI-09) and the derived entitlement
+capability gate (trial/active full; grace/suspended read-export-rollback only;
+ended keeps export+rollback through its recovery window, TI-11) — no price set,
+money untouched. Still to build: the /v1 API surface + persistence (RLS/
+multi-tenant is a decision, not yet taken) and the native owned-surface public
+page renderer.
 
-1867 tests in `tests/` (≈1960 with a live Postgres running both store engines). All pass. Build succeeds. All routes return 200.
+1891 tests in `tests/` (≈1985 with a live Postgres running both store engines). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
