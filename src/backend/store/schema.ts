@@ -1019,7 +1019,8 @@ export type AuditAction =
   | "intake-flagged-for-review"
   | "intake-operator-replied"
   | "intake-closed"
-  | "subscription-comped";
+  | "subscription-comped"
+  | "trend-briefing-recorded";
 
 export type SubscriberTokenField = "confirmToken" | "unsubscribeToken";
 

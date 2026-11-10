@@ -1,7 +1,6 @@
 import {
   detectMovement,
   scoreTrend,
-  round1,
   type Movement,
   type ScoredTrend,
   type SourceFamilyEvidence,
@@ -13,26 +12,21 @@ import {
   type BriefChannel,
   type GrowthBrief,
 } from "@shared/domain/trend/brief";
-import { trendObservationSource, type TrendCandidate } from "@backend/trend/fixtureSource";
+import type { TrendCandidate, TrendObservationSource } from "@shared/domain/trend/candidate";
 
 /**
- * Trend Intelligence — the server-side producer that runs the deterministic
- * engine over an installation's observations and yields scored opportunities
- * and, where eligible, a validated Growth Brief draft.
+ * Trend Intelligence — the headless scorer.
  *
- * This is the live call site that stops the engine being inert (decision #42).
- * It is deliberately the same posture as Deal Hunt: with no connected feed the
- * installation has no observations and the console shows an honest empty state
- * (the coverage boundary), and only a `TREND_FIXTURES=1` staff pilot drives a
- * small, clearly-synthetic candidate set so the real scoring, detection and
- * brief-generation path can be exercised against known data. Nothing here
- * fabricates a "live" number — the engine's output is shown over whatever
- * observations are actually present.
+ * It takes candidates from an observation source (the live platform-signal
+ * adapter, or the dev fixture source) and scores each one end to end, producing
+ * a validated Growth Brief draft where the decision is eligible. There is no UI
+ * here and no page consumes it: the engine runs invisibly, driven by the trend
+ * cron, and its output is recorded and made resolvable for the existing agents
+ * (decision #42 — a live call site, not a visible feature).
  *
- * Deterministic mode, as the spec permits (§2): no model is called. Fit, intent,
- * timing and readiness come from the platform profile's verified mapping, demand
- * comes from the detection math over the count feed, and the brief is assembled
- * from those and validated against the §6 contract before it is shown.
+ * Deterministic: no model is called. Fit, intent, timing and readiness come from
+ * the candidate's verified profile mapping, demand from the detection math, and
+ * the brief is validated against the §6 contract before it is emitted.
  */
 
 export interface ScoredOpportunity {
@@ -41,11 +35,6 @@ export interface ScoredOpportunity {
   readonly scored: ScoredTrend;
   /** A validated Growth Brief draft, present only when the decision is `brief`. */
   readonly brief?: GrowthBrief;
-}
-
-export interface TrendConsoleView {
-  readonly feedConnected: boolean;
-  readonly opportunities: readonly ScoredOpportunity[];
 }
 
 /** Persistent topics get a seven-day brief; breaking topics 24 hours (§17). */
@@ -57,11 +46,7 @@ function briefWindow(klass: TrendCandidate["topicClass"], now: Date): { validFro
   };
 }
 
-function toFamilyEvidence(c: TrendCandidate, demand: number): SourceFamilyEvidence[] {
-  // The demand family carries the computed demand as its quality proxy is not
-  // used for demand; demand is supplied to scoreTrend separately. Here we build
-  // the confidence families straight from the candidate's declared families.
-  void demand;
+function toFamilyEvidence(c: TrendCandidate): SourceFamilyEvidence[] {
   return c.families.map((f) => ({
     family: f.family,
     quality: f.quality,
@@ -75,8 +60,7 @@ function toFamilyEvidence(c: TrendCandidate, demand: number): SourceFamilyEviden
  * Score one candidate end to end: detect movement over its count feed, score
  * opportunity + confidence, decide, and — only when eligible — assemble and
  * validate a Growth Brief draft. A brief that fails its own contract is a bug,
- * so it is dropped rather than shown (and the opportunity stays visible without
- * one).
+ * so it is dropped rather than emitted (the opportunity stays without one).
  */
 export function scoreCandidate(candidate: TrendCandidate, now: Date): ScoredOpportunity {
   const movement = detectMovement(candidate.countFeed);
@@ -90,7 +74,7 @@ export function scoreCandidate(candidate: TrendCandidate, now: Date): ScoredOppo
       timing: candidate.profile.timing,
       readiness: candidate.profile.readiness,
     },
-    families: toFamilyEvidence(candidate, movement.demandScore),
+    families: toFamilyEvidence(candidate),
     vetoes,
     autoOptIn: candidate.profile.autoOptIn,
     insufficientHistory: movement.insufficientHistory,
@@ -134,21 +118,15 @@ export function scoreCandidate(candidate: TrendCandidate, now: Date): ScoredOppo
 }
 
 /**
- * The console view: every candidate the installation currently has, scored and
- * ranked by opportunity score (deterministic tie-break by topic id). With no
- * feed connected the candidate list is empty and the caller shows the coverage
- * boundary.
+ * Score every candidate in an observation source, ranked by opportunity score
+ * (deterministic tie-break by topic id). With no candidates the result is empty
+ * — the honest coverage boundary.
  */
-export function trendConsole(installationId: string, now: Date = new Date()): TrendConsoleView {
-  const source = trendObservationSource(installationId);
-  const opportunities = source.candidates
+export function scoreObservationSource(source: TrendObservationSource, now: Date): readonly ScoredOpportunity[] {
+  return source.candidates
     .map((c) => scoreCandidate(c, now))
     .sort((a, b) => {
       const byScore = b.scored.opportunityScore - a.scored.opportunityScore;
       return byScore !== 0 ? byScore : a.candidate.topicId.localeCompare(b.candidate.topicId);
     });
-  return { feedConnected: source.feedConnected, opportunities };
 }
-
-/** Re-export for the surface so it need not reach into the scoring module. */
-export { round1 };
