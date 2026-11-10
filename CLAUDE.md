@@ -53,7 +53,8 @@ seller-facing options cannot disagree.
 `sourcerWalkthrough`, `propertyResolution`, `sendReconciliation`.
 
 `src/shared/domain/trend/` (Trend Intelligence, spec-adapted into this stack):
-`scoring`, `brief`, `sources`, `action`, `experiment`, `commercial`.
+`scoring`, `brief`, `sources`, `action`, `experiment`, `commercial`, `candidate`,
+`platformDemand`.
 
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
@@ -338,12 +339,19 @@ tenant-scoped source-version key (TI-01), and syndication-collapsed independent-
 family counting (TI-04). `trend/action.ts` is §18 write safety: typed allowlisted
 actions (TI-06), approval bound to the canonical payload hash + target revision
 (an edit breaks the binding), derived idempotency keys (TI-09), the execution
-re-guard and rollback-matches-applied-revision (TI-05/TI-08). Surfaced
-deterministically at `/operator/trends` (view-audit-log): the producer in
-`backend/trend/service.ts` runs the engine over an installation's observations
-and yields scored opportunities and validated Growth Brief drafts — EMPTY by
-default (honest coverage boundary), `TREND_FIXTURES=1` for a clearly-synthetic
-staff pilot, the same posture as Deal Hunt. No model is called. `trend/experiment.ts` is the
+re-guard and rollback-matches-applied-revision (TI-05/TI-08). Embedded onto LODE itself and
+run INVISIBLY — not a separate product and not a page. `trend/platformDemand.ts`
++ `backend/trend/platformSignals.ts` read LODE's OWN first-party demand (deals and
+enquiries as the weekly demand series, blog opens as the owned-page attention
+family, active Buy Boxes as readiness — no synthetic profile; readiness vetoes
+when there is no buyer to place the demand; no financial-promotion claim). It runs
+headlessly: `POST /api/cron/trend` (CRON_SECRET, fail-closed) scores real demand
+on a schedule and records eligible Growth Briefs to the append-only audit trail
+(`trend-briefing-recorded`); `backend/trend/briefing.ts` `effectiveBriefFor` is
+the §4 run-time resolver the EXISTING agents call to tilt their work to current
+demand (active in scope, baseline otherwise). No visible surface, no model call;
+`backend/trend/service.ts` is the headless scorer and the dev fixtures sit behind
+`TREND_FIXTURES=1` only. `trend/experiment.ts` is the
 §10/§18 measurement: `freezeExperiment` fixes the plan at approval and
 `evaluateExperiment` reads first-party native outcomes against it with a fixed
 precedence (incident/stock-out → rollback; guardrail breach → rollback; confound
@@ -358,7 +366,7 @@ money untouched. Still to build: the /v1 API surface + persistence (RLS/
 multi-tenant is a decision, not yet taken) and the native owned-surface public
 page renderer.
 
-1891 tests in `tests/` (≈1985 with a live Postgres running both store engines). All pass. Build succeeds. All routes return 200.
+1904 tests in `tests/` (≈2000 with a live Postgres running both store engines). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
