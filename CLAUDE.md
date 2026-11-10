@@ -52,6 +52,9 @@ seller-facing options cannot disagree.
 `decisionOutput`, `decisionSnapshot`, `comparison`, `watchCursor`, `floorplan`, `auction`,
 `sourcerWalkthrough`, `propertyResolution`, `sendReconciliation`.
 
+`src/shared/domain/trend/` (Trend Intelligence, spec-adapted into this stack):
+`scoring`, `brief`, `sources`, `action`.
+
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
 GB-WLS are excluded from `isDealReady`).
@@ -315,7 +318,37 @@ decides whether; `src/shared/eventQueue.ts` holds events until the vendor script
 exist. Blog opens are counted independently at `POST /api/blog/view` and shown
 with the SEO audit (`src/shared/domain/seo.ts`) at `/operator/blog`.
 
-1810 tests in `tests/` (≈1900 with a live Postgres running both store engines). All pass. Build succeeds. All routes return 200.
+Trend Intelligence (the §-numbered "Trend Intelligence AI" spec, adapted into
+this TypeScript stack rather than the spec's separate Python service —
+keyless, deterministic core first). `trend/scoring.ts` is §5: `detectMovement`
+(lift/robust-z, count+anomaly gates, demand = clamp(50+10z,0,100)), the weighted
+opportunity score, the independently-computed confidence with the single-source-
+family cap at 69, and the decision gate (archive/watch/brief/auto). Scores stay
+full precision — the gate is taken on 86.25/83.5, never rounded (TI-03) — and a
+veto (out-of-market, unsupported claim, restricted topic, unavailable inventory,
+illegal targeting, missing readiness) blocks the brief without lowering the
+number. `trend/brief.ts` is the §6/Appendix-A Growth Brief: a closed object,
+hand-rolled validation strict both ways (a missing required field fails and so
+does an unexpected extra one), and `resolveEffectiveBrief` falls back to baseline
+on an expired/out-of-scope/wrong-channel brief, so a cached brief never
+authorises a stale write (TI-05). `trend/sources.ts` is the §3 registry: access
+paths (public_keyless/host_mediated/file_import — keyless or unavailable, never
+prompted for a key, TI-20/TI-22), replay/conflict reconciliation on a unique
+tenant-scoped source-version key (TI-01), and syndication-collapsed independent-
+family counting (TI-04). `trend/action.ts` is §18 write safety: typed allowlisted
+actions (TI-06), approval bound to the canonical payload hash + target revision
+(an edit breaks the binding), derived idempotency keys (TI-09), the execution
+re-guard and rollback-matches-applied-revision (TI-05/TI-08). Surfaced
+deterministically at `/operator/trends` (view-audit-log): the producer in
+`backend/trend/service.ts` runs the engine over an installation's observations
+and yields scored opportunities and validated Growth Brief drafts — EMPTY by
+default (honest coverage boundary), `TREND_FIXTURES=1` for a clearly-synthetic
+staff pilot, the same posture as Deal Hunt. No model is called. Still to build:
+the /v1 API surface + persistence (RLS/multi-tenant is a decision, not yet taken),
+the native owned-surface renderer + measurement, experiments and the commercial
+control plane.
+
+1867 tests in `tests/` (≈1960 with a live Postgres running both store engines). All pass. Build succeeds. All routes return 200.
 
 ### Decisions already made — respect them
 
