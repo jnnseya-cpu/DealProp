@@ -98,7 +98,7 @@ function SiteCard({ a }: { a: LandAssessment }) {
  */
 export default async function LandPage() {
   await requirePermission("view-audit-log", "/operator/land");
-  const view = landFinder();
+  const view = await landFinder();
 
   return (
     <main data-accent="teal" className="min-h-screen pb-24">

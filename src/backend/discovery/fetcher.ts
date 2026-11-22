@@ -168,6 +168,12 @@ const SOURCE_HOSTS: Record<string, readonly string[] | "candidate-domain"> = {
   // usable source, which is worth the two lines it takes to fix.
   "land-registry-ppd": ["landregistry.data.gov.uk", "use-land-property.service.gov.uk"],
   "epc-register": ["epc.opendatacommunities.org"],
+  // The national Planning Data platform publishes designations (green belt,
+  // flood risk, conservation areas, listed buildings, SSSIs) under the OGL on
+  // one host. No live call has been made from this environment, so confirm the
+  // dataset names and response shape against one real request before relying on
+  // it — the Gazette posture.
+  "planning-data": ["www.planning.data.gov.uk"],
   // The Gazette publishes its official-record API on www.thegazette.co.uk; the
   // api. host is its documented alias. Both are bound here so a notice link
   // that resolves to either is read, and nothing else is. No live call has

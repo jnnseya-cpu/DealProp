@@ -84,6 +84,12 @@ export interface LandSite {
   readonly id: string;
   readonly postcodeArea: string;
   readonly locality: string;
+  /**
+   * A point in the site, when known, used to query planning designations from
+   * planning.data.gov.uk. Absent means constraints come only from what was
+   * recorded on the site.
+   */
+  readonly location?: { readonly longitude: number; readonly latitude: number };
   /** Gross site area in hectares. */
   readonly areaHectares: number;
   readonly currentUse: CurrentUse;

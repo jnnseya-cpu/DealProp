@@ -56,6 +56,21 @@ seller-facing options cannot disagree.
 `scoring`, `brief`, `sources`, `action`, `experiment`, `commercial`, `candidate`,
 `platformDemand`.
 
+`src/shared/domain/land/` (Land Finder — sourcing land with/without planning):
+`types`, `sourcing`, `planningConstraints`. `assessLandSite` works out a site's
+development potential (density bands), the viable control structures (consented →
+direct purchase; allocated → option/conditional/promotion; greenfield → option/
+promotion only; a hard constraint blocks everything), the sourcing route and a
+reasoned 0–100 sourceability score capped at 25 by any hard constraint (green
+belt, flood zone 3, SSSI — same discipline as Seller Protection). Reachable at
+`/operator/land` (`backend/land/service.ts` + `source.ts`: EMPTY by default,
+`LAND_FIXTURES=1` the staff pilot). `backend/land/planningData.ts` reads real
+designations from planning.data.gov.uk (OGL, through the one `Fetcher` path) and
+`enrich.ts` merges them into a site's constraints when `PLANNING_DATA=1` —
+failing open to recorded constraints, never a false clear. Licensed parcel/
+ownership feeds (OS, HMLR title read via `owners.ts`) are the remaining
+procurement, like the Deal Hunt listing feed.
+
 `src/shared/domain/jurisdictions/`: `types`, `index`, `profitTax`, `gb-eng`, `gb-sct`,
 `us-gen` (GB-NIR and GB-WLS derive from gb-eng in `index`; both US-GEN and
 GB-WLS are excluded from `isDealReady`).

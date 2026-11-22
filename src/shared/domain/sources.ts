@@ -91,6 +91,18 @@ export const DATA_SOURCES: readonly DataSource[] = [
     licence: OGL,
   },
   {
+    key: "planning-data",
+    name: "Planning Data platform",
+    publisher: "Ministry of Housing, Communities and Local Government",
+    provides:
+      "National planning designations for a point — green belt, flood-risk zones, conservation areas, listed buildings, SSSIs, AONBs and article-4 directions — which decide whether a site is developable.",
+    licence: {
+      ...OGL,
+      name: "Open Government Licence v3.0 (Planning Data platform)",
+      attribution: "Contains public sector information licensed under the Open Government Licence v3.0",
+    },
+  },
+  {
     key: "epc-register",
     name: "Energy Performance of Buildings Register",
     publisher: "Department for Levelling Up, Housing and Communities",
