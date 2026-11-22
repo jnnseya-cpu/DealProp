@@ -16,6 +16,7 @@ const DESTINATIONS: readonly NavItem[] = [
   { href: "/opportunities", label: "Opportunities" },
   { href: "/account/passport", label: "Readiness" },
   { href: "/account/playbook", label: "Playbook" },
+  { href: "/account/land", label: "Land" },
   { href: "/account/billing", label: "Billing" },
   { href: "/account/profile", label: "Profile" },
   { href: "/account/inbox", label: "Inbox" },

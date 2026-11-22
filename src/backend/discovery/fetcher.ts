@@ -174,6 +174,9 @@ const SOURCE_HOSTS: Record<string, readonly string[] | "candidate-domain"> = {
   // dataset names and response shape against one real request before relying on
   // it — the Gazette posture.
   "planning-data": ["www.planning.data.gov.uk"],
+  // The free UK postcode geocoder, over OS/ONS open data. One host, keyless; used
+  // only to turn a postcode into a point for the planning-map lookup.
+  "postcodes-io": ["api.postcodes.io"],
   // The Gazette publishes its official-record API on www.thegazette.co.uk; the
   // api. host is its documented alias. Both are bound here so a notice link
   // that resolves to either is read, and nothing else is. No live call has

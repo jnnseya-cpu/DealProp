@@ -103,6 +103,17 @@ export const DATA_SOURCES: readonly DataSource[] = [
     },
   },
   {
+    key: "postcodes-io",
+    name: "Postcodes.io",
+    publisher: "Ideal Postcodes (open data: ONS and Ordnance Survey)",
+    provides: "The coordinates of a UK postcode, to look a site up on the planning map.",
+    licence: {
+      ...OGL,
+      name: "Open Government Licence v3.0 (ONS / OS Open data via postcodes.io)",
+      attribution: "Contains OS data © Crown copyright and database right; ONS data © Crown copyright",
+    },
+  },
+  {
     key: "epc-register",
     name: "Energy Performance of Buildings Register",
     publisher: "Department for Levelling Up, Housing and Communities",
