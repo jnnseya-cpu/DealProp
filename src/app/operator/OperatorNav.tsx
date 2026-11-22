@@ -30,6 +30,7 @@ const DESTINATIONS: readonly NavItem[] = [
   { href: "/operator/discovery", label: "Discovery" },
   { href: "/operator/sourcing", label: "Sourcing" },
   { href: "/operator/hunts", label: "Hunts" },
+  { href: "/operator/land", label: "Land" },
   { href: "/operator/specialist", label: "Specialist" },
   { href: "/operator/intake", label: "Intake" },
   { href: "/operator/tasks", label: "Worklist" },
