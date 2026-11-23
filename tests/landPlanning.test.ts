@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapPlanningEntities, type PlanningEntity } from "@shared/domain/land/planningConstraints";
+import { mapPlanningEntities, LAND_CONSTRAINT_DATASETS, type PlanningEntity } from "@shared/domain/land/planningConstraints";
 import { Fetcher } from "@backend/discovery/fetcher";
 import { fetchPlanningConstraints } from "@backend/land/planningData";
 import { enrichConstraints } from "@backend/land/enrich";
@@ -17,6 +17,19 @@ describe("planning-data is licensed under the OGL", () => {
   it("is readable for internal analysis and display", () => {
     expect(sourcePermits("planning-data", "internal-analysis")).toBe(true);
     expect(sourcePermits("planning-data", "display")).toBe(true);
+  });
+});
+
+describe("LAND_CONSTRAINT_DATASETS", () => {
+  it("does not query flood from planning.data.gov.uk (it is EA data, not on this platform)", () => {
+    // Querying flood here would always return nothing and imply a check we are
+    // not making — the honesty fix after a real site (Coxford Road) exposed it.
+    expect(LAND_CONSTRAINT_DATASETS).not.toContain("flood-risk-zone");
+  });
+
+  it("still queries the green-belt and TPO designations", () => {
+    expect(LAND_CONSTRAINT_DATASETS).toContain("green-belt");
+    expect(LAND_CONSTRAINT_DATASETS).toContain("tree-preservation-zone");
   });
 });
 

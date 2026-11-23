@@ -23,6 +23,27 @@ function riskTone(band: RiskBand): "neutral" | "accent" | "bad" {
   return "neutral";
 }
 
+const CODE_LABEL: Record<string, string> = {
+  "green-belt": "Green belt",
+  "flood-zone-3": "Flood zone 3",
+  "flood-zone-2": "Flood zone 2",
+  sssi: "SSSI",
+  aonb: "AONB",
+  "conservation-area": "Conservation area",
+  "listed-building": "Listed building",
+  "ancient-woodland": "Ancient woodland",
+  tpo: "TPO",
+  "contaminated-land": "Contaminated land",
+  "no-access": "No road access",
+  "ransom-strip": "Ransom strip",
+  "no-services": "No services",
+  "covenant-restriction": "Restrictive covenant",
+};
+
+function codeLabel(code: string): string {
+  return CODE_LABEL[code] ?? code;
+}
+
 const USE_OPTIONS = ["agricultural", "paddock", "brownfield", "garden", "employment", "vacant"];
 const SETTLEMENT_OPTIONS = ["urban", "suburban", "edge-of-settlement", "rural"];
 const PLANNING_OPTIONS = ["none", "pre-application", "allocated", "outline", "reserved-matters", "full", "lapsed", "refused"];
@@ -39,7 +60,27 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const inputClass =
   "w-full rounded-md border hairline bg-surface-2 px-3 py-2 text-sm text-ink-100 focus:border-ink-500 focus:outline-none";
 
-function Result({ a }: { a: LandAssessment }) {
+function cTone(severity: "hard" | "soft"): "bad" | "warn" {
+  return severity === "hard" ? "bad" : "warn";
+}
+
+function Result({
+  a,
+  declaredKeys,
+  planningChecked,
+}: {
+  a: LandAssessment;
+  declaredKeys: readonly string[];
+  planningChecked: boolean;
+}) {
+  // Split every constraint by where it came from, so a verdict can never again
+  // present a box the user ticked as something LODE discovered.
+  const declared = a.site.constraints.filter((c) => declaredKeys.includes(c.code));
+  const mapFound = a.site.constraints.filter((c) => !declaredKeys.includes(c.code));
+  const declaredVetoes = a.vetoes.filter((v) => declaredKeys.includes(v));
+  const mapVetoes = a.vetoes.filter((v) => !declaredKeys.includes(v));
+  const blockedByYouAlone = a.vetoes.length > 0 && mapVetoes.length === 0;
+
   return (
     <Panel className="mt-8" eyebrow="Verdict" title={a.site.locality} action={<Badge tone={riskTone(a.riskBand)}>{a.riskBand}</Badge>}>
       <div className="grid grid-cols-2 gap-5 sm:grid-cols-4">
@@ -49,6 +90,35 @@ function Result({ a }: { a: LandAssessment }) {
         <Stat label="Route" value={a.route === "agent-or-auction" ? "Agent / auction" : a.route === "owner-approach" ? "Owner approach" : "Blocked"} note="how to reach it" />
       </div>
 
+      {/* Provenance, so the verdict's inputs are never mistaken for its findings. */}
+      <h3 className="eyebrow mt-6">Where this comes from</h3>
+      <div className="mt-2 space-y-3">
+        <div>
+          <div className="text-[13px] text-ink-400">You told us</div>
+          {declared.length > 0 ? (
+            <div className="mt-1 flex flex-wrap gap-2">
+              {declared.map((c) => (<Badge key={c.code} tone={cTone(c.severity)}>{codeLabel(c.code)}</Badge>))}
+            </div>
+          ) : (
+            <p className="mt-1 text-[13px] text-ink-500">No constraints declared.</p>
+          )}
+        </div>
+        <div>
+          <div className="text-[13px] text-ink-400">National planning map</div>
+          {!planningChecked ? (
+            <p className="mt-1 text-[13px] text-ink-500">Could not be checked live — the verdict uses only what you entered.</p>
+          ) : mapFound.length > 0 ? (
+            <div className="mt-1 flex flex-wrap gap-2">
+              {mapFound.map((c) => (<Badge key={c.code} tone={cTone(c.severity)}>{codeLabel(c.code)}</Badge>))}
+            </div>
+          ) : (
+            <p className="mt-1 text-[13px] text-ink-500">
+              Checked — no matching designation found at this point. Coverage varies by council, so this is not a clearance.
+            </p>
+          )}
+        </div>
+      </div>
+
       <h3 className="eyebrow mt-6">What you can do with it</h3>
       {a.structures.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-2">
@@ -56,14 +126,19 @@ function Result({ a }: { a: LandAssessment }) {
             <Badge key={s} tone="accent">{STRUCTURE_LABEL[s]}</Badge>
           ))}
         </div>
+      ) : blockedByYouAlone ? (
+        <p className="mt-2 text-[13px] leading-relaxed text-ink-300">
+          Blocked by what <em>you</em> entered: {declaredVetoes.map(codeLabel).join(", ")}. The national map did not
+          find these — if any is wrong for this site, untick it and assess again.
+        </p>
       ) : (
-        <p className="mt-2 text-[13px] text-ink-400">Nothing viable — the site is blocked as it stands.</p>
+        <p className="mt-2 text-[13px] text-ink-400">Nothing viable as it stands — blocked by {a.vetoes.map(codeLabel).join(", ")}.</p>
       )}
 
-      {a.vetoes.length > 0 && (
+      {mapVetoes.length > 0 && (
         <div className="mt-5 flex flex-wrap items-center gap-2">
-          <span className="text-[13px] text-ink-400">Blocked by:</span>
-          {a.vetoes.map((v) => (<Badge key={v} tone="warn">{v}</Badge>))}
+          <span className="text-[13px] text-ink-400">Hard stop from the planning map:</span>
+          {mapVetoes.map((v) => (<Badge key={v} tone="bad">{codeLabel(v)}</Badge>))}
         </div>
       )}
 
@@ -119,9 +194,16 @@ export default async function AssessSitePage({
         <h1 className="mt-2.5 font-display text-[26px] leading-[1.14] text-ink-100 sm:text-[32px] sm:leading-[1.12]">Assess a site</h1>
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-300">
           Got a plot in mind — a field you drove past, a site an agent mentioned? Enter what you know and
-          LODE tells you, before you spend a penny on a title read or a solicitor: is it developable, how
-          many units, which structure fits, and whether it is worth pursuing. We check the national planning
-          map for green belt, flood risk and designations.
+          LODE gives a first-pass read on a site you bring: is it developable, roughly how many units, which
+          control structure fits, and whether it is worth pursuing — before you spend on a title read or a
+          solicitor. It is a sense-check, not a search: the verdict reflects what you enter.
+        </p>
+        <p className="mt-3 max-w-2xl text-[13px] leading-relaxed text-ink-400">
+          LODE automatically checks the national planning map (planning.data.gov.uk) for green belt, SSSI,
+          ancient woodland, conservation areas, listed buildings and TPOs at the point. It does <em>not</em>{" "}
+          auto-check flood risk — that is Environment Agency data (check the{" "}
+          <a className="underline hover:text-ink-200" href="https://check-long-term-flood-risk.service.gov.uk/postcode" target="_blank" rel="noreferrer">EA flood map</a>) —
+          or road access, so tick those yourself if they apply.
         </p>
 
         <form method="get" className="mt-8 space-y-5">
@@ -181,7 +263,7 @@ export default async function AssessSitePage({
             )}
             {result.assessment !== undefined && (
               <>
-                <Result a={result.assessment} />
+                <Result a={result.assessment} declaredKeys={asStrings(sp.constraints)} planningChecked={result.planningChecked} />
                 {result.notes.length > 0 && (
                   <p className="mt-3 border-l-2 border-ink-700 py-1 pl-4 text-[12px] leading-relaxed text-ink-500">
                     {result.notes.join(" ")}

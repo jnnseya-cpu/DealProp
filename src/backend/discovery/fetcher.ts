@@ -168,9 +168,10 @@ const SOURCE_HOSTS: Record<string, readonly string[] | "candidate-domain"> = {
   // usable source, which is worth the two lines it takes to fix.
   "land-registry-ppd": ["landregistry.data.gov.uk", "use-land-property.service.gov.uk"],
   "epc-register": ["epc.opendatacommunities.org"],
-  // The national Planning Data platform publishes designations (green belt,
-  // flood risk, conservation areas, listed buildings, SSSIs) under the OGL on
-  // one host. No live call has been made from this environment, so confirm the
+  // The national Planning Data platform publishes planning designations (green
+  // belt, conservation areas, listed buildings, SSSIs, ancient woodland, TPOs)
+  // under the OGL on one host. It does NOT serve flood risk — that is Environment
+  // Agency data. No live call has been made from this environment, so confirm the
   // dataset names and response shape against one real request before relying on
   // it — the Gazette posture.
   "planning-data": ["www.planning.data.gov.uk"],
