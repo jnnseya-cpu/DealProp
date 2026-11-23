@@ -103,6 +103,22 @@ export const DATA_SOURCES: readonly DataSource[] = [
     },
   },
   {
+    key: "brownfield-land",
+    name: "Brownfield Land Registers",
+    publisher: "Local planning authorities, via the MHCLG Planning Data platform",
+    provides:
+      "Previously-developed sites each English planning authority has judged suitable for housing: location, area, the authority's own minimum/maximum dwelling capacity, planning-permission status and ownership status. A national, structured register of development land — the lawful, open-data answer to 'find me sites'.",
+    licence: {
+      ...OGL,
+      name: "Open Government Licence v3.0 (Brownfield Land Registers)",
+      // Public register of SITES, not personal data about named individuals, so
+      // display and redistribution are permitted — unlike title or insolvency
+      // data. Ownership-status is a category ("owned by a public authority"),
+      // never a person.
+      attribution: "Contains public sector information licensed under the Open Government Licence v3.0",
+    },
+  },
+  {
     key: "postcodes-io",
     name: "Postcodes.io",
     publisher: "Ideal Postcodes (open data: ONS and Ordnance Survey)",

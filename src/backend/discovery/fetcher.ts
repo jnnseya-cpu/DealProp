@@ -175,6 +175,9 @@ const SOURCE_HOSTS: Record<string, readonly string[] | "candidate-domain"> = {
   // dataset names and response shape against one real request before relying on
   // it — the Gazette posture.
   "planning-data": ["www.planning.data.gov.uk"],
+  // The national Brownfield Land Registers, aggregated on the same MHCLG host
+  // under the OGL — the licensed "find me development sites" feed.
+  "brownfield-land": ["www.planning.data.gov.uk"],
   // The free UK postcode geocoder, over OS/ONS open data. One host, keyless; used
   // only to turn a postcode into a point for the planning-map lookup.
   "postcodes-io": ["api.postcodes.io"],

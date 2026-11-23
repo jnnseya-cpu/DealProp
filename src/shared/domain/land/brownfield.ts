@@ -1,0 +1,171 @@
+import type { LandSite, PlanningStatus } from "@shared/domain/land/types";
+
+/**
+ * Brownfield Land Registers → LODE land opportunities.
+ *
+ * Every English planning authority must publish, under the Open Government
+ * Licence, a register of previously-developed ("brownfield") sites it judges
+ * suitable for housing. The registers are aggregated nationally on the MHCLG
+ * Planning Data platform as the `brownfield-land` dataset. Each record carries
+ * what sourcing actually needs: where the site is, how big it is, the
+ * authority's OWN minimum/maximum dwelling capacity, the planning-permission
+ * status and who broadly owns it.
+ *
+ * This is the lawful, free answer to "find me development sites" — not scraping
+ * a portal (decision #14), but reading a public register of SITES (never
+ * personal data about a named person). This module is the pure half: it maps a
+ * register entity to a LandOpportunity and bridges it into the existing
+ * assessment engine. The backend connector does the fetch.
+ *
+ * A figure LODE did not compute carries its provenance (decision #6, and the
+ * Coxford Road lesson): the register's dwelling capacity is the LPA's own
+ * estimate and is shown AS the register's, kept distinct from the engine's
+ * indicative density figure.
+ */
+
+export const BROWNFIELD_VERSION = "brownfield-1";
+
+/** One `brownfield-land` entity as the Planning Data entity API returns it. */
+export interface BrownfieldEntity {
+  readonly reference?: string;
+  readonly name?: string;
+  readonly organisation?: string;
+  readonly "organisation-entity"?: string;
+  /** WKT point, e.g. "POINT (-1.56 52.34)". */
+  readonly point?: string;
+  readonly hectares?: string | number;
+  readonly "ownership-status"?: string;
+  readonly "minimum-net-dwellings"?: string | number;
+  readonly "maximum-net-dwellings"?: string | number;
+  readonly "planning-permission-status"?: string;
+  readonly "planning-permission-type"?: string;
+  readonly deliverable?: string;
+  readonly "site-plan-url"?: string;
+  readonly "entry-date"?: string;
+  readonly [key: string]: unknown;
+}
+
+/** A normalised development-land opportunity sourced from the register. */
+export interface LandOpportunity {
+  readonly id: string;
+  readonly reference: string;
+  readonly name: string;
+  readonly location?: { readonly longitude: number; readonly latitude: number };
+  readonly areaHectares: number;
+  /** The authority's own capacity estimate — shown as the register's figure. */
+  readonly minUnits?: number;
+  readonly maxUnits?: number;
+  readonly planningStatus: PlanningStatus;
+  /** True where the register records a public authority owns it. */
+  readonly ownershipPublic: boolean;
+  readonly deliverable?: boolean;
+  readonly lpa: string;
+  readonly asOf: string;
+  readonly sitePlanUrl?: string;
+}
+
+function numberFrom(v: unknown): number | undefined {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
+}
+
+/** Parse a WKT "POINT (lng lat)" into coordinates. */
+export function parseWktPoint(wkt: string | undefined): { longitude: number; latitude: number } | undefined {
+  if (typeof wkt !== "string") return undefined;
+  const m = /POINT\s*\(\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*\)/i.exec(wkt);
+  if (m === null) return undefined;
+  const longitude = Number(m[1]);
+  const latitude = Number(m[2]);
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return undefined;
+  return { longitude, latitude };
+}
+
+/**
+ * Map the register's planning-permission fields to a LODE PlanningStatus. The
+ * register states a status ("permissioned" / "not permissioned" / "pending
+ * decision") and, where permissioned, a type ("full" / "outline" / "permission
+ * in principle"). Unknown or absent is `none`, never a guessed consent
+ * (decision #5: unknown defaults to the cautious value, never the permissive).
+ */
+export function mapBrownfieldPlanning(status: string | undefined, type: string | undefined): PlanningStatus {
+  const t = (type ?? "").toLowerCase();
+  const s = (status ?? "").toLowerCase();
+  if (t.includes("full")) return "full";
+  if (t.includes("reserved")) return "reserved-matters";
+  if (t.includes("outline")) return "outline";
+  if (t.includes("permission in principle") || t.includes("principle")) return "outline";
+  if (s.includes("not permission")) return "none";
+  if (s.includes("pending")) return "pre-application";
+  if (s.includes("permission")) return "outline"; // permissioned but type unstated
+  return "none";
+}
+
+function isConsented(status: PlanningStatus): boolean {
+  return status === "outline" || status === "reserved-matters" || status === "full";
+}
+
+/**
+ * Map a register entity to a LandOpportunity, or undefined when it lacks the
+ * minimum a sourcing record needs (a reference and a positive site area). A
+ * record with no usable area cannot be assessed, so it is dropped rather than
+ * shown as a zero-area site.
+ */
+export function mapBrownfieldEntity(entity: BrownfieldEntity): LandOpportunity | undefined {
+  const reference = typeof entity.reference === "string" && entity.reference.trim() !== "" ? entity.reference.trim() : undefined;
+  const hectares = numberFrom(entity.hectares);
+  if (reference === undefined || hectares === undefined || hectares <= 0) return undefined;
+
+  const ownership = (entity["ownership-status"] ?? "").toString().toLowerCase();
+  const deliverableRaw = (entity.deliverable ?? "").toString().toLowerCase();
+
+  return {
+    id: reference,
+    reference,
+    name: typeof entity.name === "string" && entity.name.trim() !== "" ? entity.name.trim() : reference,
+    ...(parseWktPoint(entity.point) !== undefined ? { location: parseWktPoint(entity.point) } : {}),
+    areaHectares: Math.round(hectares * 100) / 100,
+    ...(numberFrom(entity["minimum-net-dwellings"]) !== undefined ? { minUnits: Math.round(numberFrom(entity["minimum-net-dwellings"])!) } : {}),
+    ...(numberFrom(entity["maximum-net-dwellings"]) !== undefined ? { maxUnits: Math.round(numberFrom(entity["maximum-net-dwellings"])!) } : {}),
+    planningStatus: mapBrownfieldPlanning(entity["planning-permission-status"], entity["planning-permission-type"]),
+    // "not owned by a public authority" also contains "public", so the negative
+    // phrase must exclude it — otherwise a privately-owned site reads as public.
+    ownershipPublic: !ownership.includes("not ") && (ownership.includes("public") || ownership.includes("local authority")),
+    ...(deliverableRaw === "yes" || deliverableRaw === "true" ? { deliverable: true } : deliverableRaw === "no" || deliverableRaw === "false" ? { deliverable: false } : {}),
+    lpa: typeof entity.organisation === "string" && entity.organisation.trim() !== "" ? entity.organisation.trim() : "unknown authority",
+    asOf: typeof entity["entry-date"] === "string" ? entity["entry-date"] : "",
+    ...(typeof entity["site-plan-url"] === "string" && entity["site-plan-url"].trim() !== "" ? { sitePlanUrl: entity["site-plan-url"].trim() } : {}),
+  };
+}
+
+/**
+ * Bridge an opportunity into a LandSite so the existing assessment engine runs
+ * on it. The register's capacity is authoritative where a consent exists, so a
+ * consented site carries its max-net-dwellings as the consented count; an
+ * unconsented one is left to the engine's indicative density. Brownfield land is
+ * previously-developed and, by definition of the register, within a settlement,
+ * so it is treated as suburban context — a documented default, not a guess
+ * dressed as a fact. Constraints start empty and are added by the planning-map
+ * enrichment exactly as for a user-entered site.
+ */
+export function opportunityToLandSite(opp: LandOpportunity): LandSite {
+  return {
+    id: opp.id,
+    postcodeArea: "",
+    locality: opp.name,
+    ...(opp.location !== undefined ? { location: opp.location } : {}),
+    areaHectares: opp.areaHectares,
+    currentUse: "brownfield",
+    settlement: "suburban",
+    planningStatus: opp.planningStatus,
+    ...(isConsented(opp.planningStatus) && opp.maxUnits !== undefined ? { consentedUnits: opp.maxUnits } : {}),
+    constraints: [],
+    // The register records ownership category; a public-authority site has a
+    // known, reachable owner (the council), which the deliverability score uses.
+    ownerKnown: opp.ownershipPublic,
+    openlyMarketed: false,
+  };
+}

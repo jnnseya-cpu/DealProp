@@ -3,6 +3,7 @@ import { SiteHeader, Panel, Badge, Stat, KeyValue } from "@/app/components/chrom
 import { requirePermission } from "@/app/operator/guard";
 import { landFinder } from "@backend/land/service";
 import { landFixturesEnabled } from "@backend/land/source";
+import { landSourcing, type SourcedSite } from "@backend/land/sourcingService";
 import type { LandAssessment, RiskBand } from "@shared/domain/land/sourcing";
 import type { ControlStructure } from "@shared/domain/land/types";
 
@@ -88,6 +89,67 @@ function SiteCard({ a }: { a: LandAssessment }) {
   );
 }
 
+/** A sourced development-land opportunity from the Brownfield Land Registers. */
+function OpportunityCard({ s }: { s: SourcedSite }) {
+  const { opportunity: o, assessment: a } = s;
+  const capacity =
+    o.minUnits !== undefined && o.maxUnits !== undefined
+      ? `${o.minUnits}–${o.maxUnits}`
+      : o.maxUnits !== undefined
+        ? `${o.maxUnits}`
+        : "—";
+  return (
+    <Panel
+      className="mt-6"
+      eyebrow={`${o.lpa} · ${o.areaHectares} ha`}
+      title={o.name}
+      action={<Badge tone={riskTone(a.riskBand)}>{a.riskBand}</Badge>}
+    >
+      <div className="grid grid-cols-2 gap-5 sm:grid-cols-4">
+        <Stat label="Sourceability" value={a.sourceabilityScore.toString()} note="0–100" size="lg" />
+        <Stat label="Register capacity" value={capacity} note="units (LPA estimate)" size="lg" />
+        <Stat label="Planning" value={o.planningStatus} note="status" />
+        <Stat
+          label="Ownership"
+          value={o.ownershipPublic ? "Public" : "Private"}
+          note={o.deliverable === true ? "deliverable" : o.deliverable === false ? "not deliverable" : "—"}
+        />
+      </div>
+
+      <h3 className="eyebrow mt-6">Control structures</h3>
+      {a.structures.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {a.structures.map((st) => (
+            <Badge key={st} tone="accent">
+              {STRUCTURE_LABEL[st]}
+            </Badge>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 text-[13px] text-ink-400">No viable structure — blocked as it stands.</p>
+      )}
+
+      {a.vetoes.length > 0 && (
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          <span className="text-[13px] text-ink-400">Hard constraints:</span>
+          {a.vetoes.map((v) => (
+            <Badge key={v} tone="warn">
+              {v}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-5 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
+        <KeyValue k="Register reference" v={o.reference} />
+        <KeyValue k="Owner" v={o.ownershipPublic ? "Public authority — reachable" : "Private — needs HMLR title read"} />
+        <KeyValue k="Engine estimate" v={`~${a.potential.units} units indicative (${o.areaHectares} ha)`} />
+        {o.asOf !== "" ? <KeyValue k="Register entry" v={o.asOf} /> : <></>}
+      </div>
+    </Panel>
+  );
+}
+
 /**
  * Land Finder — the operator console (the sourcing side of the land spec).
  *
@@ -99,6 +161,7 @@ function SiteCard({ a }: { a: LandAssessment }) {
 export default async function LandPage() {
   await requirePermission("view-audit-log", "/operator/land");
   const view = await landFinder();
+  const sourcing = landSourcing();
 
   return (
     <main data-accent="teal" className="min-h-screen pb-24">
@@ -113,6 +176,47 @@ export default async function LandPage() {
           promotion agreement. Each candidate site is assessed for what could be built, which structure
           fits, how to reach it, and a sourceability score — a green-belt or flood-zone site is a
           blocked prospect, never a cheap one.
+        </p>
+
+        {/* The real "find me sites" feed: the national Brownfield Land Registers. */}
+        <h2 className="mt-10 font-display text-[20px] text-ink-100">Development sites</h2>
+        <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-ink-400">
+          Sourced from the national Brownfield Land Registers (planning.data.gov.uk, Open Government
+          Licence) — previously-developed sites each authority has judged suitable for housing, with the
+          authority&rsquo;s own dwelling capacity. Ranked by the same sourceability score, with every
+          figure&rsquo;s provenance shown. The register&rsquo;s capacity is the LPA&rsquo;s; the engine
+          estimate is ours.
+        </p>
+        {sourcing.sites.length === 0 ? (
+          <Panel className="mt-6" eyebrow="Coverage boundary" title="No register feed connected">
+            <p className="text-sm leading-relaxed text-ink-300">
+              No brownfield register feed is connected, so there are no sourced sites and this shows an
+              explicit empty state rather than an invented one — data gated at the source, not the screen.
+            </p>
+            <p className="mt-3 text-[13px] leading-relaxed text-ink-400">
+              Set <code className="font-mono text-[12px] text-ink-300">LAND_SOURCING_FIXTURES=1</code> for a
+              staff pilot over clearly-synthetic sites. Live sourcing waits on verifying the{" "}
+              <code className="font-mono text-[12px] text-ink-300">brownfield-land</code> area query against
+              one real request — the feed is licensed (OGL) and free; the query shape is the open item.
+            </p>
+          </Panel>
+        ) : (
+          <>
+            {sourcing.pilot && (
+              <p className="mt-6 border-l-2 border-[color:var(--accent)] py-1 pl-4 text-[13px] leading-relaxed text-ink-400">
+                Staff-pilot fixtures enabled (LAND_SOURCING_FIXTURES=1). Clearly-synthetic register entries,
+                mapped through the live connector&rsquo;s own mapper, never real prospects.
+              </p>
+            )}
+            {sourcing.sites.map((s) => (
+              <OpportunityCard key={s.opportunity.id} s={s} />
+            ))}
+          </>
+        )}
+
+        <h2 className="mt-12 font-display text-[20px] text-ink-100">Assessed candidate sites</h2>
+        <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-ink-400">
+          Sites entered or imported directly (the manual finder half), each run through the same engine.
         </p>
 
         {!view.feedConnected ? (
