@@ -40,6 +40,8 @@ export interface BrownfieldQuery {
   /** Publishing authorities to filter to, by Planning Data entity id. */
   readonly organisationEntities?: readonly number[];
   readonly limit?: number;
+  /** Pagination offset (the platform paginates with `offset`). */
+  readonly offset?: number;
 }
 
 /** A bbox as a closed WKT polygon ring, "lng lat" pairs (the platform's order). */
@@ -52,6 +54,12 @@ export interface BrownfieldFetchResult {
   readonly ok: boolean;
   readonly outcome: FetchOutcome;
   readonly opportunities: readonly LandOpportunity[];
+  /** Raw entities in this page (before mapping drops any), to drive pagination. */
+  readonly received: number;
+  /** Total matching the query (across all pages), as the platform reports it. */
+  readonly count?: number;
+  /** True when the platform capped the count (there are more than it states). */
+  readonly capped?: boolean;
   readonly reason: string;
 }
 
@@ -68,19 +76,32 @@ export function buildBrownfieldUrl(q: BrownfieldQuery): string {
     params.set("latitude", String(q.latitude));
   }
   for (const id of q.organisationEntities ?? []) params.append("organisation_entity", String(id));
+  if (q.offset !== undefined && q.offset > 0) params.set("offset", String(q.offset));
   return `${BASE}?${params.toString()}`;
 }
 
-function entitiesFrom(body: string): readonly BrownfieldEntity[] {
+interface ParsedBody {
+  readonly entities: readonly BrownfieldEntity[];
+  readonly count?: number;
+  readonly capped?: boolean;
+}
+
+function parseBody(body: string): ParsedBody {
   try {
     const parsed = JSON.parse(body) as unknown;
-    if (parsed !== null && typeof parsed === "object" && Array.isArray((parsed as { entities?: unknown }).entities)) {
-      return (parsed as { entities: BrownfieldEntity[] }).entities;
+    if (Array.isArray(parsed)) return { entities: parsed as BrownfieldEntity[] };
+    if (parsed !== null && typeof parsed === "object") {
+      const obj = parsed as { entities?: unknown; count?: unknown; count_is_capped?: unknown };
+      const entities = Array.isArray(obj.entities) ? (obj.entities as BrownfieldEntity[]) : [];
+      return {
+        entities,
+        ...(typeof obj.count === "number" ? { count: obj.count } : {}),
+        ...(typeof obj.count_is_capped === "boolean" ? { capped: obj.count_is_capped } : {}),
+      };
     }
-    if (Array.isArray(parsed)) return parsed as BrownfieldEntity[];
-    return [];
+    return { entities: [] };
   } catch {
-    return [];
+    return { entities: [] };
   }
 }
 
@@ -90,15 +111,19 @@ export async function fetchBrownfieldSites(
 ): Promise<BrownfieldFetchResult> {
   const result = await fetcher.get("brownfield-land", buildBrownfieldUrl(query));
   if (!result.ok || result.body === undefined) {
-    return { ok: false, outcome: result.outcome, opportunities: [], reason: result.reason };
+    return { ok: false, outcome: result.outcome, opportunities: [], received: 0, reason: result.reason };
   }
-  const opportunities = entitiesFrom(result.body)
+  const parsed = parseBody(result.body);
+  const opportunities = parsed.entities
     .map(mapBrownfieldEntity)
     .filter((o): o is LandOpportunity => o !== undefined);
   return {
     ok: true,
     outcome: "ok",
     opportunities,
+    received: parsed.entities.length,
+    ...(parsed.count !== undefined ? { count: parsed.count } : {}),
+    ...(parsed.capped !== undefined ? { capped: parsed.capped } : {}),
     reason: `brownfield-land: ${opportunities.length} usable site(s)`,
   };
 }

@@ -216,6 +216,57 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       });
     });
 
+    describe("bulk Brownfield sites", () => {
+      const bf = (ref: string, score: number, postcode?: string) => ({
+        opportunity: {
+          id: ref,
+          reference: ref,
+          name: `Site ${ref}`,
+          ...(postcode !== undefined ? { postcode } : {}),
+          areaHectares: 0.5,
+          planningStatus: "none" as const,
+          ownershipPublic: false,
+          asOf: "2025-12-31",
+        },
+        score,
+      });
+
+      it("reads sites back ranked by score, highest first", async () => {
+        const written = await store.saveBrownfieldSites([bf("A", 40.1), bf("B", 82.5), bf("C", 61.0)]);
+        expect(written).toBe(3);
+        const page = await store.listBrownfieldSites({ limit: 10 });
+        expect(page.map((p) => p.opportunity.reference)).toEqual(["B", "C", "A"]);
+        expect(page[0]!.score).toBe(82.5);
+      });
+
+      it("upserts by reference — a re-load updates rather than duplicates", async () => {
+        await store.saveBrownfieldSites([bf("A", 40)]);
+        await store.saveBrownfieldSites([bf("A", 90)]);
+        const page = await store.listBrownfieldSites({ limit: 10 });
+        expect(page).toHaveLength(1);
+        expect(page[0]!.score).toBe(90);
+        expect(await store.countBrownfieldSites()).toBe(1);
+      });
+
+      it("paginates with limit and offset", async () => {
+        await store.saveBrownfieldSites([bf("A", 90), bf("B", 80), bf("C", 70)]);
+        const page2 = await store.listBrownfieldSites({ limit: 1, offset: 1 });
+        expect(page2.map((p) => p.opportunity.reference)).toEqual(["B"]);
+      });
+
+      it("filters by postcode area", async () => {
+        await store.saveBrownfieldSites([bf("A", 90, "CV1 1AA"), bf("B", 80, "B1 1AA")]);
+        const cv = await store.listBrownfieldSites({ limit: 10, postcodeArea: "CV" });
+        expect(cv.map((p) => p.opportunity.reference)).toEqual(["A"]);
+      });
+
+      it("returns nothing, and zero, when nothing is loaded", async () => {
+        expect(await store.listBrownfieldSites({ limit: 10 })).toEqual([]);
+        expect(await store.countBrownfieldSites()).toBe(0);
+        expect(await store.saveBrownfieldSites([])).toBe(0);
+      });
+    });
+
     describe("property-identity merges (MW14)", () => {
       const merge = (over: Record<string, unknown> = {}) => ({
         id: "mg-1",

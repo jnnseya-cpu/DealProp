@@ -40,6 +40,7 @@ import type { WatchCursor } from "@shared/domain/watchCursor";
 import type { LayoutHypothesis } from "@shared/domain/floorplan";
 import type { AuctionLot } from "@shared/domain/auction";
 import type { PricePaidSale } from "@backend/sources/pricePaidBulk";
+import type { StoredBrownfieldSite } from "@shared/domain/land/brownfield";
 import type { MergeRecord } from "@shared/domain/propertyResolution";
 import type { PackApproval } from "@shared/domain/packApproval";
 import type { ResaleArrangement, ResaleConsent } from "@shared/domain/reseller";
@@ -500,6 +501,12 @@ export interface Database {
    * read per postcode. Dense where the linked-data endpoint is sparse.
    */
   pricePaidSales?: PricePaidSale[];
+  /**
+   * National Brownfield Land Register sites, loaded from planning.data.gov.uk
+   * and read as a score-ranked page. The licensed "find me development sites"
+   * feed. Score is stored so the read path ranks without domain logic.
+   */
+  brownfieldSites?: StoredBrownfieldSite[];
   /** Market Watch property-identity merges (§19.4), reversible with audit. */
   propertyMerges?: MergeRecord[];
   /** EvidenceClaims (Independent Engine §5) — the sourced-assertion spine. */
@@ -1237,6 +1244,14 @@ export interface Store {
   savePricePaidSales(sales: readonly PricePaidSale[]): Promise<number>;
   listPricePaidSales(postcode: string): Promise<readonly PricePaidSale[]>;
   countPricePaidSales(): Promise<number>;
+  /**
+   * National Brownfield Land Register sites. Upsert by reference (a re-load
+   * updates), read as a score-ranked page (optionally filtered by postcode area),
+   * counted for readiness.
+   */
+  saveBrownfieldSites(records: readonly StoredBrownfieldSite[]): Promise<number>;
+  listBrownfieldSites(opts: { limit: number; offset?: number; postcodeArea?: string }): Promise<readonly StoredBrownfieldSite[]>;
+  countBrownfieldSites(): Promise<number>;
   /** Property-identity merges (§19.4). Upsert by id (a reversal flips a flag), newest first. */
   savePropertyMerge(record: MergeRecord): Promise<MergeRecord>;
   listPropertyMerges(): Promise<readonly MergeRecord[]>;

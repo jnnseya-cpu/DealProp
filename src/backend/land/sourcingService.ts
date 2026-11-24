@@ -4,17 +4,27 @@ import {
   opportunityToLandSite,
   type LandOpportunity,
 } from "@shared/domain/land/brownfield";
+import type { StoredBrownfieldSite } from "@shared/domain/land/brownfield";
 import { BROWNFIELD_FIXTURE_ENTITIES } from "@backend/land/brownfieldFixtures";
-import { fetchBrownfieldSites, type BoundingBox } from "@backend/land/brownfieldSource";
-import { Fetcher } from "@backend/discovery/fetcher";
+import { listBrownfieldSites, countBrownfieldSites } from "@backend/store/repository";
+
+/** The store reads the live path needs — injectable so the service is unit-testable. */
+export interface SourcingStore {
+  listBrownfieldSites(opts: { limit: number; offset?: number; postcodeArea?: string }): Promise<readonly StoredBrownfieldSite[]>;
+  countBrownfieldSites(): Promise<number>;
+}
+
+const REPOSITORY_STORE: SourcingStore = { listBrownfieldSites, countBrownfieldSites };
 
 /**
- * Land sourcing — the server-side producer that turns the Brownfield Land
- * Registers into assessed, ranked development-land opportunities (decision #42).
+ * Land sourcing — the server-side producer that turns the national Brownfield
+ * Land Register into assessed, ranked development-land opportunities (#42).
  *
  * Three states, chosen by environment, never by the screen (decision #14):
- *   - `BROWNFIELD_LIVE=1`: read the LIVE register for the launch region through
- *     the one sanctioned outbound path (Fetcher). This is the real feed.
+ *   - `BROWNFIELD_LIVE=1`: read the loaded national register from the store, as a
+ *     score-ranked page. The register is bulk-loaded by `npm run load:brownfield`
+ *     (it is far too large — 10k+ sites — to fetch per request), exactly as Price
+ *     Paid is loaded. This is the real feed.
  *   - `LAND_SOURCING_FIXTURES=1`: the staff-pilot set, mapped through the live
  *     connector's own mapper.
  *   - neither: empty, with an honest coverage boundary.
@@ -25,13 +35,8 @@ import { Fetcher } from "@backend/discovery/fetcher";
  * engine's indicative estimate.
  */
 
-/**
- * The launch region as a bounding box: the West Midlands metros (B/CV/DY/WS/WV),
- * matching the Price Paid launch area. A box query returns every brownfield site
- * in the region regardless of which authority published it — no fragile authority
- * -id chase. Widen or add regions here, in one place.
- */
-export const WEST_MIDLANDS_BBOX: BoundingBox = { west: -2.25, south: 52.35, east: -1.35, north: 52.7 };
+/** How many top-ranked sites a page shows. */
+export const SOURCING_PAGE_SIZE = 50;
 
 export interface SourcedSite {
   readonly opportunity: LandOpportunity;
@@ -44,7 +49,9 @@ export interface LandSourcingView {
   /** True when the staff-pilot fixtures are the source. */
   readonly pilot: boolean;
   readonly sites: readonly SourcedSite[];
-  /** Set when a live fetch failed, so the surface can say why (never a false empty). */
+  /** Total loaded sites (live feed), so the page can say "top N of M". */
+  readonly total?: number;
+  /** Set when a live read failed, so the surface can say why (never a false empty). */
   readonly error?: string;
 }
 
@@ -56,9 +63,13 @@ export function landSourcingFixturesEnabled(): boolean {
   return process.env.LAND_SOURCING_FIXTURES === "1";
 }
 
-function assessAndRank(opportunities: readonly LandOpportunity[]): readonly SourcedSite[] {
+function assess(opportunity: LandOpportunity): SourcedSite {
+  return { opportunity, assessment: assessLandSite(opportunityToLandSite(opportunity)) };
+}
+
+function rankFixtures(opportunities: readonly LandOpportunity[]): readonly SourcedSite[] {
   return opportunities
-    .map((opportunity) => ({ opportunity, assessment: assessLandSite(opportunityToLandSite(opportunity)) }))
+    .map(assess)
     .sort((a, b) => {
       const byScore = b.assessment.sourceabilityScore - a.assessment.sourceabilityScore;
       if (byScore !== 0) return byScore;
@@ -67,19 +78,31 @@ function assessAndRank(opportunities: readonly LandOpportunity[]): readonly Sour
     });
 }
 
-export async function landSourcing(fetcher: Fetcher = new Fetcher()): Promise<LandSourcingView> {
+export async function landSourcing(
+  opts: { postcodeArea?: string; page?: number } = {},
+  store: SourcingStore = REPOSITORY_STORE,
+): Promise<LandSourcingView> {
   if (landSourcingLiveEnabled()) {
-    const result = await fetchBrownfieldSites(fetcher, { bbox: WEST_MIDLANDS_BBOX, limit: 500 });
-    if (!result.ok) {
-      // A feed outage is unknown coverage, never "no sites in the region".
-      return { feedConnected: true, pilot: false, sites: [], error: `live register unavailable (${result.outcome})` };
+    try {
+      const offset = Math.max(0, (opts.page ?? 0)) * SOURCING_PAGE_SIZE;
+      const records = await store.listBrownfieldSites({
+        limit: SOURCING_PAGE_SIZE,
+        offset,
+        ...(opts.postcodeArea !== undefined ? { postcodeArea: opts.postcodeArea } : {}),
+      });
+      const total = await store.countBrownfieldSites();
+      // The store already ranks by stored score; re-assess only the page for display.
+      const sites = records.map((r) => assess(r.opportunity));
+      return { feedConnected: true, pilot: false, sites, total };
+    } catch (e) {
+      // A store/read failure is unknown coverage, never "no sites".
+      return { feedConnected: true, pilot: false, sites: [], error: e instanceof Error ? e.message : "store unavailable" };
     }
-    return { feedConnected: true, pilot: false, sites: assessAndRank(result.opportunities) };
   }
 
   const pilot = landSourcingFixturesEnabled();
   const opportunities = pilot
     ? BROWNFIELD_FIXTURE_ENTITIES.map(mapBrownfieldEntity).filter((o): o is LandOpportunity => o !== undefined)
     : [];
-  return { feedConnected: false, pilot, sites: assessAndRank(opportunities) };
+  return { feedConnected: false, pilot, sites: rankFixtures(opportunities) };
 }

@@ -18,6 +18,14 @@ import type { ComparisonRun } from "@shared/domain/comparison";
 import type { WatchCursor } from "@shared/domain/watchCursor";
 import type { LayoutHypothesis } from "@shared/domain/floorplan";
 import type { PricePaidSale } from "@backend/sources/pricePaidBulk";
+import type { LandOpportunity, StoredBrownfieldSite } from "@shared/domain/land/brownfield";
+
+// Postcode area (leading letters) for the brownfield index. An indexing concern,
+// inlined so the store imports no value from @shared/domain (boundary rule).
+function brownfieldArea(postcode: string | undefined): string {
+  if (typeof postcode !== "string") return "";
+  return /^[A-Za-z]+/.exec(postcode.trim())?.[0]?.toUpperCase() ?? "";
+}
 import type { MergeRecord } from "@shared/domain/propertyResolution";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
@@ -442,6 +450,18 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS price_paid_sales_postcode
     ON price_paid_sales (postcode, sold_at DESC);
+  -- National Brownfield Land Register sites. Upsert by reference; read as a
+  -- score-ranked page, so a dedicated score index rather than a jsonb scan.
+  CREATE TABLE IF NOT EXISTS brownfield_sites (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    score real NOT NULL,
+    postcode_area text
+  );
+  CREATE INDEX IF NOT EXISTS brownfield_sites_score
+    ON brownfield_sites (score DESC, id);
+  CREATE INDEX IF NOT EXISTS brownfield_sites_area
+    ON brownfield_sites (postcode_area, score DESC);
   CREATE TABLE IF NOT EXISTS property_merges (
     id text PRIMARY KEY,
     data jsonb NOT NULL,
@@ -1628,6 +1648,66 @@ export const postgresStore: Store = {
     await ensureSchema();
     const { rows } = await getPool().query<{ count: string }>(
       "SELECT COUNT(*)::text AS count FROM price_paid_sales",
+    );
+    return Number(rows[0]?.count ?? 0);
+  },
+
+  async saveBrownfieldSites(records: readonly StoredBrownfieldSite[]): Promise<number> {
+    if (records.length === 0) return 0;
+    await ensureSchema();
+    // Dedup within the call, last-wins: ON CONFLICT cannot touch the same id
+    // twice in one statement, and a tiled load can revisit a site on an overlap.
+    const latest = new Map<string, StoredBrownfieldSite>();
+    for (const r of records) latest.set(r.opportunity.reference, r);
+    const deduped = [...latest.values()];
+
+    const CHUNK = 500; // 4 params per row, well under the 65535 cap
+    let written = 0;
+    for (let i = 0; i < deduped.length; i += CHUNK) {
+      const chunk = deduped.slice(i, i + CHUNK);
+      const values: string[] = [];
+      const params: unknown[] = [];
+      chunk.forEach((r, j) => {
+        const b = j * 4;
+        values.push(`($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4})`);
+        params.push(r.opportunity.reference, JSON.stringify(r.opportunity), r.score, brownfieldArea(r.opportunity.postcode));
+      });
+      await getPool().query(
+        `INSERT INTO brownfield_sites (id, data, score, postcode_area)
+         VALUES ${values.join(", ")}
+         ON CONFLICT (id) DO UPDATE
+           SET data = EXCLUDED.data, score = EXCLUDED.score, postcode_area = EXCLUDED.postcode_area`,
+        params,
+      );
+      written += chunk.length;
+    }
+    return written;
+  },
+
+  async listBrownfieldSites(opts: { limit: number; offset?: number; postcodeArea?: string }): Promise<readonly StoredBrownfieldSite[]> {
+    await ensureSchema();
+    const params: unknown[] = [];
+    let where = "";
+    const area = opts.postcodeArea?.toUpperCase();
+    if (area !== undefined && area !== "") {
+      params.push(area);
+      where = `WHERE postcode_area = $${params.length}`;
+    }
+    params.push(opts.limit);
+    const limIdx = params.length;
+    params.push(opts.offset ?? 0);
+    const offIdx = params.length;
+    const { rows } = await getPool().query<{ data: LandOpportunity; score: number }>(
+      `SELECT data, score FROM brownfield_sites ${where} ORDER BY score DESC, id ASC LIMIT $${limIdx} OFFSET $${offIdx}`,
+      params,
+    );
+    return rows.map((r) => ({ opportunity: r.data, score: r.score }));
+  },
+
+  async countBrownfieldSites(): Promise<number> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ count: string }>(
+      "SELECT COUNT(*)::text AS count FROM brownfield_sites",
     );
     return Number(rows[0]?.count ?? 0);
   },

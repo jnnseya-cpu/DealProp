@@ -462,6 +462,18 @@ export async function countPricePaidSales() {
   return (await store()).countPricePaidSales();
 }
 
+export async function saveBrownfieldSites(records: Parameters<Awaited<ReturnType<typeof store>>["saveBrownfieldSites"]>[0]) {
+  return (await store()).saveBrownfieldSites(records);
+}
+
+export async function listBrownfieldSites(opts: { limit: number; offset?: number; postcodeArea?: string }) {
+  return (await store()).listBrownfieldSites(opts);
+}
+
+export async function countBrownfieldSites() {
+  return (await store()).countBrownfieldSites();
+}
+
 export async function savePropertyMerge(record: MergeRecord) {
   return (await store()).savePropertyMerge(record);
 }

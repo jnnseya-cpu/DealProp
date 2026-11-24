@@ -232,8 +232,9 @@ export default async function LandPage() {
               </p>
             ) : sourcing.feedConnected ? (
               <p className="text-sm leading-relaxed text-ink-300">
-                The live register returned no brownfield sites intersecting the launch region box. If that is
-                unexpected, the region query needs checking (the one open verification item).
+                The feed is enabled but the store holds no brownfield sites yet. Run{" "}
+                <code className="font-mono text-[12px] text-ink-300">npm run load:brownfield</code> on the
+                server to load the national register, then this fills.
               </p>
             ) : (
               <p className="text-sm leading-relaxed text-ink-300">
@@ -242,8 +243,8 @@ export default async function LandPage() {
               </p>
             )}
             <p className="mt-3 text-[13px] leading-relaxed text-ink-400">
-              <code className="font-mono text-[12px] text-ink-300">BROWNFIELD_LIVE=1</code> reads the live
-              register for the launch region;{" "}
+              <code className="font-mono text-[12px] text-ink-300">BROWNFIELD_LIVE=1</code> reads the loaded
+              national register from the store;{" "}
               <code className="font-mono text-[12px] text-ink-300">LAND_SOURCING_FIXTURES=1</code> serves the
               staff pilot. The feed is licensed (OGL) and free.
             </p>
@@ -252,8 +253,8 @@ export default async function LandPage() {
           <>
             {sourcing.feedConnected && (
               <p className="mt-6 border-l-2 border-[color:var(--accent)] py-1 pl-4 text-[13px] leading-relaxed text-ink-400">
-                Live feed (BROWNFIELD_LIVE=1): real Brownfield Land Register sites for the launch region,
-                assessed and ranked.
+                Live national feed (BROWNFIELD_LIVE=1): top {sourcing.sites.length} by sourceability
+                {sourcing.total !== undefined ? ` of ${sourcing.total.toLocaleString("en-GB")} loaded` : ""}.
               </p>
             )}
             {sourcing.pilot && (

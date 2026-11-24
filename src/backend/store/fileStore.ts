@@ -17,6 +17,7 @@ import type { ComparisonRun } from "@shared/domain/comparison";
 import type { WatchCursor } from "@shared/domain/watchCursor";
 import type { LayoutHypothesis } from "@shared/domain/floorplan";
 import type { PricePaidSale } from "@backend/sources/pricePaidBulk";
+import type { StoredBrownfieldSite } from "@shared/domain/land/brownfield";
 import type { MergeRecord } from "@shared/domain/propertyResolution";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
@@ -120,6 +121,7 @@ function emptyDatabase(): Database {
     dealHuntResults: [],
     comparableBundles: [],
     pricePaidSales: [],
+    brownfieldSites: [],
     propertyMerges: [],
     evidenceClaims: [],
     decisionSnapshots: [],
@@ -180,6 +182,8 @@ async function readDatabase(): Promise<Database> {
       dealHuntResults: parsed.dealHuntResults ?? [],
       comparableBundles: parsed.comparableBundles ?? [],
       pricePaidSales: parsed.pricePaidSales ?? [],
+      // Absent in any store written before brownfield sourcing existed.
+      brownfieldSites: parsed.brownfieldSites ?? [],
       propertyMerges: parsed.propertyMerges ?? [],
       evidenceClaims: parsed.evidenceClaims ?? [],
       decisionSnapshots: parsed.decisionSnapshots ?? [],
@@ -1027,6 +1031,52 @@ async function countPricePaidSales(): Promise<number> {
   return (db.pricePaidSales ?? []).length;
 }
 
+async function saveBrownfieldSites(records: readonly StoredBrownfieldSite[]): Promise<number> {
+  if (records.length === 0) return 0;
+  return mutate((db) => {
+    const list = db.brownfieldSites ?? (db.brownfieldSites = []);
+    // Index by reference so a re-load upserts rather than duplicates.
+    const index = new Map(list.map((r, i) => [r.opportunity.reference, i]));
+    for (const rec of records) {
+      const at = index.get(rec.opportunity.reference);
+      if (at === undefined) {
+        index.set(rec.opportunity.reference, list.length);
+        list.push(rec);
+      } else {
+        list[at] = rec;
+      }
+    }
+    return records.length;
+  });
+}
+
+// The postcode area (leading letters) for indexing. An indexing concern, not
+// domain logic — inlined so the store imports no value from @shared/domain, the
+// same reason Price Paid inlines its postcode normalisation.
+function areaOf(postcode: string | undefined): string {
+  if (typeof postcode !== "string") return "";
+  return /^[A-Za-z]+/.exec(postcode.trim())?.[0]?.toUpperCase() ?? "";
+}
+
+async function listBrownfieldSites(opts: { limit: number; offset?: number; postcodeArea?: string }): Promise<readonly StoredBrownfieldSite[]> {
+  const db = await readDatabase();
+  const area = opts.postcodeArea?.toUpperCase();
+  let rows = db.brownfieldSites ?? [];
+  if (area !== undefined && area !== "") {
+    rows = rows.filter((r) => areaOf(r.opportunity.postcode) === area);
+  }
+  const sorted = [...rows].sort(
+    (a, b) => b.score - a.score || a.opportunity.reference.localeCompare(b.opportunity.reference),
+  );
+  const offset = opts.offset ?? 0;
+  return sorted.slice(offset, offset + opts.limit);
+}
+
+async function countBrownfieldSites(): Promise<number> {
+  const db = await readDatabase();
+  return (db.brownfieldSites ?? []).length;
+}
+
 async function savePropertyMerge(record: MergeRecord): Promise<MergeRecord> {
   return mutate((db) => {
     const list = db.propertyMerges ?? (db.propertyMerges = []);
@@ -1621,6 +1671,9 @@ export const fileStore: Store = {
   savePricePaidSales,
   listPricePaidSales,
   countPricePaidSales,
+  saveBrownfieldSites,
+  listBrownfieldSites,
+  countBrownfieldSites,
   savePropertyMerge,
   listPropertyMerges,
   getPropertyMerge,

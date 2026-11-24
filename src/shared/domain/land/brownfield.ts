@@ -117,6 +117,19 @@ export function mapBrownfieldPlanning(status: string | undefined, type: string |
   return "none";
 }
 
+/** A persisted opportunity with its sourceability score precomputed for ranking. */
+export interface StoredBrownfieldSite {
+  readonly opportunity: LandOpportunity;
+  /** The assessment's sourceability score, stored so the store can rank without domain logic. */
+  readonly score: number;
+}
+
+/** The postcode area (leading letters) of an opportunity, for store indexing. */
+export function postcodeAreaOf(postcode: string | undefined): string {
+  if (typeof postcode !== "string") return "";
+  return /^[A-Za-z]+/.exec(postcode.trim())?.[0]?.toUpperCase() ?? "";
+}
+
 /** Parse a trailing UK postcode from a site address, normalised with one space. */
 export function postcodeFromAddress(address: string | undefined): string | undefined {
   if (typeof address !== "string") return undefined;

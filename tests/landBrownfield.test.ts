@@ -9,7 +9,7 @@ import {
   type LandOpportunity,
 } from "@shared/domain/land/brownfield";
 import { buildBrownfieldUrl, bboxPolygon, fetchBrownfieldSites } from "@backend/land/brownfieldSource";
-import { landSourcing, WEST_MIDLANDS_BBOX } from "@backend/land/sourcingService";
+import { landSourcing, type SourcingStore } from "@backend/land/sourcingService";
 import { Fetcher } from "@backend/discovery/fetcher";
 import { sourcePermits } from "@shared/domain/sources";
 
@@ -185,11 +185,16 @@ describe("buildBrownfieldUrl", () => {
   });
 
   it("uses an intersects geometry for a region box", () => {
-    const url = buildBrownfieldUrl({ bbox: WEST_MIDLANDS_BBOX });
+    const url = buildBrownfieldUrl({ bbox: { west: -2.25, south: 52.35, east: -1.35, north: 52.7 } });
     expect(url).toContain("geometry_relation=intersects");
     expect(decodeURIComponent(url)).toContain("POLYGON((");
     // A box query must not also pin a single point.
     expect(url).not.toContain("longitude=");
+  });
+
+  it("adds an offset for pagination", () => {
+    expect(buildBrownfieldUrl({ bbox: { west: -2, south: 52, east: -1, north: 53 }, offset: 500 })).toContain("offset=500");
+    expect(buildBrownfieldUrl({ offset: 0 })).not.toContain("offset=");
   });
 
   it("appends an organisation_entity for each authority filter", () => {
@@ -274,42 +279,55 @@ describe("landSourcing", () => {
     }
   });
 
-  it("reads the live register (bbox) when BROWNFIELD_LIVE=1", async () => {
+  it("reads the loaded national register from the store when BROWNFIELD_LIVE=1", async () => {
     process.env.BROWNFIELD_LIVE = "1";
+    const store: SourcingStore = {
+      listBrownfieldSites: async () => [
+        { opportunity: { id: "L1", reference: "L1", name: "Live site, Coventry CV1 1AA", postcode: "CV1 1AA", areaHectares: 0.5, planningStatus: "full", ownershipPublic: true, maxUnits: 10, asOf: "" }, score: 71.2 },
+      ],
+      countBrownfieldSites: async () => 4217,
+    };
     try {
-      const body = JSON.stringify({
-        entities: [
-          {
-            reference: "L1",
-            "site-address": "Live site, Coventry CV1 1AA",
-            point: "POINT (-1.5 52.41)",
-            hectares: "0.5",
-            "ownership-status": "owned-by-a-public-authority",
-            "maximum-net-dwellings": "10",
-            "planning-permission-status": "permissioned",
-            "planning-permission-type": "full-planning-permission",
-          },
-        ],
-      });
-      const v = await landSourcing(fetcherReturning(body));
+      const v = await landSourcing({}, store);
       expect(v.feedConnected).toBe(true);
       expect(v.pilot).toBe(false);
       expect(v.sites).toHaveLength(1);
       expect(v.sites[0]?.opportunity.postcode).toBe("CV1 1AA");
+      // Each page site is re-assessed by the same engine for display.
+      expect(v.sites[0]?.assessment.sourceabilityScore).toBeGreaterThan(0);
+      expect(v.total).toBe(4217);
     } finally {
       delete process.env.BROWNFIELD_LIVE;
     }
   });
 
-  it("shows unknown coverage, not a false empty, when the live feed fails", async () => {
+  it("shows unknown coverage, not a false empty, when the store read fails", async () => {
     process.env.BROWNFIELD_LIVE = "1";
+    const store: SourcingStore = {
+      listBrownfieldSites: async () => { throw new Error("db down"); },
+      countBrownfieldSites: async () => 0,
+    };
     try {
-      const v = await landSourcing(fetcherReturning(undefined));
+      const v = await landSourcing({}, store);
       expect(v.feedConnected).toBe(true);
       expect(v.sites).toHaveLength(0);
       expect(v.error).toBeDefined();
     } finally {
       delete process.env.BROWNFIELD_LIVE;
     }
+  });
+});
+
+describe("fetchBrownfieldSites pagination fields", () => {
+  it("surfaces received, count and capped from the response", async () => {
+    const body = JSON.stringify({
+      entities: [{ reference: "P1", hectares: "0.3", point: "POINT (-1.5 52.4)", "planning-permission-status": "not-permissioned" }],
+      count: 3596,
+      count_is_capped: false,
+    });
+    const r = await fetchBrownfieldSites(fetcherReturning(body), { bbox: { west: -2, south: 52, east: -1, north: 53 } });
+    expect(r.received).toBe(1);
+    expect(r.count).toBe(3596);
+    expect(r.capped).toBe(false);
   });
 });
