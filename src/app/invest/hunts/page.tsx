@@ -39,6 +39,7 @@ export default async function InvestorHuntsPage({
         trailing={
           <>
             <Link href="/invest" className="text-[13px] text-ink-400 hover:text-ink-200">Buy Boxes</Link>
+            <Link href="/invest/land" className="text-[13px] text-ink-400 hover:text-ink-200">Land</Link>
             <SignOutButton />
           </>
         }
