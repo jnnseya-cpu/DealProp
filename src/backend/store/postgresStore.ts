@@ -19,6 +19,7 @@ import type { WatchCursor } from "@shared/domain/watchCursor";
 import type { LayoutHypothesis } from "@shared/domain/floorplan";
 import type { PricePaidSale } from "@backend/sources/pricePaidBulk";
 import type { LandOpportunity, StoredBrownfieldSite } from "@shared/domain/land/brownfield";
+import type { LandDisposal } from "@shared/domain/land/disposals";
 
 // Postcode area (leading letters) for the brownfield index. An indexing concern,
 // inlined so the store imports no value from @shared/domain (boundary rule).
@@ -462,6 +463,15 @@ const SCHEMA = `
     ON brownfield_sites (score DESC, id);
   CREATE INDEX IF NOT EXISTS brownfield_sites_area
     ON brownfield_sites (postcode_area, score DESC);
+  -- Contracts Finder disposals. Upsert by notice id; read soonest-deadline-first,
+  -- so an index on deadline with nulls last.
+  CREATE TABLE IF NOT EXISTS land_disposals (
+    id text PRIMARY KEY,
+    data jsonb NOT NULL,
+    deadline timestamptz
+  );
+  CREATE INDEX IF NOT EXISTS land_disposals_deadline
+    ON land_disposals (deadline ASC NULLS LAST, id);
   CREATE TABLE IF NOT EXISTS property_merges (
     id text PRIMARY KEY,
     data jsonb NOT NULL,
@@ -1714,6 +1724,53 @@ export const postgresStore: Store = {
     await ensureSchema();
     const { rows } = await getPool().query<{ count: string }>(
       "SELECT COUNT(*)::text AS count FROM brownfield_sites",
+    );
+    return Number(rows[0]?.count ?? 0);
+  },
+
+  async saveLandDisposals(disposals: readonly LandDisposal[]): Promise<number> {
+    if (disposals.length === 0) return 0;
+    await ensureSchema();
+    const latest = new Map<string, LandDisposal>();
+    for (const d of disposals) latest.set(d.id, d);
+    const deduped = [...latest.values()];
+
+    const CHUNK = 500; // 3 params per row
+    let written = 0;
+    for (let i = 0; i < deduped.length; i += CHUNK) {
+      const chunk = deduped.slice(i, i + CHUNK);
+      const values: string[] = [];
+      const params: unknown[] = [];
+      chunk.forEach((d, j) => {
+        const b = j * 3;
+        values.push(`($${b + 1}, $${b + 2}, $${b + 3})`);
+        params.push(d.id, JSON.stringify(d), d.deadline ?? null);
+      });
+      await getPool().query(
+        `INSERT INTO land_disposals (id, data, deadline)
+         VALUES ${values.join(", ")}
+         ON CONFLICT (id) DO UPDATE
+           SET data = EXCLUDED.data, deadline = EXCLUDED.deadline`,
+        params,
+      );
+      written += chunk.length;
+    }
+    return written;
+  },
+
+  async listLandDisposals(opts: { limit: number; offset?: number }): Promise<readonly LandDisposal[]> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ data: LandDisposal }>(
+      "SELECT data FROM land_disposals ORDER BY deadline ASC NULLS LAST, id ASC LIMIT $1 OFFSET $2",
+      [opts.limit, opts.offset ?? 0],
+    );
+    return rows.map((r) => r.data);
+  },
+
+  async countLandDisposals(): Promise<number> {
+    await ensureSchema();
+    const { rows } = await getPool().query<{ count: string }>(
+      "SELECT COUNT(*)::text AS count FROM land_disposals",
     );
     return Number(rows[0]?.count ?? 0);
   },

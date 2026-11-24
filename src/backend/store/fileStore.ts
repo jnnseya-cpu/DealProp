@@ -18,6 +18,7 @@ import type { WatchCursor } from "@shared/domain/watchCursor";
 import type { LayoutHypothesis } from "@shared/domain/floorplan";
 import type { PricePaidSale } from "@backend/sources/pricePaidBulk";
 import type { StoredBrownfieldSite } from "@shared/domain/land/brownfield";
+import type { LandDisposal } from "@shared/domain/land/disposals";
 import type { MergeRecord } from "@shared/domain/propertyResolution";
 import { add, money, sub, ZERO, type Money } from "@shared/money";
 import {
@@ -122,6 +123,7 @@ function emptyDatabase(): Database {
     comparableBundles: [],
     pricePaidSales: [],
     brownfieldSites: [],
+    landDisposals: [],
     propertyMerges: [],
     evidenceClaims: [],
     decisionSnapshots: [],
@@ -184,6 +186,8 @@ async function readDatabase(): Promise<Database> {
       pricePaidSales: parsed.pricePaidSales ?? [],
       // Absent in any store written before brownfield sourcing existed.
       brownfieldSites: parsed.brownfieldSites ?? [],
+      // Absent in any store written before disposals sourcing existed.
+      landDisposals: parsed.landDisposals ?? [],
       propertyMerges: parsed.propertyMerges ?? [],
       evidenceClaims: parsed.evidenceClaims ?? [],
       decisionSnapshots: parsed.decisionSnapshots ?? [],
@@ -1081,6 +1085,49 @@ async function countBrownfieldSites(): Promise<number> {
   return (db.brownfieldSites ?? []).length;
 }
 
+/** Soonest deadline first; undated last; then by id. */
+function byDeadline(a: LandDisposal, b: LandDisposal): number {
+  if (a.deadline !== undefined && b.deadline !== undefined) {
+    const d = a.deadline.localeCompare(b.deadline);
+    if (d !== 0) return d;
+  } else if (a.deadline !== undefined) {
+    return -1;
+  } else if (b.deadline !== undefined) {
+    return 1;
+  }
+  return a.id.localeCompare(b.id);
+}
+
+async function saveLandDisposals(disposals: readonly LandDisposal[]): Promise<number> {
+  if (disposals.length === 0) return 0;
+  return mutate((db) => {
+    const list = db.landDisposals ?? (db.landDisposals = []);
+    const index = new Map(list.map((d, i) => [d.id, i]));
+    for (const d of disposals) {
+      const at = index.get(d.id);
+      if (at === undefined) {
+        index.set(d.id, list.length);
+        list.push(d);
+      } else {
+        list[at] = d;
+      }
+    }
+    return disposals.length;
+  });
+}
+
+async function listLandDisposals(opts: { limit: number; offset?: number }): Promise<readonly LandDisposal[]> {
+  const db = await readDatabase();
+  const sorted = [...(db.landDisposals ?? [])].sort(byDeadline);
+  const offset = opts.offset ?? 0;
+  return sorted.slice(offset, offset + opts.limit);
+}
+
+async function countLandDisposals(): Promise<number> {
+  const db = await readDatabase();
+  return (db.landDisposals ?? []).length;
+}
+
 async function savePropertyMerge(record: MergeRecord): Promise<MergeRecord> {
   return mutate((db) => {
     const list = db.propertyMerges ?? (db.propertyMerges = []);
@@ -1678,6 +1725,9 @@ export const fileStore: Store = {
   saveBrownfieldSites,
   listBrownfieldSites,
   countBrownfieldSites,
+  saveLandDisposals,
+  listLandDisposals,
+  countLandDisposals,
   savePropertyMerge,
   listPropertyMerges,
   getPropertyMerge,

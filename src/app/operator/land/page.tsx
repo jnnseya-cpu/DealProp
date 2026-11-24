@@ -249,7 +249,7 @@ export default async function LandPage({
 
   const view = await landFinder();
   const sourcing = await landSourcing({ view: sourcingView });
-  const disposals = landDisposals();
+  const disposals = await landDisposals();
 
   return (
     <main data-accent="teal" className="min-h-screen pb-24">
@@ -357,20 +357,41 @@ export default async function LandPage({
           matched on. Soonest deadline first.
         </p>
         {disposals.disposals.length === 0 ? (
-          <Panel className="mt-6" eyebrow="Coverage boundary" title="No disposals feed connected">
-            <p className="text-sm leading-relaxed text-ink-300">
-              No Contracts Finder feed is connected, so there are no live disposals and this shows an
-              explicit empty state — data gated at the source, not the screen.
-            </p>
+          <Panel className="mt-6" eyebrow="Coverage boundary" title={disposals.feedConnected ? "No live disposals right now" : "No disposals feed connected"}>
+            {disposals.error !== undefined ? (
+              <p className="text-sm leading-relaxed text-ink-300">
+                The disposals store could not be read ({disposals.error}). Shown as unknown coverage, never a
+                false empty.
+              </p>
+            ) : disposals.feedConnected ? (
+              <p className="text-sm leading-relaxed text-ink-300">
+                The feed is live but no current disposals are loaded (expired notices are dropped on read).
+                Trigger a refresh with an authenticated{" "}
+                <code className="font-mono text-[12px] text-ink-300">POST /api/cron/disposals</code> (CRON_SECRET),
+                which walks recent Contracts Finder notices and keeps the classified land/property ones.
+              </p>
+            ) : (
+              <p className="text-sm leading-relaxed text-ink-300">
+                No Contracts Finder feed is connected, so there are no live disposals and this shows an
+                explicit empty state — data gated at the source, not the screen.
+              </p>
+            )}
             <p className="mt-3 text-[13px] leading-relaxed text-ink-400">
-              Set <code className="font-mono text-[12px] text-ink-300">DISPOSALS_FIXTURES=1</code> for a staff
-              pilot. The Contracts Finder query is verified against live data; a live feed loads recent
-              notices into the store and keeps the classified land/property disposals — the same loader
-              pattern as the brownfield register.
+              <code className="font-mono text-[12px] text-ink-300">DISPOSALS_LIVE=1</code> reads loaded,
+              classified disposals from the store (load with{" "}
+              <code className="font-mono text-[12px] text-ink-300">POST /api/cron/disposals</code>);{" "}
+              <code className="font-mono text-[12px] text-ink-300">DISPOSALS_FIXTURES=1</code> serves the staff
+              pilot. The feed is licensed (OGL) and free.
             </p>
           </Panel>
         ) : (
           <>
+            {disposals.feedConnected && (
+              <p className="mt-6 border-l-2 border-[color:var(--accent)] py-1 pl-4 text-[13px] leading-relaxed text-ink-400">
+                Live feed (DISPOSALS_LIVE=1): {disposals.disposals.length} current disposal(s)
+                {disposals.total !== undefined ? ` from ${disposals.total.toLocaleString("en-GB")} loaded notices` : ""}, soonest deadline first.
+              </p>
+            )}
             {disposals.pilot && (
               <p className="mt-6 border-l-2 border-[color:var(--accent)] py-1 pl-4 text-[13px] leading-relaxed text-ink-400">
                 Staff-pilot fixtures enabled (DISPOSALS_FIXTURES=1). Synthetic notices run through the live

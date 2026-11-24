@@ -4,8 +4,8 @@ import {
   mapDisposalRelease,
   type OcdsRelease,
 } from "@shared/domain/land/disposals";
-import { buildDisposalsUrl, releasesFrom, fetchDisposals } from "@backend/land/disposalsSource";
-import { landDisposals } from "@backend/land/disposalsService";
+import { buildDisposalsUrl, releasesFrom, nextCursorFrom, fetchDisposals } from "@backend/land/disposalsSource";
+import { landDisposals, type DisposalsStore } from "@backend/land/disposalsService";
 import { Fetcher } from "@backend/discovery/fetcher";
 import { sourcePermits } from "@shared/domain/sources";
 
@@ -139,6 +139,17 @@ describe("releasesFrom", () => {
   });
 });
 
+describe("nextCursorFrom", () => {
+  it("extracts the cursor param from links.next (the loader's pagination)", () => {
+    const body = JSON.stringify({ links: { next: "https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search?stages=tender&cursor=ABC123" } });
+    expect(nextCursorFrom(body)).toBe("ABC123");
+  });
+  it("is undefined when there is no next link or no cursor", () => {
+    expect(nextCursorFrom(JSON.stringify({ links: {} }))).toBeUndefined();
+    expect(nextCursorFrom("not json")).toBeUndefined();
+  });
+});
+
 function fetcherReturning(body: string | undefined): Fetcher {
   const fn = (async (input: RequestInfo | URL): Promise<Response> => {
     const url = input.toString();
@@ -178,24 +189,59 @@ describe("fetchDisposals (through the Fetcher)", () => {
 });
 
 describe("landDisposals", () => {
-  it("is empty by default (feed gated at the source)", () => {
+  it("is empty by default (feed gated at the source)", async () => {
     delete process.env.DISPOSALS_FIXTURES;
-    const v = landDisposals();
+    delete process.env.DISPOSALS_LIVE;
+    const v = await landDisposals();
     expect(v.disposals).toHaveLength(0);
     expect(v.feedConnected).toBe(false);
   });
 
-  it("serves the pilot set with the services procurement filtered out, ranked by deadline", () => {
+  it("serves the pilot set with the services procurement filtered out, ranked by deadline", async () => {
+    delete process.env.DISPOSALS_LIVE;
     process.env.DISPOSALS_FIXTURES = "1";
     try {
-      const v = landDisposals();
+      const v = await landDisposals();
       expect(v.pilot).toBe(true);
-      // Three fixtures, one is a services procurement → two disposals.
       expect(v.disposals).toHaveLength(2);
-      // Soonest deadline first.
       expect(v.disposals[0]?.deadline?.localeCompare(v.disposals[1]?.deadline ?? "")).toBeLessThanOrEqual(0);
     } finally {
       delete process.env.DISPOSALS_FIXTURES;
+    }
+  });
+
+  it("reads loaded disposals from the store and drops expired ones when DISPOSALS_LIVE=1", async () => {
+    process.env.DISPOSALS_LIVE = "1";
+    const store: DisposalsStore = {
+      listLandDisposals: async () => [
+        { id: "live", title: "Live disposal", authority: "A council", description: "", url: "u", cpvCodes: [], matchedOn: [], deadline: "2027-01-01T00:00:00Z" },
+        { id: "gone", title: "Expired disposal", authority: "A council", description: "", url: "u", cpvCodes: [], matchedOn: [], deadline: "2026-01-01T00:00:00Z" },
+      ],
+      countLandDisposals: async () => 2,
+    };
+    try {
+      const v = await landDisposals({ now: new Date("2026-06-01T00:00:00Z") }, store);
+      expect(v.feedConnected).toBe(true);
+      expect(v.disposals.map((d) => d.id)).toEqual(["live"]); // the expired one is dropped
+      expect(v.total).toBe(2);
+    } finally {
+      delete process.env.DISPOSALS_LIVE;
+    }
+  });
+
+  it("shows unknown coverage, not a false empty, when the store read fails", async () => {
+    process.env.DISPOSALS_LIVE = "1";
+    const store: DisposalsStore = {
+      listLandDisposals: async () => { throw new Error("db down"); },
+      countLandDisposals: async () => 0,
+    };
+    try {
+      const v = await landDisposals({}, store);
+      expect(v.feedConnected).toBe(true);
+      expect(v.disposals).toHaveLength(0);
+      expect(v.error).toBeDefined();
+    } finally {
+      delete process.env.DISPOSALS_LIVE;
     }
   });
 });

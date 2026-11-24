@@ -474,6 +474,18 @@ export async function countBrownfieldSites() {
   return (await store()).countBrownfieldSites();
 }
 
+export async function saveLandDisposals(disposals: Parameters<Awaited<ReturnType<typeof store>>["saveLandDisposals"]>[0]) {
+  return (await store()).saveLandDisposals(disposals);
+}
+
+export async function listLandDisposals(opts: { limit: number; offset?: number }) {
+  return (await store()).listLandDisposals(opts);
+}
+
+export async function countLandDisposals() {
+  return (await store()).countLandDisposals();
+}
+
 export async function savePropertyMerge(record: MergeRecord) {
   return (await store()).savePropertyMerge(record);
 }

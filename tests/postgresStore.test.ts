@@ -277,6 +277,52 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
       });
     });
 
+    describe("Contracts Finder disposals", () => {
+      const disp = (id: string, deadline?: string) => ({
+        id,
+        title: `Disposal ${id}`,
+        authority: "A council",
+        description: "",
+        url: `https://x/${id}`,
+        cpvCodes: ["70122200"],
+        matchedOn: ["CPV 70122200"],
+        ...(deadline !== undefined ? { deadline } : {}),
+      });
+
+      it("reads back soonest-deadline-first, undated last", async () => {
+        const written = await store.saveLandDisposals([
+          disp("c", "2027-03-01T00:00:00Z"),
+          disp("a", "2027-01-01T00:00:00Z"),
+          disp("n"), // no deadline → last
+          disp("b", "2027-02-01T00:00:00Z"),
+        ]);
+        expect(written).toBe(4);
+        const list = await store.listLandDisposals({ limit: 10 });
+        expect(list.map((d) => d.id)).toEqual(["a", "b", "c", "n"]);
+      });
+
+      it("upserts by notice id — a re-load refreshes rather than duplicates", async () => {
+        await store.saveLandDisposals([disp("a", "2027-01-01T00:00:00Z")]);
+        await store.saveLandDisposals([{ ...disp("a", "2027-01-01T00:00:00Z"), title: "Updated" }]);
+        const list = await store.listLandDisposals({ limit: 10 });
+        expect(list).toHaveLength(1);
+        expect(list[0]!.title).toBe("Updated");
+        expect(await store.countLandDisposals()).toBe(1);
+      });
+
+      it("paginates with limit and offset", async () => {
+        await store.saveLandDisposals([disp("a", "2027-01-01T00:00:00Z"), disp("b", "2027-02-01T00:00:00Z")]);
+        const page2 = await store.listLandDisposals({ limit: 1, offset: 1 });
+        expect(page2.map((d) => d.id)).toEqual(["b"]);
+      });
+
+      it("returns nothing, and zero, when nothing is loaded", async () => {
+        expect(await store.listLandDisposals({ limit: 10 })).toEqual([]);
+        expect(await store.countLandDisposals()).toBe(0);
+        expect(await store.saveLandDisposals([])).toBe(0);
+      });
+    });
+
     describe("property-identity merges (MW14)", () => {
       const merge = (over: Record<string, unknown> = {}) => ({
         id: "mg-1",

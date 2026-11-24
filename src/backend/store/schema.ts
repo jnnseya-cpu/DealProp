@@ -41,6 +41,7 @@ import type { LayoutHypothesis } from "@shared/domain/floorplan";
 import type { AuctionLot } from "@shared/domain/auction";
 import type { PricePaidSale } from "@backend/sources/pricePaidBulk";
 import type { StoredBrownfieldSite } from "@shared/domain/land/brownfield";
+import type { LandDisposal } from "@shared/domain/land/disposals";
 import type { MergeRecord } from "@shared/domain/propertyResolution";
 import type { PackApproval } from "@shared/domain/packApproval";
 import type { ResaleArrangement, ResaleConsent } from "@shared/domain/reseller";
@@ -507,6 +508,11 @@ export interface Database {
    * feed. Score is stored so the read path ranks without domain logic.
    */
   brownfieldSites?: StoredBrownfieldSite[];
+  /**
+   * Contracts Finder land/property disposal notices, loaded and classified, read
+   * soonest-deadline-first. The "for sale now" sourcing feed.
+   */
+  landDisposals?: LandDisposal[];
   /** Market Watch property-identity merges (§19.4), reversible with audit. */
   propertyMerges?: MergeRecord[];
   /** EvidenceClaims (Independent Engine §5) — the sourced-assertion spine. */
@@ -984,6 +990,8 @@ export interface AuditEvent {
 export type AuditAction =
   | "brownfield-register-loaded"
   | "brownfield-register-load-failed"
+  | "land-disposals-loaded"
+  | "land-disposals-load-failed"
   | "sign-in"
   | "sign-in-failed"
   | "sign-out"
@@ -1254,6 +1262,13 @@ export interface Store {
   saveBrownfieldSites(records: readonly StoredBrownfieldSite[]): Promise<number>;
   listBrownfieldSites(opts: { limit: number; offset?: number; postcodeArea?: string; planningStatuses?: readonly string[] }): Promise<readonly StoredBrownfieldSite[]>;
   countBrownfieldSites(): Promise<number>;
+  /**
+   * Contracts Finder disposals. Upsert by id (a re-load refreshes), read
+   * soonest-deadline-first (undated last), counted for readiness.
+   */
+  saveLandDisposals(disposals: readonly LandDisposal[]): Promise<number>;
+  listLandDisposals(opts: { limit: number; offset?: number }): Promise<readonly LandDisposal[]>;
+  countLandDisposals(): Promise<number>;
   /** Property-identity merges (§19.4). Upsert by id (a reversal flips a flag), newest first. */
   savePropertyMerge(record: MergeRecord): Promise<MergeRecord>;
   listPropertyMerges(): Promise<readonly MergeRecord[]>;
