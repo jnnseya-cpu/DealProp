@@ -260,6 +260,16 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         expect(cv.map((p) => p.opportunity.reference)).toEqual(["A"]);
       });
 
+      it("filters by planning status (the acquisition-approach view)", async () => {
+        const consented = { opportunity: { ...bf("A", 90).opportunity, planningStatus: "full" as const }, score: 90 };
+        const toSecure = { opportunity: { ...bf("B", 80).opportunity, planningStatus: "none" as const }, score: 80 };
+        await store.saveBrownfieldSites([consented, toSecure]);
+        const buy = await store.listBrownfieldSites({ limit: 10, planningStatuses: ["full", "outline", "reserved-matters"] });
+        expect(buy.map((p) => p.opportunity.reference)).toEqual(["A"]);
+        const secure = await store.listBrownfieldSites({ limit: 10, planningStatuses: ["none", "allocated"] });
+        expect(secure.map((p) => p.opportunity.reference)).toEqual(["B"]);
+      });
+
       it("returns nothing, and zero, when nothing is loaded", async () => {
         expect(await store.listBrownfieldSites({ limit: 10 })).toEqual([]);
         expect(await store.countBrownfieldSites()).toBe(0);

@@ -38,6 +38,20 @@ const REPOSITORY_STORE: SourcingStore = { listBrownfieldSites, countBrownfieldSi
 /** How many top-ranked sites a page shows. */
 export const SOURCING_PAGE_SIZE = 50;
 
+/**
+ * The planning statuses behind each acquisition approach, so a user can see the
+ * option/promotion opportunities, not just the top-ranked consented ones.
+ * "buy" = a consent exists (direct purchase); "secure" = no usable consent, so
+ * the land is controlled by option / conditional / promotion while planning is
+ * pursued.
+ */
+export const ACQUISITION_VIEWS = {
+  buy: ["full", "reserved-matters", "outline"],
+  secure: ["none", "pre-application", "allocated", "lapsed", "refused"],
+} as const;
+
+export type AcquisitionView = "all" | "buy" | "secure";
+
 export interface SourcedSite {
   readonly opportunity: LandOpportunity;
   readonly assessment: LandAssessment;
@@ -79,16 +93,18 @@ function rankFixtures(opportunities: readonly LandOpportunity[]): readonly Sourc
 }
 
 export async function landSourcing(
-  opts: { postcodeArea?: string; page?: number } = {},
+  opts: { postcodeArea?: string; page?: number; view?: AcquisitionView } = {},
   store: SourcingStore = REPOSITORY_STORE,
 ): Promise<LandSourcingView> {
   if (landSourcingLiveEnabled()) {
     try {
       const offset = Math.max(0, (opts.page ?? 0)) * SOURCING_PAGE_SIZE;
+      const planningStatuses = opts.view === "buy" || opts.view === "secure" ? ACQUISITION_VIEWS[opts.view] : undefined;
       const records = await store.listBrownfieldSites({
         limit: SOURCING_PAGE_SIZE,
         offset,
         ...(opts.postcodeArea !== undefined ? { postcodeArea: opts.postcodeArea } : {}),
+        ...(planningStatuses !== undefined ? { planningStatuses } : {}),
       });
       const total = await store.countBrownfieldSites();
       // The store already ranks by stored score; re-assess only the page for display.

@@ -3,7 +3,7 @@ import { SiteHeader, Panel, Badge, Stat, KeyValue } from "@/app/components/chrom
 import { requirePermission } from "@/app/operator/guard";
 import { landFinder } from "@backend/land/service";
 import { landFixturesEnabled } from "@backend/land/source";
-import { landSourcing, type SourcedSite } from "@backend/land/sourcingService";
+import { landSourcing, type SourcedSite, type AcquisitionView } from "@backend/land/sourcingService";
 import { landDisposals } from "@backend/land/disposalsService";
 import type { LandDisposal } from "@shared/domain/land/disposals";
 import type { LandAssessment, RiskBand } from "@shared/domain/land/sourcing";
@@ -107,7 +107,7 @@ function OpportunityCard({ s }: { s: SourcedSite }) {
   return (
     <Panel
       className="mt-6"
-      eyebrow={`${o.postcode ?? "no postcode"} · ${o.areaHectares} ha · brownfield`}
+      eyebrow={`${o.postcode !== undefined ? `${o.postcode} · ` : ""}${o.areaHectares} ha · brownfield`}
       title={o.name}
       action={<Badge tone={riskTone(a.riskBand)}>{a.riskBand}</Badge>}
     >
@@ -148,10 +148,34 @@ function OpportunityCard({ s }: { s: SourcedSite }) {
 
       <div className="mt-5 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
         <KeyValue k="Register reference" v={o.reference} />
-        <KeyValue k="Owner" v={o.ownershipPublic ? "Public authority — reachable" : "Private — needs HMLR title read"} />
         <KeyValue k="Engine estimate" v={`~${a.potential.units} units indicative (${o.areaHectares} ha)`} />
         {o.asOf !== "" ? <KeyValue k="Register entry" v={o.asOf} /> : <></>}
       </div>
+
+      {/* How to actually reach the owner — the register gives a category, not a name. */}
+      <h3 className="eyebrow mt-6">How to pursue</h3>
+      {o.ownershipPublic ? (
+        <p className="mt-2 text-[13px] leading-relaxed text-ink-300">
+          Public-authority owned, so the owner is the council — reachable directly through its land/estates
+          team. No title read needed.
+        </p>
+      ) : (
+        <p className="mt-2 text-[13px] leading-relaxed text-ink-300">
+          Privately owned. The owner and their address for service come from an HM Land Registry title read,
+          then an approach by letter through the licensed owner-outreach path (PECR-compliant, letter-only).
+          The title read awaits its credential — see the outstanding feeds.
+        </p>
+      )}
+      {o.sitePlanUrl !== undefined && (
+        <a
+          className="mt-2 inline-block text-[13px] text-[color:var(--accent-text)] underline hover:opacity-80"
+          href={o.sitePlanUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Council register entry / site plan →
+        </a>
+      )}
     </Panel>
   );
 }
@@ -193,10 +217,24 @@ function DisposalCard({ d }: { d: LandDisposal }) {
  * score. With no connected planning/land feed the list is empty and this shows
  * the honest coverage boundary, exactly like Deal Hunt. No invented sites.
  */
-export default async function LandPage() {
+const VIEW_TABS: ReadonlyArray<{ key: AcquisitionView; label: string }> = [
+  { key: "all", label: "All" },
+  { key: "buy", label: "To buy (consented)" },
+  { key: "secure", label: "To secure (option / promotion)" },
+];
+
+export default async function LandPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requirePermission("view-audit-log", "/operator/land");
+  const sp = await searchParams;
+  const rawView = typeof sp.view === "string" ? sp.view : "all";
+  const sourcingView: AcquisitionView = rawView === "buy" || rawView === "secure" ? rawView : "all";
+
   const view = await landFinder();
-  const sourcing = await landSourcing();
+  const sourcing = await landSourcing({ view: sourcingView });
   const disposals = landDisposals();
 
   return (
@@ -223,12 +261,37 @@ export default async function LandPage() {
           figure&rsquo;s provenance shown. The register&rsquo;s capacity is the LPA&rsquo;s; the engine
           estimate is ours.
         </p>
+
+        {/* Filter by acquisition approach — consented sites score highest and
+            would otherwise fill the whole ranked page, hiding the option/
+            promotion opportunities. */}
+        <div className="mt-4 flex flex-wrap gap-2">
+          {VIEW_TABS.map((tab) => (
+            <a
+              key={tab.key}
+              href={tab.key === "all" ? "/operator/land" : `/operator/land?view=${tab.key}`}
+              className={`rounded-md border px-3 py-1.5 text-[13px] ${
+                sourcingView === tab.key
+                  ? "border-[color:var(--accent)] bg-surface-2 text-ink-100"
+                  : "hairline bg-surface-1 text-ink-400 hover:text-ink-200"
+              }`}
+            >
+              {tab.label}
+            </a>
+          ))}
+        </div>
+
         {sourcing.sites.length === 0 ? (
           <Panel className="mt-6" eyebrow="Coverage boundary" title={sourcing.feedConnected ? "Live register returned no sites" : "No register feed connected"}>
             {sourcing.error !== undefined ? (
               <p className="text-sm leading-relaxed text-ink-300">
                 The live register could not be read ({sourcing.error}). This is shown as unknown coverage, not
                 as &ldquo;no sites in the region&rdquo; — a feed gap is never a false empty.
+              </p>
+            ) : sourcing.feedConnected && (sourcing.total ?? 0) > 0 ? (
+              <p className="text-sm leading-relaxed text-ink-300">
+                No sites match this view in the loaded register. Try{" "}
+                <a className="underline hover:text-ink-200" href="/operator/land">All</a>.
               </p>
             ) : sourcing.feedConnected ? (
               <p className="text-sm leading-relaxed text-ink-300">

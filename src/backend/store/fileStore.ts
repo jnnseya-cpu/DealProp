@@ -1058,12 +1058,16 @@ function areaOf(postcode: string | undefined): string {
   return /^[A-Za-z]+/.exec(postcode.trim())?.[0]?.toUpperCase() ?? "";
 }
 
-async function listBrownfieldSites(opts: { limit: number; offset?: number; postcodeArea?: string }): Promise<readonly StoredBrownfieldSite[]> {
+async function listBrownfieldSites(opts: { limit: number; offset?: number; postcodeArea?: string; planningStatuses?: readonly string[] }): Promise<readonly StoredBrownfieldSite[]> {
   const db = await readDatabase();
   const area = opts.postcodeArea?.toUpperCase();
   let rows = db.brownfieldSites ?? [];
   if (area !== undefined && area !== "") {
     rows = rows.filter((r) => areaOf(r.opportunity.postcode) === area);
+  }
+  if (opts.planningStatuses !== undefined && opts.planningStatuses.length > 0) {
+    const want = new Set(opts.planningStatuses);
+    rows = rows.filter((r) => want.has(r.opportunity.planningStatus));
   }
   const sorted = [...rows].sort(
     (a, b) => b.score - a.score || a.opportunity.reference.localeCompare(b.opportunity.reference),

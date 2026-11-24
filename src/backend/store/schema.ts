@@ -1252,7 +1252,7 @@ export interface Store {
    * counted for readiness.
    */
   saveBrownfieldSites(records: readonly StoredBrownfieldSite[]): Promise<number>;
-  listBrownfieldSites(opts: { limit: number; offset?: number; postcodeArea?: string }): Promise<readonly StoredBrownfieldSite[]>;
+  listBrownfieldSites(opts: { limit: number; offset?: number; postcodeArea?: string; planningStatuses?: readonly string[] }): Promise<readonly StoredBrownfieldSite[]>;
   countBrownfieldSites(): Promise<number>;
   /** Property-identity merges (§19.4). Upsert by id (a reversal flips a flag), newest first. */
   savePropertyMerge(record: MergeRecord): Promise<MergeRecord>;

@@ -1684,15 +1684,21 @@ export const postgresStore: Store = {
     return written;
   },
 
-  async listBrownfieldSites(opts: { limit: number; offset?: number; postcodeArea?: string }): Promise<readonly StoredBrownfieldSite[]> {
+  async listBrownfieldSites(opts: { limit: number; offset?: number; postcodeArea?: string; planningStatuses?: readonly string[] }): Promise<readonly StoredBrownfieldSite[]> {
     await ensureSchema();
     const params: unknown[] = [];
-    let where = "";
+    const clauses: string[] = [];
     const area = opts.postcodeArea?.toUpperCase();
     if (area !== undefined && area !== "") {
       params.push(area);
-      where = `WHERE postcode_area = $${params.length}`;
+      clauses.push(`postcode_area = $${params.length}`);
     }
+    if (opts.planningStatuses !== undefined && opts.planningStatuses.length > 0) {
+      params.push(opts.planningStatuses);
+      // planningStatus lives in the opportunity jsonb; filter on it directly.
+      clauses.push(`data->>'planningStatus' = ANY($${params.length})`);
+    }
+    const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
     params.push(opts.limit);
     const limIdx = params.length;
     params.push(opts.offset ?? 0);
