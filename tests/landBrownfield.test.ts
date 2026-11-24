@@ -3,6 +3,7 @@ import {
   mapBrownfieldEntity,
   mapBrownfieldPlanning,
   parseWktPoint,
+  postcodeFromAddress,
   opportunityToLandSite,
   type BrownfieldEntity,
   type LandOpportunity,
@@ -114,6 +115,63 @@ describe("opportunityToLandSite", () => {
     const site = opportunityToLandSite(o);
     expect(site.planningStatus).toBe("none");
     expect(site.consentedUnits).toBeUndefined();
+  });
+});
+
+// Real planning.data.gov.uk field shapes, confirmed against a live request:
+// hyphenated controlled vocabularies and the site label in `site-address`.
+describe("real register shapes (hyphenated vocabularies)", () => {
+  const real = (over: Partial<BrownfieldEntity> = {}): BrownfieldEntity => ({
+    reference: "BFR001",
+    name: "BFR001",
+    "site-address": "Glendaragh, Barn Park Road, Teignmouth TQ14 8PN",
+    "organisation-entity": 336,
+    point: "POINT (-3.493786 50.549744)",
+    hectares: "0.26",
+    "ownership-status": "not-owned-by-a-public-authority",
+    "minimum-net-dwellings": "15",
+    "maximum-net-dwellings": "15",
+    "planning-permission-status": "permissioned",
+    "planning-permission-type": "full-planning-permission",
+    deliverable: "yes",
+    "entry-date": "2024-12-16",
+    ...over,
+  });
+
+  it("reads 'not-owned-by-a-public-authority' as private, not public", () => {
+    expect(mapBrownfieldEntity(real())?.ownershipPublic).toBe(false);
+  });
+
+  it("reads 'owned-by-a-public-authority' as public", () => {
+    expect(mapBrownfieldEntity(real({ "ownership-status": "owned-by-a-public-authority" }))?.ownershipPublic).toBe(true);
+  });
+
+  it("never invents a consent from 'not-permissioned'", () => {
+    const o = mapBrownfieldEntity(real({ "planning-permission-status": "not-permissioned", "planning-permission-type": "" }));
+    expect(o?.planningStatus).toBe("none");
+    expect(opportunityToLandSite(o as LandOpportunity).consentedUnits).toBeUndefined();
+  });
+
+  it("maps hyphenated 'full-planning-permission' to full", () => {
+    expect(mapBrownfieldEntity(real())?.planningStatus).toBe("full");
+  });
+
+  it("takes the display name and postcode from site-address", () => {
+    const o = mapBrownfieldEntity(real());
+    expect(o?.name).toContain("Teignmouth");
+    expect(o?.postcode).toBe("TQ14 8PN");
+    expect(o?.organisationEntity).toBe(336);
+  });
+});
+
+describe("postcodeFromAddress", () => {
+  it("parses and normalises a trailing postcode", () => {
+    expect(postcodeFromAddress("Glendaragh, Barn Park Road, Teignmouth TQ14 8PN")).toBe("TQ14 8PN");
+    expect(postcodeFromAddress("Site, Dudley DY11PY")).toBe("DY1 1PY");
+  });
+  it("is undefined when there is no postcode", () => {
+    expect(postcodeFromAddress("A field with no postcode")).toBeUndefined();
+    expect(postcodeFromAddress(undefined)).toBeUndefined();
   });
 });
 

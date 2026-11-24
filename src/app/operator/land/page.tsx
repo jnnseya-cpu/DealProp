@@ -4,8 +4,14 @@ import { requirePermission } from "@/app/operator/guard";
 import { landFinder } from "@backend/land/service";
 import { landFixturesEnabled } from "@backend/land/source";
 import { landSourcing, type SourcedSite } from "@backend/land/sourcingService";
+import { landDisposals } from "@backend/land/disposalsService";
+import type { LandDisposal } from "@shared/domain/land/disposals";
 import type { LandAssessment, RiskBand } from "@shared/domain/land/sourcing";
 import type { ControlStructure } from "@shared/domain/land/types";
+
+function gbp(n: number): string {
+  return `£${Math.round(n).toLocaleString("en-GB")}`;
+}
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Land Finder — Lode" };
@@ -101,7 +107,7 @@ function OpportunityCard({ s }: { s: SourcedSite }) {
   return (
     <Panel
       className="mt-6"
-      eyebrow={`${o.lpa} · ${o.areaHectares} ha`}
+      eyebrow={`${o.postcode ?? "no postcode"} · ${o.areaHectares} ha · brownfield`}
       title={o.name}
       action={<Badge tone={riskTone(a.riskBand)}>{a.riskBand}</Badge>}
     >
@@ -150,6 +156,35 @@ function OpportunityCard({ s }: { s: SourcedSite }) {
   );
 }
 
+/** A public-sector land/property disposal sourced from Contracts Finder. */
+function DisposalCard({ d }: { d: LandDisposal }) {
+  return (
+    <Panel
+      className="mt-6"
+      accent="gold"
+      eyebrow={`${d.authority}${d.region !== undefined ? ` · ${d.region}` : ""}`}
+      title={d.title}
+      action={d.deadline !== undefined ? <Badge tone="neutral">closes {d.deadline.slice(0, 10)}</Badge> : <></>}
+    >
+      {d.description !== "" && <p className="text-[13px] leading-relaxed text-ink-300">{d.description}</p>}
+      <div className="mt-4 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
+        {d.valueGbp !== undefined ? <KeyValue k="Guide / value" v={gbp(d.valueGbp)} /> : <KeyValue k="Guide / value" v="Price on application" />}
+        {d.postcode !== undefined ? <KeyValue k="Postcode" v={d.postcode} /> : <></>}
+        {d.published !== undefined ? <KeyValue k="Published" v={d.published.slice(0, 10)} /> : <></>}
+        <KeyValue k="Matched on" v={d.matchedOn.join("; ") || "—"} />
+      </div>
+      <a
+        className="mt-4 inline-block text-[13px] text-[color:var(--accent-text)] underline hover:opacity-80"
+        href={d.url}
+        target="_blank"
+        rel="noreferrer"
+      >
+        View the notice on Contracts Finder →
+      </a>
+    </Panel>
+  );
+}
+
 /**
  * Land Finder — the operator console (the sourcing side of the land spec).
  *
@@ -162,6 +197,7 @@ export default async function LandPage() {
   await requirePermission("view-audit-log", "/operator/land");
   const view = await landFinder();
   const sourcing = landSourcing();
+  const disposals = landDisposals();
 
   return (
     <main data-accent="teal" className="min-h-screen pb-24">
@@ -210,6 +246,40 @@ export default async function LandPage() {
             )}
             {sourcing.sites.map((s) => (
               <OpportunityCard key={s.opportunity.id} s={s} />
+            ))}
+          </>
+        )}
+
+        {/* Live public-sector disposals: the "for sale now" feed. */}
+        <h2 className="mt-12 font-display text-[20px] text-ink-100">Live disposals</h2>
+        <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-ink-400">
+          Councils and public bodies advertising land and property for sale, sourced from Contracts Finder
+          (Open Government Licence). Only genuine disposals and development opportunities are shown — the
+          classifier filters out the far larger volume of services procurement, and states what each notice
+          matched on. Soonest deadline first.
+        </p>
+        {disposals.disposals.length === 0 ? (
+          <Panel className="mt-6" eyebrow="Coverage boundary" title="No disposals feed connected">
+            <p className="text-sm leading-relaxed text-ink-300">
+              No Contracts Finder feed is connected, so there are no live disposals and this shows an
+              explicit empty state — data gated at the source, not the screen.
+            </p>
+            <p className="mt-3 text-[13px] leading-relaxed text-ink-400">
+              Set <code className="font-mono text-[12px] text-ink-300">DISPOSALS_FIXTURES=1</code> for a staff
+              pilot. Live sourcing waits on verifying the Contracts Finder search query against one real
+              request — the feed is licensed (OGL) and free; the query shape is the open item.
+            </p>
+          </Panel>
+        ) : (
+          <>
+            {disposals.pilot && (
+              <p className="mt-6 border-l-2 border-[color:var(--accent)] py-1 pl-4 text-[13px] leading-relaxed text-ink-400">
+                Staff-pilot fixtures enabled (DISPOSALS_FIXTURES=1). Synthetic notices run through the live
+                connector&rsquo;s own classifier — note the services procurement is filtered out, not shown.
+              </p>
+            )}
+            {disposals.disposals.map((d) => (
+              <DisposalCard key={d.id} d={d} />
             ))}
           </>
         )}

@@ -119,6 +119,22 @@ export const DATA_SOURCES: readonly DataSource[] = [
     },
   },
   {
+    key: "contracts-finder",
+    name: "Contracts Finder",
+    publisher: "Cabinet Office / Crown Commercial Service",
+    provides:
+      "Public-sector notices, including councils and public bodies advertising land and property for sale, development opportunities and disposals — with the authority, value, deadline and a link to the public notice. How a Fairfield-Lodge-style opportunity is advertised at source.",
+    licence: {
+      ...OGL,
+      name: "Open Government Licence v3.0 (Contracts Finder)",
+      // Public procurement/disposal notices, published for the purpose of being
+      // responded to. Display and redistribution of the notice facts are
+      // permitted; any contact detail in a notice is used only through the
+      // outreach spine's lawful-basis checks, never auto-mailed.
+      attribution: "Contains public sector information licensed under the Open Government Licence v3.0",
+    },
+  },
+  {
     key: "postcodes-io",
     name: "Postcodes.io",
     publisher: "Ideal Postcodes (open data: ONS and Ordnance Survey)",

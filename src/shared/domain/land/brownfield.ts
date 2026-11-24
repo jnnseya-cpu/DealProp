@@ -29,15 +29,20 @@ export const BROWNFIELD_VERSION = "brownfield-1";
 export interface BrownfieldEntity {
   readonly reference?: string;
   readonly name?: string;
-  readonly organisation?: string;
-  readonly "organisation-entity"?: string;
+  /** The real, human site label, e.g. "Glendaragh, Barn Park Road, Teignmouth TQ14 8PN". */
+  readonly "site-address"?: string;
+  /** The publishing authority's Planning Data entity id (a number, not a name). */
+  readonly "organisation-entity"?: string | number;
   /** WKT point, e.g. "POINT (-1.56 52.34)". */
   readonly point?: string;
   readonly hectares?: string | number;
+  /** Hyphenated controlled vocabulary, e.g. "not-owned-by-a-public-authority". */
   readonly "ownership-status"?: string;
   readonly "minimum-net-dwellings"?: string | number;
   readonly "maximum-net-dwellings"?: string | number;
+  /** Hyphenated, e.g. "permissioned" | "not-permissioned" | "pending-decision". */
   readonly "planning-permission-status"?: string;
+  /** Hyphenated, e.g. "full-planning-permission" | "outline-planning-permission". */
   readonly "planning-permission-type"?: string;
   readonly deliverable?: string;
   readonly "site-plan-url"?: string;
@@ -49,7 +54,10 @@ export interface BrownfieldEntity {
 export interface LandOpportunity {
   readonly id: string;
   readonly reference: string;
+  /** The site address where the register gives one, else its name/reference. */
   readonly name: string;
+  /** Postcode parsed from the site address, where present. */
+  readonly postcode?: string;
   readonly location?: { readonly longitude: number; readonly latitude: number };
   readonly areaHectares: number;
   /** The authority's own capacity estimate — shown as the register's figure. */
@@ -59,7 +67,8 @@ export interface LandOpportunity {
   /** True where the register records a public authority owns it. */
   readonly ownershipPublic: boolean;
   readonly deliverable?: boolean;
-  readonly lpa: string;
+  /** The publishing authority's Planning Data entity id (a number, not a name). */
+  readonly organisationEntity?: number;
   readonly asOf: string;
   readonly sitePlanUrl?: string;
 }
@@ -92,16 +101,30 @@ export function parseWktPoint(wkt: string | undefined): { longitude: number; lat
  * (decision #5: unknown defaults to the cautious value, never the permissive).
  */
 export function mapBrownfieldPlanning(status: string | undefined, type: string | undefined): PlanningStatus {
-  const t = (type ?? "").toLowerCase();
-  const s = (status ?? "").toLowerCase();
+  // The register hyphenates its values ("not-permissioned", "full-planning-
+  // permission"), so normalise hyphens to spaces before matching — otherwise
+  // "not-permissioned" slips past a "not " guard and reads as consented.
+  const t = (type ?? "").toLowerCase().replace(/-/g, " ");
+  const s = (status ?? "").toLowerCase().replace(/-/g, " ");
   if (t.includes("full")) return "full";
   if (t.includes("reserved")) return "reserved-matters";
   if (t.includes("outline")) return "outline";
-  if (t.includes("permission in principle") || t.includes("principle")) return "outline";
+  if (t.includes("principle")) return "outline";
+  // Check the negatives before the bare "permission" test.
   if (s.includes("not permission")) return "none";
   if (s.includes("pending")) return "pre-application";
   if (s.includes("permission")) return "outline"; // permissioned but type unstated
   return "none";
+}
+
+/** Parse a trailing UK postcode from a site address, normalised with one space. */
+export function postcodeFromAddress(address: string | undefined): string | undefined {
+  if (typeof address !== "string") return undefined;
+  const m = /([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\s*$/i.exec(address.trim());
+  const found = m?.[1];
+  if (found === undefined) return undefined;
+  const raw = found.toUpperCase().replace(/\s+/g, "");
+  return `${raw.slice(0, -3)} ${raw.slice(-3)}`;
 }
 
 function isConsented(status: PlanningStatus): boolean {
@@ -119,23 +142,34 @@ export function mapBrownfieldEntity(entity: BrownfieldEntity): LandOpportunity |
   const hectares = numberFrom(entity.hectares);
   if (reference === undefined || hectares === undefined || hectares <= 0) return undefined;
 
-  const ownership = (entity["ownership-status"] ?? "").toString().toLowerCase();
+  // The register hyphenates ownership ("not-owned-by-a-public-authority"), which
+  // contains "public"; normalise hyphens and exclude the negative phrase, or a
+  // privately-owned site is mislabelled as public (confirmed against real data).
+  const ownership = (entity["ownership-status"] ?? "").toString().toLowerCase().replace(/-/g, " ");
+  const ownershipPublic = !ownership.includes("not ") && (ownership.includes("public") || ownership.includes("local authority"));
+
   const deliverableRaw = (entity.deliverable ?? "").toString().toLowerCase();
+  const minUnits = numberFrom(entity["minimum-net-dwellings"]);
+  const maxUnits = numberFrom(entity["maximum-net-dwellings"]);
+  const point = parseWktPoint(entity.point);
+  const address = typeof entity["site-address"] === "string" && entity["site-address"].trim() !== "" ? entity["site-address"].trim() : undefined;
+  const postcode = postcodeFromAddress(address);
+  const orgEntity = numberFrom(entity["organisation-entity"]);
+  const name = address ?? (typeof entity.name === "string" && entity.name.trim() !== "" ? entity.name.trim() : reference);
 
   return {
     id: reference,
     reference,
-    name: typeof entity.name === "string" && entity.name.trim() !== "" ? entity.name.trim() : reference,
-    ...(parseWktPoint(entity.point) !== undefined ? { location: parseWktPoint(entity.point) } : {}),
+    name,
+    ...(postcode !== undefined ? { postcode } : {}),
+    ...(point !== undefined ? { location: point } : {}),
     areaHectares: Math.round(hectares * 100) / 100,
-    ...(numberFrom(entity["minimum-net-dwellings"]) !== undefined ? { minUnits: Math.round(numberFrom(entity["minimum-net-dwellings"])!) } : {}),
-    ...(numberFrom(entity["maximum-net-dwellings"]) !== undefined ? { maxUnits: Math.round(numberFrom(entity["maximum-net-dwellings"])!) } : {}),
+    ...(minUnits !== undefined ? { minUnits: Math.round(minUnits) } : {}),
+    ...(maxUnits !== undefined ? { maxUnits: Math.round(maxUnits) } : {}),
     planningStatus: mapBrownfieldPlanning(entity["planning-permission-status"], entity["planning-permission-type"]),
-    // "not owned by a public authority" also contains "public", so the negative
-    // phrase must exclude it — otherwise a privately-owned site reads as public.
-    ownershipPublic: !ownership.includes("not ") && (ownership.includes("public") || ownership.includes("local authority")),
+    ownershipPublic,
     ...(deliverableRaw === "yes" || deliverableRaw === "true" ? { deliverable: true } : deliverableRaw === "no" || deliverableRaw === "false" ? { deliverable: false } : {}),
-    lpa: typeof entity.organisation === "string" && entity.organisation.trim() !== "" ? entity.organisation.trim() : "unknown authority",
+    ...(orgEntity !== undefined ? { organisationEntity: orgEntity } : {}),
     asOf: typeof entity["entry-date"] === "string" ? entity["entry-date"] : "",
     ...(typeof entity["site-plan-url"] === "string" && entity["site-plan-url"].trim() !== "" ? { sitePlanUrl: entity["site-plan-url"].trim() } : {}),
   };
@@ -154,7 +188,7 @@ export function mapBrownfieldEntity(entity: BrownfieldEntity): LandOpportunity |
 export function opportunityToLandSite(opp: LandOpportunity): LandSite {
   return {
     id: opp.id,
-    postcodeArea: "",
+    postcodeArea: opp.postcode !== undefined ? (/^[A-Za-z]+/.exec(opp.postcode)?.[0]?.toUpperCase() ?? "") : "",
     locality: opp.name,
     ...(opp.location !== undefined ? { location: opp.location } : {}),
     areaHectares: opp.areaHectares,
