@@ -5,24 +5,33 @@ import {
   type LandOpportunity,
 } from "@shared/domain/land/brownfield";
 import { BROWNFIELD_FIXTURE_ENTITIES } from "@backend/land/brownfieldFixtures";
+import { fetchBrownfieldSites, type BoundingBox } from "@backend/land/brownfieldSource";
+import { Fetcher } from "@backend/discovery/fetcher";
 
 /**
  * Land sourcing — the server-side producer that turns the Brownfield Land
- * Registers into assessed, ranked development-land opportunities (decision #42:
- * a live call site, not an inert engine).
+ * Registers into assessed, ranked development-land opportunities (decision #42).
  *
- * By default a clean deployment has NO connected feed, so the list is empty and
- * the surface shows the honest coverage boundary — data gated at the source, not
- * the screen (decision #14). `LAND_SOURCING_FIXTURES=1` serves the staff-pilot
- * set so the engine can be exercised end to end. The live registers are read
- * through `fetchBrownfieldSites` once the `brownfield-land` area query is
- * verified against one real request.
+ * Three states, chosen by environment, never by the screen (decision #14):
+ *   - `BROWNFIELD_LIVE=1`: read the LIVE register for the launch region through
+ *     the one sanctioned outbound path (Fetcher). This is the real feed.
+ *   - `LAND_SOURCING_FIXTURES=1`: the staff-pilot set, mapped through the live
+ *     connector's own mapper.
+ *   - neither: empty, with an honest coverage boundary.
  *
- * Each opportunity is scored by the SAME assessment engine the account tool
- * uses, so a sourced site and a user-entered one cannot disagree. The register's
- * own dwelling capacity is carried on the opportunity and shown as the
- * register's figure, kept distinct from the engine's indicative estimate.
+ * Each opportunity is scored by the SAME engine the account tool uses, so a
+ * sourced site and a user-entered one cannot disagree. The register's own
+ * dwelling capacity is carried and shown as the register's, distinct from the
+ * engine's indicative estimate.
  */
+
+/**
+ * The launch region as a bounding box: the West Midlands metros (B/CV/DY/WS/WV),
+ * matching the Price Paid launch area. A box query returns every brownfield site
+ * in the region regardless of which authority published it — no fragile authority
+ * -id chase. Widen or add regions here, in one place.
+ */
+export const WEST_MIDLANDS_BBOX: BoundingBox = { west: -2.25, south: 52.35, east: -1.35, north: 52.7 };
 
 export interface SourcedSite {
   readonly opportunity: LandOpportunity;
@@ -30,11 +39,17 @@ export interface SourcedSite {
 }
 
 export interface LandSourcingView {
-  /** True only when a real licensed feed is wired (never for the fixtures). */
+  /** True when the live register feed is the source. */
   readonly feedConnected: boolean;
   /** True when the staff-pilot fixtures are the source. */
   readonly pilot: boolean;
   readonly sites: readonly SourcedSite[];
+  /** Set when a live fetch failed, so the surface can say why (never a false empty). */
+  readonly error?: string;
+}
+
+export function landSourcingLiveEnabled(): boolean {
+  return process.env.BROWNFIELD_LIVE === "1";
 }
 
 export function landSourcingFixturesEnabled(): boolean {
@@ -52,16 +67,19 @@ function assessAndRank(opportunities: readonly LandOpportunity[]): readonly Sour
     });
 }
 
-export function landSourcing(): LandSourcingView {
+export async function landSourcing(fetcher: Fetcher = new Fetcher()): Promise<LandSourcingView> {
+  if (landSourcingLiveEnabled()) {
+    const result = await fetchBrownfieldSites(fetcher, { bbox: WEST_MIDLANDS_BBOX, limit: 500 });
+    if (!result.ok) {
+      // A feed outage is unknown coverage, never "no sites in the region".
+      return { feedConnected: true, pilot: false, sites: [], error: `live register unavailable (${result.outcome})` };
+    }
+    return { feedConnected: true, pilot: false, sites: assessAndRank(result.opportunities) };
+  }
+
   const pilot = landSourcingFixturesEnabled();
   const opportunities = pilot
     ? BROWNFIELD_FIXTURE_ENTITIES.map(mapBrownfieldEntity).filter((o): o is LandOpportunity => o !== undefined)
     : [];
-  return {
-    // The fixtures are a pilot set, not a live feed; a connected feed waits on
-    // the verified brownfield-land query, so this stays false until then.
-    feedConnected: false,
-    pilot,
-    sites: assessAndRank(opportunities),
-  };
+  return { feedConnected: false, pilot, sites: assessAndRank(opportunities) };
 }

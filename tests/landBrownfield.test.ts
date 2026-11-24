@@ -8,8 +8,8 @@ import {
   type BrownfieldEntity,
   type LandOpportunity,
 } from "@shared/domain/land/brownfield";
-import { buildBrownfieldUrl, fetchBrownfieldSites } from "@backend/land/brownfieldSource";
-import { landSourcing } from "@backend/land/sourcingService";
+import { buildBrownfieldUrl, bboxPolygon, fetchBrownfieldSites } from "@backend/land/brownfieldSource";
+import { landSourcing, WEST_MIDLANDS_BBOX } from "@backend/land/sourcingService";
 import { Fetcher } from "@backend/discovery/fetcher";
 import { sourcePermits } from "@shared/domain/sources";
 
@@ -183,6 +183,28 @@ describe("buildBrownfieldUrl", () => {
     expect(url).toContain("latitude=52.4");
     expect(url).toContain("limit=100");
   });
+
+  it("uses an intersects geometry for a region box", () => {
+    const url = buildBrownfieldUrl({ bbox: WEST_MIDLANDS_BBOX });
+    expect(url).toContain("geometry_relation=intersects");
+    expect(decodeURIComponent(url)).toContain("POLYGON((");
+    // A box query must not also pin a single point.
+    expect(url).not.toContain("longitude=");
+  });
+
+  it("appends an organisation_entity for each authority filter", () => {
+    const url = buildBrownfieldUrl({ organisationEntities: [55, 76] });
+    expect(url).toContain("organisation_entity=55");
+    expect(url).toContain("organisation_entity=76");
+  });
+});
+
+describe("bboxPolygon", () => {
+  it("produces a closed ring in lng lat order", () => {
+    expect(bboxPolygon({ west: -2, south: 52, east: -1, north: 53 })).toBe(
+      "POLYGON((-2 52, -1 52, -1 53, -2 53, -2 52))",
+    );
+  });
 });
 
 /** A transport answering the entity.json call from a fixture; robots 404 → allowed. */
@@ -227,28 +249,67 @@ describe("fetchBrownfieldSites (through the Fetcher)", () => {
 });
 
 describe("landSourcing", () => {
-  it("is empty by default (feed gated at the source)", () => {
+  it("is empty by default (feed gated at the source)", async () => {
     delete process.env.LAND_SOURCING_FIXTURES;
-    const v = landSourcing();
+    delete process.env.BROWNFIELD_LIVE;
+    const v = await landSourcing();
     expect(v.sites).toHaveLength(0);
     expect(v.feedConnected).toBe(false);
     expect(v.pilot).toBe(false);
   });
 
-  it("serves the pilot set when fixtures are on, assessed and ranked by score", () => {
+  it("serves the pilot set when fixtures are on, assessed and ranked by score", async () => {
+    delete process.env.BROWNFIELD_LIVE;
     process.env.LAND_SOURCING_FIXTURES = "1";
     try {
-      const v = landSourcing();
+      const v = await landSourcing();
       expect(v.pilot).toBe(true);
       expect(v.sites.length).toBeGreaterThan(0);
-      // Ranked: each score is >= the next.
       for (let i = 1; i < v.sites.length; i++) {
         expect(v.sites[i - 1]!.assessment.sourceabilityScore).toBeGreaterThanOrEqual(v.sites[i]!.assessment.sourceabilityScore);
       }
-      // A connected LIVE feed is still false — fixtures are a pilot, not a feed.
       expect(v.feedConnected).toBe(false);
     } finally {
       delete process.env.LAND_SOURCING_FIXTURES;
+    }
+  });
+
+  it("reads the live register (bbox) when BROWNFIELD_LIVE=1", async () => {
+    process.env.BROWNFIELD_LIVE = "1";
+    try {
+      const body = JSON.stringify({
+        entities: [
+          {
+            reference: "L1",
+            "site-address": "Live site, Coventry CV1 1AA",
+            point: "POINT (-1.5 52.41)",
+            hectares: "0.5",
+            "ownership-status": "owned-by-a-public-authority",
+            "maximum-net-dwellings": "10",
+            "planning-permission-status": "permissioned",
+            "planning-permission-type": "full-planning-permission",
+          },
+        ],
+      });
+      const v = await landSourcing(fetcherReturning(body));
+      expect(v.feedConnected).toBe(true);
+      expect(v.pilot).toBe(false);
+      expect(v.sites).toHaveLength(1);
+      expect(v.sites[0]?.opportunity.postcode).toBe("CV1 1AA");
+    } finally {
+      delete process.env.BROWNFIELD_LIVE;
+    }
+  });
+
+  it("shows unknown coverage, not a false empty, when the live feed fails", async () => {
+    process.env.BROWNFIELD_LIVE = "1";
+    try {
+      const v = await landSourcing(fetcherReturning(undefined));
+      expect(v.feedConnected).toBe(true);
+      expect(v.sites).toHaveLength(0);
+      expect(v.error).toBeDefined();
+    } finally {
+      delete process.env.BROWNFIELD_LIVE;
     }
   });
 });

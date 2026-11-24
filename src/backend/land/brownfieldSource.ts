@@ -24,11 +24,28 @@ import {
 
 const BASE = "https://www.planning.data.gov.uk/entity.json";
 
+export interface BoundingBox {
+  readonly west: number;
+  readonly south: number;
+  readonly east: number;
+  readonly north: number;
+}
+
 export interface BrownfieldQuery {
-  /** Point to search around, where the platform's point filter is used. */
+  /** Point to search at (returns the site whose polygon contains the point). */
   readonly longitude?: number;
   readonly latitude?: number;
+  /** Region to search within (returns every site intersecting the box). */
+  readonly bbox?: BoundingBox;
+  /** Publishing authorities to filter to, by Planning Data entity id. */
+  readonly organisationEntities?: readonly number[];
   readonly limit?: number;
+}
+
+/** A bbox as a closed WKT polygon ring, "lng lat" pairs (the platform's order). */
+export function bboxPolygon(b: BoundingBox): string {
+  const { west: w, south: s, east: e, north: n } = b;
+  return `POLYGON((${w} ${s}, ${e} ${s}, ${e} ${n}, ${w} ${n}, ${w} ${s}))`;
 }
 
 export interface BrownfieldFetchResult {
@@ -42,10 +59,15 @@ export function buildBrownfieldUrl(q: BrownfieldQuery): string {
   const params = new URLSearchParams();
   params.set("dataset", "brownfield-land");
   params.set("limit", String(q.limit ?? 500));
-  if (q.longitude !== undefined && q.latitude !== undefined) {
+  if (q.bbox !== undefined) {
+    // Region query: every site whose polygon intersects the box.
+    params.set("geometry", bboxPolygon(q.bbox));
+    params.set("geometry_relation", "intersects");
+  } else if (q.longitude !== undefined && q.latitude !== undefined) {
     params.set("longitude", String(q.longitude));
     params.set("latitude", String(q.latitude));
   }
+  for (const id of q.organisationEntities ?? []) params.append("organisation_entity", String(id));
   return `${BASE}?${params.toString()}`;
 }
 

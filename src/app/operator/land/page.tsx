@@ -196,7 +196,7 @@ function DisposalCard({ d }: { d: LandDisposal }) {
 export default async function LandPage() {
   await requirePermission("view-audit-log", "/operator/land");
   const view = await landFinder();
-  const sourcing = landSourcing();
+  const sourcing = await landSourcing();
   const disposals = landDisposals();
 
   return (
@@ -224,20 +224,38 @@ export default async function LandPage() {
           estimate is ours.
         </p>
         {sourcing.sites.length === 0 ? (
-          <Panel className="mt-6" eyebrow="Coverage boundary" title="No register feed connected">
-            <p className="text-sm leading-relaxed text-ink-300">
-              No brownfield register feed is connected, so there are no sourced sites and this shows an
-              explicit empty state rather than an invented one — data gated at the source, not the screen.
-            </p>
+          <Panel className="mt-6" eyebrow="Coverage boundary" title={sourcing.feedConnected ? "Live register returned no sites" : "No register feed connected"}>
+            {sourcing.error !== undefined ? (
+              <p className="text-sm leading-relaxed text-ink-300">
+                The live register could not be read ({sourcing.error}). This is shown as unknown coverage, not
+                as &ldquo;no sites in the region&rdquo; — a feed gap is never a false empty.
+              </p>
+            ) : sourcing.feedConnected ? (
+              <p className="text-sm leading-relaxed text-ink-300">
+                The live register returned no brownfield sites intersecting the launch region box. If that is
+                unexpected, the region query needs checking (the one open verification item).
+              </p>
+            ) : (
+              <p className="text-sm leading-relaxed text-ink-300">
+                No brownfield register feed is connected, so there are no sourced sites and this shows an
+                explicit empty state rather than an invented one — data gated at the source, not the screen.
+              </p>
+            )}
             <p className="mt-3 text-[13px] leading-relaxed text-ink-400">
-              Set <code className="font-mono text-[12px] text-ink-300">LAND_SOURCING_FIXTURES=1</code> for a
-              staff pilot over clearly-synthetic sites. Live sourcing waits on verifying the{" "}
-              <code className="font-mono text-[12px] text-ink-300">brownfield-land</code> area query against
-              one real request — the feed is licensed (OGL) and free; the query shape is the open item.
+              <code className="font-mono text-[12px] text-ink-300">BROWNFIELD_LIVE=1</code> reads the live
+              register for the launch region;{" "}
+              <code className="font-mono text-[12px] text-ink-300">LAND_SOURCING_FIXTURES=1</code> serves the
+              staff pilot. The feed is licensed (OGL) and free.
             </p>
           </Panel>
         ) : (
           <>
+            {sourcing.feedConnected && (
+              <p className="mt-6 border-l-2 border-[color:var(--accent)] py-1 pl-4 text-[13px] leading-relaxed text-ink-400">
+                Live feed (BROWNFIELD_LIVE=1): real Brownfield Land Register sites for the launch region,
+                assessed and ranked.
+              </p>
+            )}
             {sourcing.pilot && (
               <p className="mt-6 border-l-2 border-[color:var(--accent)] py-1 pl-4 text-[13px] leading-relaxed text-ink-400">
                 Staff-pilot fixtures enabled (LAND_SOURCING_FIXTURES=1). Clearly-synthetic register entries,
