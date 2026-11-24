@@ -92,6 +92,17 @@ describe("mapDisposalRelease", () => {
     expect(mapDisposalRelease(servicesProcurement)).toBeUndefined();
   });
 
+  it("uses the canonical notice URL from documents when present", () => {
+    const withDoc: OcdsRelease = {
+      ...saleCpv,
+      tender: {
+        ...saleCpv.tender,
+        documents: [{ documentType: "tenderNotice", url: "https://www.contractsfinder.service.gov.uk/Notice/88f84b72-7275-44df-9998-78303150bf40" }],
+      },
+    };
+    expect(mapDisposalRelease(withDoc)?.url).toBe("https://www.contractsfinder.service.gov.uk/Notice/88f84b72-7275-44df-9998-78303150bf40");
+  });
+
   it("leaves value unset when the amount is not sterling", () => {
     const d = mapDisposalRelease({ ...saleCpv, tender: { ...saleCpv.tender, value: { amount: 500000, currency: "EUR" } } });
     expect(d?.valueGbp).toBeUndefined();

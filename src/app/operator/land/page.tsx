@@ -232,9 +232,11 @@ export default async function LandPage() {
               </p>
             ) : sourcing.feedConnected ? (
               <p className="text-sm leading-relaxed text-ink-300">
-                The feed is enabled but the store holds no brownfield sites yet. Run{" "}
-                <code className="font-mono text-[12px] text-ink-300">npm run load:brownfield</code> on the
-                server to load the national register, then this fills.
+                The feed is enabled but the store holds no brownfield sites yet. Trigger the load with an
+                authenticated <code className="font-mono text-[12px] text-ink-300">POST /api/cron/brownfield</code>{" "}
+                (CRON_SECRET) — it loads the national register from inside the running app — or{" "}
+                <code className="font-mono text-[12px] text-ink-300">npm run load:brownfield</code> in a full
+                checkout. Then this fills.
               </p>
             ) : (
               <p className="text-sm leading-relaxed text-ink-300">

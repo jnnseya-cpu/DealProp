@@ -32,6 +32,7 @@ export interface OcdsRelease {
     readonly items?: ReadonlyArray<{
       readonly deliveryAddresses?: ReadonlyArray<{ readonly region?: string; readonly postalCode?: string }>;
     }>;
+    readonly documents?: ReadonlyArray<{ readonly documentType?: string; readonly url?: string }>;
   };
   readonly buyer?: { readonly name?: string; readonly id?: string };
   readonly [key: string]: unknown;
@@ -122,6 +123,16 @@ function firstAddress(release: OcdsRelease): { region?: string; postalCode?: str
 
 const NOTICE_BASE = "https://www.contractsfinder.service.gov.uk/Notice/";
 
+/** The canonical Contracts Finder notice URL from the release's documents. */
+function noticeUrl(release: OcdsRelease, id: string): string {
+  for (const doc of release.tender?.documents ?? []) {
+    if (typeof doc.url === "string" && doc.url.includes("contractsfinder.service.gov.uk/Notice/")) {
+      return doc.url;
+    }
+  }
+  return `${NOTICE_BASE}${encodeURIComponent(id)}`;
+}
+
 /**
  * Map a release to a LandDisposal, or undefined when it is not a disposal or
  * lacks the minimum (an id and a title). The value is carried only when the
@@ -158,7 +169,7 @@ export function mapDisposalRelease(release: OcdsRelease): LandDisposal | undefin
     ...(typeof release.tender?.tenderPeriod?.endDate === "string" && release.tender.tenderPeriod.endDate !== ""
       ? { deadline: release.tender.tenderPeriod.endDate }
       : {}),
-    url: `${NOTICE_BASE}${encodeURIComponent(id)}`,
+    url: noticeUrl(release, id),
     cpvCodes: cpvCodesOf(release),
     matchedOn: match.matchedOn,
   };
