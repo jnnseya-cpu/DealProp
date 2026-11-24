@@ -13,6 +13,16 @@ function gbp(n: number): string {
   return `£${Math.round(n).toLocaleString("en-GB")}`;
 }
 
+/** The council's domain from a register/site-plan URL, as a contact starting point. */
+function councilHost(url: string | undefined): string | undefined {
+  if (url === undefined) return undefined;
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return undefined;
+  }
+}
+
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Land Finder — Lode" };
 
@@ -156,8 +166,12 @@ function OpportunityCard({ s }: { s: SourcedSite }) {
       <h3 className="eyebrow mt-6">How to pursue</h3>
       {o.ownershipPublic ? (
         <p className="mt-2 text-[13px] leading-relaxed text-ink-300">
-          Public-authority owned, so the owner is the council — reachable directly through its land/estates
-          team. No title read needed.
+          Owned by the council{councilHost(o.sitePlanUrl) !== undefined ? ` (${councilHost(o.sitePlanUrl)})` : ""} —
+          pursue it through their property / estates / regeneration team, not a private owner. Register your
+          interest and ask about disposal timing for this reference. Councils must sell at best value, so a
+          sale is run as a formal, usually-advertised process (tender, auction or agent) — so watch the Live
+          disposals feed below, which catches the council&rsquo;s notice on Contracts Finder when it goes to
+          market.
         </p>
       ) : (
         <p className="mt-2 text-[13px] leading-relaxed text-ink-300">
