@@ -287,8 +287,9 @@ export default async function LandPage() {
             </p>
             <p className="mt-3 text-[13px] leading-relaxed text-ink-400">
               Set <code className="font-mono text-[12px] text-ink-300">DISPOSALS_FIXTURES=1</code> for a staff
-              pilot. Live sourcing waits on verifying the Contracts Finder search query against one real
-              request — the feed is licensed (OGL) and free; the query shape is the open item.
+              pilot. The Contracts Finder query is verified against live data; a live feed loads recent
+              notices into the store and keeps the classified land/property disposals — the same loader
+              pattern as the brownfield register.
             </p>
           </Panel>
         ) : (
