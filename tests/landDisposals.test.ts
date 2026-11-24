@@ -99,11 +99,19 @@ describe("mapDisposalRelease", () => {
 });
 
 describe("buildDisposalsUrl", () => {
-  it("queries the Contracts Finder search endpoint with keywords", () => {
-    const url = buildDisposalsUrl({ keyword: "disposal", limit: 50 });
+  it("queries the Contracts Finder OCDS search with the real params (no keyword search)", () => {
+    const url = buildDisposalsUrl({ publishedFrom: "2026-11-01T00:00:00", limit: 50 });
     expect(url).toContain("contractsfinder.service.gov.uk/Published/Notices/OCDS/Search");
-    expect(url).toContain("keywords=disposal");
     expect(url).toContain("limit=50");
+    expect(url).toContain("stages=tender%2Cplanning");
+    expect(url).toContain("publishedFrom=2026-11-01");
+    // The current API has no keyword search; we never send one.
+    expect(url).not.toContain("keyword");
+  });
+
+  it("clamps the limit to the API's 1..100 and passes a cursor", () => {
+    expect(buildDisposalsUrl({ limit: 500 })).toContain("limit=100");
+    expect(buildDisposalsUrl({ cursor: "abc" })).toContain("cursor=abc");
   });
 });
 
@@ -135,7 +143,7 @@ function fetcherReturning(body: string | undefined): Fetcher {
 describe("fetchDisposals (through the Fetcher)", () => {
   it("fetches, classifies and keeps only disposals", async () => {
     const body = JSON.stringify({ results: [{ releases: [saleCpv] }, { releases: [servicesProcurement] }] });
-    const r = await fetchDisposals(fetcherReturning(body), { keyword: "disposal" });
+    const r = await fetchDisposals(fetcherReturning(body), { publishedFrom: "2026-11-01" });
     expect(r.ok).toBe(true);
     expect(r.disposals).toHaveLength(1);
     expect(r.disposals[0]?.id).toBe("n1");

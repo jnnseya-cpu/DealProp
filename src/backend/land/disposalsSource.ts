@@ -18,22 +18,52 @@ import { mapDisposalRelease, type LandDisposal, type OcdsRelease } from "@shared
 const SEARCH = "https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search";
 
 export interface DisposalsQuery {
-  readonly keyword?: string;
+  /** ISO 8601 lower bound on publication date — the API's real filter. */
+  readonly publishedFrom?: string;
+  /** OCDS stages to include: planning | tender | award | implementation. */
+  readonly stages?: readonly string[];
+  /** 1–100; the API's page size. */
   readonly limit?: number;
+  /** Opaque pagination cursor the API returns for the next page. */
+  readonly cursor?: string;
 }
 
 export interface DisposalsFetchResult {
   readonly ok: boolean;
   readonly outcome: FetchOutcome;
   readonly disposals: readonly LandDisposal[];
+  /** Raw notices in this page (before the disposal filter), to drive pagination. */
+  readonly received: number;
+  /** Cursor for the next page, when the API reports more. */
+  readonly nextCursor?: string;
   readonly reason: string;
 }
 
 export function buildDisposalsUrl(q: DisposalsQuery): string {
+  // The current Contracts Finder OCDS API has NO keyword search (confirmed
+  // against the official API docs). It returns recent notices filtered by date
+  // and stage; the disposal classifier does the land/property filtering
+  // client-side. "tender" and "planning" are the stages a disposal/opportunity
+  // notice appears under.
   const params = new URLSearchParams();
-  params.set("keywords", q.keyword ?? "disposal land development opportunity freehold");
-  params.set("limit", String(q.limit ?? 100));
+  params.set("limit", String(Math.min(Math.max(q.limit ?? 100, 1), 100)));
+  params.set("stages", (q.stages ?? ["tender", "planning"]).join(","));
+  if (q.publishedFrom !== undefined) params.set("publishedFrom", q.publishedFrom);
+  if (q.cursor !== undefined) params.set("cursor", q.cursor);
   return `${SEARCH}?${params.toString()}`;
+}
+
+/** The cursor for the next page, parsed from the response's `links.next`. */
+export function nextCursorFrom(body: string): string | undefined {
+  try {
+    const parsed = JSON.parse(body) as { links?: { next?: unknown } };
+    const next = parsed.links?.next;
+    if (typeof next !== "string" || next === "") return undefined;
+    const url = new URL(next, SEARCH);
+    return url.searchParams.get("cursor") ?? undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Pull OCDS releases out of whatever envelope Contracts Finder returned. */
@@ -68,10 +98,17 @@ export function releasesFrom(body: string): readonly OcdsRelease[] {
 export async function fetchDisposals(fetcher: Fetcher, query: DisposalsQuery): Promise<DisposalsFetchResult> {
   const result = await fetcher.get("contracts-finder", buildDisposalsUrl(query));
   if (!result.ok || result.body === undefined) {
-    return { ok: false, outcome: result.outcome, disposals: [], reason: result.reason };
+    return { ok: false, outcome: result.outcome, disposals: [], received: 0, reason: result.reason };
   }
-  const disposals = releasesFrom(result.body)
-    .map(mapDisposalRelease)
-    .filter((d): d is LandDisposal => d !== undefined);
-  return { ok: true, outcome: "ok", disposals, reason: `contracts-finder: ${disposals.length} disposal(s)` };
+  const releases = releasesFrom(result.body);
+  const disposals = releases.map(mapDisposalRelease).filter((d): d is LandDisposal => d !== undefined);
+  const nextCursor = nextCursorFrom(result.body);
+  return {
+    ok: true,
+    outcome: "ok",
+    disposals,
+    received: releases.length,
+    ...(nextCursor !== undefined ? { nextCursor } : {}),
+    reason: `contracts-finder: ${disposals.length} disposal(s) in ${releases.length} notice(s)`,
+  };
 }

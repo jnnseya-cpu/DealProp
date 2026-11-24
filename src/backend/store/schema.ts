@@ -982,6 +982,8 @@ export interface AuditEvent {
 }
 
 export type AuditAction =
+  | "brownfield-register-loaded"
+  | "brownfield-register-load-failed"
   | "sign-in"
   | "sign-in-failed"
   | "sign-out"
