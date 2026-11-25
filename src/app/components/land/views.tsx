@@ -169,6 +169,14 @@ export function OpportunityCard({ s }: { s: SourcedSite }) {
           Council register entry / site plan →
         </a>
       )}
+      {/* The register records development POTENTIAL, not availability — confirmed
+          in the field (a Warwickshire site here was developable but earmarked,
+          not for sale). Set that expectation so nobody treats a listing as an
+          offer. */}
+      <p className="mt-3 border-l-2 border-ink-700 py-1 pl-3 text-[12px] leading-relaxed text-ink-500">
+        This is a register of development <em>potential</em>, not availability — a site may be allocated,
+        earmarked or simply not for sale. Confirm it is actually available before committing time or cost.
+      </p>
     </Panel>
   );
 }
