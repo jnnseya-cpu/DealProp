@@ -280,6 +280,22 @@ export const DATA_SOURCES: readonly DataSource[] = [
       "The portals' terms prohibit scraping and automated collection. Use requires a commercial data agreement with the portal, or a licensed reseller such as PropertyData, Sprift or LandInsight. Until one exists this source must not be read.",
   },
   {
+    key: "council-investment-portals",
+    name: "Council & LEP commercial-property / inward-investment portals",
+    publisher: "Local authorities and LEPs (e.g. Invest Coventry & Warwickshire), largely on the Evolutive platform",
+    provides:
+      "Sites and premises a council or growth body is ACTIVELY MARKETING to investors — the availability layer the Brownfield and allocation registers lack (development potential), and the standing complement to Contracts Finder (formal disposals). What is genuinely for sale or to let now.",
+    // Present and refused, like portal-listings: these public-sector portals are
+    // built to advertise sites to investors, but the data is licensed per portal
+    // (commonly the Evolutive platform) and must not be scraped. Unlike a private
+    // portal, the lawful route is straightforward — a data feed or export agreed
+    // with the authority's own economic-development / GIS data team, who publish
+    // the data for exactly this audience. Record that agreement here as a licence
+    // before any read; the loader→store→card pipeline then applies unchanged.
+    unlicensedReason:
+      "Public-sector investment portals (commonly Evolutive) whose terms do not permit scraping. The lawful route is a data feed or export licensed from the authority/LEP (their GIS or economic-development team is the contact); record it here before reading. Until then this source must not be read.",
+  },
+  {
     key: "fca-register",
     name: "FCA Financial Services Register",
     publisher: "Financial Conduct Authority",
