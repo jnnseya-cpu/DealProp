@@ -356,8 +356,8 @@ describe("housing-allocation feed (the option/promotion land)", () => {
     const r = await fetchBrownfieldSites(fetcherReturning(body), { bbox: { west: -2, south: 52, east: -1, north: 53 } }, "allocation");
     expect(r.ok).toBe(true);
     expect(r.opportunities[0]?.kind).toBe("allocation");
-    // The URL built for this feed must target the allocation dataset.
-    expect(buildBrownfieldUrl({ dataset: "housing-allocation" })).toContain("dataset=housing-allocation");
+    // The URL built for this feed must target the real allocation dataset.
+    expect(buildBrownfieldUrl({ dataset: "local-plan-housing" })).toContain("dataset=local-plan-housing");
   });
 
   it("refuses an off-allowlist host under the allocation source key", async () => {

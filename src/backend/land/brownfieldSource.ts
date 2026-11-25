@@ -47,10 +47,18 @@ export interface BrownfieldQuery {
   readonly dataset?: string;
 }
 
-/** The dataset + source key + kind for each land feed the connector serves. */
+/**
+ * The dataset + source key + kind for each land feed the connector serves.
+ *
+ * The allocation dataset is `local-plan-housing` — confirmed as the real name
+ * against the live planning.data.gov.uk dataset list (there is no
+ * "housing-allocation"; `employment-allocation` is the employment equivalent).
+ * Its per-site field shape still wants one confirming request, but the pipeline
+ * fails safe to empty if it differs.
+ */
 export const LAND_FEEDS = {
   brownfield: { dataset: "brownfield-land", sourceKey: "brownfield-land", kind: "brownfield" as LandKind },
-  allocation: { dataset: "housing-allocation", sourceKey: "housing-allocation", kind: "allocation" as LandKind },
+  allocation: { dataset: "local-plan-housing", sourceKey: "housing-allocation", kind: "allocation" as LandKind },
 } as const;
 
 export type LandFeedKey = keyof typeof LAND_FEEDS;
