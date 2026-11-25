@@ -168,6 +168,13 @@ export default async function LandPage({
               <code className="font-mono text-[12px] text-ink-300">LAND_SOURCING_FIXTURES=1</code> serves the
               staff pilot. The feed is licensed (OGL) and free.
             </p>
+            <p className="mt-2 text-[13px] leading-relaxed text-ink-400">
+              Plan allocations — the option / promotion land — load into the same store via{" "}
+              <code className="font-mono text-[12px] text-ink-300">POST /api/cron/brownfield?feed=allocation</code>{" "}
+              and appear under the &ldquo;To secure&rdquo; tab. The national allocation dataset&rsquo;s coverage
+              is not yet verified; the loader fails safe to an empty boundary, so enabling it is risk-free —
+              confirm it returns sites with one request before relying on it.
+            </p>
           </Panel>
         ) : (
           <>

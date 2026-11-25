@@ -221,6 +221,7 @@ function contract(name: string, load: () => Promise<Store>, reset: () => Promise
         opportunity: {
           id: ref,
           reference: ref,
+          kind: "brownfield" as const,
           name: `Site ${ref}`,
           ...(postcode !== undefined ? { postcode } : {}),
           areaHectares: 0.5,

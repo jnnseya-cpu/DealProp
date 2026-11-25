@@ -118,7 +118,7 @@ export async function landSourcing(
 
   const pilot = landSourcingFixturesEnabled();
   const opportunities = pilot
-    ? BROWNFIELD_FIXTURE_ENTITIES.map(mapBrownfieldEntity).filter((o): o is LandOpportunity => o !== undefined)
+    ? BROWNFIELD_FIXTURE_ENTITIES.map((e) => mapBrownfieldEntity(e)).filter((o): o is LandOpportunity => o !== undefined)
     : [];
   return { feedConnected: false, pilot, sites: rankFixtures(opportunities) };
 }

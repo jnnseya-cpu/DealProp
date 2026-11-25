@@ -283,7 +283,7 @@ describe("landSourcing", () => {
     process.env.BROWNFIELD_LIVE = "1";
     const store: SourcingStore = {
       listBrownfieldSites: async () => [
-        { opportunity: { id: "L1", reference: "L1", name: "Live site, Coventry CV1 1AA", postcode: "CV1 1AA", areaHectares: 0.5, planningStatus: "full", ownershipPublic: true, maxUnits: 10, asOf: "" }, score: 71.2 },
+        { opportunity: { id: "L1", reference: "L1", kind: "brownfield" as const, name: "Live site, Coventry CV1 1AA", postcode: "CV1 1AA", areaHectares: 0.5, planningStatus: "full", ownershipPublic: true, maxUnits: 10, asOf: "" }, score: 71.2 },
       ],
       countBrownfieldSites: async () => 4217,
     };
@@ -315,6 +315,59 @@ describe("landSourcing", () => {
     } finally {
       delete process.env.BROWNFIELD_LIVE;
     }
+  });
+});
+
+describe("housing-allocation feed (the option/promotion land)", () => {
+  it("is OGL-licensed for display", () => {
+    expect(sourcePermits("housing-allocation", "internal-analysis")).toBe(true);
+    expect(sourcePermits("housing-allocation", "display")).toBe(true);
+  });
+
+  it("maps an allocation entity as kind 'allocation', defaulting to 'allocated' planning", () => {
+    const o = mapBrownfieldEntity(
+      { reference: "ALLOC-1", "site-address": "Land east of Town, Lichfield WS13 6AA", hectares: "4.2", "maximum-net-dwellings": "80" },
+      "allocation",
+    );
+    expect(o?.kind).toBe("allocation");
+    // No consent field → an allocation is "allocated", not "none".
+    expect(o?.planningStatus).toBe("allocated");
+    expect(o?.maxUnits).toBe(80);
+  });
+
+  it("keeps a consent where the allocation records one", () => {
+    const o = mapBrownfieldEntity(
+      { reference: "ALLOC-2", hectares: "2", "planning-permission-status": "permissioned", "planning-permission-type": "outline-planning-permission" },
+      "allocation",
+    );
+    expect(o?.planningStatus).toBe("outline");
+  });
+
+  it("bridges an allocation to an edge-of-settlement greenfield site, not brownfield", () => {
+    const o = mapBrownfieldEntity({ reference: "ALLOC-3", hectares: "3", "maximum-net-dwellings": "60" }, "allocation") as LandOpportunity;
+    const site = opportunityToLandSite(o);
+    expect(site.currentUse).toBe("vacant");
+    expect(site.settlement).toBe("edge-of-settlement");
+    expect(site.planningStatus).toBe("allocated");
+  });
+
+  it("queries the housing-allocation dataset, gated to its own host", async () => {
+    const body = JSON.stringify({ entities: [{ reference: "A1", hectares: "3", point: "POINT (-1.8 52.6)", "maximum-net-dwellings": "50" }] });
+    const r = await fetchBrownfieldSites(fetcherReturning(body), { bbox: { west: -2, south: 52, east: -1, north: 53 } }, "allocation");
+    expect(r.ok).toBe(true);
+    expect(r.opportunities[0]?.kind).toBe("allocation");
+    // The URL built for this feed must target the allocation dataset.
+    expect(buildBrownfieldUrl({ dataset: "housing-allocation" })).toContain("dataset=housing-allocation");
+  });
+
+  it("refuses an off-allowlist host under the allocation source key", async () => {
+    const r = await new Fetcher({
+      transport: (async () => new Response("", { status: 200 })) as unknown as typeof fetch,
+      now: () => 0,
+      sleep: async () => undefined,
+    }).get("housing-allocation", "https://evil.example.com/entity.json");
+    expect(r.ok).toBe(false);
+    expect(r.outcome).toBe("host-not-allowed");
   });
 });
 

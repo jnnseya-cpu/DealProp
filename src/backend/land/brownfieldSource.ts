@@ -2,6 +2,7 @@ import { Fetcher, type FetchOutcome } from "@backend/discovery/fetcher";
 import {
   mapBrownfieldEntity,
   type BrownfieldEntity,
+  type LandKind,
   type LandOpportunity,
 } from "@shared/domain/land/brownfield";
 
@@ -42,7 +43,17 @@ export interface BrownfieldQuery {
   readonly limit?: number;
   /** Pagination offset (the platform paginates with `offset`). */
   readonly offset?: number;
+  /** The planning.data.gov.uk dataset to query. Default "brownfield-land". */
+  readonly dataset?: string;
 }
+
+/** The dataset + source key + kind for each land feed the connector serves. */
+export const LAND_FEEDS = {
+  brownfield: { dataset: "brownfield-land", sourceKey: "brownfield-land", kind: "brownfield" as LandKind },
+  allocation: { dataset: "housing-allocation", sourceKey: "housing-allocation", kind: "allocation" as LandKind },
+} as const;
+
+export type LandFeedKey = keyof typeof LAND_FEEDS;
 
 /** A bbox as a closed WKT polygon ring, "lng lat" pairs (the platform's order). */
 export function bboxPolygon(b: BoundingBox): string {
@@ -65,7 +76,7 @@ export interface BrownfieldFetchResult {
 
 export function buildBrownfieldUrl(q: BrownfieldQuery): string {
   const params = new URLSearchParams();
-  params.set("dataset", "brownfield-land");
+  params.set("dataset", q.dataset ?? "brownfield-land");
   params.set("limit", String(q.limit ?? 500));
   if (q.bbox !== undefined) {
     // Region query: every site whose polygon intersects the box.
@@ -108,14 +119,16 @@ function parseBody(body: string): ParsedBody {
 export async function fetchBrownfieldSites(
   fetcher: Fetcher,
   query: BrownfieldQuery,
+  feed: LandFeedKey = "brownfield",
 ): Promise<BrownfieldFetchResult> {
-  const result = await fetcher.get("brownfield-land", buildBrownfieldUrl(query));
+  const f = LAND_FEEDS[feed];
+  const result = await fetcher.get(f.sourceKey, buildBrownfieldUrl({ ...query, dataset: f.dataset }));
   if (!result.ok || result.body === undefined) {
     return { ok: false, outcome: result.outcome, opportunities: [], received: 0, reason: result.reason };
   }
   const parsed = parseBody(result.body);
   const opportunities = parsed.entities
-    .map(mapBrownfieldEntity)
+    .map((e) => mapBrownfieldEntity(e, f.kind))
     .filter((o): o is LandOpportunity => o !== undefined);
   return {
     ok: true,

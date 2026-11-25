@@ -50,10 +50,21 @@ export interface BrownfieldEntity {
   readonly [key: string]: unknown;
 }
 
-/** A normalised development-land opportunity sourced from the register. */
+/**
+ * Which national register a site came from. "brownfield" is previously-developed
+ * land suitable for housing (mostly consented, to buy); "allocation" is a local-
+ * plan housing/site allocation (mostly unconsented — the option/promotion end).
+ * The two share this model and the same assessment engine; only the label and
+ * the dataset queried differ.
+ */
+export type LandKind = "brownfield" | "allocation";
+
+/** A normalised development-land opportunity sourced from a planning register. */
 export interface LandOpportunity {
   readonly id: string;
   readonly reference: string;
+  /** Which register it came from. */
+  readonly kind: LandKind;
   /** The site address where the register gives one, else its name/reference. */
   readonly name: string;
   /** Postcode parsed from the site address, where present. */
@@ -150,7 +161,7 @@ function isConsented(status: PlanningStatus): boolean {
  * record with no usable area cannot be assessed, so it is dropped rather than
  * shown as a zero-area site.
  */
-export function mapBrownfieldEntity(entity: BrownfieldEntity): LandOpportunity | undefined {
+export function mapBrownfieldEntity(entity: BrownfieldEntity, kind: LandKind = "brownfield"): LandOpportunity | undefined {
   const reference = typeof entity.reference === "string" && entity.reference.trim() !== "" ? entity.reference.trim() : undefined;
   const hectares = numberFrom(entity.hectares);
   if (reference === undefined || hectares === undefined || hectares <= 0) return undefined;
@@ -170,16 +181,22 @@ export function mapBrownfieldEntity(entity: BrownfieldEntity): LandOpportunity |
   const orgEntity = numberFrom(entity["organisation-entity"]);
   const name = address ?? (typeof entity.name === "string" && entity.name.trim() !== "" ? entity.name.trim() : reference);
 
+  // An allocation with no recorded consent is "allocated" in the plan, not
+  // "none" — which is exactly the option / conditional / promotion end.
+  const mappedPlanning = mapBrownfieldPlanning(entity["planning-permission-status"], entity["planning-permission-type"]);
+  const planningStatus = kind === "allocation" && mappedPlanning === "none" ? "allocated" : mappedPlanning;
+
   return {
     id: reference,
     reference,
+    kind,
     name,
     ...(postcode !== undefined ? { postcode } : {}),
     ...(point !== undefined ? { location: point } : {}),
     areaHectares: Math.round(hectares * 100) / 100,
     ...(minUnits !== undefined ? { minUnits: Math.round(minUnits) } : {}),
     ...(maxUnits !== undefined ? { maxUnits: Math.round(maxUnits) } : {}),
-    planningStatus: mapBrownfieldPlanning(entity["planning-permission-status"], entity["planning-permission-type"]),
+    planningStatus,
     ownershipPublic,
     ...(deliverableRaw === "yes" || deliverableRaw === "true" ? { deliverable: true } : deliverableRaw === "no" || deliverableRaw === "false" ? { deliverable: false } : {}),
     ...(orgEntity !== undefined ? { organisationEntity: orgEntity } : {}),
@@ -205,8 +222,11 @@ export function opportunityToLandSite(opp: LandOpportunity): LandSite {
     locality: opp.name,
     ...(opp.location !== undefined ? { location: opp.location } : {}),
     areaHectares: opp.areaHectares,
-    currentUse: "brownfield",
-    settlement: "suburban",
+    // A brownfield register site is previously-developed land in a settlement
+    // (suburban); a plan allocation is typically edge-of-settlement land being
+    // brought forward — a documented default, not a guessed fact.
+    currentUse: opp.kind === "allocation" ? "vacant" : "brownfield",
+    settlement: opp.kind === "allocation" ? "edge-of-settlement" : "suburban",
     planningStatus: opp.planningStatus,
     ...(isConsented(opp.planningStatus) && opp.maxUnits !== undefined ? { consentedUnits: opp.maxUnits } : {}),
     constraints: [],

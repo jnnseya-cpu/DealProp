@@ -2,7 +2,7 @@ import { assessLandSite } from "@shared/domain/land/sourcing";
 import { opportunityToLandSite, type StoredBrownfieldSite } from "@shared/domain/land/brownfield";
 import { assertSourceUsable } from "@shared/domain/sources";
 import { Fetcher } from "@backend/discovery/fetcher";
-import { fetchBrownfieldSites, type BoundingBox } from "@backend/land/brownfieldSource";
+import { fetchBrownfieldSites, LAND_FEEDS, type BoundingBox, type LandFeedKey } from "@backend/land/brownfieldSource";
 import { saveBrownfieldSites, countBrownfieldSites } from "@backend/store/repository";
 
 /**
@@ -42,6 +42,8 @@ export interface LoadOptions {
   readonly region?: BoundingBox;
   readonly step?: number;
   readonly fetcher?: Fetcher;
+  /** Which national dataset to load: brownfield registers (default) or allocations. */
+  readonly feed?: LandFeedKey;
   readonly onProgress?: (p: LoadProgress) => void;
 }
 
@@ -61,8 +63,9 @@ export function brownfieldTiles(region: BoundingBox, step: number): BoundingBox[
 }
 
 export async function loadBrownfield(opts: LoadOptions = {}): Promise<LoadSummary> {
+  const feed = opts.feed ?? "brownfield";
   // The licence gate, once, before any request — as every other licensed read.
-  assertSourceUsable("brownfield-land", "internal-analysis");
+  assertSourceUsable(LAND_FEEDS[feed].sourceKey, "internal-analysis");
 
   const fetcher = opts.fetcher ?? new Fetcher();
   const tiles = brownfieldTiles(opts.region ?? ENGLAND_BBOX, opts.step ?? 1);
@@ -74,7 +77,7 @@ export async function loadBrownfield(opts: LoadOptions = {}): Promise<LoadSummar
     const tile = tiles[t]!;
     let offset = 0;
     for (;;) {
-      const r = await fetchBrownfieldSites(fetcher, { bbox: tile, limit: PAGE, offset });
+      const r = await fetchBrownfieldSites(fetcher, { bbox: tile, limit: PAGE, offset }, feed);
       if (!r.ok) break; // a tile outage is skipped, not a false clear of the region
       const records: StoredBrownfieldSite[] = [];
       for (const o of r.opportunities) {

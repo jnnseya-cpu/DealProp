@@ -66,14 +66,18 @@ export async function POST(request: Request): Promise<NextResponse> {
   const stepRaw = Number(url.searchParams.get("step"));
   const step = Number.isFinite(stepRaw) && stepRaw > 0 ? stepRaw : 1;
   const national = region === ENGLAND_BBOX;
+  // Which national dataset: the brownfield registers (default) or local-plan
+  // housing/site allocations (the option/promotion land). Both load into the
+  // same store and are told apart by the opportunity's `kind`.
+  const feed = url.searchParams.get("feed") === "allocation" ? "allocation" : "brownfield";
 
   running = true;
   // Fire-and-forget: the persistent Node server keeps the promise alive after
   // the response is sent, so a proxy timeout on the HTTP call does not stop it.
-  void loadBrownfield({ region, step })
+  void loadBrownfield({ region, step, feed })
     .then(async (s) => {
       await audit("brownfield-register-loaded", {
-        subject: national ? "england" : `${region.west},${region.south},${region.east},${region.north}`,
+        subject: `${feed}:${national ? "england" : `${region.west},${region.south},${region.east},${region.north}`}`,
         detail: `tiles ${s.tiles}, unique ${s.unique}, wrote ${s.written}, store holds ${s.total}` + (s.cappedTiles > 0 ? `, ${s.cappedTiles} capped tile(s)` : ""),
       });
     })
@@ -86,9 +90,10 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   return NextResponse.json({
     started: true,
+    feed,
     region: national ? "all England" : region,
     loaded,
-    note: "Load started in the background. Re-POST to see the count climb; it may take a few minutes for all England.",
+    note: `Loading ${feed} in the background. Re-POST to see the count climb; it may take a few minutes for all England.`,
   });
 }
 

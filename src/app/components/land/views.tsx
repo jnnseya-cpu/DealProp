@@ -101,7 +101,7 @@ export function OpportunityCard({ s }: { s: SourcedSite }) {
   return (
     <Panel
       className="mt-6"
-      eyebrow={`${o.postcode !== undefined ? `${o.postcode} · ` : ""}${o.areaHectares} ha · brownfield`}
+      eyebrow={`${o.postcode !== undefined ? `${o.postcode} · ` : ""}${o.areaHectares} ha · ${o.kind === "allocation" ? "plan allocation" : "brownfield"}`}
       title={o.name}
       action={<Badge tone={riskTone(a.riskBand)}>{a.riskBand}</Badge>}
     >

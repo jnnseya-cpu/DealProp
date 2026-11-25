@@ -119,6 +119,21 @@ export const DATA_SOURCES: readonly DataSource[] = [
     },
   },
   {
+    key: "housing-allocation",
+    name: "Local plan housing/site allocations",
+    publisher: "Local planning authorities, via the MHCLG Planning Data platform",
+    provides:
+      "Sites allocated for housing in adopted or emerging local plans — the land councils have earmarked for development but which often has no consent yet. The option / conditional / promotion end of sourcing.",
+    licence: {
+      ...OGL,
+      name: "Open Government Licence v3.0 (Planning Data platform allocations)",
+      // Public register of allocated SITES, not personal data. Coverage on the
+      // national platform is acknowledged incomplete, so the feed is gated and
+      // fails to an honest coverage boundary rather than implying full coverage.
+      attribution: "Contains public sector information licensed under the Open Government Licence v3.0",
+    },
+  },
+  {
     key: "contracts-finder",
     name: "Contracts Finder",
     publisher: "Cabinet Office / Crown Commercial Service",
