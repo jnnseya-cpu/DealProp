@@ -92,12 +92,16 @@ export function AcquisitionTabs({ basePath, current }: { basePath: string; curre
 /** A sourced development-land opportunity from the Brownfield Land Registers. */
 export function OpportunityCard({ s }: { s: SourcedSite }) {
   const { opportunity: o, assessment: a } = s;
-  const capacity =
-    o.minUnits !== undefined && o.maxUnits !== undefined
+  // Where the authority states a capacity, that is authoritative and leads; the
+  // engine's density-band estimate is shown ONLY when the register is silent, so
+  // the card never shows two contradictory unit figures for the same site (e.g.
+  // a town-centre scheme the LPA puts at 875 and a generic rule of thumb at 63).
+  const hasRegisterCapacity = o.minUnits !== undefined || o.maxUnits !== undefined;
+  const capacity = hasRegisterCapacity
+    ? o.minUnits !== undefined && o.maxUnits !== undefined && o.minUnits !== o.maxUnits
       ? `${o.minUnits}–${o.maxUnits}`
-      : o.maxUnits !== undefined
-        ? `${o.maxUnits}`
-        : "—";
+      : `${o.maxUnits ?? o.minUnits}`
+    : `~${a.potential.units}`;
   return (
     <Panel
       className="mt-6"
@@ -107,7 +111,7 @@ export function OpportunityCard({ s }: { s: SourcedSite }) {
     >
       <div className="grid grid-cols-2 gap-5 sm:grid-cols-4">
         <Stat label="Sourceability" value={a.sourceabilityScore.toString()} note="0–100" size="lg" />
-        <Stat label="Register capacity" value={capacity} note="units (LPA estimate)" size="lg" />
+        <Stat label="Capacity" value={capacity} note={hasRegisterCapacity ? "units (LPA estimate)" : "units (engine estimate)"} size="lg" />
         <Stat label="Planning" value={o.planningStatus} note="status" />
         <Stat
           label="Ownership"
@@ -136,7 +140,7 @@ export function OpportunityCard({ s }: { s: SourcedSite }) {
 
       <div className="mt-5 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
         <KeyValue k="Register reference" v={o.reference} />
-        <KeyValue k="Engine estimate" v={`~${a.potential.units} units indicative (${o.areaHectares} ha)`} />
+        <KeyValue k="Site area" v={`${o.areaHectares} ha`} />
         {o.asOf !== "" ? <KeyValue k="Register entry" v={o.asOf} /> : <></>}
       </div>
 
